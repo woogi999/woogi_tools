@@ -1,0 +1,31 @@
+// Common export sizes for the Image Cropper, grouped by platform.
+export const CROP_PRESETS = [
+  { id: 'custom', platform: 'Custom', label: 'Freeform', w: 1200, h: 1200, free: true },
+  { id: 'ig-square', platform: 'Instagram', label: 'Square post', w: 1080, h: 1080 },
+  { id: 'ig-portrait', platform: 'Instagram', label: 'Portrait post', w: 1080, h: 1350 },
+  { id: 'ig-landscape', platform: 'Instagram', label: 'Landscape post', w: 1080, h: 566 },
+  { id: 'ig-story', platform: 'Instagram', label: 'Story / Reel', w: 1080, h: 1920 },
+  { id: 'ig-profile', platform: 'Instagram', label: 'Profile picture', w: 320, h: 320 },
+  { id: 'tiktok-cover', platform: 'TikTok', label: 'Video cover', w: 1080, h: 1920 },
+  { id: 'x-post', platform: 'X / Twitter', label: 'Post image', w: 1600, h: 900 },
+  { id: 'x-header', platform: 'X / Twitter', label: 'Header banner', w: 1500, h: 500 },
+  { id: 'fb-post', platform: 'Facebook', label: 'Post image', w: 1200, h: 630 },
+  { id: 'fb-cover', platform: 'Facebook', label: 'Cover photo', w: 820, h: 312 },
+  { id: 'li-post', platform: 'LinkedIn', label: 'Post image', w: 1200, h: 627 },
+  { id: 'li-cover', platform: 'LinkedIn', label: 'Cover banner', w: 1584, h: 396 },
+  { id: 'yt-thumb', platform: 'YouTube', label: 'Thumbnail', w: 1280, h: 720 },
+  { id: 'yt-banner', platform: 'YouTube', label: 'Channel banner', w: 2560, h: 1440 },
+  { id: 'pin', platform: 'Pinterest', label: 'Pin', w: 1000, h: 1500 },
+];
+
+// Grid layouts for the Image Slicer, grouped by platform. Tiles are square
+// unless noted, matching how these are usually laid out on a profile grid.
+export const SLICE_PRESETS = [
+  { id: 'ig-3x1', platform: 'Instagram', label: 'Carousel row (3 panels)', cols: 3, rows: 1 },
+  { id: 'ig-2x1', platform: 'Instagram', label: 'Carousel row (2 panels)', cols: 2, rows: 1 },
+  { id: 'ig-4x1', platform: 'Instagram', label: 'Carousel row (4 panels)', cols: 4, rows: 1 },
+  { id: 'ig-3x3', platform: 'Instagram', label: 'Profile grid (3×3)', cols: 3, rows: 3 },
+  { id: 'ig-3x2', platform: 'Instagram', label: 'Profile grid (3×2)', cols: 3, rows: 2 },
+  { id: 'ig-1x3', platform: 'Instagram', label: 'Vertical stack (1×3)', cols: 1, rows: 3 },
+  { id: 'custom', platform: 'Custom', label: 'Custom grid', cols: 2, rows: 2 },
+];

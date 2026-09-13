@@ -103,6 +103,8 @@ import {
   AppWindow,
   MonitorSmartphone,
   FileCode,
+  Crop,
+  Grid3x3,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -209,6 +211,8 @@ const ICONS = {
   'app-window': AppWindow,
   'monitor-smartphone': MonitorSmartphone,
   'file-code': FileCode,
+  crop: Crop,
+  'grid-3x3': Grid3x3,
 };
 
 function svg(name, size = 16, fill = 'none') {

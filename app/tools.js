@@ -258,6 +258,28 @@ export const TOOLS = [
     credits: [{ name: 'fflate', author: '101arrowz', license: 'MIT', url: 'https://github.com/101arrowz/fflate' }],
   },
   {
+    label: 'Image Cropper',
+    route: 'image-cropper',
+    icon: 'crop',
+    category: 'Design',
+    description: 'Crop a photo to an exact size, with ready-made social media presets and a live preview.',
+    keywords: ['image cropper', 'crop image', 'photo crop', 'instagram crop', 'profile picture crop', 'social media image sizes', 'thumbnail crop', 'aspect ratio crop'],
+    madeWith:
+      "The photo sits behind a fixed-size viewport sized to the target ratio; dragging and the zoom slider just pan and scale it, cover-fit style, like a typical avatar cropper. Cropping reads back the exact source rectangle the viewport is showing and draws it onto a canvas at the preset's pixel size.",
+    credits: [],
+  },
+  {
+    label: 'Image Slicer',
+    route: 'image-slicer',
+    icon: 'grid-3x3',
+    category: 'Design',
+    description: 'Slice a photo into an Instagram carousel row or profile grid, with a live preview.',
+    keywords: ['image slicer', 'instagram grid', 'instagram carousel', 'grid maker', 'photo grid splitter', 'panorama grid', 'split image into grid', '3x3 grid maker'],
+    madeWith:
+      "The photo is cover-cropped to the grid's overall aspect ratio, then divided into equal square tiles that are each redrawn onto their own canvas. Multiple tiles are bundled into a ZIP with fflate.",
+    credits: [{ name: 'fflate', author: '101arrowz', license: 'MIT', url: 'https://github.com/101arrowz/fflate' }],
+  },
+  {
     label: 'Calculator',
     route: 'calculator',
     icon: 'calculator',
