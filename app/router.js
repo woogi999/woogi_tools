@@ -1,0 +1,52 @@
+import EmberRouter from '@embroider/router';
+import config from 'woogi-tools/config/environment';
+
+export default class Router extends EmberRouter {
+  location = config.locationType;
+  rootURL = config.rootURL;
+}
+
+Router.map(function () {
+  this.route('color-picker');
+  this.route('data-codec');
+  this.route('file-converter');
+  this.route('calculator');
+  this.route('graph-calculator');
+  this.route('algebra-calculator');
+  this.route('date-calculator');
+  this.route('age-calculator');
+  this.route('winrate-calculator');
+  this.route('unit-converter');
+  this.route('wage-calculator');
+  this.route('qr-code');
+  this.route('file-share');
+  this.route('quick-notes');
+  this.route('password-generator');
+  this.route('lorem-ipsum');
+  this.route('word-counter');
+  this.route('text-case');
+  this.route('text-diff');
+  this.route('line-tools');
+  this.route('json-formatter');
+  this.route('hash-generator');
+  this.route('uuid-generator');
+  this.route('jwt-decoder');
+  this.route('regex-tester');
+  this.route('timestamp-converter');
+  this.route('number-base');
+  this.route('percentage-calculator');
+  this.route('aspect-ratio');
+  this.route('contrast-checker');
+  this.route('pdf-tools');
+  this.route('image-resizer');
+  this.route('pomodoro-timer');
+  this.route('random-picker');
+  this.route('background-remover');
+  this.route('file-compressor');
+  this.route('pixel-eyedropper');
+  this.route('favicon-generator');
+  this.route('user-agent-parser');
+  this.route('cron-builder');
+  this.route('gitignore-generator');
+  this.route('settings');
+});
