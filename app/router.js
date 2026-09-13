@@ -39,6 +39,8 @@ Router.map(function () {
   this.route('contrast-checker');
   this.route('pdf-tools');
   this.route('image-resizer');
+  this.route('image-cropper');
+  this.route('image-slicer');
   this.route('pomodoro-timer');
   this.route('random-picker');
   this.route('background-remover');

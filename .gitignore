@@ -16,3 +16,7 @@
 
 # broccoli-debug
 /DEBUG/
+
+# cloudflare
+/.wrangler/
+.dev.vars*
