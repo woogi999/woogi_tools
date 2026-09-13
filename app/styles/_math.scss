@@ -1,0 +1,771 @@
+// ─── Math tools: shared bits ─────────────────────────────────────────────
+
+.math-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+.math-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.math-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated);
+}
+
+.math-tabs {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.math-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.math-row.is-aligned {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.math-row.is-aligned .math-field {
+  flex: 1 1 200px;
+}
+
+.math-units {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 10px;
+}
+
+.math-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.math-inline {
+  display: flex;
+  gap: 6px;
+}
+
+.math-input {
+  width: 100%;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  color: var(--text);
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color-scheme: inherit;
+}
+
+.math-input:focus {
+  outline: none;
+  border-color: var(--text-faint);
+}
+
+.math-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.math-check input {
+  accent-color: var(--accent);
+}
+
+.math-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.math-big {
+  font-family: var(--font-mono);
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.math-big small {
+  font-size: 0.45em;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.math-big.is-medium {
+  font-size: 1.3rem;
+}
+
+.math-sub {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.math-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.math-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.math-stat span {
+  font-size: 0.68rem;
+  color: var(--text-faint);
+}
+
+.math-stat strong {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.math-callout {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--text);
+  background: var(--bg);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  font-size: 0.9rem;
+}
+
+.math-callout.is-soft {
+  border-left-color: var(--border-color);
+  color: var(--text-dim);
+}
+
+.math-use {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.math-swap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+}
+
+// ─── Winrate ─────────────────────────────────────────────────────────────
+
+.wr-bar {
+  display: flex;
+  height: 10px;
+  gap: 2px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.wr-bar span {
+  flex-basis: 0;
+  min-width: 2px;
+}
+
+.wr-win {
+  background: #30a46c;
+}
+
+.wr-loss {
+  background: var(--card-red);
+}
+
+.wr-draw {
+  background: var(--text-faint);
+}
+
+// ─── Password generator ─────────────────────────────────────────────────
+
+.pw-output {
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.pw-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pw-meter-bar {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.pw-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--text-faint);
+  transition: width 0.15s ease;
+}
+
+.pw-meter[data-rating='weak'] .pw-meter-fill {
+  background: var(--card-red);
+}
+
+.pw-meter[data-rating='fair'] .pw-meter-fill {
+  background: #e5a13b;
+}
+
+.pw-meter[data-rating='strong'] .pw-meter-fill {
+  background: #30a46c;
+}
+
+// ─── Lorem ipsum ─────────────────────────────────────────────────────────
+
+.lorem-output {
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  cursor: text;
+}
+
+.lorem-output-head {
+  border-top: none;
+  padding-top: 0;
+}
+
+// ─── Durations ───────────────────────────────────────────────────────────
+
+.dur-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dur-row {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr)) 26px;
+  gap: 8px;
+  align-items: center;
+}
+
+.dur-head span {
+  font-size: 0.68rem;
+  color: var(--text-faint);
+}
+
+.dur-sign .btn {
+  width: 30px;
+  padding: 4px 0;
+  font-size: 0.9rem;
+}
+
+// ─── Calculator ──────────────────────────────────────────────────────────
+
+.calc {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+.calc-display {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+}
+
+.calc-display:focus-within {
+  border-color: var(--text-faint);
+}
+
+.calc-mode {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--text-faint);
+  letter-spacing: 0.05em;
+}
+
+input[type='text'].calc-input {
+  border: 0;
+  background: none;
+  padding: 10px 0 0;
+  text-align: right;
+  font-size: 1.6rem;
+  outline: none;
+}
+
+.calc-preview {
+  min-height: 1.3em;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.calc-display.has-error .calc-preview {
+  color: #ff6b6b;
+}
+
+.calc-keys {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.calc-key {
+  height: 42px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.calc-key:hover {
+  background: var(--bg-elevated-2);
+}
+
+.calc-key.is-fn,
+.calc-key.is-mode {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.calc-key.is-op {
+  background: var(--bg-elevated-2);
+  font-size: 1.15rem;
+}
+
+.calc-key.is-danger {
+  color: var(--card-red);
+}
+
+.calc-key.is-equals {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+  font-size: 1.2rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .calc-key {
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.12s ease;
+  }
+
+  .calc-key:active {
+    transform: scale(0.93);
+  }
+}
+
+.calc-history .qr-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.calc-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.calc-history-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: none;
+  color: var(--text);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.calc-history-item:hover {
+  background: var(--bg-elevated-2);
+}
+
+.calc-history-expr {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.calc-history-result {
+  font-size: 1rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+// ─── Algebra ─────────────────────────────────────────────────────────────
+
+.algebra-input {
+  min-height: 0;
+  font-size: 1rem;
+}
+
+.algebra-example {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  white-space: pre;
+}
+
+.algebra-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--text);
+  background: var(--bg);
+  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+}
+
+.algebra-line {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+// ─── Graph ───────────────────────────────────────────────────────────────
+
+.graph {
+  display: grid;
+  grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+  gap: 16px;
+  width: 100%;
+  align-items: start;
+}
+
+.graph-fn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.graph-fn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.graph-fn.is-hidden .graph-fn-input {
+  opacity: 0.5;
+}
+
+.graph-fn-main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.graph-fn-prefix {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+input[type='text'].graph-fn-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+}
+
+.graph-fn-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.graph-fn-meta .colour-hex {
+  width: 11ch;
+}
+
+.graph-fn-meta .tool-error {
+  font-size: 0.7rem;
+}
+
+.graph-plot {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+}
+
+.graph-canvas-wrap {
+  position: relative;
+  height: min(560px, 70vh);
+}
+
+.graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+
+.graph-canvas:active {
+  cursor: grabbing;
+}
+
+.graph-tools {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated);
+}
+
+.graph-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.graph-point {
+  font-weight: 700;
+}
+
+.graph-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-dim);
+}
+
+.graph-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+@media (max-width: 860px) {
+  .calc,
+  .graph {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .math-tabs {
+    grid-auto-flow: row;
+  }
+
+  .calc-key {
+    height: 38px;
+  }
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.settings .math-card {
+  border: none;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+}
+
+.settings-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.settings-choice {
+  flex: 0 1 320px;
+}
+
+.settings-choice .qr-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-file {
+  cursor: pointer;
+}
+
+.settings-tool-search {
+  margin: 0 0 4px;
+}
+
+.settings-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px 12px;
+  padding: 2px 0 4px;
+}
+
+@media (max-width: 640px) {
+  .settings-tool-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 420px) {
+  .settings-tool-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-tool-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.settings-tool-item span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-tool-item input {
+  position: absolute;
+  opacity: 0;
+}
+
+.settings-tool-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elevated-2);
+  color: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-tool-item input:checked + .settings-tool-check {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.settings-tool-item input:focus-visible + .settings-tool-check {
+  outline: 2px solid var(--text-faint);
+  outline-offset: 2px;
+}
+
+.settings-tool-item.is-off {
+  color: var(--text-faint);
+}
+
+.settings-tool-item.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn.is-danger {
+  color: var(--card-red);
+}
+
+.btn.is-danger:hover {
+  border-color: var(--card-red);
+}
