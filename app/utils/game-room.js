@@ -1,11 +1,17 @@
 import { tracked } from '@glimmer/tracking';
 import { generateRoomCode, buildShareUrl } from './file-share';
-import { randomAvatar, normaliseAvatar } from './avatar';
+import { DEFAULT_AVATAR, normaliseAvatar } from './avatar';
 import { censor } from './censor';
+import { createInvite, answerInvite, LanConnection } from './lan-link';
 
 // Peer ids are namespaced per game, so a Chess code can't collide with a Snake
 // code (or a File Share code) that happens to be the same six characters.
 const peerId = (game, code) => `woogi-${game}-${code}`;
+// Public rooms also take one of a handful of well-known "listing" ids, so
+// anyone can find them by trying each id in turn. No server keeps a list.
+const LISTING_SLOTS = 12;
+const listingId = (game, slot) => `woogi-${game}-lobby-${slot}`;
+const BROWSE_MS = 4500;
 const SLOW_CONNECT_MS = 12000;
 const PROFILE_KEY = 'woogi-game-profile';
 const CHAT_HISTORY = 60;
@@ -21,7 +27,7 @@ function loadProfile() {
   } catch {
     // nothing saved, or storage blocked
   }
-  return { name: `Player ${Math.floor(100 + Math.random() * 900)}`, avatar: randomAvatar() };
+  return { name: `Player ${Math.floor(100 + Math.random() * 900)}`, avatar: { ...DEFAULT_AVATAR } };
 }
 
 // A game lobby that friends can join over PeerJS. The host registers with the
@@ -32,6 +38,10 @@ function loadProfile() {
 // and the real game state, and guests only send their profile and their moves.
 // Before a room is opened the lobby is purely local, which is how games
 // against the computer work without any network at all.
+//
+// Rooms can be public (listed for anyone browsing) or private (code only),
+// and either can have a password. With no internet at all, a room can run
+// over a direct nearby link instead (utils/lan-link.js): same messages, no broker.
 //
 // Wire format: { t: 'hello' | 'profile' | 'lobby' | 'reject' | 'kick' | 'game', ... }.
 // Pages only ever see the payload of 'game' messages.
@@ -49,12 +59,22 @@ export default class GameRoom {
   // Set by the host while a game runs, so no one joins halfway through.
   @tracked locked = false;
   @tracked selfPeerId = null;
-  // [{ id, from, name, text, system }], oldest first. Only while a room is open.
+  // [{ id, from, name, text, system, bot }], oldest first. Works offline too, with the computer players.
   @tracked chat = [];
+  // Host settings for who can find and join the room.
+  @tracked listed = true;
+  @tracked password = '';
+  // Hosting: whether the room is listed right now. Joining: a code that turned out to need a password.
+  @tracked listing = false;
+  @tracked needsPassword = '';
+  // True when the room runs over nearby links rather than the internet.
+  @tracked lan = false;
+  @tracked lanInvites = [];
 
   chatSeq = 0;
   chatTimes = new Map(); // guest id -> recent message times, for the rate limit
   peer = null;
+  listingPeer = null;
   conns = new Map(); // host: guest id -> connection
   hostConn = null; // guest: the connection to the host
   slowTimer = null;
@@ -144,7 +164,7 @@ export default class GameRoom {
   // ─── Hosting ─────────────────────────────────────────────────────────
 
   async host() {
-    if (this.peer) return;
+    if (this.peer || this.status !== 'idle') return;
     this.error = '';
     this.status = 'opening';
     this.code = generateRoomCode();
@@ -153,16 +173,142 @@ export default class GameRoom {
     peer.on('open', () => {
       this.settle();
       this.status = 'open';
+      if (this.listed) this.list();
     });
     peer.on('connection', (conn) => this.admit(conn));
+  }
+
+  // Public or private, and the password; changes apply to whoever joins next.
+  setAccess({ listed = this.listed, password = this.password } = {}) {
+    this.listed = Boolean(listed);
+    this.password = String(password ?? '').slice(0, 32);
+    if (this.status !== 'open' || this.lan) return;
+    if (this.listed && !this.listing) this.list();
+    else if (!this.listed) this.unlist();
+  }
+
+  // Takes the first free listing slot, and answers anyone browsing with a short description of the room.
+  async list(slot = 0) {
+    if (slot >= LISTING_SLOTS || this.status !== 'open' || !this.listed) return;
+    const { default: Peer } = await import('peerjs');
+    if (this.status !== 'open' || !this.listed || this.listingPeer) return;
+    const listing = new Peer(listingId(this.game, slot));
+    this.listingPeer = listing;
+    listing.on('open', () => (this.listing = true));
+    listing.on('error', (error) => {
+      if (this.listingPeer !== listing) return;
+      listing.destroy();
+      this.listingPeer = null;
+      this.listing = false;
+      if (error?.type === 'unavailable-id') this.list(slot + 1);
+    });
+    listing.on('connection', (conn) => {
+      conn.on('open', () => {
+        conn.send({ t: 'info', room: this.listingInfo() });
+        setTimeout(() => conn.close(), 400);
+      });
+    });
+  }
+
+  unlist() {
+    this.listingPeer?.destroy();
+    this.listingPeer = null;
+    this.listing = false;
+  }
+
+  listingInfo() {
+    return { code: this.code, host: this.wireProfile().name, players: this.members.length, max: this.maxPlayers, locked: this.locked, password: Boolean(this.password) };
+  }
+
+  // Everyone's public rooms for a game, found by knocking on each listing slot.
+  static async browse(game) {
+    const { default: Peer } = await import('peerjs');
+    return new Promise((resolve) => {
+      const rooms = new Map();
+      const peer = new Peer();
+      const finish = () => {
+        peer.destroy();
+        resolve([...rooms.values()].sort((a, b) => Number(a.locked) - Number(b.locked) || b.players - a.players));
+      };
+      const timer = setTimeout(finish, BROWSE_MS);
+      // Missing slots just raise 'peer-unavailable' errors, which are expected here.
+      peer.on('error', (error) => {
+        if (error?.type !== 'peer-unavailable') {
+          clearTimeout(timer);
+          finish();
+        }
+      });
+      peer.on('open', () => {
+        for (let slot = 0; slot < LISTING_SLOTS; slot++) {
+          const conn = peer.connect(listingId(game, slot), { reliable: true, serialization: 'json' });
+          conn.on('data', (message) => {
+            const room = message?.room;
+            if (message?.t !== 'info' || typeof room?.code !== 'string') return;
+            rooms.set(room.code, { code: room.code.slice(0, 8).toUpperCase(), host: String(room.host ?? 'Someone').slice(0, 20), players: Number(room.players) || 1, max: Number(room.max) || 2, locked: Boolean(room.locked), password: Boolean(room.password) });
+          });
+        }
+      });
+    });
+  }
+
+  // ─── Nearby play (no internet) ───────────────────────────────────────
+
+  hostNearby() {
+    if (this.peer || this.status !== 'idle') return;
+    this.error = '';
+    this.lan = true;
+    this.code = 'NEARBY';
+    this.status = 'open';
+  }
+
+  // Host: an invite code for one more nearby player. Works while hosting online, too.
+  async inviteNearby() {
+    if (this.status !== 'open') return null;
+    const invite = await createInvite(`lan-${generateRoomCode(8)}`);
+    this.admit(invite.connection);
+    this.lanInvites = [...this.lanInvites, invite];
+    invite.connection.on('open', () => (this.lanInvites = this.lanInvites.filter((i) => i !== invite)));
+    return invite;
+  }
+
+  async acceptNearbyReply(invite, reply) {
+    await invite.accept(reply);
+  }
+
+  cancelInvite(invite) {
+    if (!invite.connection.open) invite.connection.close();
+    this.lanInvites = this.lanInvites.filter((i) => i !== invite);
+  }
+
+  // Guest: turns the host's invite into the reply code to show them.
+  async joinNearby(inviteCode) {
+    if (this.peer || this.status !== 'idle') return null;
+    this.error = '';
+    const answer = await answerInvite(inviteCode);
+    this.lan = true;
+    this.code = 'NEARBY';
+    this.status = 'joining';
+    this.selfPeerId = answer.id;
+    this.lanPc = answer.pc;
+    answer.channelReady.then((channel) => {
+      if (this.lanPc !== answer.pc) return;
+      const conn = new LanConnection(answer.pc, channel, HOST_ID);
+      this.hostConn = conn;
+      conn.on('open', () => this.post(conn, { t: 'hello', profile: this.wireProfile() }));
+      conn.on('data', (message) => this.fromHost(message));
+      conn.on('close', () => (this.status === 'joining' ? this.close('The nearby connection didn’t go through.') : this.hostLost()));
+    });
+    return answer.code;
   }
 
   admit(conn) {
     conn.on('data', (message) => {
       if (message?.t === 'hello') {
         const full = this.guests.length + 1 >= this.maxPlayers;
-        if (full || this.locked) {
-          this.post(conn, { t: 'reject', reason: this.locked ? 'That game has already started. Ask the host to go back to the lobby.' : 'That room is full.' });
+        const wrongPassword = this.password && message.password !== this.password;
+        if (full || this.locked || wrongPassword) {
+          const reason = wrongPassword ? (message.password ? 'Wrong password.' : 'This room has a password.') : this.locked ? 'That game has already started. Ask the host to go back to the lobby.' : 'That room is full.';
+          this.post(conn, { t: 'reject', reason, password: Boolean(wrongPassword) });
           setTimeout(() => conn.close(), 300);
           return;
         }
@@ -210,10 +356,11 @@ export default class GameRoom {
 
   // ─── Joining ─────────────────────────────────────────────────────────
 
-  async join(code) {
+  async join(code, password = '') {
     const clean = code.trim().toUpperCase();
     if (this.peer || !clean) return;
     this.error = '';
+    this.needsPassword = '';
     this.status = 'joining';
     this.code = clean;
     const peer = await this.createPeer();
@@ -222,7 +369,7 @@ export default class GameRoom {
       this.selfPeerId = id;
       const conn = peer.connect(peerId(this.game, clean), { reliable: true, serialization: 'json' });
       this.hostConn = conn;
-      conn.on('open', () => this.post(conn, { t: 'hello', profile: this.wireProfile() }));
+      conn.on('open', () => this.post(conn, { t: 'hello', profile: this.wireProfile(), password }));
       conn.on('data', (message) => this.fromHost(message));
       conn.on('close', () => this.hostLost());
       conn.on('error', () => this.hostLost());
@@ -237,7 +384,9 @@ export default class GameRoom {
       this.settings = message.settings;
       this.locked = message.locked;
     } else if (message?.t === 'reject') {
+      const code = this.code;
       this.close(message.reason);
+      if (message.password) this.needsPassword = code;
     } else if (message?.t === 'kick') {
       this.close('The host removed you from the room.');
     } else if (message?.t === 'chat-history') {
@@ -262,13 +411,18 @@ export default class GameRoom {
   // modified client can't slip anything past the other players.
   sendChat(text) {
     const clean = censor(text);
-    if (!clean || !this.isOnline) return;
+    if (!clean || this.isBusy) return;
     if (this.role === 'guest') this.post(this.hostConn, { t: 'chat', text: clean });
     else this.postChat({ from: HOST_ID, name: this.wireProfile().name, text: clean });
   }
 
-  postChat({ from = null, name = '', text, system = false }) {
-    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, from, name, text, system });
+  // A computer player talking. Only the host runs the computer players, so only the host says their lines.
+  botChat(name, text) {
+    if (this.isHost) this.postChat({ from: `bot:${name}`, name, text, bot: true });
+  }
+
+  postChat({ from = null, name = '', text, system = false, bot = false }) {
+    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, from, name, text, system, bot });
     if (!message.text) return;
     this.addChat(message);
     for (const conn of this.conns.values()) this.post(conn, { t: 'chat-msg', message });
@@ -337,11 +491,18 @@ export default class GameRoom {
   // Back to a local lobby. Guests keep nothing; a host keeps its rules.
   close(error = '') {
     const wasGuest = this.role === 'guest';
+    const links = [this.hostConn, ...this.lanInvites.map((i) => i.connection), ...this.conns.values()].filter((c) => c instanceof LanConnection);
     this.settle();
+    this.unlist();
     this.peer?.destroy();
     this.peer = null;
     this.conns.clear();
     this.hostConn = null;
+    this.lanInvites = [];
+    // A guest still waiting for the host to accept their reply has no connection yet, just the peer link.
+    if (!links.length) this.lanPc?.close();
+    this.lanPc = null;
+    this.lan = false;
     this.guests = [];
     this.roster = [];
     this.chat = [];
@@ -352,6 +513,8 @@ export default class GameRoom {
     this.selfPeerId = null;
     this.error = error;
     if (wasGuest) this.settings = { ...this.defaults };
+    // Nearby links close last, once nothing is listening for them any more.
+    for (const link of links) link.close();
   }
 }
 
@@ -362,6 +525,7 @@ function cleanChat(message) {
     name: String(message?.name ?? '').slice(0, 20),
     text: censor(message?.text),
     system: Boolean(message?.system),
+    bot: Boolean(message?.bot),
   };
 }
 

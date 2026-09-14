@@ -139,6 +139,9 @@ import {
   MessageCircle,
   Send,
   PictureInPicture2,
+  Smartphone,
+  Lock,
+  Wifi,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -281,6 +284,9 @@ const ICONS = {
   'message-circle': MessageCircle,
   send: Send,
   'picture-in-picture': PictureInPicture2,
+  smartphone: Smartphone,
+  lock: Lock,
+  wifi: Wifi,
 };
 
 function svg(name, size = 16, fill = 'none') {

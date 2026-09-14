@@ -13,7 +13,9 @@ const toolFor = (route) => TOOLS.find((t) => t.route === route);
 
 // Args: @route, @subtitle; and for tools that shouldn't just vanish when you
 // leave their page, @busy (true while something is running, e.g. a game) and
-// @closeWarning (what closing it would interrupt).
+// @closeWarning (what closing it would interrupt). @landscape turns phones
+// sideways in fullscreen, for games laid out wide. @game switches to the
+// games layout: edge to edge, with a slim title bar instead of the hero.
 export default class ToolPage extends Component {
   @service pip;
   @tracked isFullscreen = false;
@@ -74,6 +76,8 @@ export default class ToolPage extends Component {
         this.usingApi = true;
         await element.requestFullscreen({ navigationUI: 'hide' });
         this.isFullscreen = true;
+        // Only works in real fullscreen, and only on some phones; elsewhere it's a no-op.
+        if (this.args.landscape && window.matchMedia?.('(pointer: coarse)').matches) window.screen?.orientation?.lock?.('landscape').catch(() => {});
         return;
       } catch {
         this.usingApi = false;
@@ -84,7 +88,7 @@ export default class ToolPage extends Component {
   };
 
   <template>
-    <div class="container">
+    <div class="container {{if @game 'is-game'}}">
       <section class="hero pop-in">
         <div class="hero-icon"><Icon @name={{this.tool.icon}} @size={{28}} /></div>
         <div class="hero-text">

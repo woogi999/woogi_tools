@@ -1103,11 +1103,13 @@
   margin-inline: auto;
 }
 
-// The 3D table, with HTML name tags and controls layered over it.
+// The 3D table, with the HUD and controls layered over it. Always 16:9, as
+// big as fits: full width, or as wide as the window's height allows.
 .uno-stage {
   position: relative;
-  width: 100%;
-  height: clamp(520px, 84dvh, 940px);
+  width: min(100%, calc((100dvh - 96px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
   overflow: hidden;
   background:
     radial-gradient(ellipse 70% 60% at 50% 40%, color-mix(in oklab, var(--text) 7%, transparent), transparent 70%),
@@ -1116,11 +1118,23 @@
   border-radius: var(--radius-card);
   // Everything on top of the canvas is laid out against the stage.
   isolation: isolate;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
-@media (max-width: 640px) {
+// A phone held upright gets a tall table instead, with a nudge to turn it.
+@media (orientation: portrait) and (pointer: coarse) {
   .uno-stage {
-    height: clamp(560px, 86dvh, 900px);
+    width: 100%;
+    height: clamp(460px, calc(100dvh - 120px), 900px);
+    aspect-ratio: auto;
+  }
+}
+
+// Sideways on a phone: the table fills the screen's height.
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 600px) {
+  .uno-stage {
+    width: min(100%, calc((100dvh - 8px) * 16 / 9));
   }
 }
 
@@ -1128,100 +1142,49 @@
   display: block;
   width: 100%;
   height: 100%;
-  touch-action: pan-y;
+  // Touch drags look around the table, so the page mustn't scroll under them.
+  touch-action: none;
 }
 
-.uno-tag {
+.uno-canvas.is-pointing {
+  cursor: pointer;
+}
+
+.uno-rotate-hint {
   position: absolute;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2px 9px 3px;
-  translate: -50% -100%;
-  background: var(--bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-control);
-  font-size: 0.7rem;
-  line-height: 1.25;
-  white-space: nowrap;
-  pointer-events: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, scale 0.2s ease;
-}
-
-.uno-tag.is-turn {
-  border-color: #f5c518;
-  box-shadow: 0 0 0 2px rgb(245 197 24 / 30%);
-  scale: 1.08;
-}
-
-.uno-tag.is-winner {
-  border-color: var(--text);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--text) 30%, transparent);
-}
-
-.uno-tag-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-weight: 700;
-}
-
-.uno-tag-count {
-  color: var(--text-dim);
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-}
-
-.uno-tag-count strong {
-  color: var(--uno-red);
-}
-
-// An invisible button over the 3D deck; it lights up when you can draw.
-.uno-deck-hit {
-  position: absolute;
-  z-index: 2;
-  width: clamp(48px, 9%, 84px);
-  aspect-ratio: 1;
-  padding: 0;
-  translate: -50% -50%;
-  background: none;
-  border: 2px solid transparent;
-  border-radius: 50%;
-}
-
-.uno-deck-hit:disabled {
-  cursor: default;
-}
-
-.uno-deck-hit.is-ready {
-  border-color: rgb(255 255 255 / 70%);
-  animation: uno-ring 1.4s ease-in-out infinite;
-}
-
-.uno-deck-hit:focus-visible {
-  outline: 3px solid #4ea8de;
-}
-
-@keyframes uno-ring {
-  50% {
-    box-shadow: 0 0 0 8px rgb(255 255 255 / 12%);
-  }
-}
-
-.uno-deck-label {
-  position: absolute;
-  top: 100%;
+  top: 48px;
   left: 50%;
-  margin-top: 4px;
-  padding: 1px 8px;
+  z-index: 6;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 12px;
   translate: -50% 0;
   background: var(--text);
   border-radius: var(--radius-pill);
   color: var(--bg);
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: 0.72rem;
   white-space: nowrap;
+  pointer-events: none;
+  animation: uno-hint 6s ease forwards;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .uno-rotate-hint {
+    display: inline-flex;
+  }
+}
+
+@keyframes uno-hint {
+  0%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
 }
 
 // HUD pieces float over the table, each in its own corner.
@@ -1374,14 +1337,40 @@
   scale: -1 1;
 }
 
-// Without WebGL: a flat top card and a list of players.
+// Without WebGL: a flat top card, the players and your hand as buttons.
 .uno-fallback {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 18px;
+  padding: 60px 16px;
+}
+
+.uno-fallback-table {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.uno-fallback-hand {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.uno-fallback-hand .uno-card {
+  --card-w: 46px;
+}
+
+.uno-card.is-dim {
+  filter: brightness(0.62) saturate(0.7);
 }
 
 .uno-fallback-players {
@@ -1393,84 +1382,6 @@
 
 .uno-fallback-players .is-turn {
   font-weight: 700;
-}
-
-// ─── Your hand: the home page's hand of cards, holding Uno cards ─────────
-
-// Your hand rises from the bottom edge of the table view, arm cut off by the frame.
-.uno-hand-row {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 4;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.uno-hand-row .card-hand-stage {
-  pointer-events: auto;
-}
-
-.card-hand.is-uno {
-  --space: 60dvh;
-  --hw: min(clamp(120px, 14vw, 180px), calc(var(--space) / 3.4));
-  --cw: clamp(62px, 11vw, 96px);
-  --ch: calc(var(--cw) * 1.5);
-
-  width: 100%;
-}
-
-// Only the fan and the fist show; the arm is cropped at the bottom edge.
-.card-hand.is-uno .card-hand-stage {
-  height: calc(var(--card-bottom) * 0.42 + var(--radius) + var(--ch) * 0.45);
-  // Clips the arm at the bottom edge only, so a lifted card can still rise past the top.
-  clip-path: inset(-100vh -100vw 0 -100vw);
-}
-
-.card-hand.is-uno .hand-image {
-  bottom: calc(var(--card-bottom) * -0.58);
-}
-
-.card-hand.is-uno .card-hand-pivot {
-  bottom: calc(var(--card-bottom) * 0.42 - var(--drop));
-}
-
-.card-hand.is-uno .fan-card {
-  bottom: calc(var(--card-bottom) * 0.42);
-  padding: 0;
-  border: 3px solid #fff;
-  border-radius: 10px;
-  color: #fff;
-  font-family: 'Moderustic', sans-serif;
-  font-weight: 800;
-  box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
-  transition: rotate 0.2s cubic-bezier(0.34, 1.4, 0.64, 1), translate 0.16s cubic-bezier(0.34, 1.4, 0.64, 1),
-    scale 0.16s cubic-bezier(0.34, 1.4, 0.64, 1), filter 0.15s ease;
-}
-
-.card-hand.is-uno .fan-card.is-dim {
-  filter: brightness(0.62) saturate(0.7);
-  cursor: default;
-}
-
-.card-hand.is-uno .fan-card.is-playable {
-  box-shadow: 0 0 0 2px rgb(255 255 255 / 55%), 0 2px 8px rgb(0 0 0 / 40%);
-}
-
-.card-hand.is-uno .fan-card.is-active {
-  translate: 0 -24%;
-  scale: 1.12;
-}
-
-.card-hand.is-uno .fan-card.is-dim.is-active {
-  translate: 0 -10%;
-  scale: 1.04;
-}
-
-.uno-stage:not(.is-my-turn) .fan-card.is-playable {
-  box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
 }
 
 // ─── Card faces (the hand, and the no-WebGL fallback) ────────────────────
@@ -1494,7 +1405,7 @@
   box-shadow: 0 2px 6px rgb(0 0 0 / 35%);
 }
 
-:is(.uno-card, .fan-card.is-uno) {
+.uno-card {
   &.is-red {
     background: var(--uno-red);
   }
@@ -1516,10 +1427,6 @@
   }
 }
 
-.fan-card.is-uno {
-  --card-w: var(--cw);
-}
-
 // The classic white oval in the middle of the face.
 .uno-card-symbol {
   display: flex;
@@ -1535,7 +1442,7 @@
   line-height: 1;
 }
 
-:is(.uno-card, .fan-card.is-uno) {
+.uno-card {
   &.is-red .uno-card-symbol {
     color: var(--uno-red);
   }
@@ -1635,6 +1542,10 @@
   gap: 6px;
 }
 
+.btn.uno-icon-btn {
+  padding: 8px 10px;
+}
+
 .btn.uno-call {
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -1667,8 +1578,9 @@
   pointer-events: none;
 }
 
-@media (max-width: 640px) {
-  .uno-log {
+@media (max-width: 640px), (max-height: 500px) {
+  .uno-log,
+  .uno-rule-badges {
     display: none;
   }
 }
@@ -1712,7 +1624,8 @@
   width: 100%;
   max-width: 220px;
   aspect-ratio: 3 / 4;
-  background: radial-gradient(circle at 50% 40%, var(--bg-elevated-2), var(--bg) 72%);
+  // A light sketchbook page, so dark hair and ink outlines stay readable in dark mode too.
+  background: radial-gradient(circle at 50% 38%, #f7f5ef, #d9d6cc 78%);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-card);
   cursor: grab;
@@ -1793,7 +1706,14 @@
 }
 
 .tool-body.is-fullscreen .uno-stage {
-  height: calc(100dvh - 32px);
+  width: min(100%, calc((100dvh - 32px) * 16 / 9));
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .tool-body.is-fullscreen .uno-stage {
+    width: 100%;
+    height: calc(100dvh - 32px);
+  }
 }
 
 .tool-body.is-fullscreen .snake-shell {
@@ -1802,4 +1722,372 @@
 
 .tool-body.is-fullscreen .snake-canvas {
   max-width: none;
+}
+
+.avatar-switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+}
+
+// ─── Games layout ────────────────────────────────────────────────────────
+// Games get the whole content column: no page padding, a slim title bar in
+// place of the hero, and the game itself edge to edge.
+
+main:has(> .tool-slot .container.is-game) {
+  padding: 0;
+}
+
+.container.is-game {
+  max-width: none;
+  padding: 0;
+}
+
+.container.is-game .hero {
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.container.is-game .hero-icon {
+  width: 24px;
+  height: 24px;
+  margin-top: 0;
+}
+
+.container.is-game .hero-icon .icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.container.is-game .hero-text {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 14px;
+  min-width: 0;
+}
+
+.container.is-game .hero h1 {
+  flex: none;
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.container.is-game .hero p {
+  max-width: none;
+  overflow: hidden;
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .container.is-game .hero p {
+    display: none;
+  }
+}
+
+.container.is-game .tool-body {
+  align-items: stretch;
+}
+
+.container.is-game .made-with {
+  max-width: 1260px;
+  padding: 1.5rem 16px 2.5rem;
+}
+
+// The lobby and the board games keep a little breathing room; the 3D table doesn't.
+.container.is-game .game-lobby {
+  width: auto;
+  margin: 12px;
+}
+
+.container.is-game .game-shell:not(.uno-shell) {
+  padding: 16px;
+}
+
+.container.is-game .chess-shell {
+  grid-template-columns: minmax(0, min(calc(100dvh - 140px), 900px)) minmax(220px, 300px);
+}
+
+@media (max-width: 860px) {
+  .container.is-game .chess-shell {
+    grid-template-columns: minmax(0, 100%);
+  }
+}
+
+.container.is-game .snake-shell {
+  max-width: min(100%, calc(100dvh - 190px));
+}
+
+.container.is-game .snake-canvas {
+  max-width: none;
+}
+
+// The table: as big as the screen allows, still 16:9, no frame.
+.container.is-game .uno-shell {
+  max-width: none;
+  gap: 0;
+}
+
+.container.is-game .uno-stage {
+  width: min(100%, calc((100dvh - 52px) * 16 / 9));
+  border: 0;
+  border-radius: 0;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .container.is-game .uno-stage {
+    width: 100%;
+    height: calc(100dvh - 110px);
+  }
+}
+
+@media (max-width: 720px) {
+  .container.is-game .uno-stage {
+    width: min(100%, calc((100dvh - 110px) * 16 / 9));
+  }
+}
+
+// The turn timer: a bar across the top of the table that shrinks as time runs out.
+.uno-timer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  height: 4px;
+  background: var(--text-dim);
+  transform-origin: left center;
+  transition: transform 0.25s linear;
+  pointer-events: none;
+}
+
+.uno-timer.is-mine {
+  background: #f5c518;
+}
+
+.uno-timer.is-low {
+  background: var(--uno-red);
+}
+
+.uno-clock {
+  padding-left: 8px;
+  font-family: var(--font-mono);
+  text-transform: none;
+}
+
+.btn.uno-challenge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.game-chat-msg.is-bot .game-chat-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.avatar-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.avatar-stage-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar-tabs .qr-tab {
+  padding-inline: 6px;
+}
+
+.avatar-saves {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.avatar-save {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+}
+
+.avatar-save-wear {
+  flex: none;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+}
+
+.avatar-save-wear:hover .avatar-portrait {
+  outline: 2px solid var(--text);
+}
+
+.avatar-save-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.75rem;
+}
+
+.avatar-save .qr-icon-btn {
+  height: 28px;
+}
+
+// ─── Room access, public rooms and nearby play ───────────────────────────
+
+.lobby-access {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.fs-code-input.lobby-password {
+  min-width: 0;
+  font-family: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.lobby-browse {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lobby-browse > .btn,
+.nearby-actions .btn,
+.nearby > .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.lobby-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-room {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  font-size: 0.8rem;
+}
+
+.lobby-room-text {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.lobby-nearby {
+  border-top: 1px dashed var(--border-color);
+  padding-top: 10px;
+}
+
+.lobby-nearby > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.nearby {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.nearby .tool-hint,
+.nearby .fs-status {
+  margin: 0;
+}
+
+.nearby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nearby-code {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.nearby-code .fs-code-row {
+  width: 100%;
+}
+
+.nearby-code .fs-link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nearby-qr {
+  width: 220px;
+  height: 220px;
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  border-radius: var(--radius-card);
+}
+
+.nearby-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  resize: vertical;
+}
+
+.nearby-scan {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.nearby-video {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: #000;
+  border-radius: var(--radius-card);
 }

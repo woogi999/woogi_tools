@@ -11,6 +11,9 @@ import GameLobby from './game-lobby';
 import GameChat from './game-chat';
 import GameRoom from '../utils/game-room';
 import { roomCodeFromUrl } from '../utils/file-share';
+import { botNames, newBotSeed } from '../utils/bot-names';
+import { BotChatter } from '../utils/bot-chat';
+import { robotAvatar } from '../utils/avatar';
 import { MAX_SNAKES, createGame, step, queueTurn, removeSnake } from '../utils/snake';
 
 const SPEEDS = [
@@ -69,7 +72,7 @@ export default class SnakePage extends Component {
 
   room = new GameRoom('snake', {
     maxPlayers: MAX_SNAKES,
-    settings: { ...DEFAULTS },
+    settings: { ...DEFAULTS, botSeed: newBotSeed() },
     onMessage: (message, from) => this.onlineMessage(message, from),
     onGuestLeft: (id) => this.state && removeSnake(this.state, id),
     onClosed: () => this.backToLobby(),
@@ -84,6 +87,7 @@ export default class SnakePage extends Component {
     registerDestructor(this, () => {
       window.removeEventListener('keydown', onKey);
       this.stopTimer();
+      this.chatter.dispose();
       this.room.close();
     });
   }
@@ -108,7 +112,8 @@ export default class SnakePage extends Component {
   get seats() {
     const humans = this.room.members.map((m) => ({ ...m, kind: 'human' }));
     const bots = Math.max(0, Math.min(this.settings.bots, MAX_SNAKES - humans.length));
-    return [...humans, ...Array.from({ length: bots }, (_, i) => ({ id: `bot-${i + 1}`, name: `Computer ${i + 1}`, kind: 'bot' }))];
+    const names = botNames(this.settings.botSeed, bots);
+    return [...humans, ...names.map((name, i) => ({ id: `bot-${i + 1}`, name, kind: 'bot', avatar: robotAvatar(this.settings.botSeed, i) }))];
   }
 
   get isSolo() {
@@ -159,6 +164,8 @@ export default class SnakePage extends Component {
 
   // ─── Loop ────────────────────────────────────────────────────────────
 
+  chatter = new BotChatter(this.room);
+
   start = () => {
     const players = this.seats.map((seat) => ({ id: seat.id, name: seat.name, bot: seat.kind === 'bot' }));
     const { size, apples, wrap } = this.settings;
@@ -166,6 +173,8 @@ export default class SnakePage extends Component {
     this.mode = 'playing';
     this.paused = false;
     this.room.setLocked(true);
+    const bots = this.state.snakes.filter((s) => s.bot);
+    if (bots.length) this.chatter.say(bots[Math.floor(Math.random() * bots.length)].name, 'snakeHello', { urgent: true });
     this.publish();
     this.stopTimer();
     this.timer = setInterval(() => this.tick(), this.tickMs);
@@ -178,9 +187,19 @@ export default class SnakePage extends Component {
 
   tick() {
     if (this.paused || !this.state) return;
+    const before = new Map(this.state.snakes.map((s) => [s.id, { alive: s.alive, score: s.score }]));
     step(this.state);
+    // Computer snakes remark on crashing, and now and then on an apple.
+    for (const snake of this.state.snakes) {
+      const was = before.get(snake.id);
+      if (!snake.bot || !was) continue;
+      if (was.alive && !snake.alive) this.chatter.say(snake.name, 'snakeDie', { chance: 0.8 });
+      else if (snake.score > was.score) this.chatter.say(snake.name, 'snakeEat', { chance: 0.12 });
+    }
     this.publish();
     if (this.state.status === 'over') {
+      const winner = this.state.snakes.find((s) => s.id === this.state.winner);
+      if (winner?.bot) this.chatter.say(winner.name, 'snakeWin', { urgent: true });
       this.stopTimer();
       if (this.isSolo) this.saveBest(this.state.snakes[0].score);
     }
@@ -400,7 +419,7 @@ export default class SnakePage extends Component {
   }
 
   <template>
-    <ToolPage @route="snake" @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Classic snake on your own, or a battle of up to four snakes against the computer and your friends.">
+    <ToolPage @route="snake" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Classic snake on your own, or a battle of up to four snakes against the computer and your friends.">
       {{#if (eq this.mode "playing")}}
         <div class="game-shell snake-shell pop-in">
           <div class="snake-scores">
