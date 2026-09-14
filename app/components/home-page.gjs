@@ -1,5 +1,5 @@
 import Component from '@glimmer/component';
-import { tracked } from '@glimmer/tracking';
+import { tracked, cached } from '@glimmer/tracking';
 import { service } from '@ember/service';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
@@ -92,6 +92,7 @@ export default class HomePage extends Component {
   // The card lifted in the hand, from hovering either the hand or the grid.
   @tracked activeRoute = null;
 
+  @cached
   get cards() {
     return CARDS.filter((tool) => this.toolVisibility.isVisible(tool)).map((tool, i) => ({
       tool,
@@ -110,6 +111,8 @@ export default class HomePage extends Component {
     return Boolean(this.query.trim()) || this.filterCategories.length > 0 || this.favouritesOnly;
   }
 
+  // Read many times per render (the hand, the grid, counts), so worth caching.
+  @cached
   get results() {
     if (!this.isSearching) return [];
     const byRoute = new Map(this.cards.map((card) => [card.tool.route, card]));
@@ -136,6 +139,7 @@ export default class HomePage extends Component {
     return this.cards.filter((c) => c.starred);
   }
 
+  @cached
   get groupedCards() {
     const groups = new Map();
     for (const card of this.cards) {
@@ -278,7 +282,8 @@ export default class HomePage extends Component {
             <section class="home-results-grid" aria-label="Search results">
               <h2 class="section-title">{{this.results.length}} {{if (eq this.results.length 1) "result" "results"}}</h2>
               <div class="tool-grid">
-                {{#each this.results key="tool.route" as |card|}}
+                {{! Keyed by position, so typing reuses the cards already on screen instead of rebuilding them. }}
+                {{#each this.results key="@index" as |card|}}
                   <ToolCard @card={{card}} @active={{eq card.tool.route this.activeRoute}} @onHover={{this.setActive}} />
                 {{/each}}
               </div>

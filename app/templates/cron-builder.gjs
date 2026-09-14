@@ -1,3 +1,4 @@
+import ToolSlot from '../components/tool-slot';
 import CronBuilderPage from '../components/cron-builder-page';
 
-<template><CronBuilderPage /></template>
+<template><ToolSlot @route="cron-builder" @component={{CronBuilderPage}} /></template>

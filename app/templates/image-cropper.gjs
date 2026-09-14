@@ -1,3 +1,4 @@
+import ToolSlot from '../components/tool-slot';
 import ImageCropperPage from '../components/image-cropper-page';
 
-<template><ImageCropperPage /></template>
+<template><ToolSlot @route="image-cropper" @component={{ImageCropperPage}} /></template>

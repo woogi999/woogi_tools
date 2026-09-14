@@ -50,6 +50,9 @@ Router.map(function () {
   this.route('user-agent-parser');
   this.route('cron-builder');
   this.route('gitignore-generator');
+  this.route('chess');
+  this.route('snake');
+  this.route('uno');
   this.route('settings');
   this.route('updates');
 });

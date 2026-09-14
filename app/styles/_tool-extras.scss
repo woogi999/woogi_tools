@@ -83,7 +83,6 @@
 
 .colour-field .colour-hex {
   width: 9ch;
-  text-transform: uppercase;
 }
 
 // ─── QR generator ───────────────────────────────────────────────────────
@@ -683,8 +682,6 @@
   padding: 6px 10px;
   font-family: var(--font-mono);
   font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .fs-join .btn {

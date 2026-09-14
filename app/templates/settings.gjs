@@ -1,3 +1,4 @@
+import ToolSlot from '../components/tool-slot';
 import SettingsPage from '../components/settings-page';
 
-<template><SettingsPage /></template>
+<template><ToolSlot @route="settings" @component={{SettingsPage}} /></template>

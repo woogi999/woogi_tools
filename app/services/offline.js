@@ -31,7 +31,10 @@ export default class OfflineService extends Service {
       this.status = 'unsupported';
       return;
     }
-    if (config.environment !== 'production' || !this.buildId) {
+    // The build ID only exists in `vite build` output, so its presence (not the
+    // Ember environment, which a concurrently running dev server can leak into a
+    // build) is what says there's a service worker to register.
+    if (config.environment === 'test' || !this.buildId) {
       this.status = 'disabled';
       return;
     }
