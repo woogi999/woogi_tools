@@ -4,6 +4,9 @@ import { service } from '@ember/service';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import Icon from './icon';
+import AvatarEditor from './avatar-editor';
+import AvatarPortrait from './avatar-portrait';
+import { loadProfile, saveProfile, NAME_LENGTH } from '../utils/profile';
 import { formatBytes } from '../utils/file-share';
 import { TOOLS, groupTools } from '../tools';
 import { APP_VERSION } from '../changelog';
@@ -56,6 +59,22 @@ export default class SettingsPage extends Component {
   motions = MOTIONS;
 
   @tracked toolSearch = '';
+  // Your name and avatar in games; every game lobby reads the same saved profile.
+  @tracked profile = loadProfile();
+  @tracked editingAvatar = false;
+  nameLength = NAME_LENGTH;
+
+  setProfileName = (event) => {
+    this.profile = saveProfile({ ...this.profile, name: event.target.value });
+    this.storageVersion++;
+  };
+
+  setAvatar = (avatar) => {
+    this.profile = saveProfile({ ...this.profile, avatar });
+    this.storageVersion++;
+  };
+
+  toggleAvatarEditor = () => (this.editingAvatar = !this.editingAvatar);
 
   get visibilityGroups() {
     const query = this.toolSearch.trim().toLowerCase();
@@ -230,6 +249,24 @@ export default class SettingsPage extends Component {
               Show hand
             </label>
           </div>
+        </section>
+
+        <section class="math-card settings-avatar">
+          <h3 class="qr-heading">Games profile</h3>
+          <p class="tool-hint">Your name and avatar in Woono, Chess and Snake lobbies. Changes here show up next time you open a game.</p>
+          <div class="settings-avatar-row">
+            <AvatarPortrait @avatar={{this.profile.avatar}} @size={{64}} />
+            <label class="lobby-name">
+              <span class="qr-label is-muted">Name</span>
+              <input type="text" maxlength={{this.nameLength}} value={{this.profile.name}} aria-label="Your name in games" {{on "input" this.setProfileName}} />
+            </label>
+            <button type="button" class="btn math-use {{if this.editingAvatar 'active'}}" aria-expanded={{if this.editingAvatar "true" "false"}} {{on "click" this.toggleAvatarEditor}}>
+              <Icon @name="shirt" @size={{13}} /> {{if this.editingAvatar "Done" "Customise avatar"}}
+            </button>
+          </div>
+          {{#if this.editingAvatar}}
+            <AvatarEditor @avatar={{this.profile.avatar}} @name={{this.profile.name}} @onChange={{this.setAvatar}} />
+          {{/if}}
         </section>
 
         <section class="math-card">

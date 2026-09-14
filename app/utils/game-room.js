@@ -1,6 +1,7 @@
 import { tracked } from '@glimmer/tracking';
 import { generateRoomCode, buildShareUrl } from './file-share';
-import { DEFAULT_AVATAR, normaliseAvatar } from './avatar';
+import { playerAvatar } from './avatar';
+import { loadProfile, saveProfile } from './profile';
 import { censor } from './censor';
 import { createInvite, answerInvite, LanConnection } from './lan-link';
 
@@ -13,22 +14,11 @@ const LISTING_SLOTS = 12;
 const listingId = (game, slot) => `woogi-${game}-lobby-${slot}`;
 const BROWSE_MS = 4500;
 const SLOW_CONNECT_MS = 12000;
-const PROFILE_KEY = 'woogi-game-profile';
 const CHAT_HISTORY = 60;
 const CHAT_BURST = 5;
 const CHAT_WINDOW_MS = 5000;
 export const HOST_ID = 'host';
 const LOCAL_ID = 'you';
-
-function loadProfile() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(PROFILE_KEY));
-    if (saved?.name) return { name: String(saved.name).slice(0, 20), avatar: normaliseAvatar(saved.avatar) };
-  } catch {
-    // nothing saved, or storage blocked
-  }
-  return { name: `Player ${Math.floor(100 + Math.random() * 900)}`, avatar: { ...DEFAULT_AVATAR } };
-}
 
 // A game lobby that friends can join over PeerJS. The host registers with the
 // PeerJS broker under the room code and every guest connects straight to the
@@ -127,14 +117,7 @@ export default class GameRoom {
   // ─── Lobby state ─────────────────────────────────────────────────────
 
   setProfile(patch) {
-    const profile = { ...this.profile, ...patch };
-    profile.name = String(profile.name ?? '').slice(0, 20);
-    this.profile = profile;
-    try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    } catch {
-      // storage blocked: the profile lasts until the tab closes
-    }
+    this.profile = saveProfile({ ...this.profile, ...patch });
     if (this.role === 'guest') this.post(this.hostConn, { t: 'profile', profile: this.wireProfile() });
     else this.broadcastLobby();
   }
@@ -530,5 +513,5 @@ function cleanChat(message) {
 }
 
 function cleanProfile(profile) {
-  return { name: String(profile?.name ?? 'Player').slice(0, 20) || 'Player', avatar: normaliseAvatar(profile?.avatar) };
+  return { name: String(profile?.name ?? 'Player').slice(0, 20) || 'Player', avatar: playerAvatar(profile?.avatar) };
 }
