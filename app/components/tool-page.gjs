@@ -1,5 +1,6 @@
 import FavouriteStar from './favourite-star';
 import CreditList from './credit-list';
+import Icon from './icon';
 import { TOOLS } from '../tools';
 
 const toolFor = (route) => TOOLS.find((t) => t.route === route);
@@ -8,11 +9,14 @@ const toolFor = (route) => TOOLS.find((t) => t.route === route);
   {{#let (toolFor @route) as |tool|}}
     <div class="container">
       <section class="hero pop-in">
-        <h1 class="hero-title">
-          <span>{{tool.label}}</span>
-          <FavouriteStar @route={{@route}} @size={{20}} />
-        </h1>
-        <p>{{@subtitle}}</p>
+        <div class="hero-icon"><Icon @name={{tool.icon}} @size={{28}} /></div>
+        <div class="hero-text">
+          <h1 class="hero-title">
+            <span>{{tool.label}}</span>
+            <FavouriteStar @route={{@route}} @size={{20}} />
+          </h1>
+          <p>{{@subtitle}}</p>
+        </div>
       </section>
 
       <div class="tool-body">

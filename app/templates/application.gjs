@@ -3,12 +3,15 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { pageTitle } from 'ember-page-title';
 import { LinkTo } from '@ember/routing';
+import { service } from '@ember/service';
 import SidebarNav from '../components/sidebar-nav';
 import CommandPalette from '../components/command-palette';
 import ThemeToggle from '../components/theme-toggle';
 import Icon from '../components/icon';
 
 export default class Application extends Component {
+  // Touching the service here is what registers the offline service worker on every page.
+  @service offline;
   @tracked navOpen = false;
 
   toggleNav = () => (this.navOpen = !this.navOpen);
@@ -53,6 +56,16 @@ export default class Application extends Component {
     </div>
 
     <CommandPalette />
+
+    {{#if this.offline.updateReady}}
+      <div class="update-toast pop-in" role="status">
+        <Icon @name="refresh-cw" @size={{14}} />
+        <span>A new version of Woogi Tools is ready.</span>
+        <LinkTo @route="updates" class="update-toast-link">What's new</LinkTo>
+        <button type="button" class="btn math-use" {{on "click" this.offline.reload}}>Reload</button>
+        <button type="button" class="qr-icon-btn" aria-label="Dismiss" {{on "click" this.offline.dismissUpdate}}><Icon @name="x" @size={{13}} /></button>
+      </div>
+    {{/if}}
 
     <svg class="doodle-filters" aria-hidden="true">
       <filter id="doodle-1"><feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="1" seed="1" result="noise" /><feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" /></filter>

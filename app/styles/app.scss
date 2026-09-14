@@ -395,7 +395,8 @@ h3 {
   position: fixed;
   top: 0.85rem;
   right: 1.1rem;
-  z-index: 10;
+  // Above the home page's sticky search bar.
+  z-index: 25;
 }
 
 .theme-toggle:hover {
@@ -657,7 +658,25 @@ main {
 }
 
 .hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   padding: 0 0 1.5rem;
+}
+
+.hero-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  color: var(--text);
+  margin-top: 2px;
+}
+
+.hero-text {
+  min-width: 0;
 }
 
 .hero h1 {
@@ -827,6 +846,574 @@ main {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+// ─── Home search ─────────────────────────────────────────────────────────
+
+.home-search {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  min-height: 62vh;
+  padding-bottom: 2rem;
+  transition: min-height 0.45s cubic-bezier(0.22, 1, 0.36, 1), gap 0.45s ease, padding 0.45s ease;
+}
+
+// While searching, the logo and bar stick to the top as the results scroll.
+.home-search.is-searching {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 0;
+  gap: 10px;
+  margin-top: -1.75rem;
+  padding-block: 1rem 0.75rem;
+  background: var(--bg);
+}
+
+@media (max-width: 720px) {
+  // Below the mobile header, which is sticky too.
+  .home-search.is-searching {
+    top: 50px;
+  }
+}
+
+.home-search-logo {
+  width: min(320px, 70vw);
+  height: auto;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.home-search.is-searching .home-search-logo {
+  width: 120px;
+}
+
+.home-search-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(580px, 100%);
+  padding: 10px 14px 10px 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.home-search-form:hover,
+.home-search-form:focus-within {
+  border-color: var(--text-faint);
+  box-shadow: 0 2px 14px color-mix(in oklab, var(--text) 10%, transparent);
+}
+
+.home-search-input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.home-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.home-search-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+// ─── Card hand (search results) ──────────────────────────────────────────
+
+.home-results {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 2rem;
+}
+
+// The row runs to the very end of the page (eating main's bottom padding), so
+// the pinned hand's arm still meets the window's bottom edge when fully scrolled.
+.home-results.has-hand {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  margin-bottom: -2.5rem;
+  padding-bottom: 0;
+}
+
+.home-results.has-hand .home-results-grid {
+  padding-bottom: 4.5rem;
+}
+
+// Pinned under the search bar, reaching down to the bottom of the window.
+.home-results.has-hand .card-hand {
+  position: sticky;
+  top: var(--search-h, 160px);
+}
+
+@media (max-width: 1100px) {
+  .home-results.has-hand {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .home-results.has-hand .card-hand {
+    position: static;
+  }
+}
+
+.home-results-grid {
+  min-width: 0;
+}
+
+.tool-card.is-active {
+  background: var(--bg-elevated-2);
+  border-color: var(--text-faint);
+}
+
+.home-no-results {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.card-hand {
+  // The hand drawing (768×1924) scales on its own, independent of card size,
+  // capped so the whole arm fits in the window under the search bar.
+  --space: calc(100dvh - var(--search-h, 160px));
+  --hw: min(clamp(160px, 17vw, 230px), calc(var(--space) / 3.1));
+  --hh: calc(var(--hw) * 1924 / 768);
+  // Same size as a card in the tool grid (.tool-grid's minmax(120px, 145px)).
+  --cw: clamp(120px, 30vw, 145px);
+  --ch: calc(var(--cw) * 1.4);
+  // The fan turns around a point this far below each card's bottom edge, inside the fist.
+  --drop: calc(var(--ch) * 0.12);
+  --radius: calc(var(--ch) + var(--drop));
+  // Card bottoms sit 15% down the drawing, i.e. 85% of its height up from the stage's bottom.
+  --card-bottom: calc(var(--hh) * 0.85);
+
+  display: flex;
+  justify-content: center;
+  overflow-x: clip;
+}
+
+.card-hand-stage {
+  position: relative;
+  width: calc((var(--radius) * 0.95 + var(--cw) * 0.45) * 2);
+  max-width: 100%;
+  // Room for the arm plus the fan above it; the drawing's bottom is the stage's bottom.
+  height: calc(var(--card-bottom) + var(--radius) + var(--ch) * 0.4);
+  touch-action: manipulation;
+  user-select: none;
+  // Keeps the thumb's and lifted card's z-index local, so they never cover the site header.
+  isolation: isolate;
+  // A held hand is never perfectly still: a slow, tiny tilt (rotate) runs all the
+  // time, and a quick snap (translate) plays on top whenever the cards change.
+  // Different properties, so the two animations don't fight each other.
+  animation: hand-wobble 6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+
+.card-hand-stage.is-flicking {
+  animation: hand-wobble 6s ease-in-out infinite, hand-flick 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.94) both;
+}
+
+@keyframes hand-wobble {
+  0%,
+  100% {
+    rotate: -0.6deg;
+  }
+  50% {
+    rotate: 0.6deg;
+  }
+}
+
+@keyframes hand-flick {
+  0% {
+    translate: 0 0;
+  }
+  25% {
+    translate: -5px -7px;
+  }
+  55% {
+    translate: 3px 3px;
+  }
+  80% {
+    translate: -1px -2px;
+  }
+  100% {
+    translate: 0 0;
+  }
+}
+
+// Beside the grid, the stage fills the window so the arm meets its bottom edge.
+.home-results.has-hand .card-hand-stage {
+  height: max(var(--space), calc(var(--card-bottom) + var(--radius) + var(--ch) * 0.4));
+}
+
+@media (max-width: 1100px) {
+  .home-results.has-hand .card-hand-stage {
+    height: calc(var(--card-bottom) + var(--radius) + var(--ch) * 0.4);
+  }
+}
+
+.card-hand-pivot {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--card-bottom) - var(--drop));
+  width: 0;
+  height: 0;
+}
+
+.hand-image {
+  position: absolute;
+  left: calc(50% - var(--hw) * 0.45);
+  bottom: 0;
+  width: var(--hw);
+  height: var(--hh);
+  max-width: none;
+  pointer-events: none;
+  // Softens the drawing's flat-cut bottom edge into the page background; the
+  // fist and cards stay fully opaque, only the last bit of forearm fades.
+  mask-image: linear-gradient(to bottom, #000 90%, transparent 100%);
+}
+
+.hand-front {
+  z-index: 50;
+}
+
+// The drawings are a white hand with black lines; flip them for the light theme.
+:root[data-theme='light'] .hand-image {
+  filter: invert(1);
+}
+
+.card-fan {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fan-card {
+  position: absolute;
+  left: calc(50% - var(--cw) / 2);
+  bottom: var(--card-bottom);
+  width: var(--cw);
+  height: var(--ch);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 9px;
+  box-sizing: border-box;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+  box-shadow: -2px 1px 0 color-mix(in oklab, #000 35%, transparent);
+  contain: layout style;
+  transform-origin: 50% calc(100% + var(--drop));
+  rotate: var(--angle);
+  transition: rotate 0.2s cubic-bezier(0.34, 1.4, 0.64, 1), translate 0.16s cubic-bezier(0.34, 1.4, 0.64, 1),
+    scale 0.16s cubic-bezier(0.34, 1.4, 0.64, 1), background-color 0.1s ease;
+  animation: deal-in 0.4s cubic-bezier(0.34, 1.3, 0.64, 1) backwards;
+  animation-delay: var(--delay);
+}
+
+// Above the thumb (z-index 50), so the lifted card reads in full.
+.fan-card.is-active {
+  z-index: 60 !important;
+  translate: 0 -30%;
+  scale: 1.1;
+  rotate: calc(var(--angle) * 0.4);
+  background: var(--bg-elevated-2);
+}
+
+.fan-card .tool-card-link:focus-visible {
+  outline: none;
+}
+
+.fan-card:focus-within {
+  outline: 2px solid var(--text-faint);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-search,
+  .home-search-logo,
+  .fan-card,
+  .card-hand-stage {
+    transition: none;
+    animation: none;
+  }
+}
+
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    rotate: 0deg;
+    translate: 0 30%;
+  }
+}
+
+.fan-card.is-black .card-corner {
+  color: var(--text);
+}
+
+.fan-card.is-red :is(.card-corner, .tool-icon) {
+  color: var(--card-red);
+}
+
+.fan-card .tool-icon svg {
+  width: calc(var(--cw) * 0.28);
+  height: calc(var(--cw) * 0.28);
+}
+
+.fan-card-title {
+  font-size: clamp(0.6rem, 1.4vw, 0.76rem);
+  line-height: 1.2;
+}
+
+.fan-card-category {
+  font-size: 0.56rem;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.fan-card-description {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: clamp(0.5rem, 1.1vw, 0.6rem);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+
+// ─── Home search extras: filters, lucky, categories ──────────────────────
+
+.home-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.home-filter-btn:hover,
+.home-filter-btn.active {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.home-filter-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.home-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  width: min(580px, 100%);
+  padding: 14px 4px 4px;
+  border-top: 1px solid var(--border-color);
+}
+
+.home-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.home-filter-group:first-child {
+  flex-basis: 100%;
+}
+
+.home-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-basis: 100%;
+}
+
+.home-chips,
+.home-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.home-categories {
+  margin-bottom: 20px;
+}
+
+.home-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.home-chip:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.home-chip.active {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.home-search-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn.home-lucky {
+  padding: 8px 16px;
+  font-size: 0.8rem;
+}
+
+// ─── Update toast & Updates page ─────────────────────────────────────────
+
+.update-toast {
+  position: fixed;
+  z-index: 1000;
+  right: 16px;
+  bottom: 16px;
+  left: auto;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  box-shadow: 0 6px 24px color-mix(in oklab, #000 30%, transparent);
+  font-size: 0.8rem;
+}
+
+.update-toast-link {
+  color: var(--text-dim);
+}
+
+.updates {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 720px;
+}
+
+.updates-release {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 0;
+}
+
+.updates-release + .updates-release {
+  border-top: 1px solid var(--border-color);
+}
+
+.updates-ready {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.82rem;
+}
+
+.updates-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.updates-version {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+}
+
+.updates-badge {
+  padding: 1px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+.updates-changes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.updates-change {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.updates-type {
+  flex: none;
+  min-width: 62px;
+  padding: 1px 6px;
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated-2);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.updates-type.is-removed {
+  color: var(--card-red);
 }
 
 

@@ -36,6 +36,7 @@ The full, current list — with descriptions, keywords and "how it's made" notes
 
 - **Ember.js** (Octane edition, `.gjs` template-tag components) on **Vite** via Embroider, rather than the classic ember-cli broccoli pipeline.
 - No backend and no database. Preferences, notes and favourites are kept in `localStorage` under a `woogi-` prefix (see Settings → Reset).
+- Works offline after the first visit. `vite build` runs a small plugin ([`lib/offline-plugin.mjs`](lib/offline-plugin.mjs)) that hashes the whole build into a build ID and writes `dist/sw.js` from [`lib/service-worker.js`](lib/service-worker.js). Pages are network-first (so online visitors always get the latest deploy), hashed assets are cache-first, and a new build ID makes browsers download the new version in the background next time they're online. Status and cache size are in Settings → Your data.
 - Heavier engines — ImageMagick, FFmpeg, Pandoc, 7-Zip, the background-removal model — are WebAssembly builds loaded lazily, only when a tool that needs them is actually used.
 - P2P File Share uses [PeerJS](https://peerjs.com) for the WebRTC signalling handshake; the transfer itself is a direct connection between the two browsers.
 
@@ -76,7 +77,11 @@ app/
   utils/         the actual logic behind each tool (converters, codecs, colour math, …)
   styles/        SCSS, split by concern (_math.scss, _tool-extras.scss, …)
   tools.js       the single registry every nav surface reads from
+  changelog.js   release notes for the Updates page; its first entry is the site version
+lib/             build-time offline support: the service worker template and the Vite plugin that fills it in
 ```
+
+Releasing: add an entry to the top of [`app/changelog.js`](app/changelog.js) (it drives the Updates page and the version shown in Settings) and bump `version` in `package.json` to match. Nothing else — the service worker picks up any change to the build on its own.
 
 Adding a tool means: a route in `router.js`, a template in `app/templates/`, a component in `app/components/`, and an entry in `app/tools.js`.
 
