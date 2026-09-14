@@ -7,57 +7,58 @@ import { modifier } from 'ember-modifier';
 import Icon from './icon';
 import ColourField from './colour-field';
 import AvatarPortrait from './avatar-portrait';
-import { TYPES, HAIR_STYLES, EYES, BROWS, NOSES, MOUTHS, HATS, EYEWEAR, PIERCINGS, MARKS, NECKWEAR, ROBOT_HEADS, ROBOT_EYES, ROBOT_MOUTHS, SKIN_TONES, HAIR_COLORS, EYE_COLORS, SHIRT_COLORS, PANTS_COLORS, METAL_COLORS, GLOW_COLORS, randomAvatar, robotAvatar, normaliseAvatar } from '../utils/avatar';
-import { loadSaves, storeSaves, rememberType, recallType, MAX_SAVES } from '../utils/avatar-saves';
+import { HAIR_STYLES, EYES, BROWS, NOSES, MOUTHS, FACE_SLIDERS, TOPS, PATTERNS, BOTTOMS, SHOES, HATS, EYEWEAR, MASKS, NECKWEAR, BACKS, PIERCINGS, MARKS, SKIN_TONES, HAIR_COLORS, EYE_COLORS, SHIRT_COLORS, ACCENT_COLORS, PANTS_COLORS, SHOE_COLORS, HAT_COLORS, randomAvatar, playerAvatar } from '../utils/avatar';
+import { loadSaves, storeSaves, MAX_SAVES } from '../utils/avatar-saves';
 
 const eq = (a, b) => a === b;
 const has = (list, id) => list.includes(id);
 const swatch = (color) => htmlSafe(`background: ${color}`);
-const labelled = (ids, labels) => ids.map((id) => ({ id, label: labels[id] ?? id }));
 
-const HUMAN_TABS = [
+const TABS = [
   { id: 'face', label: 'Face' },
   { id: 'hair', label: 'Hair' },
+  { id: 'clothes', label: 'Clothes' },
   { id: 'extras', label: 'Accessories' },
-  { id: 'colours', label: 'Colours' },
   { id: 'saved', label: 'Saved' },
 ];
-const ROBOT_TABS = [
-  { id: 'face', label: 'Robot' },
-  { id: 'colours', label: 'Colours' },
-  { id: 'saved', label: 'Saved' },
-];
-const HUMAN_COLOURS = [
+const FACE_COLOURS = [
   { key: 'skin', label: 'Skin', presets: SKIN_TONES },
-  { key: 'hairColor', label: 'Hair', presets: HAIR_COLORS },
   { key: 'eyeColor', label: 'Eyes', presets: EYE_COLORS },
-  { key: 'shirt', label: 'Shirt', presets: SHIRT_COLORS },
-  { key: 'pants', label: 'Trousers', presets: PANTS_COLORS },
 ];
-const ROBOT_COLOURS = [
-  { key: 'skin', label: 'Metal', presets: METAL_COLORS },
-  { key: 'hairColor', label: 'Glow', presets: GLOW_COLORS },
-  { key: 'shirt', label: 'Body', presets: SHIRT_COLORS },
+const HAIR_COLOURS = [{ key: 'hairColor', label: 'Hair colour', presets: HAIR_COLORS }];
+const CLOTHES_COLOURS = [
+  { key: 'shirt', label: 'Top', presets: SHIRT_COLORS },
+  { key: 'accent', label: 'Pattern and details', presets: ACCENT_COLORS },
+  { key: 'pants', label: 'Bottoms', presets: PANTS_COLORS },
+  { key: 'shoeColor', label: 'Shoes', presets: SHOE_COLORS },
 ];
+const EXTRA_COLOURS = [{ key: 'hatColor', label: 'Hat and hair accessories', presets: HAT_COLORS }];
 
-// The avatar maker in every game lobby: a 3D preview you can spin, every
-// option in tabs, and saved looks. Switching between person and robot keeps
-// the last one of each, so neither gets thrown away.
+// The avatar maker, in game lobbies and in Settings: a 3D preview you can
+// spin, every option in tabs, and saved looks.
 export default class AvatarEditor extends Component {
-  types = TYPES;
+  tabs = TABS;
   hairStyles = HAIR_STYLES;
   eyes = EYES;
   brows = BROWS;
   noses = NOSES;
   mouths = MOUTHS;
+  sliders = FACE_SLIDERS;
+  topsList = TOPS;
+  patterns = PATTERNS;
+  bottoms = BOTTOMS;
+  shoes = SHOES;
   hats = HATS;
   eyewear = EYEWEAR;
+  masks = MASKS;
+  neckwear = NECKWEAR;
+  backs = BACKS;
   piercings = PIERCINGS;
   marks = MARKS;
-  neckwear = NECKWEAR;
-  robotHeads = ROBOT_HEADS;
-  robotEyes = labelled(ROBOT_EYES, { dots: 'Dots', big: 'Big', happy: 'Happy', sleepy: 'Sleepy', blank: 'Rings', x: 'X' });
-  robotMouths = labelled(ROBOT_MOUTHS, { tiny: 'Tiny', smile: 'Smile', flat: 'Flat', grin: 'Equaliser' });
+  faceColours = FACE_COLOURS;
+  hairColours = HAIR_COLOURS;
+  clothesColours = CLOTHES_COLOURS;
+  extraColours = EXTRA_COLOURS;
   maxSaves = MAX_SAVES;
 
   // Falls back to the flat portrait if WebGL isn't available.
@@ -66,34 +67,22 @@ export default class AvatarEditor extends Component {
   @tracked saves = loadSaves();
 
   get avatar() {
-    return normaliseAvatar(this.args.avatar);
-  }
-
-  get isRobot() {
-    return this.avatar.type === 'robot';
-  }
-
-  get tabs() {
-    return this.isRobot ? ROBOT_TABS : HUMAN_TABS;
-  }
-
-  get currentTab() {
-    return this.tabs.some((t) => t.id === this.tab) ? this.tab : 'face';
-  }
-
-  get colorRows() {
-    return this.isRobot ? ROBOT_COLOURS : HUMAN_COLOURS;
+    return playerAvatar(this.args.avatar);
   }
 
   get canSave() {
     return this.saves.length < MAX_SAVES;
   }
 
+  get nudged() {
+    return FACE_SLIDERS.some((s) => this.avatar[s.key] !== 0);
+  }
+
   // Takes no arguments on purpose: it sets up the renderer once, and `follow` feeds it changes.
   preview = modifier((canvas) => {
     let handle = null;
     let cancelled = false;
-    import('../lazy/uno-scene')
+    import('../lazy/avatar-model')
       .then(({ createAvatarPreview }) => {
         if (cancelled) return;
         handle = createAvatarPreview(canvas);
@@ -114,8 +103,7 @@ export default class AvatarEditor extends Component {
   });
 
   change(avatar) {
-    rememberType(avatar);
-    this.args.onChange(avatar);
+    this.args.onChange(playerAvatar(avatar));
   }
 
   setTab = (id) => (this.tab = id);
@@ -125,14 +113,10 @@ export default class AvatarEditor extends Component {
     const list = this.avatar[key];
     this.update(key, list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   };
-  shuffle = () => this.change(this.isRobot ? robotAvatar(Math.floor(Math.random() * 1e9), 0) : randomAvatar());
-
-  // Swapping type brings back the last person or robot you made; your name never changes.
-  setType = (type) => {
-    if (type === this.avatar.type) return;
-    rememberType(this.avatar);
-    this.args.onChange(recallType(type));
-  };
+  nudge = (slider, step) => this.update(slider.key, Math.max(slider.min, Math.min(slider.max, this.avatar[slider.key] + step)));
+  slide = (slider, event) => this.update(slider.key, Number(event.target.value));
+  resetPositions = () => this.change({ ...this.avatar, ...Object.fromEntries(FACE_SLIDERS.map((s) => [s.key, 0])) });
+  shuffle = () => this.change(randomAvatar());
 
   saveLook = () => {
     if (!this.canSave) return;
@@ -169,54 +153,59 @@ export default class AvatarEditor extends Component {
       </div>
 
       <div class="avatar-options">
-        <OptionRow @label="Type" @options={{this.types}} @value={{this.avatar.type}} @onPick={{this.setType}} />
         <div class="math-tabs avatar-tabs" role="tablist" aria-label="Avatar options">
           {{#each this.tabs as |t|}}
-            <button type="button" role="tab" class="qr-tab {{if (eq this.currentTab t.id) 'active'}}" aria-selected={{if (eq this.currentTab t.id) "true" "false"}} {{on "click" (fn this.setTab t.id)}}>{{t.label}}{{#if (eq t.id "saved")}} ({{this.saves.length}}){{/if}}</button>
+            <button type="button" role="tab" class="qr-tab {{if (eq this.tab t.id) 'active'}}" aria-selected={{if (eq this.tab t.id) "true" "false"}} {{on "click" (fn this.setTab t.id)}}>{{t.label}}{{#if (eq t.id "saved")}} ({{this.saves.length}}){{/if}}</button>
           {{/each}}
         </div>
 
-        {{#if (eq this.currentTab "face")}}
-          {{#if this.isRobot}}
-            <OptionRow @label="Head" @options={{this.robotHeads}} @value={{this.avatar.head}} @onPick={{fn this.update "head"}} />
-            <OptionRow @label="Eyes" @options={{this.robotEyes}} @value={{this.avatar.eyes}} @onPick={{fn this.update "eyes"}} />
-            <OptionRow @label="Mouth" @options={{this.robotMouths}} @value={{this.avatar.mouth}} @onPick={{fn this.update "mouth"}} />
-          {{else}}
-            <OptionRow @label="Eyes" @options={{this.eyes}} @value={{this.avatar.eyes}} @onPick={{fn this.update "eyes"}} />
-            <OptionRow @label="Eyebrows" @options={{this.brows}} @value={{this.avatar.brows}} @onPick={{fn this.update "brows"}} />
-            <OptionRow @label="Nose" @options={{this.noses}} @value={{this.avatar.nose}} @onPick={{fn this.update "nose"}} />
-            <OptionRow @label="Mouth" @options={{this.mouths}} @value={{this.avatar.mouth}} @onPick={{fn this.update "mouth"}} />
-            <MultiRow @label="Marks" @options={{this.marks}} @values={{this.avatar.marks}} @onToggle={{fn this.toggleIn "marks"}} />
-          {{/if}}
-          <label class="qr-switch">
-            <input type="checkbox" role="switch" checked={{this.avatar.blush}} aria-checked={{if this.avatar.blush "true" "false"}} {{on "change" (fn this.toggle "blush")}} />
-            <span class="qr-switch-track" aria-hidden="true"></span>
-            Rosy cheeks
-          </label>
-        {{else if (eq this.currentTab "hair")}}
+        {{#if (eq this.tab "face")}}
+          <OptionRow @label="Eyes" @options={{this.eyes}} @value={{this.avatar.eyes}} @onPick={{fn this.update "eyes"}} />
+          <OptionRow @label="Eyebrows" @options={{this.brows}} @value={{this.avatar.brows}} @onPick={{fn this.update "brows"}} />
+          <OptionRow @label="Nose" @options={{this.noses}} @value={{this.avatar.nose}} @onPick={{fn this.update "nose"}} />
+          <OptionRow @label="Mouth" @options={{this.mouths}} @value={{this.avatar.mouth}} @onPick={{fn this.update "mouth"}} />
+          <MultiRow @label="Marks" @options={{this.marks}} @values={{this.avatar.marks}} @onToggle={{fn this.toggleIn "marks"}} />
+          <div class="avatar-option-row">
+            <span class="qr-label is-muted">Positions</span>
+            <div class="avatar-sliders">
+              {{#each this.sliders as |slider|}}
+                <div class="avatar-slider">
+                  <span class="avatar-slider-label">{{slider.label}}</span>
+                  <button type="button" class="qr-icon-btn" aria-label="{{slider.label}}: less" {{on "click" (fn this.nudge slider -1)}}><Icon @name="minus" @size={{12}} /></button>
+                  <input type="range" min={{slider.min}} max={{slider.max}} step="1" value={{pick this.avatar slider.key}} aria-label={{slider.label}} {{on "input" (fn this.slide slider)}} />
+                  <button type="button" class="qr-icon-btn" aria-label="{{slider.label}}: more" {{on "click" (fn this.nudge slider 1)}}><Icon @name="plus" @size={{12}} /></button>
+                  <span class="avatar-slider-value">{{pick this.avatar slider.key}}</span>
+                </div>
+              {{/each}}
+            </div>
+            <button type="button" class="btn avatar-reset" disabled={{if this.nudged false true}} {{on "click" this.resetPositions}}><Icon @name="rotate-ccw" @size={{13}} /> Reset positions</button>
+          </div>
+          <ColourRows @rows={{this.faceColours}} @avatar={{this.avatar}} @onPick={{this.update}} />
+        {{else if (eq this.tab "hair")}}
           <OptionRow @label="Hairstyle" @options={{this.hairStyles}} @value={{this.avatar.hair}} @onPick={{fn this.update "hair"}} />
           <label class="qr-switch">
             <input type="checkbox" role="switch" checked={{this.avatar.ahoge}} aria-checked={{if this.avatar.ahoge "true" "false"}} {{on "change" (fn this.toggle "ahoge")}} />
             <span class="qr-switch-track" aria-hidden="true"></span>
             Stray strand
           </label>
-        {{else if (eq this.currentTab "extras")}}
+          <ColourRows @rows={{this.hairColours}} @avatar={{this.avatar}} @onPick={{this.update}} />
+        {{else if (eq this.tab "clothes")}}
+          <OptionRow @label="Top" @options={{this.topsList}} @value={{this.avatar.top}} @onPick={{fn this.update "top"}} />
+          <OptionRow @label="Pattern" @options={{this.patterns}} @value={{this.avatar.pattern}} @onPick={{fn this.update "pattern"}} />
+          {{#unless (eq this.avatar.top "dress")}}
+            <OptionRow @label="Bottoms" @options={{this.bottoms}} @value={{this.avatar.bottom}} @onPick={{fn this.update "bottom"}} />
+          {{/unless}}
+          <OptionRow @label="Shoes" @options={{this.shoes}} @value={{this.avatar.shoes}} @onPick={{fn this.update "shoes"}} />
+          <ColourRows @rows={{this.clothesColours}} @avatar={{this.avatar}} @onPick={{this.update}} />
+        {{else if (eq this.tab "extras")}}
           <OptionRow @label="Head" @options={{this.hats}} @value={{this.avatar.hat}} @onPick={{fn this.update "hat"}} />
           <OptionRow @label="Eyewear" @options={{this.eyewear}} @value={{this.avatar.eyewear}} @onPick={{fn this.update "eyewear"}} />
-          <MultiRow @label="Piercings" @options={{this.piercings}} @values={{this.avatar.piercings}} @onToggle={{fn this.toggleIn "piercings"}} />
+          <OptionRow @label="Mask" @options={{this.masks}} @value={{this.avatar.mask}} @onPick={{fn this.update "mask"}} />
           <OptionRow @label="Neck" @options={{this.neckwear}} @value={{this.avatar.neck}} @onPick={{fn this.update "neck"}} />
-        {{else if (eq this.currentTab "colours")}}
-          {{#each this.colorRows as |row|}}
-            <div class="avatar-color-row">
-              <span class="qr-label is-muted">{{row.label}}</span>
-              <div class="avatar-swatches" role="group" aria-label="{{row.label}} colours">
-                {{#each row.presets as |color|}}
-                  <button type="button" class="avatar-swatch {{if (eq (pick this.avatar row.key) color) 'active'}}" style={{swatch color}} aria-label={{color}} {{on "click" (fn this.update row.key color)}}></button>
-                {{/each}}
-              </div>
-              <ColourField @value={{pick this.avatar row.key}} @label="{{row.label}} colour" @onChange={{fn this.update row.key}} />
-            </div>
-          {{/each}}
+          <OptionRow @label="Back" @options={{this.backs}} @value={{this.avatar.back}} @onPick={{fn this.update "back"}} />
+          <MultiRow @label="Piercings" @options={{this.piercings}} @values={{this.avatar.piercings}} @onToggle={{fn this.toggleIn "piercings"}} />
+          <ColourRows @rows={{this.extraColours}} @avatar={{this.avatar}} @onPick={{this.update}} />
+          <p class="tool-hint">Scarves, ties, capes and backpacks use the pattern and details colour from Clothes.</p>
         {{else}}
           {{#if this.saves.length}}
             <ul class="avatar-saves">
@@ -265,4 +254,19 @@ const MultiRow = <template>
       {{/each}}
     </div>
   </div>
+</template>;
+
+// Preset swatches plus an editable hex field for each colour.
+const ColourRows = <template>
+  {{#each @rows as |row|}}
+    <div class="avatar-color-row">
+      <span class="qr-label is-muted">{{row.label}}</span>
+      <div class="avatar-swatches" role="group" aria-label="{{row.label}} colours">
+        {{#each row.presets as |color|}}
+          <button type="button" class="avatar-swatch {{if (eq (pick @avatar row.key) color) 'active'}}" style={{swatch color}} aria-label={{color}} {{on "click" (fn @onPick row.key color)}}></button>
+        {{/each}}
+      </div>
+      <ColourField @value={{pick @avatar row.key}} @label="{{row.label}} colour" @onChange={{fn @onPick row.key}} />
+    </div>
+  {{/each}}
 </template>;

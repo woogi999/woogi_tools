@@ -13,8 +13,6 @@ import {
   PointsMaterial,
   BufferGeometry,
   BufferAttribute,
-  SphereGeometry,
-  CapsuleGeometry,
   CylinderGeometry,
   ConeGeometry,
   TorusGeometry,
@@ -22,18 +20,11 @@ import {
   PlaneGeometry,
   RingGeometry,
   CircleGeometry,
-  TubeGeometry,
-  CatmullRomCurve3,
   MeshToonMaterial,
   MeshBasicMaterial,
-  ShaderMaterial,
   CanvasTexture,
-  DataTexture,
-  RedFormat,
-  NearestFilter,
   SRGBColorSpace,
   AdditiveBlending,
-  BackSide,
   DoubleSide,
   Color,
   Vector2,
@@ -43,10 +34,12 @@ import {
   Raycaster,
   MathUtils,
 } from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { createElement, Bot, Crown } from 'sketchyicons';
 import config from 'woogi-tools/config/environment';
-import { drawFace, normaliseAvatar, avatarKey, hairStyle, hairline, hairBumps, headTaper } from '../utils/avatar';
+import { avatarKey } from '../utils/avatar';
+import { AvatarKit, HEAD_Y, buildAvatar, disposeAvatar, disposeGroup, withOutline } from './avatar-model';
+
+export { createAvatarPreview } from './avatar-model';
 
 // The 3D Woono table, seen through your own avatar's eyes. Everyone else sits
 // round the table as chibi doodles (or robots, for the computer), your cards
@@ -79,38 +72,14 @@ const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce
 
 // ─── Shared materials & textures ──────────────────────────────────────
 
-function toonGradient() {
-  // Two soft bands: flat, sketchbook-style shading.
-  const texture = new DataTexture(new Uint8Array([150, 215, 255]), 3, 1, RedFormat);
-  texture.minFilter = NearestFilter;
-  texture.magFilter = NearestFilter;
-  texture.needsUpdate = true;
-  return texture;
-}
-
-// Inverted-hull outline: the back faces of each mesh, pushed out along their normals, in ink.
-function outlineMaterial(thickness) {
-  return new ShaderMaterial({
-    uniforms: { thickness: { value: thickness }, color: { value: new Color(INK) } },
-    vertexShader: 'uniform float thickness; void main() { vec4 p = modelViewMatrix * vec4(position, 1.0); vec3 n = normalize(normalMatrix * normal); p.xyz += n * thickness; gl_Position = projectionMatrix * p; }',
-    fragmentShader: 'uniform vec3 color; void main() { gl_FragColor = vec4(color, 1.0); }',
-    side: BackSide,
-  });
-}
-
 // The site's own doodle, used as the art on the back of every card.
 const BACK_ART_URL = `${config.rootURL ?? '/'}favicon.png`;
 
-class Kit {
-  gradient = toonGradient();
-  outline = outlineMaterial(0.024);
-  outlineThin = outlineMaterial(0.013);
-  toons = new Map();
-  textures = new Map();
-  geometries = new Map();
+class Kit extends AvatarKit {
   backArt = null;
 
   constructor() {
+    super();
     const image = new Image();
     image.onload = () => {
       this.backArt = image;
@@ -124,42 +93,9 @@ class Kit {
     image.src = BACK_ART_URL;
   }
 
-  toon(color) {
-    if (!this.toons.has(color)) this.toons.set(color, new MeshToonMaterial({ color: new Color(color), gradientMap: this.gradient }));
-    return this.toons.get(color);
-  }
-
-  geometry(key, make) {
-    if (!this.geometries.has(key)) this.geometries.set(key, make());
-    return this.geometries.get(key);
-  }
-
-  texture(key, width, height, draw) {
-    if (!this.textures.has(key)) {
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      draw(canvas.getContext('2d'), width, height);
-      const texture = new CanvasTexture(canvas);
-      texture.colorSpace = SRGBColorSpace;
-      texture.anisotropy = 4;
-      this.textures.set(key, texture);
-    }
-    return this.textures.get(key);
-  }
-
   cardFace(card) {
     const key = card ? `card:${card.color ?? 'wild'}:${card.value}` : 'card:back';
     return this.texture(key, 160, 240, (ctx, w, h) => drawCard(ctx, w, h, card, this.backArt));
-  }
-
-  dispose() {
-    for (const m of this.toons.values()) m.dispose();
-    for (const t of this.textures.values()) t.dispose();
-    for (const g of this.geometries.values()) g.dispose();
-    this.outline.dispose();
-    this.outlineThin.dispose();
-    this.gradient.dispose();
   }
 }
 
@@ -256,398 +192,6 @@ function drawCard(ctx, w, h, card, backArt) {
     ctx.fillText(symbol, 0, 0);
     ctx.restore();
   }
-}
-
-// Per-mesh materials (faces, cards, labels) belong to one object; toon
-// materials, geometries and textures are shared and stay cached in the kit.
-function disposeGroup(group) {
-  group.traverse((obj) => {
-    if ((obj.isMesh || obj.isSprite) && (obj.material?.isMeshBasicMaterial || obj.material?.isSpriteMaterial) && !obj.userData.sharedMaterial) {
-      if (obj.userData.ownTexture) obj.material.map?.dispose();
-      obj.material.dispose();
-    }
-    obj.userData.faceOpen?.dispose();
-    obj.userData.faceClosed?.dispose();
-  });
-}
-
-function withOutline(mesh, kit, thin = false) {
-  const hull = new Mesh(mesh.geometry, thin ? kit.outlineThin : kit.outline);
-  hull.raycast = () => {};
-  mesh.add(hull);
-  return mesh;
-}
-
-// ─── Avatars ──────────────────────────────────────────────────────────
-
-const HEAD_R = 0.5;
-const HEAD_Y = 1.24;
-
-function faceTexture(kit, avatar, blink) {
-  return kit.texture(`face:${avatarKey(avatar)}:${blink}`, 256, 256, (ctx, w) => drawFace(ctx, avatar, w, { blink }));
-}
-
-// Narrows a sphere-based geometry towards the chin, the same way the portrait does.
-function taper(geometry) {
-  const position = geometry.attributes.position;
-  for (let i = 0; i < position.count; i++) {
-    const k = headTaper(position.getY(i), HEAD_R);
-    position.setX(i, position.getX(i) * k);
-    position.setZ(i, position.getZ(i) * (0.5 + k * 0.5));
-  }
-  geometry.computeBoundingSphere();
-  return geometry;
-}
-
-// One sphere for the whole hairdo. Vertices below the style's hairline are
-// pulled up onto the hairline itself and sunk inside the head, the further
-// below the deeper: the hair ends on exactly that curve (not on the sphere's
-// grid), with a short lip underneath that reads as its thickness.
-function hairGeometry(style) {
-  const outer = HEAD_R * style.volume;
-  const inner = HEAD_R * 0.86;
-  const lift = (style.lift ?? 0) * HEAD_R;
-  const geometry = new SphereGeometry(outer, 96, 56);
-  const position = geometry.attributes.position;
-  const normal = geometry.attributes.normal;
-  const v = new Vector3();
-  for (let i = 0; i < position.count; i++) {
-    v.fromBufferAttribute(position, i).normalize();
-    let polar = Math.acos(MathUtils.clamp(v.y, -1, 1));
-    const azimuth = Math.atan2(v.x, v.z);
-    const reach = hairline(style, azimuth);
-    const below = MathUtils.clamp((polar - reach) / 0.12, 0, 1);
-    polar = Math.min(polar, reach);
-    const radius = MathUtils.lerp(outer * hairBumps(style, azimuth, polar), inner, below);
-    v.set(Math.sin(polar) * Math.sin(azimuth), Math.cos(polar), Math.sin(polar) * Math.cos(azimuth));
-    normal.setXYZ(i, v.x, v.y, v.z);
-    v.multiplyScalar(radius);
-    position.setXYZ(i, v.x, v.y + lift * (1 - below), v.z);
-  }
-  return taper(geometry);
-}
-
-// A point on the (tapered) hair surface, for hanging extra pieces on.
-function onHair(style, azimuth, polar, out = 0) {
-  const radius = HEAD_R * style.volume + out;
-  const y = Math.cos(polar) * radius;
-  const k = headTaper(y, HEAD_R);
-  return new Vector3(Math.sin(polar) * Math.sin(azimuth) * radius * k, y + (style.lift ?? 0) * HEAD_R, Math.sin(polar) * Math.cos(azimuth) * radius * (0.5 + k * 0.5));
-}
-
-// A chibi anime person, facing +z, standing on y = 0.
-function buildHuman(avatar, kit, group) {
-  const skin = kit.toon(avatar.skin);
-  const hair = kit.toon(avatar.hairColor);
-  const shirt = kit.toon(avatar.shirt);
-  const pants = kit.toon(avatar.pants);
-  const shoes = kit.toon('#26262C');
-  const metal = kit.toon('#D9DDE3');
-  const gold = kit.toon('#E3C15A');
-
-  const add = (geometry, material, parent, { position, rotation, scale, thin = true, outline = true } = {}) => {
-    const mesh = new Mesh(geometry, material);
-    if (outline) withOutline(mesh, kit, thin);
-    if (position) mesh.position.set(...position);
-    if (rotation) mesh.rotation.set(...rotation);
-    if (scale) mesh.scale.set(...scale);
-    parent.add(mesh);
-    return mesh;
-  };
-  // A cone pointing along `dir`, for spikes, tufts and horns.
-  const spike = (geometry, material, parent, position, dir, scale) => {
-    const mesh = add(geometry, material, parent, { position: position.toArray(), scale });
-    mesh.quaternion.setFromUnitVectors(Y_AXIS, dir.normalize());
-    return mesh;
-  };
-
-  // Legs and shoes, hips, then a short torso.
-  const leg = kit.geometry('leg', () => new CapsuleGeometry(0.075, 0.18, 4, 10));
-  const shoe = kit.geometry('shoe', () => new SphereGeometry(0.1, 12, 8));
-  for (const side of [-1, 1]) {
-    add(leg, pants, group, { position: [side * 0.1, 0.2, 0] });
-    add(shoe, shoes, group, { position: [side * 0.1, 0.06, 0.04], scale: [0.85, 0.6, 1.2] });
-  }
-  add(kit.geometry('hips', () => new CapsuleGeometry(0.19, 0.04, 4, 14)), pants, group, { position: [0, 0.38, 0], scale: [1, 1, 0.8], thin: false });
-  const body = add(kit.geometry('torso', () => new CapsuleGeometry(0.2, 0.2, 6, 16)), shirt, group, { position: [0, 0.6, 0], scale: [1, 1, 0.82], thin: false });
-
-  switch (avatar.neck) {
-    case 'scarf':
-      add(kit.geometry('scarf', () => new TorusGeometry(0.17, 0.07, 8, 20)), kit.toon('#C23B3B'), group, { position: [0, 0.8, 0], rotation: [Math.PI / 2, 0, 0] });
-      add(kit.geometry('scarf-tail', () => new CapsuleGeometry(0.05, 0.18, 4, 8)), kit.toon('#C23B3B'), group, { position: [0.1, 0.66, 0.17], rotation: [0.2, 0, 0.15] });
-      break;
-    case 'tie':
-      add(kit.geometry('tie', () => new ConeGeometry(0.06, 0.26, 4)), kit.toon('#C23B3B'), group, { position: [0, 0.64, 0.175], rotation: [Math.PI + 0.12, Math.PI / 4, 0], scale: [1, 1, 0.35] });
-      break;
-    case 'choker':
-      add(kit.geometry('choker', () => new TorusGeometry(0.13, 0.025, 6, 20)), kit.toon('#1B1B1B'), group, { position: [0, 0.82, 0], rotation: [Math.PI / 2, 0, 0] });
-      break;
-    default:
-      break;
-  }
-
-  const head = new Group();
-  // Turn first, then nod, then tilt: how a head actually looks around.
-  head.rotation.order = 'YXZ';
-  head.position.y = HEAD_Y;
-  group.add(head);
-  add(kit.geometry('head', () => taper(new SphereGeometry(HEAD_R, 36, 26))), skin, head, { thin: false });
-  const ear = kit.geometry('ear', () => new SphereGeometry(0.1, 12, 8));
-  const piercings = new Set(avatar.piercings);
-  for (const side of [-1, 1]) {
-    add(ear, skin, head, { position: [side * HEAD_R * 0.9, -0.06, 0.02], scale: [0.5, 0.95, 0.75] });
-    if (piercings.has('ear-studs')) add(kit.geometry('stud', () => new SphereGeometry(0.022, 8, 6)), metal, head, { position: [side * HEAD_R * 0.95, -0.14, 0.06], outline: false });
-    if (piercings.has('ear-hoops')) add(kit.geometry('hoop', () => new TorusGeometry(0.045, 0.011, 6, 16)), gold, head, { position: [side * HEAD_R * 0.95, -0.19, 0.05], rotation: [0, Math.PI / 2, 0], outline: false });
-  }
-
-  // The face is a patch of sphere just in front of the head, so the 2D drawing wraps round it.
-  const faceGeometry = kit.geometry('face-tapered', () => taper(new SphereGeometry(HEAD_R * 1.01, 24, 18, Math.PI / 2 - 0.85, 1.7, Math.PI / 2 - 0.78, 1.56)));
-  const face = new Mesh(faceGeometry, new MeshBasicMaterial({ map: faceTexture(kit, avatar, 0), transparent: true, alphaTest: 0.35, depthWrite: false }));
-  face.renderOrder = 1;
-  head.add(face);
-
-  const style = hairStyle(avatar.hair);
-  const volume = style.none ? 1 : style.volume;
-  const crownY = HEAD_R * volume + (style.lift ?? 0) * HEAD_R;
-  if (!style.none) {
-    add(kit.geometry(`hair:${style.id}`, () => hairGeometry(style)), hair, head, { thin: false });
-    const cone = kit.geometry('hair-spike', () => new ConeGeometry(0.1, 0.34, 6));
-    if (style.tufts) {
-      // Choppy ends sticking out from the edge of the hair, round the sides and back.
-      const { count, from, to, length } = style.tufts;
-      for (let i = 0; i < count; i++) {
-        for (const side of [-1, 1]) {
-          if (i === 0 && side === 1 && from === 1) continue;
-          const azimuth = side * Math.PI * MathUtils.lerp(from, to, count > 1 ? i / (count - 1) : 0);
-          const polar = hairline(style, azimuth) - 0.08;
-          const at = onHair(style, azimuth, polar, -0.03);
-          const out = at.clone().setY(0).normalize();
-          spike(cone, hair, head, at, out.multiplyScalar(0.7).add(new Vector3(0, -1, 0)), [0.8, length / 0.34, 0.45]);
-        }
-      }
-    }
-    if (style.crown) {
-      for (let i = 0; i < 6; i++) {
-        const azimuth = (i / 6) * Math.PI * 2 + 0.3;
-        const at = onHair(style, azimuth, 0.55, -0.04);
-        spike(cone, hair, head, at, at.clone().normalize().add(new Vector3(0, 0.6, -0.4)), [0.9, 1.1, 0.5]);
-      }
-    }
-    if (style.fin) {
-      // A mohawk: a row of flattened spikes from the forehead to the nape, tallest in the middle.
-      for (let i = 0; i < 7; i++) {
-        const polar = -0.55 + i * 0.36;
-        const at = new Vector3(0, Math.cos(polar) * HEAD_R * 0.98, Math.sin(polar) * HEAD_R * 0.98);
-        const height = 0.9 + Math.sin((i / 6) * Math.PI) * 0.7;
-        spike(cone, hair, head, at, at.clone().normalize().add(new Vector3(0, 0, -0.35)), [0.45, height, 1.3]);
-      }
-    }
-    if (style.quiff) add(kit.geometry('quiff', () => new SphereGeometry(0.26, 18, 12)), hair, head, { position: [0.02, crownY - 0.04, 0.22], scale: [1.2, 0.75, 1] });
-    if (style.curtain) add(kit.geometry('curtain', () => new CapsuleGeometry(0.42, 0.42, 6, 16)), hair, head, { position: [0, -0.36, -0.2], scale: [1.05, 1, 0.5] });
-    if (style.locks) for (const side of [-1, 1]) add(kit.geometry('lock', () => new CapsuleGeometry(0.075, 0.42, 4, 8)), hair, head, { position: [side * 0.42, -0.28, 0.14] });
-    if (style.ponytail) {
-      add(kit.geometry('hair-tie', () => new SphereGeometry(0.08, 10, 8)), shirt, head, { position: [0, 0.1, -0.52] });
-      add(kit.geometry('tail', () => new CapsuleGeometry(0.12, 0.42, 4, 10)), hair, head, { position: [0, -0.22, -0.64], rotation: [0.35, 0, 0] });
-    }
-    if (style.twintails) {
-      for (const side of [-1, 1]) {
-        add(kit.geometry('hair-tie', () => new SphereGeometry(0.08, 10, 8)), shirt, head, { position: [side * 0.44, 0.02, -0.22] });
-        add(kit.geometry('twintail', () => new CapsuleGeometry(0.12, 0.5, 4, 10)), hair, head, { position: [side * 0.52, -0.38, -0.26], rotation: [0.15, 0, side * 0.18] });
-      }
-    }
-    if (style.braid) {
-      const bead = kit.geometry('braid', () => new SphereGeometry(0.1, 12, 8));
-      for (let i = 0; i < 5; i++) add(bead, hair, head, { position: [0, -0.1 - i * 0.14, -0.5 - i * 0.03], scale: [1 - i * 0.08, 0.9, 0.9] });
-      add(kit.geometry('hair-tie', () => new SphereGeometry(0.08, 10, 8)), shirt, head, { position: [0, -0.78, -0.62], scale: [0.7, 0.7, 0.7] });
-    }
-    if (style.bun) add(kit.geometry('bun', () => new SphereGeometry(0.2, 14, 10)), hair, head, { position: [0, 0.45, -0.32] });
-    if (style.buns) for (const side of [-1, 1]) add(kit.geometry('bun-small', () => new SphereGeometry(0.17, 14, 10)), hair, head, { position: [side * 0.3, 0.44, -0.02] });
-  }
-  if (avatar.ahoge && !style.none) {
-    const strand = kit.geometry(`ahoge:${crownY.toFixed(3)}`, () => new TubeGeometry(new CatmullRomCurve3([new Vector3(0, crownY - 0.04, 0.04), new Vector3(0.01, crownY + 0.14, 0.07), new Vector3(0.1, crownY + 0.27, 0.03), new Vector3(0.2, crownY + 0.22, -0.03)]), 16, 0.03, 6));
-    add(strand, hair, head);
-  }
-
-  const top = crownY;
-  switch (avatar.hat) {
-    case 'bow': {
-      const pink = kit.toon('#FF6B8B');
-      const wing = kit.geometry('bow', () => new ConeGeometry(0.11, 0.2, 4));
-      add(wing, pink, head, { position: [0.18, top - 0.02, 0.12], rotation: [0, 0, Math.PI / 2] });
-      add(wing, pink, head, { position: [0.4, top - 0.1, 0.12], rotation: [0, 0, -Math.PI / 2] });
-      break;
-    }
-    case 'cap':
-      add(kit.geometry(`cap:${volume}`, () => new SphereGeometry(HEAD_R * volume * 1.05, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.42)), shirt, head);
-      add(kit.geometry('brim', () => new CylinderGeometry(0.3, 0.3, 0.04, 20)), shirt, head, { position: [0, 0.22, 0.42], scale: [1, 1, 0.9] });
-      break;
-    case 'beanie':
-      add(kit.geometry(`beanie:${volume}`, () => new SphereGeometry(HEAD_R * volume * 1.07, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.46)), kit.toon('#E5484D'), head);
-      add(kit.geometry(`beanie-cuff:${volume}`, () => new TorusGeometry(HEAD_R * volume * 0.98, 0.06, 8, 28)), kit.toon('#B8333A'), head, { position: [0, 0.12, 0], rotation: [Math.PI / 2, 0, 0] });
-      add(kit.geometry('pompom', () => new SphereGeometry(0.1, 12, 8)), kit.toon('#F2F2F2'), head, { position: [0, top + 0.1, 0] });
-      break;
-    case 'cat-ears':
-    case 'horns': {
-      const horn = avatar.hat === 'horns';
-      const geometry = kit.geometry(horn ? 'horn' : 'cat-ear', () => new ConeGeometry(horn ? 0.07 : 0.14, horn ? 0.3 : 0.28, horn ? 8 : 4));
-      for (const side of [-1, 1]) {
-        const at = onHair(style.none ? { volume: 1, lift: 0 } : style, side * 0.6, 0.55, -0.03);
-        spike(geometry, horn ? kit.toon('#E8E1CF') : hair, head, at, new Vector3(side * (horn ? 0.6 : 0.35), 1, horn ? 0.3 : 0), [1, 1, horn ? 1 : 0.5]);
-      }
-      break;
-    }
-    case 'crown': {
-      const goldCrown = kit.toon('#F2C230');
-      add(kit.geometry('crown-band', () => new CylinderGeometry(0.2, 0.22, 0.1, 16, 1, true)), goldCrown, head, { position: [0, top + 0.02, 0] });
-      const point = kit.geometry('crown-point', () => new ConeGeometry(0.05, 0.12, 4));
-      for (let i = 0; i < 5; i++) {
-        const t = (i / 5) * Math.PI * 2;
-        add(point, goldCrown, head, { position: [Math.sin(t) * 0.2, top + 0.12, Math.cos(t) * 0.2] });
-      }
-      break;
-    }
-    case 'halo': {
-      const halo = new Mesh(kit.geometry('halo', () => new TorusGeometry(0.28, 0.035, 8, 28)), kit.toon('#F5C518'));
-      halo.position.set(0, top + 0.2, 0);
-      halo.rotation.x = Math.PI / 2;
-      head.add(halo);
-      break;
-    }
-    case 'headband':
-      add(kit.geometry(`headband:${volume}`, () => new TorusGeometry(HEAD_R * volume * 0.99, 0.035, 8, 32, Math.PI)), kit.toon('#E5484D'), head, { position: [0, 0.12, 0], rotation: [0, 0, 0] });
-      break;
-    case 'flower': {
-      const petal = kit.geometry('petal', () => new SphereGeometry(0.055, 10, 8));
-      const center = onHair(style.none ? { volume: 1, lift: 0 } : style, 0.6, 0.42, 0.02);
-      for (let i = 0; i < 5; i++) {
-        const t = (i / 5) * Math.PI * 2;
-        add(petal, kit.toon('#FFB3C7'), head, { position: [center.x + Math.cos(t) * 0.07, center.y + Math.sin(t) * 0.07, center.z], outline: false });
-      }
-      add(kit.geometry('petal-center', () => new SphereGeometry(0.04, 8, 6)), kit.toon('#F2C230'), head, { position: [center.x, center.y, center.z + 0.03] });
-      break;
-    }
-    case 'headphones': {
-      const dark = kit.toon('#3A3A44');
-      add(kit.geometry(`band:${volume}`, () => new TorusGeometry(HEAD_R * volume + 0.03, 0.035, 8, 24, Math.PI)), dark, head);
-      const cup = kit.geometry('cup', () => new CylinderGeometry(0.14, 0.14, 0.1, 16));
-      for (const side of [-1, 1]) add(cup, dark, head, { position: [side * (HEAD_R * volume + 0.02), 0, 0], rotation: [0, 0, Math.PI / 2] });
-      break;
-    }
-    default:
-      break;
-  }
-
-  // Arms hang from the shoulders; the pivot sits at the shoulder so they swing from there.
-  const arms = [];
-  const arm = kit.geometry('arm', () => new CapsuleGeometry(0.065, 0.2, 4, 8));
-  const hand = kit.geometry('hand', () => new SphereGeometry(0.075, 10, 8));
-  for (const side of [-1, 1]) {
-    const shoulder = new Group();
-    shoulder.position.set(side * 0.24, 0.74, 0);
-    shoulder.rotation.set(-1.0, 0, side * 0.3);
-    group.add(shoulder);
-    add(arm, shirt, shoulder, { position: [0, -0.12, 0] });
-    add(hand, skin, shoulder, { position: [0, -0.28, 0] });
-    arms.push(shoulder);
-  }
-  return { head, body, face, arms, handHeight: 0.62 };
-}
-
-// A small robot for computer players: boxy (or domed) head with a screen for
-// a face, an antenna that glows in its accent colour, and a metal body.
-function buildRobot(avatar, kit, group) {
-  const metal = kit.toon(avatar.skin);
-  const dark = kit.toon('#4B5260');
-  const body = kit.toon(avatar.shirt);
-  const glow = new MeshBasicMaterial({ color: new Color(avatar.hairColor) });
-
-  const add = (geometry, material, parent, { position, rotation, scale, thin = true } = {}) => {
-    const mesh = withOutline(new Mesh(geometry, material), kit, thin);
-    if (position) mesh.position.set(...position);
-    if (rotation) mesh.rotation.set(...rotation);
-    if (scale) mesh.scale.set(...scale);
-    parent.add(mesh);
-    return mesh;
-  };
-
-  const legGeometry = kit.geometry('robot-leg', () => new CylinderGeometry(0.07, 0.07, 0.26, 10));
-  const footGeometry = kit.geometry('robot-foot', () => new RoundedBoxGeometry(0.18, 0.08, 0.24, 2, 0.03));
-  for (const side of [-1, 1]) {
-    add(legGeometry, dark, group, { position: [side * 0.14, 0.15, 0] });
-    add(footGeometry, metal, group, { position: [side * 0.14, 0.04, 0.03] });
-  }
-  const torso = add(kit.geometry('robot-torso', () => new RoundedBoxGeometry(0.62, 0.55, 0.46, 3, 0.1)), body, group, { position: [0, 0.56, 0], thin: false });
-  const light = new Mesh(kit.geometry('robot-light', () => new CircleGeometry(0.06, 16)), glow);
-  light.position.set(0.12, 0.08, 0.235);
-  torso.add(light);
-
-  const head = new Group();
-  head.rotation.order = 'YXZ';
-  head.position.y = HEAD_Y;
-  group.add(head);
-
-  let top = 0.41;
-  let faceZ = 0.43;
-  let halfWidth = 0.48;
-  const faceOpen = faceTexture(kit, avatar, 0);
-  let face;
-  if (avatar.head === 'dome') {
-    add(kit.geometry('robot-dome', () => new SphereGeometry(HEAD_R, 28, 20)), metal, head, { scale: [1.05, 0.92, 1], thin: false });
-    face = new Mesh(kit.geometry('face', () => new SphereGeometry(HEAD_R * 1.01, 24, 18, Math.PI / 2 - 0.85, 1.7, Math.PI / 2 - 0.78, 1.56)), new MeshBasicMaterial({ map: faceOpen, transparent: true, alphaTest: 0.35, depthWrite: false }));
-    face.scale.set(1.05, 0.92, 1);
-    top = 0.46;
-    halfWidth = 0.52;
-  } else {
-    const tv = avatar.head === 'tv';
-    const size = tv ? [1.12, 0.78, 0.8] : [0.95, 0.82, 0.86];
-    add(kit.geometry(`robot-${avatar.head}`, () => new RoundedBoxGeometry(...size, 4, 0.14)), metal, head, { thin: false });
-    face = new Mesh(kit.geometry(`robot-screen-${avatar.head}`, () => new PlaneGeometry(size[0] * 0.94, size[1] * 1.05)), new MeshBasicMaterial({ map: faceOpen, transparent: true, alphaTest: 0.35, depthWrite: false }));
-    faceZ = size[2] / 2 + 0.006;
-    top = size[1] / 2;
-    halfWidth = size[0] / 2;
-    face.position.z = faceZ;
-  }
-  face.renderOrder = 1;
-  head.add(face);
-
-  add(kit.geometry('robot-antenna', () => new CylinderGeometry(0.022, 0.022, 0.26, 6)), dark, head, { position: [0, top + 0.12, 0] });
-  const ball = new Mesh(kit.geometry('robot-ball', () => new SphereGeometry(0.075, 12, 10)), glow);
-  ball.position.set(0, top + 0.28, 0);
-  head.add(withOutline(ball, kit, true));
-  for (const side of [-1, 1]) add(kit.geometry('robot-bolt', () => new CylinderGeometry(0.1, 0.1, 0.08, 14)), dark, head, { position: [side * (halfWidth + 0.03), 0, 0], rotation: [0, 0, Math.PI / 2] });
-
-  const arms = [];
-  const armGeometry = kit.geometry('robot-arm', () => new CylinderGeometry(0.05, 0.05, 0.22, 8));
-  const handGeometry = kit.geometry('robot-hand', () => new SphereGeometry(0.085, 10, 8));
-  for (const side of [-1, 1]) {
-    const shoulder = new Group();
-    shoulder.position.set(side * 0.37, 0.74, 0);
-    shoulder.rotation.set(-1.0, 0, side * 0.3);
-    group.add(shoulder);
-    add(armGeometry, dark, shoulder, { position: [0, -0.13, 0] });
-    add(handGeometry, metal, shoulder, { position: [0, -0.28, 0] });
-    arms.push(shoulder);
-  }
-  group.userData.glow = glow;
-  group.userData.antenna = ball;
-  return { head, body: torso, face, arms, handHeight: 0.62 };
-}
-
-export function buildAvatar(avatarInput, kit) {
-  const avatar = normaliseAvatar(avatarInput);
-  const group = new Group();
-  const parts = avatar.type === 'robot' ? buildRobot(avatar, kit, group) : buildHuman(avatar, kit, group);
-  Object.assign(group.userData, parts, {
-    robot: avatar.type === 'robot',
-    faceOpen: parts.face.material,
-    faceClosed: new MeshBasicMaterial({ map: faceTexture(kit, avatar, 1), transparent: true, alphaTest: 0.35, depthWrite: false }),
-  });
-  return group;
-}
-
-function disposeAvatar(group) {
-  disposeGroup(group);
-  group.userData.glow?.dispose();
 }
 
 // ─── Animation helpers ────────────────────────────────────────────────
@@ -1830,103 +1374,6 @@ export function createUnoScene(canvas) {
       for (const geometry of [cardGeometry, popupGeometry, confettiGeometry, ringGeometry, glowGeometry]) geometry.dispose();
       feltMaterial.dispose();
       glow.dispose();
-      kit.dispose();
-      renderer.dispose();
-    },
-  };
-}
-
-// ─── Lobby preview: one avatar, slowly turning ─────────────────────────
-
-export function createAvatarPreview(canvas) {
-  const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.outputColorSpace = SRGBColorSpace;
-  const kit = new Kit();
-  const scene = new Scene();
-  const camera = new PerspectiveCamera(30, 1, 0.1, 20);
-  camera.position.set(0, 1.15, 5);
-  camera.lookAt(0, 0.95, 0);
-  scene.add(new HemisphereLight('#ffffff', '#7a7a8c', 1.8));
-  const sun = new DirectionalLight('#ffffff', 1.4);
-  sun.position.set(2, 5, 4);
-  scene.add(sun);
-
-  let avatar = null;
-  let key = '';
-  let dragging = null;
-  let angle = 0.35;
-  let velocity = 0;
-
-  const onDown = (event) => {
-    dragging = event.clientX;
-    canvas.setPointerCapture?.(event.pointerId);
-  };
-  const onMove = (event) => {
-    if (dragging === null) return;
-    velocity = (event.clientX - dragging) * 0.012;
-    angle += velocity;
-    dragging = event.clientX;
-  };
-  const onUp = () => (dragging = null);
-  canvas.addEventListener('pointerdown', onDown);
-  canvas.addEventListener('pointermove', onMove);
-  canvas.addEventListener('pointerup', onUp);
-  canvas.addEventListener('pointercancel', onUp);
-
-  const resize = () => {
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    if (!w || !h) return;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-  };
-  const observer = new ResizeObserver(resize);
-  observer.observe(canvas);
-  resize();
-
-  let blinkAt = performance.now() + 2000;
-  renderer.setAnimationLoop((now) => {
-    if (!avatar) return;
-    if (dragging === null) {
-      velocity *= 0.92;
-      angle += velocity + 0.004;
-    }
-    const { body, head, face, faceOpen, faceClosed, arms, antenna } = avatar.userData;
-    avatar.rotation.y = Math.sin(angle) * 0.9;
-    body.scale.y = 1 + Math.sin(now / 500) * 0.02;
-    head.rotation.z = Math.sin(now / 800) * 0.06;
-    // Arms at rest by their sides here, with a little wave.
-    arms[0].rotation.set(0, 0, -0.25 + Math.sin(now / 600) * 0.05);
-    arms[1].rotation.set(0, 0, 0.25 - Math.sin(now / 600) * 0.05);
-    if (antenna) antenna.position.x = Math.sin(now / 300) * 0.02;
-    const blinking = now > blinkAt;
-    if (now > blinkAt + 140) blinkAt = now + 1800 + Math.random() * 2500;
-    face.material = blinking ? faceClosed : faceOpen;
-    renderer.render(scene, camera);
-  });
-
-  return {
-    setAvatar(next) {
-      const nextKey = avatarKey(next);
-      if (nextKey === key) return;
-      key = nextKey;
-      if (avatar) {
-        scene.remove(avatar);
-        disposeAvatar(avatar);
-      }
-      avatar = buildAvatar(next, kit);
-      scene.add(avatar);
-    },
-    dispose() {
-      renderer.setAnimationLoop(null);
-      observer.disconnect();
-      canvas.removeEventListener('pointerdown', onDown);
-      canvas.removeEventListener('pointermove', onMove);
-      canvas.removeEventListener('pointerup', onUp);
-      canvas.removeEventListener('pointercancel', onUp);
-      if (avatar) disposeAvatar(avatar);
       kit.dispose();
       renderer.dispose();
     },
