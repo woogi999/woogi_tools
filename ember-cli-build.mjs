@@ -21,5 +21,10 @@ export default async function (defaults) {
     },
   });
 
-  return compatBuild(app, buildOnce);
+  return compatBuild(app, buildOnce, {
+    // Modules in app/lazy are left out of the app's entrypoint, so a dynamic
+    // import() of one really does split it (and its dependencies, like
+    // three.js) into a chunk that only downloads when it's needed.
+    staticAppPaths: ['lazy'],
+  });
 }

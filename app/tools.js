@@ -518,6 +518,45 @@ export const TOOLS = [
       "Notes are edited in the browser's own contenteditable, formatted with document.execCommand. Drawing and stickers sit on a transparent <canvas> layered right over the text, the way a phone's notes app lets you scribble on the page instead of switching modes. A custom font is registered from an uploaded file with the FontFace API. Ctrl+F inside the tool also searches every note's text, not just what's on screen. Everything is saved to your browser's local storage; nothing is ever uploaded.",
     credits: [],
   },
+  {
+    label: 'Chess',
+    route: 'chess',
+    icon: 'chess-knight',
+    category: 'Fun',
+    description: 'Play chess against the computer at three levels, or against a friend over a direct P2P link. Clocks, Chess960, premoves and drag-and-drop.',
+    keywords: ['chess', 'board game', 'checkmate', 'chess ai', 'play chess online', 'multiplayer', 'p2p', 'game', 'blitz', 'bullet', 'chess960', 'premove'],
+    madeWith:
+      "chess.js handles the rules: legal moves, check, castling, en passant, promotion and every kind of draw. The computer is a small hand-written engine on top of it: alpha-beta search with move ordering and a capture-only quiescence search, scoring positions by material and piece-square tables. It deepens one move at a time within a time budget and yields to the browser between slices, so the board never freezes while it thinks. Pieces live in their own layer and slide between squares with CSS transitions; after every change each piece on the new board is matched to the nearest piece of its kind on the old one, so moves, castling, captures and takebacks all animate without special cases. Premoves are checked against piece movement only, then played the moment it's your turn if they're legal. Online games use PeerJS to connect the two browsers directly; each move is sent with the resulting position and both clocks, so the boards can't drift apart.",
+    credits: [
+      { name: 'chess.js', author: 'Jeff Hlywa', license: 'BSD-2-Clause', url: 'https://github.com/jhlywa/chess.js' },
+      { name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' },
+    ],
+  },
+  {
+    label: 'Snake',
+    route: 'snake',
+    icon: 'worm',
+    category: 'Fun',
+    description: 'Classic snake on your own, or a battle of up to four snakes against the computer and your friends.',
+    keywords: ['snake', 'arcade', 'retro game', 'nokia snake', 'multiplayer', 'p2p', 'game'],
+    madeWith:
+      "The board is a <canvas> redrawn every tick. The rules are plain JavaScript: heads move first, then collisions are settled against where every snake ends up, so head-on crashes are fair. The computer snake finds the nearest apple with a breadth-first search, refuses to enter a pocket smaller than its own body (checked with a flood fill), avoids squares another head could reach next, and occasionally wanders so it can be beaten. Online, the host runs the game and streams each tick to everyone over PeerJS connections; guests only send their turns.",
+    credits: [{ name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' }],
+  },
+  {
+    label: 'Uno',
+    route: 'uno',
+    icon: 'layers',
+    category: 'Fun',
+    description: 'The card game around a 3D table: up to eight players, computer or friends, with house rules like stacking, 7 swap, 0 rotate and jump-in.',
+    keywords: ['uno', 'card game', 'cards', 'wild card', 'multiplayer', 'p2p', 'game', 'house rules', 'stacking', 'avatar', '3d'],
+    madeWith:
+      "The deck and rules are plain JavaScript: Skips, Reverses (which act as Skips with two players), Draw Twos, Wilds and Wild Draw Fours, plus optional house rules for stacking, sevens, zeros, jump-ins and drawing until you can play. The table is a small three.js scene loaded only when you open Uno: toon-shaded low-poly avatars with ink outlines (the back faces of each shape, pushed outwards), faces and cards drawn once on a 2D canvas and reused as textures, and a stream of game events turned into flying cards and speech bubbles. Your own cards stay in the drawn hand from the home page. Computer players keep their Wild Draw Fours until someone is close to winning, shed high numbers first and pick the colour they hold most of. Online, the host runs the game and sends each player only what they're allowed to see, so no one can peek at another hand.",
+    credits: [
+      { name: 'three.js', author: 'three.js authors', license: 'MIT', url: 'https://threejs.org' },
+      { name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' },
+    ],
+  },
 ];
 
 // Shown under every tool: the stack the whole site runs on.

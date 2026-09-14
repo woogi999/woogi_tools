@@ -366,7 +366,7 @@ export default class FileSharePage extends Component {
                 <h3 class="qr-heading">Get a file</h3>
                 <p class="tool-hint">Got a code from someone? Enter it below to receive their files.</p>
                 <form class="fs-join" {{on "submit" this.requestFile}}>
-                  <input type="text" class="fs-code-input" placeholder="SHARE CODE" maxlength="8" value={{this.joinInput}} {{on "input" this.setJoinInput}} />
+                  <input type="text" class="fs-code-input" placeholder="Share code" maxlength="8" value={{this.joinInput}} {{on "input" this.setJoinInput}} />
                   <button type="submit" class="btn active">Get File</button>
                 </form>
                 {{#if this.joinError}}<p class="tool-error">{{this.joinError}}</p>{{/if}}

@@ -1,3 +1,4 @@
+import ToolSlot from '../components/tool-slot';
 import QrCodePage from '../components/qr-code-page';
 
-<template><QrCodePage /></template>
+<template><ToolSlot @route="qr-code" @component={{QrCodePage}} /></template>

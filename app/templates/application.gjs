@@ -6,6 +6,7 @@ import { LinkTo } from '@ember/routing';
 import { service } from '@ember/service';
 import SidebarNav from '../components/sidebar-nav';
 import CommandPalette from '../components/command-palette';
+import PipLayer from '../components/pip-layer';
 import ThemeToggle from '../components/theme-toggle';
 import Icon from '../components/icon';
 
@@ -56,6 +57,9 @@ export default class Application extends Component {
     </div>
 
     <CommandPalette />
+
+    {{! After the outlet on purpose: pages register their tools first (see services/pip.js). }}
+    <PipLayer />
 
     {{#if this.offline.updateReady}}
       <div class="update-toast pop-in" role="status">

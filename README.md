@@ -4,7 +4,7 @@ A collection of small, single-purpose utilities — a calculator here, a convert
 
 ## What's inside
 
-Tools are organised into six categories. Every tool can be hidden from Settings if you don't use it.
+Tools are organised into seven categories. Every tool can be hidden from Settings if you don't use it.
 
 ### Design
 
@@ -26,6 +26,10 @@ Calculator · Graph Calculator · Algebra Calculator · Time & Date Calculator �
 
 Word Counter · Text Case Converter · Text Diff · Line Tools
 
+### Fun
+
+Chess · Snake · Uno — each playable against the computer or peer-to-peer with a friend
+
 ### Other
 
 QR Code Generator · P2P File Share · Password Generator · Lorem Ipsum Generator · Pomodoro Timer · Random Picker · Quick Notes
@@ -38,7 +42,7 @@ The full, current list — with descriptions, keywords and "how it's made" notes
 - No backend and no database. Preferences, notes and favourites are kept in `localStorage` under a `woogi-` prefix (see Settings → Reset).
 - Works offline after the first visit. `vite build` runs a small plugin ([`lib/offline-plugin.mjs`](lib/offline-plugin.mjs)) that hashes the whole build into a build ID and writes `dist/sw.js` from [`lib/service-worker.js`](lib/service-worker.js). Pages are network-first (so online visitors always get the latest deploy), hashed assets are cache-first, and a new build ID makes browsers download the new version in the background next time they're online. Status and cache size are in Settings → Your data.
 - Heavier engines — ImageMagick, FFmpeg, Pandoc, 7-Zip, the background-removal model — are WebAssembly builds loaded lazily, only when a tool that needs them is actually used.
-- P2P File Share uses [PeerJS](https://peerjs.com) for the WebRTC signalling handshake; the transfer itself is a direct connection between the two browsers.
+- P2P File Share uses [PeerJS](https://peerjs.com) for the WebRTC signalling handshake; the transfer itself is a direct connection between the two browsers. The games' online mode connects the same way; chess rules come from [chess.js](https://github.com/jhlywa/chess.js).
 
 ## Prerequisites
 

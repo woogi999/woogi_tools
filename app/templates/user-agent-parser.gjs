@@ -1,3 +1,4 @@
+import ToolSlot from '../components/tool-slot';
 import UserAgentParserPage from '../components/user-agent-parser-page';
 
-<template><UserAgentParserPage /></template>
+<template><ToolSlot @route="user-agent-parser" @component={{UserAgentParserPage}} /></template>
