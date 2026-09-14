@@ -2,7 +2,8 @@
 // Ctrl+F palette so all three stay in sync.
 export const TOOLS = [
   { label: 'Home', route: 'index', icon: 'house', keywords: ['start', 'dashboard', 'favourites', 'favorites'] },
-  { label: 'Settings', route: 'settings', icon: 'settings', keywords: ['preferences', 'options', 'theme', 'dark mode', 'light mode', 'animations', 'motion', 'export', 'backup', 'data', 'reset'] },
+  { label: 'Settings', route: 'settings', icon: 'settings', keywords: ['preferences', 'options', 'theme', 'dark mode', 'light mode', 'animations', 'motion', 'export', 'backup', 'data', 'reset', 'offline', 'cache'] },
+  { label: 'Updates', route: 'updates', icon: 'history', keywords: ['changelog', 'what\'s new', 'release notes', 'version', 'news'] },
   {
     label: 'Colour Picker',
     route: 'color-picker',
@@ -124,10 +125,10 @@ export const TOOLS = [
     route: "timestamp-converter",
     icon: "clock",
     category: "Dev",
-    description: "Convert Unix timestamps to dates and back, across time zones.",
-    keywords: ["timestamp", "unix time", "epoch", "date", "time zone", "timezone", "iso 8601", "milliseconds", "utc", "convert"],
+    description: "Convert Unix timestamps to dates and back, across time zones, with ready-to-paste Discord timestamp codes.",
+    keywords: ["timestamp", "unix time", "epoch", "date", "time zone", "timezone", "iso 8601", "milliseconds", "utc", "convert", "discord", "discord timestamp", "discord time"],
     madeWith:
-      "The unit (seconds, milliseconds, micro or nanoseconds) is guessed from how many digits you type. Time zones are formatted by the browser's Intl.DateTimeFormat using its built-in time zone database, and relative times come from Intl.RelativeTimeFormat.",
+      "The unit (seconds, milliseconds, micro or nanoseconds) is guessed from how many digits you type, or pick a date and time directly with the picker. Time zones are formatted by the browser's Intl.DateTimeFormat using its built-in time zone database, relative times come from Intl.RelativeTimeFormat, and the Discord codes use its <t:unix:style> timestamp syntax.",
     credits: [],
   },
   {

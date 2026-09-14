@@ -51,4 +51,5 @@ Router.map(function () {
   this.route('cron-builder');
   this.route('gitignore-generator');
   this.route('settings');
+  this.route('updates');
 });

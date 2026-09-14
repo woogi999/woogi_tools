@@ -634,14 +634,25 @@ input[type='text'].graph-fn-input {
 .settings {
   display: flex;
   flex-direction: column;
-  gap: 16px;
   width: 100%;
   max-width: 760px;
   margin: 0 auto;
 }
 
+// Plain sections split by a rule, rather than cards.
 .settings .math-card {
+  padding: 22px 0;
   border: none;
+  border-radius: 0;
+  background: none;
+}
+
+.settings .math-card:first-child {
+  padding-top: 0;
+}
+
+.settings .math-card + .math-card {
+  border-top: 1px solid var(--border-color);
 }
 
 .settings-row {

@@ -6,6 +6,7 @@ import { fn } from '@ember/helper';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
 import { TOOLS, groupTools } from '../tools';
+import { APP_VERSION } from '../changelog';
 
 const eq = (a, b) => a === b;
 
@@ -49,6 +50,7 @@ export default class SettingsPage extends Component {
   @service notes;
   @service favourites;
   @service toolVisibility;
+  @service offline;
 
   themes = THEMES;
   motions = MOTIONS;
@@ -75,9 +77,41 @@ export default class SettingsPage extends Component {
 
   get storageUsed() {
     // Reading these re-runs the getter whenever something that's saved changes.
-    const watched = [this.storageVersion, this.notes.notes, this.favourites.routes, this.settings.themePreference, this.settings.motion];
+    const watched = [this.storageVersion, this.notes.notes, this.favourites.routes, this.settings.themePreference, this.settings.motion, this.settings.handSearch];
     return watched && formatBytes(storedBytes());
   }
+
+  appVersion = APP_VERSION;
+
+  get offlineStatus() {
+    const { status, isOnline } = this.offline;
+    if (status === 'ready') return isOnline ? "Saved for offline use. Updates download automatically when you're online." : "You're offline — running from the saved copy.";
+    if (status === 'installing') return 'Downloading the site for offline use…';
+    if (status === 'cleared') return 'Offline copy removed. Reload the page to download it again.';
+    if (status === 'disabled') return 'Offline mode only runs on the deployed site, not in development.';
+    if (status === 'unsupported') return "This browser doesn't support offline mode.";
+    return "Offline mode couldn't start. The site still works while online.";
+  }
+
+  get offlineCacheSize() {
+    return this.offline.cacheBytes === null ? '—' : formatBytes(this.offline.cacheBytes);
+  }
+
+  get lastCheckedLabel() {
+    return this.offline.lastChecked?.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) ?? 'never';
+  }
+
+  checkForUpdate = async () => {
+    await this.offline.checkForUpdate();
+    await this.offline.measure();
+    if (!this.offline.updateReady) this.notify(this.offline.isOnline ? 'Checked for updates. If a new version exists it downloads in the background.' : "You're offline, so there's nothing to check right now.");
+  };
+
+  clearOffline = async () => {
+    if (!window.confirm('Remove the offline copy of Woogi Tools? Your notes and settings are kept.')) return;
+    await this.offline.clear();
+    this.notify('Offline copy removed.');
+  };
 
   get systemThemeLabel() {
     return this.settings.systemDark ? 'dark' : 'light';
@@ -91,6 +125,7 @@ export default class SettingsPage extends Component {
 
   setTheme = (id) => this.settings.setTheme(id);
   setMotion = (id) => this.settings.setMotion(id);
+  toggleHandSearch = (event) => this.settings.setHandSearch(event.target.checked);
   toggleCategoryHidden = (category) => this.toolVisibility.toggleCategory(category);
   toggleToolHidden = (route) => this.toolVisibility.toggleTool(route);
 
@@ -128,8 +163,8 @@ export default class SettingsPage extends Component {
     this.notify('All notes deleted.');
   };
 
-  resetEverything = () => {
-    if (!window.confirm('Reset Woogi Tools? This deletes notes, favourites and settings saved in this browser.')) return;
+  resetEverything = async () => {
+    if (!window.confirm('Reset Woogi Tools? This deletes notes, favourites, settings and the offline copy saved in this browser.')) return;
     try {
       Object.keys(localStorage)
         .filter((key) => key.startsWith(STORAGE_PREFIX))
@@ -137,6 +172,7 @@ export default class SettingsPage extends Component {
     } catch {
       // storage blocked: nothing was saved anyway
     }
+    await this.offline.clear();
     // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a page reload, not a data request
     window.location.reload();
   };
@@ -144,8 +180,11 @@ export default class SettingsPage extends Component {
   <template>
     <div class="container">
       <section class="hero pop-in">
-        <h1 class="hero-title"><span>Settings</span></h1>
-        <p>Preferences for the whole site. Everything is stored in this browser only.</p>
+        <div class="hero-icon"><Icon @name="settings" @size={{28}} /></div>
+        <div class="hero-text">
+          <h1 class="hero-title"><span>Settings</span></h1>
+          <p>Preferences for the whole site. Everything is stored in this browser only.</p>
+        </div>
       </section>
 
       <div class="settings pop-in">
@@ -178,6 +217,18 @@ export default class SettingsPage extends Component {
                 <button type="button" class="qr-tab {{if (eq this.settings.motion m.id) 'active'}}" aria-pressed={{if (eq this.settings.motion m.id) "true" "false"}} {{on "click" (fn this.setMotion m.id)}}>{{m.label}}</button>
               {{/each}}
             </div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="qr-label">Hand of cards search</span>
+              <span class="tool-hint">Home page search results are also fanned out in a hand of cards. Turn off to see only the plain card grid.</span>
+            </div>
+            <label class="qr-switch">
+              <input type="checkbox" role="switch" checked={{this.settings.handSearch}} aria-checked={{if this.settings.handSearch "true" "false"}} {{on "change" this.toggleHandSearch}} />
+              <span class="qr-switch-track" aria-hidden="true"></span>
+              Show hand
+            </label>
           </div>
         </section>
 
@@ -226,6 +277,21 @@ export default class SettingsPage extends Component {
             <div class="math-stat"><span>Folders</span><strong>{{this.notes.folders.length}}</strong></div>
             <div class="math-stat"><span>Favourites</span><strong>{{this.favourites.routes.length}}</strong></div>
             <div class="math-stat"><span>Storage used</span><strong>{{this.storageUsed}}</strong></div>
+            <div class="math-stat"><span>Offline cache</span><strong>{{this.offlineCacheSize}}</strong></div>
+          </div>
+
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="qr-label">Offline mode</span>
+              <span class="tool-hint">{{this.offlineStatus}}</span>
+              <span class="tool-hint">
+                Version {{this.appVersion}}{{#if this.offline.buildId}} · build <code>{{this.offline.buildId}}</code>{{/if}}{{#if this.offline.cacheFiles}} · {{this.offline.cacheFiles}} files saved{{/if}} · last checked {{this.lastCheckedLabel}}
+              </span>
+            </div>
+            <div class="settings-actions">
+              <button type="button" class="btn math-use" disabled={{if this.offline.registration false true}} {{on "click" this.checkForUpdate}}><Icon @name="refresh-cw" @size={{13}} /> {{if this.offline.checking "Checking…" "Check for updates"}}</button>
+              <button type="button" class="btn math-use" disabled={{if this.offline.cacheBytes false true}} {{on "click" this.clearOffline}}><Icon @name="trash-2" @size={{13}} /> Remove</button>
+            </div>
           </div>
 
           <div class="settings-row">
@@ -266,7 +332,7 @@ export default class SettingsPage extends Component {
           <div class="settings-row">
             <div class="settings-label">
               <span class="qr-label">Reset everything</span>
-              <span class="tool-hint">Deletes all notes, favourites and settings, then reloads.</span>
+              <span class="tool-hint">Deletes all notes, favourites, settings and the offline copy, then reloads.</span>
             </div>
             <button type="button" class="btn math-use is-danger" {{on "click" this.resetEverything}}>Reset</button>
           </div>

@@ -45,6 +45,22 @@ function relative(ms, now) {
 
 const zoneFormatter = (timeZone) => new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: 'medium', timeStyle: 'long' });
 
+// Discord renders <t:UNIX:STYLE> as a localised, live-updating timestamp.
+const DISCORD_STYLES = [
+  { code: 't', label: 'Short time' },
+  { code: 'T', label: 'Long time' },
+  { code: 'd', label: 'Short date' },
+  { code: 'D', label: 'Long date' },
+  { code: 'f', label: 'Short date/time' },
+  { code: 'F', label: 'Long date/time' },
+  { code: 'R', label: 'Relative' },
+];
+
+function toDatetimeLocal(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 export default class TimestampConverterPage extends Component {
   zones = ALL_ZONES;
 
@@ -93,8 +109,28 @@ export default class TimestampConverterPage extends Component {
     return ALL_ZONES.filter((z) => !this.shownZones.includes(z));
   }
 
+  get pickerValue() {
+    const date = this.parsed?.date;
+    return toDatetimeLocal(!date || Number.isNaN(date.getTime()) ? new Date() : date);
+  }
+
+  get discordCodes() {
+    const date = this.parsed?.date;
+    if (!date || Number.isNaN(date.getTime())) return [];
+    const secs = Math.floor(date.getTime() / 1000);
+    return DISCORD_STYLES.map((s) => ({ ...s, value: `<t:${secs}:${s.code}>` }));
+  }
+
   setInput = (e) => (this.input = e.target.value);
   useNow = () => (this.input = String(this.nowSeconds));
+
+  // A local date/time picker, for building a timestamp from scratch instead
+  // of typing one — e.g. scheduling a Discord post for a specific moment.
+  setPicker = (e) => {
+    if (!e.target.value) return;
+    const date = new Date(e.target.value);
+    if (!Number.isNaN(date.getTime())) this.input = String(Math.floor(date.getTime() / 1000));
+  };
 
   addZone = (e) => {
     if (e.target.value) this.shownZones = [...this.shownZones, e.target.value];
@@ -119,6 +155,10 @@ export default class TimestampConverterPage extends Component {
             </label>
             <button type="button" class="btn math-swap" {{on "click" this.useNow}}>Now</button>
           </div>
+          <label class="math-field">
+            <span class="qr-label is-muted">…or pick a date &amp; time</span>
+            <input type="datetime-local" class="math-input" step="1" value={{this.pickerValue}} {{on "input" this.setPicker}} />
+          </label>
           {{#if this.parsed.error}}
             <p class="tool-error">{{this.parsed.error}}</p>
           {{else if this.parsed}}
@@ -150,6 +190,19 @@ export default class TimestampConverterPage extends Component {
               <option value={{zone}}>{{zone}}</option>
             {{/each}}
           </select>
+        </section>
+
+        <section class="math-card">
+          <h3 class="qr-heading">Discord timestamps</h3>
+          <p class="tool-hint">Paste one of these into a Discord message — it renders as a live, localised timestamp for whoever reads it.</p>
+          <ul class="case-list">
+            {{#each this.discordCodes key="code" as |d|}}
+              <li class="case-item">
+                <div class="case-text"><span class="qr-label is-muted">{{d.label}}</span><span class="case-value is-mono">{{d.value}}</span></div>
+                <CopyButton @value={{d.value}} />
+              </li>
+            {{/each}}
+          </ul>
         </section>
       </div>
     </ToolPage>

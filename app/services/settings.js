@@ -5,6 +5,7 @@ import { registerDestructor } from '@ember/destroyable';
 // index.html applies both keys before first paint, so keep the names in sync with it.
 const THEME_KEY = 'woogi-theme';
 const MOTION_KEY = 'woogi-motion';
+const HAND_SEARCH_KEY = 'woogi-hand-search';
 
 const read = (key) => {
   try {
@@ -32,6 +33,8 @@ export default class SettingsService extends Service {
   @tracked systemDark = !lightQuery().matches;
   // 'system' follows the OS; 'reduce' switches animations off regardless.
   @tracked motion = read(MOTION_KEY) === 'reduce' ? 'reduce' : 'system';
+  // Home page search results fanned in a hand of cards, next to the plain grid.
+  @tracked handSearch = read(HAND_SEARCH_KEY) !== 'off';
 
   constructor() {
     super(...arguments);
@@ -74,6 +77,11 @@ export default class SettingsService extends Service {
   // The header button flips between light and dark explicitly.
   toggleTheme() {
     this.setTheme(this.isDark ? 'light' : 'dark');
+  }
+
+  setHandSearch(enabled) {
+    this.handSearch = enabled;
+    write(HAND_SEARCH_KEY, enabled ? null : 'off');
   }
 
   setMotion(motion) {

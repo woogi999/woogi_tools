@@ -59,6 +59,22 @@ export default defineConfig([
       },
     },
   },
+  /**
+   * Service worker template: filled in at build time by lib/offline-plugin.mjs
+   */
+  {
+    files: ['lib/service-worker.js'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+        __PRECACHE__: 'readonly',
+        __ALL_FILES__: 'readonly',
+      },
+    },
+    rules: {
+      'warp-drive/no-external-request-patterns': 'off',
+    },
+  },
   {
     ...qunit.configs.recommended,
     files: ['tests/**/*-test.{js,gjs}'],
