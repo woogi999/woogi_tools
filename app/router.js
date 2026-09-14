@@ -52,7 +52,9 @@ Router.map(function () {
   this.route('gitignore-generator');
   this.route('chess');
   this.route('snake');
+  this.route('woono');
   this.route('uno');
+  this.route('jjs-stuff');
   this.route('settings');
   this.route('updates');
 });

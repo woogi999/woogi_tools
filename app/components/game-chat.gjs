@@ -69,7 +69,7 @@ export default class GameChat extends Component {
   stopKeys = (event) => event.stopPropagation();
 
   <template>
-    {{#if this.room.isOnline}}
+    {{#unless this.room.isBusy}}
       <section class="game-chat {{if @floating 'is-floating'}} {{if this.isOpen 'is-open'}} {{@class}}" aria-label="Chat">
         {{#if @floating}}
           <button type="button" class="game-chat-toggle" aria-expanded={{if this.open "true" "false"}} {{on "click" this.toggle}}>
@@ -87,8 +87,8 @@ export default class GameChat extends Component {
               {{#if m.system}}
                 <li class="game-chat-system">{{m.text}}</li>
               {{else}}
-                <li class="game-chat-msg {{if m.mine 'is-mine'}}">
-                  <span class="game-chat-name">{{if m.mine "You" m.name}}</span>
+                <li class="game-chat-msg {{if m.mine 'is-mine'}} {{if m.bot 'is-bot'}}">
+                  <span class="game-chat-name">{{#if m.bot}}<Icon @name="bot" @size={{11}} /> {{/if}}{{if m.mine "You" m.name}}</span>
                   <span class="game-chat-text">{{m.text}}</span>
                 </li>
               {{/if}}
@@ -97,11 +97,11 @@ export default class GameChat extends Component {
             {{/each}}
           </ol>
           <form class="game-chat-form" {{on "submit" this.send}}>
-            <input type="text" placeholder="Message the room" aria-label="Chat message" maxlength={{this.maxLength}} value={{this.draft}} {{on "input" this.setDraft}} {{on "keydown" this.stopKeys}} />
+            <input type="text" placeholder={{if this.room.isOnline "Message the room" "Say something to the table"}} aria-label="Chat message" maxlength={{this.maxLength}} value={{this.draft}} {{on "input" this.setDraft}} {{on "keydown" this.stopKeys}} />
             <button type="submit" class="btn" aria-label="Send" disabled={{if this.draft false true}}><Icon @name="send" @size={{13}} /></button>
           </form>
         {{/if}}
       </section>
-    {{/if}}
+    {{/unless}}
   </template>
 }

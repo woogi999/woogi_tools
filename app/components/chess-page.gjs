@@ -13,6 +13,9 @@ import AvatarPortrait from './avatar-portrait';
 import GameChat from './game-chat';
 import GameRoom from '../utils/game-room';
 import { roomCodeFromUrl } from '../utils/file-share';
+import { botNames, newBotSeed } from '../utils/bot-names';
+import { BotChatter } from '../utils/bot-chat';
+import { robotAvatar } from '../utils/avatar';
 import { findBestMove, LEVELS } from '../utils/chess-ai';
 import { FILES, STANDARD_FEN, TIME_CONTROLS, clockFor, formatClock, chess960Fen, premoveTargets, applyPremoves, syncTokens, canMate } from '../utils/chess-extras';
 
@@ -107,7 +110,7 @@ export default class ChessPage extends Component {
 
   room = new GameRoom('chess', {
     maxPlayers: 2,
-    settings: { ...DEFAULTS },
+    settings: { ...DEFAULTS, botSeed: newBotSeed() },
     onMessage: (message) => this.onlineMessage(message),
     onGuestLeft: () => this.opponentLeft(),
     onClosed: () => this.opponentLeft(),
@@ -118,11 +121,14 @@ export default class ChessPage extends Component {
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
     registerDestructor(this, () => {
+      this.chatter.dispose();
       this.abort?.abort();
       clearInterval(this.clockTimer);
       this.room.close();
     });
   }
+
+  chatter = new BotChatter(this.room);
 
   get settings() {
     return this.room.settings;
@@ -133,7 +139,16 @@ export default class ChessPage extends Component {
   get seats() {
     const humans = this.room.members.map((m) => ({ ...m, kind: 'human' }));
     if (humans.length >= 2) return humans;
-    return [...humans, { id: 'bot', name: `Computer (${LEVELS[this.settings.level]?.label ?? 'Medium'})`, kind: 'bot' }];
+    return [...humans, { id: 'bot', name: `${this.botName} (${LEVELS[this.settings.level]?.label ?? 'Medium'})`, kind: 'bot', avatar: this.botAvatar }];
+  }
+
+  // The computer opponent's pun name and robot look, the same for everyone in the room.
+  get botName() {
+    return botNames(this.settings.botSeed, 1)[0];
+  }
+
+  get botAvatar() {
+    return robotAvatar(this.settings.botSeed, 0);
   }
 
   get vsBotInLobby() {
@@ -174,7 +189,7 @@ export default class ChessPage extends Component {
     const guest = this.room.members.find((m) => !m.isYou);
     const clock = clockFor(s);
     this.level = s.level;
-    this.begin({ fen, color: chosen, clock, takebacks: s.takebacks, opponent: guest ? { kind: 'human', name: guest.name, avatar: guest.avatar } : { kind: 'bot', name: `Computer (${LEVELS[s.level].label})` } });
+    this.begin({ fen, color: chosen, clock, takebacks: s.takebacks, opponent: guest ? { kind: 'human', name: guest.name, avatar: guest.avatar } : { kind: 'bot', name: `${this.botName} (${LEVELS[s.level].label})`, avatar: this.botAvatar } });
     this.room.setLocked(true);
     if (guest) {
       this.room.send({ type: 'start', fen, color: other(chosen), clock, takebacks: s.takebacks });
@@ -202,6 +217,7 @@ export default class ChessPage extends Component {
     clearInterval(this.clockTimer);
     if (clock) this.clockTimer = setInterval(() => this.tickClock(), 100);
     this.afterChange();
+    if (opponent?.kind === 'bot') this.chatter.say(this.botName, 'chessHello', { urgent: true });
     this.maybeBotMove();
   }
 
@@ -257,9 +273,9 @@ export default class ChessPage extends Component {
       return outcome.winner === this.playerColor ? `You win ${reason}!` : `${this.opponentName} wins ${reason}.`;
     }
     const check = this.chess.inCheck() ? 'Check! ' : '';
-    if (this.thinking) return `${check}Computer is thinking…`;
+    if (this.thinking) return `${check}${this.botName} is thinking…`;
     if (this.chess.turn() === this.playerColor) return `${check}Your move.`;
-    return `${check}Waiting for ${this.isBot ? 'the computer' : this.opponentName}…${this.premoves.length ? ` ${this.premoves.length} premove${this.premoves.length > 1 ? 's' : ''} queued.` : ''}`;
+    return `${check}Waiting for ${this.isBot ? this.botName : this.opponentName}…${this.premoves.length ? ` ${this.premoves.length} premove${this.premoves.length > 1 ? 's' : ''} queued.` : ''}`;
   }
 
   get lastMove() {
@@ -435,6 +451,10 @@ export default class ChessPage extends Component {
   }
 
   finish() {
+    if (this.isBot && this.outcome) {
+      const { winner } = this.outcome;
+      this.chatter.say(this.botName, winner === null ? 'chessDraw' : winner === this.playerColor ? 'chessLose' : 'chessWin', { urgent: true });
+    }
     this.freezeClocks();
     this.abort?.abort();
     this.thinking = false;
@@ -466,6 +486,12 @@ export default class ChessPage extends Component {
     this.pendingPromotion = null;
     if (this.offer?.kind === 'takeback') this.offer = null;
     this.afterChange();
+    // The computer reacts to captures and checks, its own and yours.
+    if (this.isBot && !this.isOver) {
+      const botMoved = mover !== this.playerColor;
+      if (result.san.includes('+')) this.chatter.say(this.botName, botMoved ? 'check' : 'checked', { chance: 0.7 });
+      else if (result.captured) this.chatter.say(this.botName, botMoved ? 'capture' : 'hit', { chance: 0.3 });
+    }
     return result;
   }
 
@@ -785,13 +811,13 @@ export default class ChessPage extends Component {
   }
 
   <template>
-    <ToolPage @route="chess" @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Play the computer at three levels, or a friend over a direct browser-to-browser link. Clocks, Chess960, premoves and drag-and-drop.">
+    <ToolPage @route="chess" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Play the computer at three levels, or a friend over a direct browser-to-browser link. Clocks, Chess960, premoves and drag-and-drop.">
       {{#if (eq this.mode "playing")}}
         <div class="game-shell chess-shell pop-in">
           <div class="chess-main">
             <div class="chess-player">
               <span class="chess-player-name">
-                {{#if this.isBot}}<span class="chess-player-bot"><Icon @name="bot" @size={{16}} /></span>{{else}}<AvatarPortrait @avatar={{this.opponent.avatar}} @size={{28}} />{{/if}}
+                <AvatarPortrait @avatar={{this.opponent.avatar}} @size={{28}} />
                 {{this.opponentName}}
               </span>
               <span class="chess-captured">

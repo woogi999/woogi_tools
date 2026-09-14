@@ -1,0 +1,243 @@
+// ─── JJS Stuff ───────────────────────────────────────────────────────────
+
+.jjs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-self: stretch;
+  width: 100%;
+}
+
+// Tabs and search stay in reach while scrolling through hundreds of IDs.
+.jjs-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-block: 10px;
+  background: var(--bg);
+}
+
+.jjs-bar .tool-hint {
+  margin: 0;
+}
+
+.home-chip.is-empty {
+  opacity: 0.5;
+}
+
+.jjs-tab-count {
+  margin-left: 3px;
+  padding: 0 6px;
+  background: color-mix(in oklab, currentcolor 18%, transparent);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.jjs-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jjs-search {
+  position: relative;
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 6px;
+}
+
+.jjs-search > .icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+.jjs-search .math-input {
+  height: 36px;
+  padding-left: 32px;
+}
+
+.jjs-search .qr-icon-btn {
+  height: 36px;
+}
+
+.jjs-jump {
+  flex: 0 1 200px;
+  height: 36px;
+  min-width: 0;
+  padding: 0 8px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.jjs-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-card);
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.jjs-intro p {
+  margin: 0;
+}
+
+// Cards flow into as many columns as fit, like a notebook page.
+.jjs-groups {
+  columns: 290px;
+  column-gap: 14px;
+}
+
+.jjs-groups > .tool-hint {
+  column-span: all;
+}
+
+.jjs-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  break-inside: avoid;
+  // Clears the sticky bar when jumped to.
+  scroll-margin-top: 150px;
+}
+
+.jjs-group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.jjs-group-parent {
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.jjs-group-head .tool-hint {
+  margin: 0;
+}
+
+.jjs-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jjs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.jjs-row.is-text {
+  color: var(--text-dim);
+}
+
+.jjs-sub {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-color);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.jjs-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.jjs-id .icon {
+  color: var(--text-faint);
+}
+
+.jjs-id:hover {
+  border-color: var(--text-faint);
+}
+
+.jjs-id.is-copied {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.jjs-id.is-copied .icon {
+  color: var(--bg);
+}
+
+.jjs-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.jjs-speed,
+.jjs-time {
+  font-family: var(--font-mono);
+}
+
+.jjs-note {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.jjs-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.jjs-preset {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.jjs-preset-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.jjs-preset .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

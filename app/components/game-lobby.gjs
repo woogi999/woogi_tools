@@ -7,6 +7,8 @@ import CopyButton from './copy-button';
 import AvatarPortrait from './avatar-portrait';
 import AvatarEditor from './avatar-editor';
 import GameChat from './game-chat';
+import NearbyPanel from './nearby-panel';
+import GameRoom from '../utils/game-room';
 
 // The lobby every game shares. Everyone gathers here before a game starts:
 // the host adds computer players, sets the rules and presses Start; friends
@@ -26,6 +28,9 @@ import GameChat from './game-chat';
 //   <:profile>             extra per-player settings (Chess's board options)
 export default class GameLobby extends Component {
   @tracked joinInput = '';
+  @tracked joinPassword = '';
+  @tracked rooms = null;
+  @tracked browsing = false;
   @tracked editingAvatar = false;
 
   get room() {
@@ -63,10 +68,48 @@ export default class GameLobby extends Component {
   toggleAvatarEditor = () => (this.editingAvatar = !this.editingAvatar);
   setName = (event) => this.room.setProfile({ name: event.target.value });
   setJoinInput = (event) => (this.joinInput = event.target.value);
+  setJoinPassword = (event) => (this.joinPassword = event.target.value);
+
+  // The password box shows up once a room has asked for one.
+  get showJoinPassword() {
+    return Boolean(this.room.needsPassword) || Boolean(this.joinPassword);
+  }
+
+  // Connecting over the internet; nearby links show their progress in their own panel.
+  get onlineBusy() {
+    return this.room.isBusy && !this.room.lan;
+  }
+
+  // Joined someone's room online: nothing nearby to set up.
+  get hideNearby() {
+    return (this.room.status === 'joined' || this.room.status === 'joining' || this.room.status === 'opening') && !this.room.lan;
+  }
 
   join = (event) => {
     event.preventDefault();
-    this.room.join(this.joinInput);
+    if (this.room.needsPassword && !this.joinInput) this.joinInput = this.room.needsPassword;
+    this.room.join(this.joinInput || this.room.needsPassword, this.joinPassword);
+  };
+
+  browse = async () => {
+    this.browsing = true;
+    try {
+      this.rooms = await GameRoom.browse(this.room.game);
+    } catch {
+      this.rooms = [];
+    } finally {
+      this.browsing = false;
+    }
+  };
+
+  joinListed = (listed) => {
+    this.joinInput = listed.code;
+    if (listed.password && !this.joinPassword) {
+      // Ask for the password first; the box appears next to the code.
+      this.room.needsPassword = listed.code;
+      return;
+    }
+    this.room.join(listed.code, this.joinPassword);
   };
 
   host = () => this.room.host();
@@ -86,10 +129,10 @@ export default class GameLobby extends Component {
           <ul class="lobby-seats">
             {{#each @seats key="id" as |seat|}}
               <li class="lobby-seat {{if seat.isYou 'is-you'}} pop-in">
-                {{#if (isBot seat)}}
-                  <span class="lobby-seat-bot"><Icon @name="bot" @size={{20}} /></span>
-                {{else}}
+                {{#if seat.avatar}}
                   <AvatarPortrait @avatar={{seat.avatar}} @size={{40}} />
+                {{else}}
+                  <span class="lobby-seat-bot"><Icon @name="bot" @size={{20}} /></span>
                 {{/if}}
                 <span class="lobby-seat-text">
                   <span class="lobby-seat-name">{{seat.name}}</span>
@@ -119,40 +162,81 @@ export default class GameLobby extends Component {
 
           <div class="lobby-invite">
             {{#if (eq this.room.status "open")}}
-              <div class="fs-code-block">
-                <span class="qr-label is-muted">Room code</span>
-                <div class="fs-code-row">
-                  <span class="fs-code">{{this.room.code}}</span>
-                  <CopyButton @value={{this.room.code}} />
+              {{#if this.room.lan}}
+                <p class="fs-status is-connected"><Icon @name="radio-tower" @size={{14}} /> Nearby game open. No internet needed.</p>
+              {{else}}
+                <div class="fs-code-block">
+                  <span class="qr-label is-muted">Room code</span>
+                  <div class="fs-code-row">
+                    <span class="fs-code">{{this.room.code}}</span>
+                    <CopyButton @value={{this.room.code}} />
+                  </div>
                 </div>
-              </div>
-              <div class="fs-code-block">
-                <span class="qr-label is-muted">Invite link</span>
-                <div class="fs-code-row">
-                  <span class="fs-link">{{this.room.shareUrl}}</span>
-                  <CopyButton @value={{this.room.shareUrl}} />
+                <div class="fs-code-block">
+                  <span class="qr-label is-muted">Invite link</span>
+                  <div class="fs-code-row">
+                    <span class="fs-link">{{this.room.shareUrl}}</span>
+                    <CopyButton @value={{this.room.shareUrl}} />
+                  </div>
                 </div>
-              </div>
-              <p class="fs-status is-connected"><Icon @name="radio-tower" @size={{14}} /> Room open. Friends can join until you start.</p>
+                <AccessControls @room={{this.room}} />
+                <p class="fs-status is-connected">
+                  <Icon @name={{if this.room.listed "users" "lock"}} @size={{14}} />
+                  {{#if this.room.listed}}
+                    {{if this.room.listing "Public: listed for anyone browsing rooms." "Public: getting listed…"}}
+                  {{else}}
+                    Private: only people with the code or link can join.
+                  {{/if}}
+                  {{#if this.room.password}} Password needed.{{/if}}
+                </p>
+              {{/if}}
               <button type="button" class="fs-reset" {{on "click" this.leaveRoom}}><Icon @name="x" @size={{13}} /> Close room</button>
-            {{else if this.room.isBusy}}
+            {{else if this.onlineBusy}}
               <p class="fs-status"><Icon @name="radio-tower" @size={{14}} /> {{this.statusLabel}}</p>
               {{#if this.room.slow}}
-                <p class="tool-hint">Still looking. Keep this tab open. If it never connects, one of the networks (often mobile data, work or school Wi-Fi) is blocking direct browser-to-browser connections; try both devices on the same Wi-Fi.</p>
+                <p class="tool-hint">Still looking. Keep this tab open. If it never connects, one of the networks (often mobile data, work or school Wi-Fi) is blocking direct browser-to-browser connections; try both devices on the same Wi-Fi, or play nearby below.</p>
               {{/if}}
               <button type="button" class="fs-reset" {{on "click" this.leaveRoom}}><Icon @name="x" @size={{13}} /> Cancel</button>
             {{else if (eq this.room.status "joined")}}
               <p class="fs-status is-connected"><Icon @name="radio-tower" @size={{14}} /> Connected to the host.</p>
               <button type="button" class="fs-reset" {{on "click" this.leaveRoom}}><Icon @name="log-out" @size={{13}} /> Leave room</button>
-            {{else}}
-              <span class="qr-label is-muted">Play with friends</span>
-              <button type="button" class="btn lobby-open-btn" {{on "click" this.host}}><Icon @name="radio-tower" @size={{13}} /> Open room to friends</button>
+            {{else if (eq this.room.status "idle")}}
+              <span class="qr-label is-muted">Play with friends online</span>
+              <AccessControls @room={{this.room}} />
+              <button type="button" class="btn lobby-open-btn" {{on "click" this.host}}><Icon @name={{if this.room.listed "radio-tower" "lock"}} @size={{13}} /> {{if this.room.listed "Open public room" "Open private room"}}</button>
               <form class="fs-join" {{on "submit" this.join}}>
                 <input type="text" class="fs-code-input" placeholder="Room code" aria-label="Room code" maxlength="8" value={{this.joinInput}} {{on "input" this.setJoinInput}} />
+                {{#if this.showJoinPassword}}
+                  <input type="password" class="fs-code-input lobby-password" placeholder="Password" aria-label="Room password" maxlength="32" value={{this.joinPassword}} {{on "input" this.setJoinPassword}} />
+                {{/if}}
                 <button type="submit" class="btn">Join</button>
               </form>
+              <div class="lobby-browse">
+                <button type="button" class="btn" disabled={{this.browsing}} {{on "click" this.browse}}><Icon @name="search" @size={{13}} /> {{if this.browsing "Looking for rooms…" "Browse public rooms"}}</button>
+                {{#if this.rooms}}
+                  {{#if this.rooms.length}}
+                    <ul class="lobby-rooms">
+                      {{#each this.rooms key="code" as |r|}}
+                        <li class="lobby-room">
+                          <span class="lobby-room-text"><strong>{{r.host}}’s room</strong> <span class="lobby-tag">{{r.players}}/{{r.max}}</span>{{#if r.password}} <Icon @name="lock" @size={{12}} />{{/if}}{{#if r.locked}} <span class="lobby-tag">Playing</span>{{/if}}</span>
+                          <button type="button" class="btn" disabled={{if r.locked true (full r)}} {{on "click" (fn this.joinListed r)}}>Join</button>
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{else}}
+                    <p class="tool-hint">No public rooms right now. Open one and your friends will see it here.</p>
+                  {{/if}}
+                {{/if}}
+              </div>
             {{/if}}
           </div>
+
+          {{#unless this.hideNearby}}
+            <details class="lobby-nearby" open={{this.room.lan}}>
+              <summary><Icon @name="wifi" @size={{14}} /> Play nearby without internet (Wi-Fi or hotspot)</summary>
+              <NearbyPanel @room={{this.room}} />
+            </details>
+          {{/unless}}
         </section>
 
         <section class="lobby-panel lobby-rules" aria-label="Rules">
@@ -180,14 +264,12 @@ export default class GameLobby extends Component {
             </button>
           </div>
           {{#if this.editingAvatar}}
-            <AvatarEditor @avatar={{this.room.profile.avatar}} @onChange={{this.setAvatar}} />
+            <AvatarEditor @avatar={{this.room.profile.avatar}} @name={{this.room.profile.name}} @onChange={{this.setAvatar}} />
           {{/if}}
           {{yield to="profile"}}
         </section>
 
-        {{#if this.room.isOnline}}
-          <GameChat @room={{this.room}} @class="lobby-panel lobby-chat" />
-        {{/if}}
+        <GameChat @room={{this.room}} @class="lobby-panel lobby-chat" />
       </div>
 
       <footer class="lobby-foot">
@@ -208,6 +290,30 @@ export default class GameLobby extends Component {
       </footer>
     </div>
   </template>
+}
+
+// Public or private, and an optional password, for the host.
+class AccessControls extends Component {
+  get room() {
+    return this.args.room;
+  }
+
+  setListed = (listed) => this.room.setAccess({ listed });
+  setPassword = (event) => this.room.setAccess({ password: event.target.value });
+
+  <template>
+    <div class="lobby-access">
+      <div class="math-tabs" role="group" aria-label="Who can find the room">
+        <button type="button" class="qr-tab {{if this.room.listed 'active'}}" aria-pressed={{if this.room.listed "true" "false"}} {{on "click" (fn this.setListed true)}}>Public</button>
+        <button type="button" class="qr-tab {{unless this.room.listed 'active'}}" aria-pressed={{if this.room.listed "false" "true"}} {{on "click" (fn this.setListed false)}}>Private</button>
+      </div>
+      <input type="password" class="fs-code-input lobby-password" placeholder="Password (optional)" aria-label="Room password" maxlength="32" autocomplete="new-password" value={{this.room.password}} {{on "input" this.setPassword}} />
+    </div>
+  </template>
+}
+
+function full(room) {
+  return room.players >= room.max;
 }
 
 function isBot(seat) {

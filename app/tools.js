@@ -544,17 +544,36 @@ export const TOOLS = [
     credits: [{ name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' }],
   },
   {
-    label: 'Uno',
-    route: 'uno',
+    label: 'Woono',
+    route: 'woono',
     icon: 'layers',
     category: 'Fun',
-    description: 'The card game around a 3D table: up to eight players, computer or friends, with house rules like stacking, 7 swap, 0 rotate and jump-in.',
-    keywords: ['uno', 'card game', 'cards', 'wild card', 'multiplayer', 'p2p', 'game', 'house rules', 'stacking', 'avatar', '3d'],
+    description: 'Our take on Uno, played first person around a 3D table: up to eight players, computer or friends, with house rules like stacking, 7 swap, 0 rotate and jump-in.',
+    keywords: ['woono', 'uno', 'uno online', 'lan', 'offline multiplayer', 'hotspot', 'challenge', 'turn timer', 'card game', 'cards', 'wild card', 'multiplayer', 'p2p', 'game', 'house rules', 'stacking', 'avatar', '3d', 'first person'],
     madeWith:
-      "The deck and rules are plain JavaScript: Skips, Reverses (which act as Skips with two players), Draw Twos, Wilds and Wild Draw Fours, plus optional house rules for stacking, sevens, zeros, jump-ins and drawing until you can play. The table is a small three.js scene loaded only when you open Uno: toon-shaded low-poly avatars with ink outlines (the back faces of each shape, pushed outwards), faces and cards drawn once on a 2D canvas and reused as textures, and a stream of game events turned into flying cards and speech bubbles. Your own cards stay in the drawn hand from the home page. Computer players keep their Wild Draw Fours until someone is close to winning, shed high numbers first and pick the colour they hold most of. Online, the host runs the game and sends each player only what they're allowed to see, so no one can peek at another hand.",
+      "The deck and rules are plain JavaScript: Skips, Reverses (which act as Skips with two players), Draw Twos, Wilds and Wild Draw Fours, plus optional house rules for stacking, sevens, zeros, jump-ins and drawing until you can play. The table is a small three.js scene loaded only when you open Woono, seen through your own avatar's eyes: your cards are real 3D cards held in front of the camera and picked with a raycast, while name tags, the draw button and stacked-draw warnings are sprites that always face you. Avatars are chibi doodles built from a few toon-shaded shapes with ink outlines (the back faces of each shape, pushed outwards); hairstyles are one sphere whose vertices outside a hairline are tucked inside the head, so a new style is just a new hairline. Faces and cards are drawn once on a 2D canvas and reused as textures. Effects are pooled: one particle buffer, a handful of recycled rings and cards, so nothing is allocated mid-game. On phones, the gyroscope's orientation is turned into a quaternion relative to where you were facing when you switched it on, so tilting the phone looks around. Computer players keep their Wild Draw Fours until someone is close to winning, shed high numbers first, pick the colour they hold most of, sometimes challenge a +4, and chat in pun-filled lines picked by what just happened. The turn timer runs on the host, which sends everyone the time left rather than a timestamp, since device clocks never quite agree. Online, the host runs the game and sends each player only what they're allowed to see, so no one can peek at another hand. Public rooms are found without any server keeping a list: each one also claims one of a dozen well-known listing ids, and browsing simply knocks on each. Nearby play needs no internet at all: the two WebRTC connection descriptions a broker would normally pass along are deflated with fflate and swapped by QR code (read with the browser's BarcodeDetector) or copy and paste, and with no STUN server only local network addresses are used.",
     credits: [
+      { name: 'fflate', author: '101arrowz', license: 'MIT', url: 'https://github.com/101arrowz/fflate' },
+      { name: 'qr-code-styling', author: 'Denys Kozak', license: 'MIT', url: 'https://github.com/kozakdenys/qr-code-styling' },
       { name: 'three.js', author: 'three.js authors', license: 'MIT', url: 'https://threejs.org' },
       { name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' },
+    ],
+  },
+  {
+    label: 'JJS Stuff',
+    route: 'jjs-stuff',
+    icon: 'swords',
+    category: 'Fun',
+    description: 'Jujutsu Shenanigans Skill Builder notes: sound IDs, emote music, punch, kick and flip directions, run animations, move startups and presets.',
+    keywords: ['jjs', 'jujutsu shenanigans', 'skill builder', 'skillbuilder', 'roblox', 'sound id', 'audio id', 'sounds', 'emotes', 'animations', 'vfx', 'presets', 'moveset', 'startup', 'gojo', 'sukuna', 'yuji'],
+    madeWith:
+      "The notes are kept as the plain text they were written in and read by a small parser: bold lines become headings, a heading followed by another heading becomes a character or category, long numbers become copyable sound IDs, and times like 0.483~ become startups. Search filters every tab at once and shows how many matches each one has. The text is loaded only when you open the page.",
+    credits: [
+      { name: "Skillbuilder's Help", author: 'oSam and friends', url: 'https://ossaamm.github.io' },
+      { name: 'oSam on YouTube', author: 'oSam', url: 'https://www.youtube.com/@oSSamm1' },
+      { name: 'Punch, kick and flip directions', author: 'Apple Lover, ujhjth', url: 'https://ossaamm.github.io' },
+      { name: 'Animation finds', author: 'lululalu_a', url: 'https://ossaamm.github.io' },
+      { name: 'VFX presets', author: 'TheNoob (@dhdvru2i)', url: 'https://ossaamm.github.io' },
     ],
   },
 ];
