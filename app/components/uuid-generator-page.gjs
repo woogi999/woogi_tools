@@ -139,7 +139,7 @@ export default class UuidGeneratorPage extends Component {
   setInspect = (e) => (this.inspectInput = e.target.value);
 
   <template>
-    <ToolPage @route="uuid-generator" @subtitle="Generate UUIDs (v4 and v7), ULIDs and Nano IDs in bulk, or decode one you already have.">
+    <ToolPage @route="uuid-generator" @subtitle="Make UUIDs (v4 and v7), ULIDs and Nano IDs by the bucketload, or decode one you already have.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <div class="math-tabs" role="group" aria-label="ID type">

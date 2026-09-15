@@ -148,7 +148,7 @@ export default class RegexTesterPage extends Component {
   };
 
   <template>
-    <ToolPage @route="regex-tester" @subtitle="Test JavaScript regular expressions with live highlighting, capture groups and replacement preview.">
+    <ToolPage @route="regex-tester" @subtitle="Write a JavaScript regular expression and watch matches, capture groups and replacements light up as you type.">
       <div class="text-tool pop-in">
         <div class="math-grid">
           <section class="math-card">

@@ -178,7 +178,7 @@ export default class ImageResizerPage extends Component {
   };
 
   <template>
-    <ToolPage @route="image-resizer" @subtitle="Resize and compress images in bulk, right in your browser.">
+    <ToolPage @route="image-resizer" @subtitle="Drop in your images, pick a size and quality, and download them smaller. Works on lots at once.">
       <div class="fs">
         <div class="fs-frame fc-panel pop-in">
           <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>

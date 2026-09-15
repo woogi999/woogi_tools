@@ -5,6 +5,8 @@ import { loadProfile, saveProfile } from './profile';
 import { censor } from './censor';
 import { createInvite, answerInvite, LanConnection } from './lan-link';
 import { peerOptions } from './ice';
+import { sfx } from './sound';
+import { normalisePose } from './pose';
 
 // Peer ids are namespaced per game, so a Chess code can't collide with a Snake
 // code (or a File Share code) that happens to be the same six characters.
@@ -61,6 +63,13 @@ export default class GameRoom {
   // True when the room runs over nearby links rather than the internet.
   @tracked lan = false;
   @tracked lanInvites = [];
+  // Rule sets saved by name for this game: [{ id, name, settings }].
+  @tracked presets = [];
+  // Guests who've pressed Ready (the host keeps the real list and sends it out): { [id]: true }.
+  // The host is always ready (they press Start), and so are computer players.
+  @tracked readyIds = {};
+  // When the host last called a ready check (this device's clock), so guests can be nudged.
+  @tracked readyCheckAt = 0;
 
   chatSeq = 0;
   chatTimes = new Map(); // guest id -> recent message times, for the rate limit
@@ -73,9 +82,13 @@ export default class GameRoom {
   constructor(game, { maxPlayers = 2, settings = {}, onMessage, onGuestLeft, onClosed } = {}) {
     this.game = game;
     this.maxPlayers = maxPlayers;
-    this.settings = settings;
-    // A guest who leaves gets the page's own rules back, not the last host's.
-    this.defaults = settings;
+    this.factory = settings;
+    // The rules you last played with come back next time.
+    const restored = { ...settings, ...pickKnown(settings, readJson(settingsKey(game))) };
+    this.settings = restored;
+    // A guest who leaves gets their own rules back, not the last host's.
+    this.defaults = restored;
+    this.presets = readPresets(game);
     this.onMessage = onMessage;
     this.onGuestLeft = onGuestLeft;
     this.onClosed = onClosed;
@@ -110,12 +123,61 @@ export default class GameRoom {
 
   // Everyone in the lobby, host first: [{ id, name, avatar, isHost, isYou }].
   get members() {
-    if (this.role === 'guest') return this.roster.map((m) => ({ ...m, isYou: m.id === this.selfPeerId }));
-    const me = { id: this.selfId, ...this.profile, isHost: true, isYou: true };
-    return [me, ...this.guests.map((g) => ({ ...g, isHost: false, isYou: false }))];
+    const ready = (id, isHost) => isHost || Boolean(this.readyIds[id]);
+    if (this.role === 'guest') return this.roster.map((m) => ({ ...m, isYou: m.id === this.selfPeerId, ready: ready(m.id, m.isHost) }));
+    const me = { id: this.selfId, ...this.profile, isHost: true, isYou: true, ready: true };
+    return [me, ...this.guests.map((g) => ({ ...g, isHost: false, isYou: false, ready: ready(g.id, false) }))];
+  }
+
+  // ─── Ready ───────────────────────────────────────────────────────────
+
+  // Every guest has pressed Ready (always true with no guests).
+  get allReady() {
+    return this.members.every((m) => m.ready);
+  }
+
+  get readyCount() {
+    return this.members.filter((m) => m.ready).length;
+  }
+
+  get iAmReady() {
+    return this.members.find((m) => m.isYou)?.ready ?? true;
+  }
+
+  // Guest: ready or not.
+  setReady(ready) {
+    if (this.role !== 'guest' || this.status !== 'joined') return;
+    // Shown straight away; the host's next lobby message confirms it.
+    this.readyIds = { ...this.readyIds, [this.selfPeerId]: Boolean(ready) };
+    this.post(this.hostConn, { t: 'ready', ready: Boolean(ready) });
+    sfx(ready ? 'ui.confirm' : 'ui.toggle');
+  }
+
+  // Host: clears everyone's Ready and asks them all to press it again.
+  callReadyCheck() {
+    if (this.status !== 'open') return;
+    this.readyIds = {};
+    this.readyCheckAt = Date.now();
+    this.broadcastLobby();
+    for (const conn of this.conns.values()) this.post(conn, { t: 'ready-check' });
+  }
+
+  // Host: everyone has to press Ready again (after a game starts, so a rematch needs everyone's say-so).
+  resetReady() {
+    if (!this.isHost) return;
+    this.readyIds = {};
+    this.readyCheckAt = 0;
+    this.broadcastLobby();
   }
 
   // ─── Lobby state ─────────────────────────────────────────────────────
+
+  // Picks up changes made elsewhere (Settings or the Avatar Editor) since this room was made.
+  reloadProfile() {
+    const fresh = loadProfile();
+    if (JSON.stringify(fresh) === JSON.stringify(this.profile)) return;
+    this.setProfile(fresh);
+  }
 
   setProfile(patch) {
     this.profile = saveProfile({ ...this.profile, ...patch });
@@ -125,8 +187,41 @@ export default class GameRoom {
 
   setSettings(patch) {
     if (!this.isHost) return;
+    const changed = Object.keys(patch).some((key) => JSON.stringify(this.settings[key]) !== JSON.stringify(patch[key]));
     this.settings = { ...this.settings, ...patch };
+    this.defaults = this.settings;
+    writeJson(settingsKey(this.game), withoutSeed(this.settings));
+    // New rules: everyone has to agree to them again.
+    if (changed && Object.keys(this.readyIds).length) {
+      this.readyIds = {};
+      if (this.status === 'open') this.postChat({ system: true, text: 'The rules changed, so everyone needs to press Ready again.' });
+    }
     this.broadcastLobby();
+  }
+
+  // ─── Saved rule sets ─────────────────────────────────────────────────
+
+  savePreset(name) {
+    const label = String(name ?? '').trim().slice(0, 32) || `Rules ${this.presets.length + 1}`;
+    const preset = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: label, settings: withoutSeed(this.settings) };
+    this.presets = [...this.presets.filter((p) => p.name !== label), preset].slice(-MAX_PRESETS);
+    writeJson(presetsKey(this.game), this.presets);
+    return preset;
+  }
+
+  applyPreset(id) {
+    const preset = this.presets.find((p) => p.id === id);
+    if (preset) this.setSettings(pickKnown(this.factory, preset.settings));
+  }
+
+  deletePreset(id) {
+    this.presets = this.presets.filter((p) => p.id !== id);
+    writeJson(presetsKey(this.game), this.presets);
+  }
+
+  // Back to the page's own rules (keeping who the computer players are).
+  resetSettings() {
+    this.setSettings(withoutSeed(this.factory));
   }
 
   setLocked(locked) {
@@ -136,13 +231,13 @@ export default class GameRoom {
   }
 
   wireProfile() {
-    return { name: this.profile.name.trim() || 'Player', avatar: this.profile.avatar };
+    return { name: this.profile.name.trim() || 'Player', avatar: this.profile.avatar, pose: this.profile.pose };
   }
 
   broadcastLobby() {
     if (this.status !== 'open') return;
-    const members = this.members.map(({ id, name, avatar, isHost }) => ({ id, name: id === HOST_ID ? this.wireProfile().name : name, avatar, isHost }));
-    for (const conn of this.conns.values()) this.post(conn, { t: 'lobby', members, settings: this.settings, locked: this.locked });
+    const members = this.members.map(({ id, name, avatar, pose, isHost }) => ({ id, name: id === HOST_ID ? this.wireProfile().name : name, avatar, pose, isHost }));
+    for (const conn of this.conns.values()) this.post(conn, { t: 'lobby', members, settings: this.settings, locked: this.locked, ready: this.readyIds });
   }
 
   // ─── Hosting ─────────────────────────────────────────────────────────
@@ -310,6 +405,15 @@ export default class GameRoom {
       } else if (message?.t === 'profile') {
         this.guests = this.guests.map((g) => (g.id === conn.peer ? { id: g.id, ...cleanProfile(message.profile) } : g));
         this.broadcastLobby();
+      } else if (message?.t === 'ready') {
+        const guest = this.guests.find((g) => g.id === conn.peer);
+        if (!guest || Boolean(this.readyIds[conn.peer]) === Boolean(message.ready)) return;
+        const next = { ...this.readyIds };
+        if (message.ready) next[conn.peer] = true;
+        else delete next[conn.peer];
+        this.readyIds = next;
+        this.broadcastLobby();
+        if (message.ready) sfx('ui.select');
       } else if (message?.t === 'chat') {
         const guest = this.guests.find((g) => g.id === conn.peer);
         if (guest && this.allowChat(conn.peer)) this.postChat({ from: conn.peer, name: guest.name, text: message.text });
@@ -328,6 +432,11 @@ export default class GameRoom {
     this.conns.delete(id);
     const guest = this.guests.find((g) => g.id === id);
     this.guests = this.guests.filter((g) => g.id !== id);
+    if (this.readyIds[id]) {
+      const next = { ...this.readyIds };
+      delete next[id];
+      this.readyIds = next;
+    }
     this.broadcastLobby();
     if (guest) this.postChat({ system: true, text: `${guest.name} left.` });
     this.onGuestLeft?.(id);
@@ -366,9 +475,13 @@ export default class GameRoom {
     if (message?.t === 'lobby') {
       if (this.status === 'joining') this.settle();
       this.status = 'joined';
-      this.roster = message.members;
+      this.roster = Array.isArray(message.members) ? message.members.map((m) => ({ ...m, ...cleanProfile(m) })) : [];
       this.settings = message.settings;
       this.locked = message.locked;
+      this.readyIds = message.ready && typeof message.ready === 'object' ? Object.fromEntries(Object.keys(message.ready).map((id) => [id, true])) : {};
+    } else if (message?.t === 'ready-check') {
+      this.readyCheckAt = Date.now();
+      sfx('uno.myturn');
     } else if (message?.t === 'reject') {
       const code = this.code;
       this.close(message.reason);
@@ -416,6 +529,8 @@ export default class GameRoom {
 
   addChat(message) {
     this.chat = [...this.chat.slice(-(CHAT_HISTORY - 1)), message];
+    if (message.system) sfx(/ left\.$/.test(message.text) ? 'ui.leave' : 'ui.join');
+    else if (!message.bot && message.from !== this.selfId) sfx('ui.chat');
   }
 
   // At most CHAT_BURST messages per guest in any CHAT_WINDOW_MS.
@@ -496,6 +611,8 @@ export default class GameRoom {
     this.chat = [];
     this.chatTimes.clear();
     this.locked = false;
+    this.readyIds = {};
+    this.readyCheckAt = 0;
     this.status = 'idle';
     this.code = '';
     this.selfPeerId = null;
@@ -504,6 +621,58 @@ export default class GameRoom {
     // Nearby links close last, once nothing is listening for them any more.
     for (const link of links) link.close();
   }
+}
+
+const MAX_PRESETS = 12;
+const settingsKey = (game) => `woogi-lobby-${game}`;
+const presetsKey = (game) => `woogi-lobby-presets-${game}`;
+
+function readJson(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key));
+  } catch {
+    return null;
+  }
+}
+
+function writeJson(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // storage blocked: remembered until the tab closes
+  }
+}
+
+// Computer player names are picked fresh each visit, so they aren't saved.
+function withoutSeed(settings) {
+  const rest = { ...settings };
+  delete rest.botSeed;
+  return rest;
+}
+
+// Only keys the page knows about, with the same kind of value, from something saved (or edited by hand).
+function pickKnown(defaults, saved) {
+  if (!saved || typeof saved !== 'object') return {};
+  const out = {};
+  for (const [key, value] of Object.entries(saved)) {
+    if (key === 'botSeed' || !(key in defaults)) continue;
+    const expected = defaults[key];
+    if (expected !== null && typeof expected === 'object') {
+      if (value && typeof value === 'object' && !Array.isArray(value)) out[key] = { ...expected, ...pickKnown(expected, value) };
+    } else if (typeof value === typeof expected) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
+function readPresets(game) {
+  const list = readJson(presetsKey(game));
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((p) => p && typeof p.id === 'string' && p.settings && typeof p.settings === 'object')
+    .slice(-MAX_PRESETS)
+    .map((p) => ({ id: p.id, name: String(p.name ?? 'Rules').slice(0, 32), settings: p.settings }));
 }
 
 function cleanChat(message) {
@@ -518,5 +687,5 @@ function cleanChat(message) {
 }
 
 function cleanProfile(profile) {
-  return { name: String(profile?.name ?? 'Player').slice(0, 20) || 'Player', avatar: playerAvatar(profile?.avatar) };
+  return { name: String(profile?.name ?? 'Player').slice(0, 20) || 'Player', avatar: playerAvatar(profile?.avatar), pose: normalisePose(profile?.pose) };
 }

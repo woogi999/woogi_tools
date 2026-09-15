@@ -163,7 +163,7 @@ export default class CalculatorPage extends Component {
   clearHistory = () => (this.history = []);
 
   <template>
-    <ToolPage @route="calculator" @subtitle="Type or tap an expression. Supports implied multiplication like 2π or 3(4+1), and Enter evaluates.">
+    <ToolPage @route="calculator" @subtitle="Type or tap your maths. Understands stuff like 2π or 3(4+1), and Enter gives you the answer.">
       <div class="calc pop-in">
         <section class="math-card calc-main">
           <div class="calc-display {{if this.error 'has-error'}}">

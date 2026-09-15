@@ -121,7 +121,7 @@ export default class UnitConverterPage extends Component {
   };
 
   <template>
-    <ToolPage @route="unit-converter" @subtitle="Convert length, mass, volume, area, speed, time, data, pressure and temperature.">
+    <ToolPage @route="unit-converter" @subtitle="Convert length, mass, volume, area, speed, time, data, pressure and temperature without the head-scratching.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Category</h3>

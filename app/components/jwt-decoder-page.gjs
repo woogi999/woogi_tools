@@ -109,7 +109,7 @@ export default class JwtDecoderPage extends Component {
   };
 
   <template>
-    <ToolPage @route="jwt-decoder" @subtitle="Decode a JSON Web Token's header and claims, check its expiry, and verify HMAC signatures.">
+    <ToolPage @route="jwt-decoder" @subtitle="Paste a JWT to read its header and claims, see when it expires, and verify HMAC signatures. All in your browser.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <label class="field-label" for="jwt-token">Token</label>

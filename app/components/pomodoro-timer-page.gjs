@@ -151,7 +151,7 @@ export default class PomodoroTimerPage extends Component {
   };
 
   <template>
-    <ToolPage @route="pomodoro-timer" @subtitle="Work in focused sessions with short breaks in between, and a longer break every few rounds.">
+    <ToolPage @route="pomodoro-timer" @subtitle="Work in focused sessions with little breaks in between, and a longer break every few rounds.">
       <div class="math-grid pop-in">
         <section class="math-card pomo-card">
           <div class="math-tabs" role="group" aria-label="Phase">

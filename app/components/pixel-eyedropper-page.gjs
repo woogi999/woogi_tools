@@ -127,7 +127,7 @@ export default class PixelEyedropperPage extends Component {
   useHistory = (hex) => this.setHex(hex);
 
   <template>
-    <ToolPage @route="pixel-eyedropper" @subtitle="Upload an image and click anywhere on it to sample the exact colour.">
+    <ToolPage @route="pixel-eyedropper" @subtitle="Upload an image and click anywhere to grab that exact colour. Colour thief mode: on.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOver}} {{on "drop" this.drop}}>

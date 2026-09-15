@@ -30,7 +30,7 @@ export default class GitignoreGeneratorPage extends Component {
   };
 
   <template>
-    <ToolPage @route="gitignore-generator" @subtitle="Pick your stack and combine ready-made .gitignore rules.">
+    <ToolPage @route="gitignore-generator" @subtitle="Tick the languages, frameworks and editors you use and get one tidy .gitignore file.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Stack</h3>

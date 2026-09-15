@@ -7,14 +7,17 @@ import { registerDestructor } from '@ember/destroyable';
 import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
-import GameLobby from './game-lobby';
+import GameLobby, { ReadyButton } from './game-lobby';
 import GameChat from './game-chat';
+import { askConfirm } from '../utils/confirm';
 import GameRoom from '../utils/game-room';
 import { roomCodeFromUrl } from '../utils/file-share';
 import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { robotAvatar } from '../utils/avatar';
 import { MAX_SNAKES, createGame, step, queueTurn, removeSnake } from '../utils/snake';
+import { sfx, preloadSounds } from '../utils/sound';
+import HoldConfirm from './hold-confirm';
 
 const SPEEDS = [
   { id: 'slow', label: 'Slow', ms: 160 },
@@ -80,6 +83,7 @@ export default class SnakePage extends Component {
 
   constructor(owner, args) {
     super(owner, args);
+    preloadSounds('snake');
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
     const onKey = (event) => this.onKey(event);
@@ -173,6 +177,8 @@ export default class SnakePage extends Component {
     this.mode = 'playing';
     this.paused = false;
     this.room.setLocked(true);
+    // A rematch needs everyone to press Ready again.
+    this.room.resetReady();
     const bots = this.state.snakes.filter((s) => s.bot);
     if (bots.length) this.chatter.say(bots[Math.floor(Math.random() * bots.length)].name, 'snakeHello', { urgent: true });
     this.publish();
@@ -208,9 +214,34 @@ export default class SnakePage extends Component {
   // Shows the state here, and on the host also sends it to everyone else.
   publish() {
     const snapshot = structuredClone(this.state);
+    this.playSounds(this.game, snapshot);
     this.game = snapshot;
     this.draw();
     if (this.room.isOnline) this.room.send({ type: 'state', state: snapshot });
+  }
+
+  // Sounds from the difference between two snapshots, so guests hear the same game as the host.
+  playSounds(prev, next) {
+    if (!next) return;
+    if (!prev || prev.status === 'over' || next.snakes.length !== prev.snakes.length) {
+      if (next.status === 'countdown') sfx('ui.click');
+      return;
+    }
+    if (next.status === 'countdown' && Math.ceil(prev.countdown / 3) !== Math.ceil(next.countdown / 3)) sfx('ui.click');
+    if (prev.status === 'countdown' && next.status === 'playing') sfx('snake.start');
+    const before = new Map(prev.snakes.map((s) => [s.id, s]));
+    for (const snake of next.snakes) {
+      const was = before.get(snake.id);
+      if (!was) continue;
+      const mine = snake.id === this.myId;
+      if (mine && snake.score > was.score) sfx('snake.eat');
+      if (was.alive && !snake.alive) sfx(mine ? 'snake.die' : 'snake.crash');
+    }
+    if (next.status === 'over' && prev.status !== 'over') {
+      const solo = next.snakes.length === 1;
+      const won = solo ? next.snakes[0].score > this.best : next.winner === this.myId;
+      setTimeout(() => sfx(won ? 'snake.win' : 'snake.lose'), 450);
+    }
   }
 
   saveBest(score) {
@@ -305,6 +336,9 @@ export default class SnakePage extends Component {
 
   turn = (dir) => {
     if (!this.game || this.game.status === 'over') return;
+    const me = this.game.snakes.find((s) => s.id === this.myId);
+    if (me?.alive && this.game.status === 'playing' && this.lastDir !== dir) sfx('snake.turn');
+    this.lastDir = dir;
     if (this.isHostSide) queueTurn(this.state, this.myId, dir);
     else this.room.send({ type: 'turn', dir });
   };
@@ -378,17 +412,35 @@ export default class SnakePage extends Component {
   togglePause = () => {
     if (this.game?.status !== 'playing') return;
     this.paused = !this.paused;
+    sfx('snake.pause');
   };
 
-  playAgain = () => this.start();
+  playAgain = () => this.room.allReady && this.start();
+  readyCheck = () => this.room.callReadyCheck();
+
+  // Mid-game, going back to the lobby asks first (hold to confirm).
+  @tracked confirmingLobby = false;
+
+  askLobby = () => {
+    if (this.isOver) this.toLobby();
+    else this.confirmingLobby = true;
+  };
+
+  cancelLobby = () => (this.confirmingLobby = false);
+
+  get lobbyWarning() {
+    return this.room.isOnline ? 'The game in progress will be cancelled for every snake on the board.' : 'The game in progress will be cancelled and your score will be lost.';
+  }
 
   // Host: everyone back to the lobby. Guest: just this device.
   toLobby = () => {
+    this.confirmingLobby = false;
     if (this.isHostSide && this.room.isOnline) this.room.send({ type: 'lobby' });
     this.backToLobby();
   };
 
   backToLobby() {
+    this.confirmingLobby = false;
     this.stopTimer();
     this.room.setLocked(false);
     this.mode = 'lobby';
@@ -397,7 +449,8 @@ export default class SnakePage extends Component {
     this.paused = false;
   }
 
-  leave = () => {
+  leave = async () => {
+    if (this.mode === 'playing' && !this.isOver && !(await askConfirm({ title: 'Leave the game?', message: 'You’ll be disconnected and your snake is out.', confirmLabel: 'Hold to leave', cancelLabel: 'Keep playing' }))) return;
     this.room.close();
     this.backToLobby();
   };
@@ -411,6 +464,7 @@ export default class SnakePage extends Component {
     }
     if (message.type === 'state') {
       this.mode = 'playing';
+      this.playSounds(this.game, message.state);
       this.game = message.state;
       this.draw();
     } else if (message.type === 'lobby') {
@@ -419,7 +473,7 @@ export default class SnakePage extends Component {
   }
 
   <template>
-    <ToolPage @route="snake" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Classic snake on your own, or a battle of up to four snakes against the computer and your friends.">
+    <ToolPage @route="snake" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="The classic, solo or in a battle of up to four snakes against the computer and your friends. Don’t crash.">
       {{#if (eq this.mode "playing")}}
         <div class="game-shell snake-shell pop-in">
           <div class="snake-scores">
@@ -433,7 +487,7 @@ export default class SnakePage extends Component {
 
           <p class="game-status {{if this.isOver 'is-over'}}" role="status">{{this.status}}</p>
 
-          <div class="snake-pad" aria-label="Steering">
+          <div class="snake-pad" aria-label="Steering" data-sound="off">
             <button type="button" class="snake-pad-btn is-up" aria-label="Up" {{this.padButton "up"}}><Icon @name="arrow-up" @size={{20}} /></button>
             <button type="button" class="snake-pad-btn is-left" aria-label="Left" {{this.padButton "left"}}><Icon @name="arrow-left" @size={{20}} /></button>
             <button type="button" class="snake-pad-btn is-down" aria-label="Down" {{this.padButton "down"}}><Icon @name="arrow-down" @size={{20}} /></button>
@@ -445,16 +499,26 @@ export default class SnakePage extends Component {
           <div class="game-actions">
             {{#if this.isHostSide}}
               {{#if this.isOver}}
-                <button type="button" class="btn active" {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
+                {{#unless this.room.allReady}}
+                  <span class="tool-hint">{{this.room.readyCount}}/{{this.room.members.length}} ready</span>
+                  <button type="button" class="btn" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{13}} /> Ready check</button>
+                {{/unless}}
+                <button type="button" class="btn active" disabled={{if this.room.allReady false true}} {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
               {{else if this.canPause}}
                 <button type="button" class="btn" {{on "click" this.togglePause}}><Icon @name={{if this.paused "play" "pause"}} @size={{13}} /> {{if this.paused "Resume" "Pause"}}</button>
               {{/if}}
-              <button type="button" class="btn" {{on "click" this.toLobby}}><Icon @name="users" @size={{13}} /> Back to lobby</button>
+              <button type="button" class="btn" {{on "click" this.askLobby}}><Icon @name="users" @size={{13}} /> Back to lobby</button>
             {{else}}
-              {{#if this.isOver}}<span class="tool-hint">Waiting for the host…</span>{{/if}}
+              {{#if this.isOver}}
+                <ReadyButton @room={{this.room}} @label="Play again?" @readyLabel="Ready for another" />
+                {{#if this.room.iAmReady}}<span class="tool-hint">Waiting for the host…</span>{{/if}}
+              {{/if}}
               <button type="button" class="btn" {{on "click" this.leave}}><Icon @name="log-out" @size={{13}} /> Leave room</button>
             {{/if}}
           </div>
+          {{#if this.confirmingLobby}}
+            <HoldConfirm @title="Back to the lobby?" @message={{this.lobbyWarning}} @confirmLabel="Hold to end game" @onConfirm={{this.toLobby}} @onCancel={{this.cancelLobby}} />
+          {{/if}}
         </div>
       {{else}}
         <GameLobby @room={{this.room}} @seats={{this.seats}} @maxSeats={{4}} @onAddBot={{this.addBot}} @onRemoveBot={{this.removeBot}} @onStart={{this.start}}>

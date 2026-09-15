@@ -53,6 +53,7 @@ Router.map(function () {
   this.route('chess');
   this.route('snake');
   this.route('woono');
+  this.route('avatar-editor');
   this.route('uno');
   this.route('jjs-stuff');
   this.route('settings');

@@ -1,13 +1,22 @@
 import config from 'woogi-tools/config/environment';
 
-// WebRTC settings for every internet connection the site makes (game rooms and
-// File Share). All traffic is relayed through Cloudflare's TURN servers
+// WebRTC settings for internet connections the site makes (game rooms). All traffic is relayed through Cloudflare's TURN servers
 // (`iceTransportPolicy: 'relay'`), so the other side only ever sees Cloudflare's
 // address, never yours. Credentials are short-lived and come from the site's
 // own Worker (worker/index.js); no keys are shipped in the page.
 //
 // Nearby play (utils/lan-link.js) is the exception: it's a direct link on the
 // same Wi-Fi or hotspot with no internet, where there is nothing to relay through.
+// File Share and device-to-device data transfer are the other exception: relaying
+// big files is slow, so they connect directly (`directPeerOptions`) and warn that
+// the other side can see your IP address.
+
+// Public STUN servers only find your own address; no traffic goes through them.
+const DIRECT_RTC = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }] };
+
+export function directPeerOptions() {
+  return { config: DIRECT_RTC };
+}
 
 // Fetch fresh credentials well before the ones handed out expire.
 const REFRESH_MS = 60 * 60 * 1000;

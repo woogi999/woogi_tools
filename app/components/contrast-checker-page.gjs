@@ -96,7 +96,7 @@ export default class ContrastCheckerPage extends Component {
   applySuggestion = () => (this.foreground = this.suggestion);
 
   <template>
-    <ToolPage @route="contrast-checker" @subtitle="Check text and background colours against WCAG contrast guidelines, and get a passing colour when they fall short.">
+    <ToolPage @route="contrast-checker" @subtitle="Pop in your text and background colours to see if they pass WCAG contrast. Too faint? We’ll suggest a colour that works.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <div class="math-row is-aligned">

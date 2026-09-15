@@ -8,7 +8,7 @@ import { modifier } from 'ember-modifier';
 import { Chess, validateFen } from 'chess.js';
 import ToolPage from './tool-page';
 import Icon from './icon';
-import GameLobby from './game-lobby';
+import GameLobby, { ReadyButton } from './game-lobby';
 import AvatarPortrait from './avatar-portrait';
 import GameChat from './game-chat';
 import GameRoom from '../utils/game-room';
@@ -17,6 +17,9 @@ import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { robotAvatar } from '../utils/avatar';
 import { findBestMove, LEVELS } from '../utils/chess-ai';
+import { sfx, preloadSounds } from '../utils/sound';
+import HoldConfirm from './hold-confirm';
+import { askConfirm } from '../utils/confirm';
 import { FILES, STANDARD_FEN, TIME_CONTROLS, clockFor, formatClock, chess960Fen, premoveTargets, reachableAfterReply, applyPremoves, syncTokens, canMate } from '../utils/chess-extras';
 
 const PIECE_ICON = { k: 'chess-king', q: 'chess-queen', r: 'chess-rook', b: 'chess-bishop', n: 'chess-knight', p: 'chess-pawn' };
@@ -118,6 +121,7 @@ export default class ChessPage extends Component {
 
   constructor(owner, args) {
     super(owner, args);
+    preloadSounds('chess');
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
     registerDestructor(this, () => {
@@ -191,6 +195,8 @@ export default class ChessPage extends Component {
     this.level = s.level;
     this.begin({ fen, color: chosen, clock, takebacks: s.takebacks, opponent: guest ? { kind: 'human', name: guest.name, avatar: guest.avatar } : { kind: 'bot', name: `${this.botName} (${LEVELS[s.level].label})`, avatar: this.botAvatar } });
     this.room.setLocked(true);
+    // A rematch needs the other player to press Ready again.
+    this.room.resetReady();
     if (guest) {
       this.room.send({ type: 'start', fen, color: other(chosen), clock, takebacks: s.takebacks });
     }
@@ -213,6 +219,9 @@ export default class ChessPage extends Component {
     this.incMs = clock?.incMs ?? 0;
     this.turnStartedAt = null;
     this.tokens = [];
+    this.endSounded = false;
+    this.confirmingLobby = false;
+    sfx('chess.start');
     this.mode = 'playing';
     clearInterval(this.clockTimer);
     if (clock) this.clockTimer = setInterval(() => this.tickClock(), 100);
@@ -433,6 +442,12 @@ export default class ChessPage extends Component {
     if (!this.clockRunning) return;
     const turn = this.chess.turn();
     const left = this.remaining(turn);
+    // Your last ten seconds tick.
+    if (turn === this.playerColor && left > 0 && left <= 10000) {
+      const second = Math.ceil(left / 1000);
+      if (second !== this.lastTick) sfx('chess.tick');
+      this.lastTick = second;
+    }
     if (left > 0) return;
     const remoteClock = !this.isBot && turn !== this.playerColor;
     if (remoteClock && left > -FLAG_GRACE_MS) return;
@@ -460,6 +475,11 @@ export default class ChessPage extends Component {
   }
 
   finish() {
+    if (this.outcome && !this.endSounded) {
+      this.endSounded = true;
+      const { winner } = this.outcome;
+      setTimeout(() => sfx(winner === null ? 'chess.draw' : winner === this.playerColor ? 'chess.win' : 'chess.lose'), 250);
+    }
     if (this.isBot && this.outcome) {
       const { winner } = this.outcome;
       this.chatter.say(this.botName, winner === null ? 'chessDraw' : winner === this.playerColor ? 'chessLose' : 'chessWin', { urgent: true });
@@ -494,6 +514,7 @@ export default class ChessPage extends Component {
     this.selected = null;
     this.pendingPromotion = null;
     if (this.offer?.kind === 'takeback') this.offer = null;
+    sfx(result.san.includes('+') || result.san.includes('#') ? 'chess.check' : result.promotion ? 'chess.promote' : /^O-O/.test(result.san) ? 'chess.castle' : result.captured ? 'chess.capture' : 'chess.move');
     this.afterChange();
     // The computer reacts to captures and checks, its own and yours.
     if (this.isBot && !this.isOver) {
@@ -542,6 +563,7 @@ export default class ChessPage extends Component {
       const piece = this.pieceAt(from);
       const promotion = piece?.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : undefined;
       this.premoves = [...this.premoves, { from, to, promotion, color: this.playerColor }];
+      sfx('ui.click');
       this.selected = null;
       this.afterChange();
       return true;
@@ -656,6 +678,7 @@ export default class ChessPage extends Component {
       }
       const token = current.token;
       const stays = square && square !== current.square ? this.tryMove(current.square, square) : false;
+      if (square && square !== current.square && !stays && !this.pendingPromotion) sfx('chess.illegal');
       token.classList.remove('is-dragging');
       // A piece dropped on its new square shouldn't slide there again from where it started.
       if (stays) {
@@ -735,27 +758,43 @@ export default class ChessPage extends Component {
     else this.takeback(other(this.playerColor));
   };
 
-  resign = () => {
-    if (this.isOver || !window.confirm('Resign this game?')) return;
+  resign = async () => {
+    if (this.isOver) return;
+    if (!(await askConfirm({ title: 'Resign this game?', message: 'Your opponent wins straight away.', confirmLabel: 'Hold to resign', cancelLabel: 'Keep playing' })) || this.isOver) return;
     this.endWith({ winner: other(this.playerColor), reason: 'resign' });
     if (!this.isBot) this.room.send({ type: 'resign' });
   };
 
+  // Online, the host starts the rematch once the guest has pressed Ready.
   playAgain = () => {
     if (this.isBot) this.startFromLobby(this.settings.color === 'random' ? undefined : this.playerColor);
-    else if (this.room.isHost) this.startFromLobby(other(this.playerColor));
-    else {
-      this.rematchAsked = true;
-      this.room.send({ type: 'rematch' });
-    }
+    else if (this.room.isHost && this.room.allReady) this.startFromLobby(other(this.playerColor));
   };
 
+  readyCheck = () => this.room.callReadyCheck();
+
+  // Mid-game, going back to the lobby asks first (hold to confirm).
+  @tracked confirmingLobby = false;
+
+  askLobby = () => {
+    if (this.isOver) this.toLobby();
+    else this.confirmingLobby = true;
+  };
+
+  cancelLobby = () => (this.confirmingLobby = false);
+
+  get lobbyWarning() {
+    return this.isBot ? 'The game in progress will be cancelled and this position will be lost.' : 'The game in progress will be cancelled for both players and this position will be lost.';
+  }
+
   toLobby = () => {
+    this.confirmingLobby = false;
     if (!this.isBot && this.room.isHost) this.room.send({ type: 'lobby' });
     this.backToLobby();
   };
 
   backToLobby() {
+    this.confirmingLobby = false;
     this.abort?.abort();
     clearInterval(this.clockTimer);
     this.thinking = false;
@@ -763,7 +802,8 @@ export default class ChessPage extends Component {
     this.mode = 'lobby';
   }
 
-  leave = () => {
+  leave = async () => {
+    if (this.mode === 'playing' && !this.isOver && !(await askConfirm({ title: 'Leave the game?', message: 'You’ll be disconnected, and leaving counts as a loss.', confirmLabel: 'Hold to leave', cancelLabel: 'Keep playing' }))) return;
     this.room.close();
     this.backToLobby();
   };
@@ -810,9 +850,6 @@ export default class ChessPage extends Component {
         if (message.kind === 'draw') this.endWith({ winner: null, reason: 'agreement' });
         else this.takeback(this.playerColor);
         break;
-      case 'rematch':
-        if (this.room.isHost) this.startFromLobby(other(this.playerColor));
-        break;
       case 'lobby':
         this.backToLobby();
         break;
@@ -820,7 +857,7 @@ export default class ChessPage extends Component {
   }
 
   <template>
-    <ToolPage @route="chess" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Play the computer at three levels, or a friend over a direct browser-to-browser link. Clocks, Chess960, premoves and drag-and-drop.">
+    <ToolPage @route="chess" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Take on the computer at three levels, or challenge a friend online. Clocks, Chess960 and premoves for the sweaty games.">
       {{#if (eq this.mode "playing")}}
         <div class="game-shell chess-shell pop-in">
           <div class="chess-main">
@@ -837,7 +874,7 @@ export default class ChessPage extends Component {
             </div>
 
             <div class="chess-board-wrap">
-              <div class="chess-board {{if this.canPremove 'is-premoving'}}" role="grid" aria-label="Chess board" {{this.boardInput}}>
+              <div class="chess-board {{if this.canPremove 'is-premoving'}}" data-sound="off" role="grid" aria-label="Chess board" {{this.boardInput}}>
                 {{#each this.squares key="square" as |sq|}}
                   <button
                     type="button"
@@ -903,9 +940,17 @@ export default class ChessPage extends Component {
 
             <div class="game-actions">
               {{#if this.isOver}}
-                <button type="button" class="btn active" disabled={{this.rematchAsked}} {{on "click" this.playAgain}}>
-                  <Icon @name="rotate-cw" @size={{13}} /> {{if this.rematchAsked "Rematch requested…" (if this.isBot "Play again" "Rematch")}}
-                </button>
+                {{#if this.isBot}}
+                  <button type="button" class="btn active" {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
+                {{else if this.room.isHost}}
+                  {{#unless this.room.allReady}}
+                    <span class="tool-hint">Waiting for {{this.opponentName}} to agree to a rematch…</span>
+                    <button type="button" class="btn" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{13}} /> Ready check</button>
+                  {{/unless}}
+                  <button type="button" class="btn active" disabled={{if this.room.allReady false true}} {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Rematch</button>
+                {{else}}
+                  <ReadyButton @room={{this.room}} @label="Rematch?" @readyLabel="Ready for a rematch" />
+                {{/if}}
               {{else}}
                 {{#if this.takebacks}}
                   <button type="button" class="btn" disabled={{if this.canTakeback false true}} {{on "click" this.requestTakeback}}><Icon @name="undo-2" @size={{13}} /> Takeback</button>
@@ -916,11 +961,14 @@ export default class ChessPage extends Component {
                 <button type="button" class="btn" {{on "click" this.resign}}><Icon @name="flag" @size={{13}} /> Resign</button>
               {{/if}}
               {{#if (showLobbyButton this.isBot this.room.isHost)}}
-                <button type="button" class="btn" {{on "click" this.toLobby}}><Icon @name="users" @size={{13}} /> Lobby</button>
+                <button type="button" class="btn" {{on "click" this.askLobby}}><Icon @name="users" @size={{13}} /> Lobby</button>
               {{else}}
                 <button type="button" class="btn" {{on "click" this.leave}}><Icon @name="log-out" @size={{13}} /> Leave room</button>
               {{/if}}
             </div>
+            {{#if this.confirmingLobby}}
+              <HoldConfirm @title="Back to the lobby?" @message={{this.lobbyWarning}} @confirmLabel="Hold to end game" @onConfirm={{this.toLobby}} @onCancel={{this.cancelLobby}} />
+            {{/if}}
 
             <ol class="chess-moves" aria-label="Moves">
               {{#each this.movePairs as |pair|}}

@@ -81,7 +81,7 @@ export default class JsonFormatterPage extends Component {
   useOutput = () => (this.input = this.output);
 
   <template>
-    <ToolPage @route="json-formatter" @subtitle="Validate, pretty-print, minify and sort JSON.">
+    <ToolPage @route="json-formatter" @subtitle="Paste your JSON to validate, pretty-print, minify or sort it. It even tells you the line where it broke.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <label class="field-label" for="json-in">JSON</label>

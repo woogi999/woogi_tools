@@ -142,6 +142,16 @@ import {
   Smartphone,
   Lock,
   Wifi,
+  Volume2,
+  VolumeX,
+  PersonStanding,
+  Camera,
+  TriangleAlert,
+  Save,
+  Hand,
+  BellRing,
+  SlidersVertical,
+  AudioLines,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -287,6 +297,16 @@ const ICONS = {
   smartphone: Smartphone,
   lock: Lock,
   wifi: Wifi,
+  'volume-2': Volume2,
+  'volume-x': VolumeX,
+  'person-standing': PersonStanding,
+  camera: Camera,
+  'triangle-alert': TriangleAlert,
+  save: Save,
+  hand: Hand,
+  'bell-ring': BellRing,
+  'sliders-vertical': SlidersVertical,
+  'audio-lines': AudioLines,
 };
 
 function svg(name, size = 16, fill = 'none') {

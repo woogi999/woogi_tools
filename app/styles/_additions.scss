@@ -1,0 +1,603 @@
+// ─── Direct-connection warning (File Share, data transfer) ───────────────
+
+.fs-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, #f5a524 55%, var(--border-color));
+  border-radius: var(--radius-card);
+  background: color-mix(in oklab, #f5a524 10%, var(--bg-elevated));
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.fs-warning .icon {
+  flex: none;
+  margin-top: 1px;
+  color: #f5a524;
+}
+
+// ─── Hold to confirm ─────────────────────────────────────────────────────
+
+.hold-confirm {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: 0 18px 50px rgb(0 0 0 / 45%);
+}
+
+.hold-confirm::backdrop {
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(2px);
+}
+
+.hold-confirm-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 20px 16px;
+  text-align: center;
+}
+
+.hold-confirm-icon {
+  display: inline-flex;
+  padding: 10px;
+  border-radius: 50%;
+  background: color-mix(in oklab, #ff5c72 16%, transparent);
+  color: #ff5c72;
+}
+
+.hold-confirm-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.hold-confirm-text {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.hold-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.hold-confirm-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+}
+
+.hold-btn {
+  --hold: 0;
+
+  position: relative;
+  overflow: hidden;
+  min-width: 190px;
+  border-color: #ff5c72;
+  color: var(--text);
+  user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+}
+
+.hold-btn-fill {
+  position: absolute;
+  inset: 0;
+  background: #ff5c72;
+  transform: scaleX(var(--hold));
+  transform-origin: left;
+  pointer-events: none;
+}
+
+.hold-btn-label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hold-btn.is-holding .hold-btn-label {
+  color: #fff;
+  mix-blend-mode: normal;
+}
+
+.transfer-summary {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-control);
+  font-size: 0.78rem;
+}
+
+// ─── Saved lobby rules ───────────────────────────────────────────────────
+
+.lobby-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.lobby-presets-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+}
+
+.lobby-presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lobby-presets-row .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.lobby-preset-select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lobby-preset-save {
+  display: flex;
+  flex: 1 1 220px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lobby-preset-save input {
+  flex: 1;
+  min-width: 0;
+}
+
+.lobby-preset-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-preset-chip {
+  padding-right: 2px;
+}
+
+.lobby-preset-remove {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-dim);
+}
+
+.lobby-preset-remove:hover {
+  color: var(--text);
+}
+
+// ─── Avatar picker ───────────────────────────────────────────────────────
+
+.avatar-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding-top: 6px;
+}
+
+.avatar-picker-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.avatar-picker-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 84px;
+  padding: 6px 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: none;
+  color: var(--text-dim);
+}
+
+.avatar-picker-item:hover {
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+
+.avatar-picker-item.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+  color: var(--text);
+}
+
+.avatar-picker-name {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-picker-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+// ─── Avatar Editor tool ──────────────────────────────────────────────────
+
+.avatar-editor-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.avatar-editor-name {
+  flex: none;
+  max-width: 280px;
+}
+
+// The preview sits on top, as big as fits, in a wide 16:9 frame; the options follow underneath.
+.avatar-editor.is-tool {
+  flex-basis: auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.avatar-editor.is-tool .avatar-canvas {
+  width: min(100%, calc(70vh * 16 / 9), 960px);
+  max-width: none;
+  aspect-ratio: 16 / 9;
+}
+
+.avatar-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-color);
+  font-size: 0.9rem;
+}
+
+.avatar-canvas.is-posing {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.avatar-canvas.is-portrait {
+  aspect-ratio: 1;
+}
+
+.avatar-view-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.avatar-view-buttons .btn {
+  padding: 2px 10px;
+  font-size: 0.72rem;
+}
+
+.avatar-stage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.avatar-stage-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pose-sliders .avatar-slider {
+  grid-template-columns: minmax(0, 1fr) auto minmax(80px, 140px) auto 4ch;
+}
+
+.avatar-photo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.avatar-photo-preview {
+  max-width: 180px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: repeating-conic-gradient(color-mix(in oklab, var(--text) 10%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+
+.avatar-save.is-worn {
+  border-color: var(--text);
+}
+
+// ─── Settings: data transfer ─────────────────────────────────────────────
+
+.settings-transfer {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+}
+
+.settings-transfer > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.settings-transfer[open] > summary {
+  margin-bottom: 8px;
+}
+
+.data-transfer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.transfer-start {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  width: 100%;
+}
+
+.transfer-start .tool-hint {
+  margin: 2px 0 8px;
+}
+
+.transfer-share {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.transfer-share-info {
+  display: flex;
+  flex: 1 1 240px;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+// ─── Sound mixer (Settings) ──────────────────────────────────────────────
+
+.sound-mixer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sound-channels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transition: opacity 0.15s ease;
+}
+
+.sound-channels.is-dim {
+  opacity: 0.5;
+}
+
+.sound-channel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(90px, 180px) 4.5ch auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.sound-channel.is-master {
+  grid-template-columns: auto minmax(0, 1fr) minmax(90px, 180px) 4.5ch;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sound-channel-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sound-channel-text .tool-hint {
+  font-size: 0.72rem;
+}
+
+.sound-channel input[type='range'] {
+  width: 100%;
+  accent-color: var(--text);
+}
+
+.sound-channel-mute.is-muted,
+.sound-channel.is-silent .qr-label {
+  color: var(--text-faint);
+}
+
+@media (max-width: 560px) {
+  .sound-channel,
+  .sound-channel.is-master {
+    grid-template-columns: auto minmax(0, 1fr) 4.5ch auto;
+  }
+
+  .sound-channel.is-master {
+    grid-template-columns: auto minmax(0, 1fr) 4.5ch;
+  }
+
+  .sound-channel input[type='range'] {
+    grid-row: 2;
+    grid-column: 2 / -1;
+  }
+}
+
+// ─── Ready (lobbies and rematches) ───────────────────────────────────────
+
+.lobby-ready-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-dim);
+}
+
+.lobby-ready-tag.is-ready {
+  border-color: #30a46c;
+  background: color-mix(in oklab, #30a46c 16%, transparent);
+  color: var(--text);
+}
+
+.lobby-ready-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lobby-ready-btn.is-ready {
+  border-color: #30a46c;
+  background: color-mix(in oklab, #30a46c 18%, var(--bg));
+}
+
+.lobby-ready-btn.active {
+  animation: ready-pulse 1.4s ease-in-out infinite;
+}
+
+.lobby-ready-nudge {
+  color: var(--text);
+  font-weight: 700;
+}
+
+@keyframes ready-pulse {
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in oklab, #30a46c 30%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-ready-btn.active {
+    animation: none;
+  }
+}
+
+// ─── Woono on touch screens: the buttons stay clear of your cards ────────
+// Your hand fills the bottom of the view, so on phones the buttons stack up the
+// right-hand edge above it instead of sitting on top of the cards.
+
+@media (pointer: coarse) {
+  .uno-actions {
+    top: auto;
+    bottom: 38%;
+    flex-direction: column-reverse;
+    flex-wrap: wrap-reverse;
+    align-content: flex-end;
+    align-items: flex-end;
+    max-width: 46%;
+    max-height: 56%;
+  }
+
+  .uno-actions .btn {
+    min-height: 36px;
+    padding: 6px 12px;
+  }
+
+  .game-chat.uno-chat {
+    bottom: 38%;
+  }
+
+  .uno-help {
+    bottom: auto;
+    top: 56px;
+  }
+}
+
+// ─── Top-right controls: volume + theme ──────────────────────────────────
+
+.top-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.volume-button {
+  position: relative;
+}
+
+.theme-toggle.is-muted {
+  color: var(--text-faint);
+}
+
+.volume-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+}
+
+.volume-panel .qr-icon-btn {
+  height: 28px;
+}
+
+.volume-panel input[type='range'] {
+  width: 130px;
+  accent-color: var(--text);
+}
+
+.volume-value {
+  min-width: 4ch;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}

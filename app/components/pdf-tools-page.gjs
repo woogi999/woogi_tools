@@ -197,7 +197,7 @@ export default class PdfToolsPage extends Component {
   }
 
   <template>
-    <ToolPage @route="pdf-tools" @subtitle="Merge PDFs, pick pages, or split one PDF into several. Your files never leave your device.">
+    <ToolPage @route="pdf-tools" @subtitle="Merge PDFs, pick just the pages you need, or split one into several files. Your files never leave your device.">
       <div class="fs">
         <div class="fs-frame fc-panel pop-in">
           <div class="math-tabs" role="group" aria-label="Mode">

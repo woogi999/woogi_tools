@@ -112,7 +112,7 @@ export default class NumberBasePage extends Component {
   toggleUppercase = () => (this.uppercase = !this.uppercase);
 
   <template>
-    <ToolPage @route="number-base" @subtitle="Convert whole numbers between binary, octal, decimal, hex and any base up to 36, at any size.">
+    <ToolPage @route="number-base" @subtitle="Switch numbers between binary, octal, decimal, hex and any base up to 36. Huge numbers welcome.">
       <div class="math-grid pop-in">
         <section class="math-card">
           {{#each this.rows key="base" as |f|}}

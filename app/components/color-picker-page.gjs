@@ -125,7 +125,7 @@ export default class ColorPickerPage extends Component {
   }
 
   <template>
-    <ToolPage @route="color-picker" @subtitle="Pick a colour, copy it as HEX, RGB, or HSL.">
+    <ToolPage @route="color-picker" @subtitle="Spin the wheel till it feels right, then copy it as HEX, RGB or HSL. Easy.">
 
       <section class="picker-layout pop-in">
         <div class="preview-panel">

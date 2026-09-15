@@ -63,7 +63,7 @@ export default class TextDiffPage extends Component {
   swap = () => ([this.left, this.right] = [this.right, this.left]);
 
   <template>
-    <ToolPage @route="text-diff" @subtitle="Compare two versions of a text and see exactly what was added or removed.">
+    <ToolPage @route="text-diff" @subtitle="Paste two versions of something and see exactly what changed, word by word or line by line.">
       <div class="text-tool diff-tool pop-in">
         <div class="math-grid">
           <section class="math-card">

@@ -134,7 +134,7 @@ export default class DateCalculatorPage extends Component {
   removeRow = (id) => (this.rows = this.rows.filter((r) => r.id !== id));
 
   <template>
-    <ToolPage @route="date-calculator" @subtitle="Count the time between two dates, shift a date forwards or backwards, or add up a list of durations.">
+    <ToolPage @route="date-calculator" @subtitle="Count the time between two dates, jump a date forwards or back, or add up a pile of durations.">
       <div class="math-stack pop-in">
         <div class="math-tabs" role="tablist">
           {{#each this.tabs as |t|}}

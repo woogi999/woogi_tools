@@ -152,7 +152,7 @@ export default class PasswordGeneratorPage extends Component {
   toggleShowCheck = () => (this.showCheckValue = !this.showCheckValue);
 
   <template>
-    <ToolPage @route="password-generator" @subtitle="Generate a strong random password, or check the strength of one you already use.">
+    <ToolPage @route="password-generator" @subtitle="Generate a strong random password, or test the one you already use (it never leaves your device).">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Generate</h3>

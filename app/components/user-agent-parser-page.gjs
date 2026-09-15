@@ -16,7 +16,7 @@ export default class UserAgentParserPage extends Component {
   clear = () => (this.ua = '');
 
   <template>
-    <ToolPage @route="user-agent-parser" @subtitle="Break down a browser's user agent string into browser, engine, OS and device.">
+    <ToolPage @route="user-agent-parser" @subtitle="Paste a user agent string and we’ll tell you the browser, engine, OS and device hiding inside it.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <div class="field-head">

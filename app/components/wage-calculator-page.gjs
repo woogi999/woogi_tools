@@ -156,7 +156,7 @@ export default class WageCalculatorPage extends Component {
   setTax = (e) => (this.taxId = e.target.value);
 
   <template>
-    <ToolPage @route="wage-calculator" @subtitle="Turn a pay rate into hourly, daily, weekly, monthly and annual figures, with a rough tax estimate.">
+    <ToolPage @route="wage-calculator" @subtitle="Put in your pay rate and hours to see what you make per hour, day, week, month and year, plus a rough tax estimate.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Pay</h3>

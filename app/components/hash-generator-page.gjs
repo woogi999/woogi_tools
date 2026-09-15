@@ -89,7 +89,7 @@ export default class HashGeneratorPage extends Component {
   toggleUppercase = () => (this.uppercase = !this.uppercase);
 
   <template>
-    <ToolPage @route="hash-generator" @subtitle="Hash text or a file with MD5, SHA-1, SHA-2 and CRC-32, and check it against a known checksum.">
+    <ToolPage @route="hash-generator" @subtitle="Hash text or a file with MD5, SHA-1, SHA-2 or CRC-32, then compare it to a checksum to make sure nothing’s been tampered with.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <div class="math-tabs" role="group" aria-label="Input">

@@ -69,7 +69,7 @@ export default class AlgebraCalculatorPage extends Component {
   useExample = (text) => (this.inputs = { ...this.inputs, [this.modeId]: text });
 
   <template>
-    <ToolPage @route="algebra-calculator" @subtitle="Solve equations, rearrange formulas, expand brackets and factor polynomials. Answers update as you type.">
+    <ToolPage @route="algebra-calculator" @subtitle="Solve equations, rearrange formulas, expand brackets and factor polynomials. Answers show up as you type.">
       <div class="math-stack pop-in">
         <div class="math-tabs" role="tablist">
           {{#each this.modes as |m|}}

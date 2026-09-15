@@ -3,6 +3,7 @@
 @use './games';
 @use './math';
 @use './jjs';
+@use './additions';
 
 // ─── Theme tokens ────────────────────────────────────────────────────────
 // Dark is the default (matches the site's original monochrome-dark look);
@@ -806,8 +807,8 @@ main {
   flex: none;
   gap: 6px;
   margin-left: auto;
-  // Clear of the theme toggle fixed in the top-right corner on desktop.
-  margin-right: 2.6rem;
+  // Clear of the volume button and theme toggle fixed in the top-right corner on desktop.
+  margin-right: 4.6rem;
 }
 
 @media (max-width: 720px) {
@@ -1000,6 +1001,15 @@ main {
   padding: 16px;
   overflow: auto;
   background: var(--bg);
+}
+
+// Flex would otherwise shrink the yielded content to fit the fixed-height
+// container instead of letting it overflow and scroll — because any child
+// with its own `overflow` other than visible (the lobby, mostly) gets an
+// automatic min-height of 0. Keep it at its natural size so there's always
+// something to scroll to.
+.tool-body.is-fullscreen > * {
+  flex-shrink: 0;
 }
 
 .fullscreen-exit {

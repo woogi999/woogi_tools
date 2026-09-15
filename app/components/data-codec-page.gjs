@@ -99,7 +99,7 @@ export default class DataCodecPage extends Component {
   };
 
   <template>
-    <ToolPage @route="data-codec" @subtitle="Compress data, or encode and decode Base64, URLs, hex, binary, Morse and more. Runs entirely in your browser.">
+    <ToolPage @route="data-codec" @subtitle="Compress it, encode it, decode it: Base64, URLs, hex, binary, Morse and more. Nothing leaves your browser.">
       <section class="tool-panel pop-in">
         <div class="tool-controls">
           <div class="mode-toggle" role="group" aria-label="Mode">

@@ -11,6 +11,7 @@ import ColourField from './colour-field';
 import NoteOverlay from './note-overlay';
 import { NOTE_FONTS, NOTE_COLORS, DEFAULT_NOTE_COLOR, STICKER_EMOJIS } from '../utils/notes-constants';
 import { htmlToPlainText } from '../utils/html-text';
+import { askConfirm } from '../utils/confirm';
 
 const eq = (a, b) => a === b;
 const not = (a) => !a;
@@ -130,9 +131,9 @@ export default class QuickNotesPage extends Component {
     if (name && name.trim()) this.notes.renameFolder(id, name.trim());
   };
 
-  deleteFolder = (id, event) => {
+  deleteFolder = async (id, event) => {
     event?.stopPropagation();
-    if (!window.confirm('Delete this folder? Its notes move to Unfiled.')) return;
+    if (!(await askConfirm({ title: 'Delete this folder?', message: 'The folder goes; its notes move to Unfiled.', confirmLabel: 'Hold to delete', holdMs: 1500 }))) return;
     if (this.selectedFolderId === id) this.selectedFolderId = null;
     this.notes.deleteFolder(id);
   };
@@ -173,9 +174,9 @@ export default class QuickNotesPage extends Component {
     this.drawMode = false;
   };
 
-  deleteNote = (id, event) => {
+  deleteNote = async (id, event) => {
     event?.stopPropagation();
-    if (!window.confirm('Delete this note?')) return;
+    if (!(await askConfirm({ title: 'Delete this note?', message: 'It can’t be brought back.', confirmLabel: 'Hold to delete', holdMs: 1500 }))) return;
     if (this.selectedNoteId === id) this.view = 'list';
     this.notes.deleteNote(id);
   };
@@ -318,7 +319,7 @@ export default class QuickNotesPage extends Component {
   };
 
   <template>
-    <ToolPage @route="quick-notes" @subtitle="Sticky notes with rich text, drawing and stickers, organised into folders. Saved right in your browser, nothing leaves your device.">
+    <ToolPage @route="quick-notes" @subtitle="Write, doodle and add stickers to your notes, then sort them into folders. Saved in your browser, no account needed.">
       <div class="notes-shell" {{this.watchOpenRequest this.notes.openRequestId}}>
         <aside class="notes-rail {{if this.railCollapsed 'is-collapsed'}}">
           <button type="button" class="notes-rail-toggle" aria-label="{{if this.railCollapsed 'Expand' 'Collapse'}} folders" {{on "click" this.toggleRail}}>
