@@ -202,7 +202,7 @@ export default class ImageCropperPage extends Component {
   };
 
   <template>
-    <ToolPage @route="image-cropper" @subtitle="Crop a photo to an exact size, with ready-made social media presets and a live preview.">
+    <ToolPage @route="image-cropper" @subtitle="Drag, zoom and crop to an exact size, with presets for socials and a live preview so nothing gets cut off.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOverFile}} {{on "drop" this.dropFile}}>

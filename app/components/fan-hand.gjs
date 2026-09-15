@@ -2,6 +2,7 @@ import Component from '@glimmer/component';
 import { cached } from '@glimmer/tracking';
 import { htmlSafe } from '@ember/template';
 import { modifier } from 'ember-modifier';
+import { sfx } from '../utils/sound';
 
 // Widest the whole fan opens, and the most any two neighbours spread apart.
 const MAX_FAN_DEG = 140;
@@ -92,9 +93,16 @@ export default class FanHand extends Component {
 
   track = modifier((stage) => {
     const activate = (key) => {
-      if (key !== this.args.activeKey) this.args.onActivate?.(key);
+      if (key === this.args.activeKey) return;
+      // A card sliding up out of the hand as you move along it.
+      if (key !== null) sfx('cards.hover');
+      this.args.onActivate?.(key);
     };
-    const open = (key) => key !== null && key !== undefined && this.args.onOpen?.(key);
+    const open = (key) => {
+      if (key === null || key === undefined) return;
+      sfx('cards.place');
+      this.args.onOpen?.(key);
+    };
 
     // Hit-testing reads layout, so do it at most once per frame however fast the pointer moves.
     let frame = 0;
@@ -200,6 +208,7 @@ export default class FanHand extends Component {
     stage.classList.remove('is-flicking');
     void stage.offsetWidth; // force reflow so re-adding the class restarts the animation
     stage.classList.add('is-flicking');
+    sfx('cards.fan');
     const timer = setTimeout(() => stage.classList.remove('is-flicking'), 550);
     return () => clearTimeout(timer);
   });

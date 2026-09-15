@@ -125,7 +125,7 @@ export default class FileConverterPage extends Component {
   convertAll = () => this.readyItems.forEach((item) => this.convert(item.id));
 
   <template>
-    <ToolPage @route="file-converter" @subtitle="Convert images, RAW photos, audio, video, documents, data, archives and fonts, right in your browser. Nothing is ever uploaded.">
+    <ToolPage @route="file-converter" @subtitle="Images, RAW photos, audio, video, documents, data, archives, fonts… pick a format and convert. It all runs on your device.">
       <div class="fs">
         <div class="fs-frame fc-panel pop-in">
           <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.dropFiles}}>

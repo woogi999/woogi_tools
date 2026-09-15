@@ -115,7 +115,7 @@ export default class JjsStuffPage extends Component {
   };
 
   <template>
-    <ToolPage @route="jjs-stuff" @subtitle="Jujutsu Shenanigans Skill Builder notes: every sound ID, emote music, punch, kick and flip directions, run animations, move startups and presets. Tap an ID to copy it.">
+    <ToolPage @route="jjs-stuff" @subtitle="Everything for the Jujutsu Shenanigans Skill Builder in one spot: sound IDs, emote music, punch, kick and flip directions, animations, startups and presets. Tap an ID to copy it.">
       <div class="jjs pop-in">
         <div class="jjs-bar">
           <div class="home-chips jjs-tabs" role="tablist" aria-label="Sections">

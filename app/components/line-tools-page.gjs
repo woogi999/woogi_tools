@@ -116,7 +116,7 @@ export default class LineToolsPage extends Component {
   toggleRegex = () => (this.useRegex = !this.useRegex);
 
   <template>
-    <ToolPage @route="line-tools" @subtitle="Sort, dedupe, shuffle and tidy lines of text, or find and replace across all of it.">
+    <ToolPage @route="line-tools" @subtitle="Sort lines, remove duplicates, shuffle, trim blank lines, or find and replace across the lot.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <div class="field-head">

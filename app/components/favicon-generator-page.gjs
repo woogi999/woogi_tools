@@ -98,7 +98,7 @@ export default class FaviconGeneratorPage extends Component {
   };
 
   <template>
-    <ToolPage @route="favicon-generator" @subtitle="Turn a picture into every favicon size a site needs, plus the HTML to link them.">
+    <ToolPage @route="favicon-generator" @subtitle="Drop in an image and get every favicon size a website needs, the .ico file and the HTML to link them.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <label class="qr-drop" {{on "dragover" this.dragOver}} {{on "drop" this.drop}}>

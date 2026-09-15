@@ -11,7 +11,7 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
 import { generateRoomCode, buildShareUrl, roomCodeFromUrl, formatBytes } from '../utils/file-share';
-import { peerOptions } from '../utils/ice';
+import { directPeerOptions } from '../utils/ice';
 
 // Files are sliced and sent one piece at a time so neither side ever has to
 // hold more than one piece of a large file in memory at once, and so the
@@ -130,18 +130,10 @@ export default class FileSharePage extends Component {
     });
   }
 
-  // Files travel through Cloudflare's TURN relay (utils/ice.js), so neither side learns the other's IP address.
-  async openPeer(id, setup) {
-    const role = this.role;
-    let options;
-    try {
-      options = await peerOptions();
-    } catch (error) {
-      if (this.role === role) this.handlePeerError(error);
-      return;
-    }
-    // Cancelled (or restarted) while the credentials were loading.
-    if (this.role !== role || this.peer || this.isDestroying) return;
+  // Files go straight between the two browsers (no relay, so it's fast), which means each side can see the other's IP address.
+  openPeer(id, setup) {
+    if (this.peer || this.isDestroying) return;
+    const options = directPeerOptions();
     const peer = id ? new Peer(id, options) : new Peer(options);
     this.peer = peer;
     setup(peer);
@@ -363,8 +355,9 @@ export default class FileSharePage extends Component {
   }
 
   <template>
-    <ToolPage @route="file-share" @subtitle="Send files directly between browsers over an encrypted WebRTC connection. Nothing is ever uploaded to a server.">
+    <ToolPage @route="file-share" @subtitle="Drop a file, share the code, and it goes straight from your browser to theirs over an encrypted link. Nothing sits on a server.">
       <div class="fs">
+        <p class="fs-warning" role="note"><Icon @name="triangle-alert" @size={{15}} /> <span><strong>Only share with people you trust.</strong> Files go directly between your devices for speed, so the other person's browser can see your IP address (roughly where you are and which network you're on).</span></p>
         {{#unless this.active}}
           <div class="fs-frame pop-in">
             <div class="fs-start">

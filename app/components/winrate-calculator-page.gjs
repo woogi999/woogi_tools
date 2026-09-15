@@ -140,7 +140,7 @@ export default class WinrateCalculatorPage extends Component {
   toggleDraws = (e) => (this.drawsCount = e.target.checked);
 
   <template>
-    <ToolPage @route="winrate-calculator" @subtitle="Enter your record to see your win rate, then set a goal to see the win streak it takes to get there.">
+    <ToolPage @route="winrate-calculator" @subtitle="Enter your wins and losses to see your win rate, then set a goal to find out the streak you need.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Record</h3>

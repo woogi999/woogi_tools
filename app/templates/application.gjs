@@ -9,11 +9,19 @@ import CommandPalette from '../components/command-palette';
 import PipLayer from '../components/pip-layer';
 import ThemeToggle from '../components/theme-toggle';
 import Icon from '../components/icon';
+import VolumeButton from '../components/volume-button';
+import ConfirmHost from '../components/confirm-host';
+import { installUiSounds } from '../utils/ui-sounds';
 
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
   @service offline;
   @tracked navOpen = false;
+
+  constructor(owner, args) {
+    super(owner, args);
+    installUiSounds();
+  }
 
   toggleNav = () => (this.navOpen = !this.navOpen);
   closeNav = () => (this.navOpen = false);
@@ -29,7 +37,10 @@ export default class Application extends Component {
         <LinkTo @route="index" class="mobile-brand">
           <img src="/icon_expanded.png" alt="Woogi Tools" class="mobile-brand-logo" />
         </LinkTo>
-        <ThemeToggle class="mobile-theme-toggle" />
+        <div class="top-controls mobile-theme-toggle">
+          <VolumeButton />
+          <ThemeToggle />
+        </div>
       </header>
 
       {{#if this.navOpen}}
@@ -48,7 +59,10 @@ export default class Application extends Component {
       </aside>
 
       <div class="content-col">
-        <ThemeToggle class="desktop-theme-toggle" />
+        <div class="top-controls desktop-theme-toggle">
+          <VolumeButton />
+          <ThemeToggle />
+        </div>
 
         <main>
           {{outlet}}
@@ -60,6 +74,8 @@ export default class Application extends Component {
 
     {{! After the outlet on purpose: pages register their tools first (see services/pip.js). }}
     <PipLayer />
+
+    <ConfirmHost />
 
     {{#if this.offline.updateReady}}
       <div class="update-toast pop-in" role="status">

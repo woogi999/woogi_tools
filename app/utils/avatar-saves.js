@@ -1,6 +1,7 @@
 import { playerAvatar } from './avatar';
+import { normalisePose } from './pose';
 
-// Looks you've saved in the avatar maker, kept in localStorage.
+// Looks you've saved in the Avatar Editor, each with its pose, kept in localStorage.
 
 const SAVES_KEY = 'woogi-avatar-saves';
 export const MAX_SAVES = 16;
@@ -13,7 +14,7 @@ export function loadSaves() {
     return saves
       .filter((s) => s?.avatar?.type !== 'robot')
       .slice(0, MAX_SAVES)
-      .map((s, i) => ({ id: String(s?.id ?? i), label: String(s?.label ?? 'Look').slice(0, 24), avatar: playerAvatar(s?.avatar) }));
+      .map((s, i) => ({ id: String(s?.id ?? i), label: String(s?.label ?? 'Look').slice(0, 24), avatar: playerAvatar(s?.avatar), pose: normalisePose(s?.pose) }));
   } catch {
     return [];
   }

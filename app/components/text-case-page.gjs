@@ -53,7 +53,7 @@ export default class TextCasePage extends Component {
   setText = (event) => (this.text = event.target.value);
 
   <template>
-    <ToolPage @route="text-case" @subtitle="See your text in every common case at once, from Title Case to snake_case.">
+    <ToolPage @route="text-case" @subtitle="See your text in every common case at once, from Title Case to snake_case. Click to copy.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <label class="field-label" for="tc-text">Text</label>

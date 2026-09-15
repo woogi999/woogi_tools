@@ -67,7 +67,7 @@ export default class CronBuilderPage extends Component {
   usePreset = (expr) => (this.expr = expr);
 
   <template>
-    <ToolPage @route="cron-builder" @subtitle="Write and understand cron expressions, with a preview of the next runs.">
+    <ToolPage @route="cron-builder" @subtitle="Write a cron expression and see what it means in plain words, plus when it runs next. No more guessing.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <div class="field-head">

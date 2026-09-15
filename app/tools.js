@@ -9,7 +9,7 @@ export const TOOLS = [
     route: 'color-picker',
     icon: 'paint-bucket',
     category: 'Design',
-    description: 'Pick a colour and get HEX, RGB, and HSL instantly.',
+    description: "Found the perfect colour? Grab its HEX, RGB and HSL in one click.",
     keywords: ['color', 'hex', 'rgb', 'hsl', 'hsv', 'palette', 'eyedropper', 'swatch', 'wheel'],
     madeWith:
       'The colour wheel is drawn on a <canvas> pixel by pixel, and every HEX, RGB, HSL and HSV conversion is hand-written maths in plain JavaScript. The coloured slider tracks are CSS gradients rebuilt as you drag. No colour libraries.',
@@ -20,7 +20,7 @@ export const TOOLS = [
     route: "contrast-checker",
     icon: "contrast",
     category: "Design",
-    description: "Check text and background colours against WCAG contrast rules, and get a passing colour.",
+    description: "Can people actually read your text? Check the contrast (WCAG) and get a colour that passes.",
     keywords: ["contrast", "wcag", "accessibility", "a11y", "color contrast", "colour contrast", "aa", "aaa", "readability"],
     madeWith:
       "Contrast is the WCAG 2 formula: each colour's relative luminance from linearised sRGB channels, then (lighter + 0.05) / (darker + 0.05). The suggested fix keeps the text colour's hue and saturation and steps its lightness away from the background until it passes, so the result still looks like your colour.",
@@ -31,7 +31,7 @@ export const TOOLS = [
     route: 'pixel-eyedropper',
     icon: 'pipette',
     category: 'Design',
-    description: 'Upload an image and click anywhere on it to sample the exact colour.',
+    description: "Steal a colour from any image. Upload it, click a pixel, done.",
     keywords: ['eyedropper', 'color picker', 'colour picker', 'image color picker', 'pixel color', 'sample color', 'pick color from image'],
     madeWith:
       "The image is drawn onto an offscreen <canvas>; a click reads that single pixel back with getImageData and turns it into HEX, RGB and HSL.",
@@ -42,7 +42,7 @@ export const TOOLS = [
     route: 'background-remover',
     icon: 'eraser',
     category: 'Design',
-    description: 'Cut the background out of a photo, right in your browser.',
+    description: "Poof, background gone. Cut the subject out of any photo, right in your browser.",
     keywords: ['background remover', 'remove background', 'cutout', 'transparent background', 'bg remover', 'image segmentation'],
     madeWith:
       "A small ISNet segmentation model runs on-device via ONNX Runtime Web to tell subject from background, all inside a WebAssembly sandbox. The model downloads once, from the library's own CDN, and is cached by your browser after that; your photo never leaves your device.",
@@ -53,7 +53,7 @@ export const TOOLS = [
     route: 'data-codec',
     icon: 'file-archive',
     category: 'Dev',
-    description: 'Compress data with gzip, deflate, brotli or zstd, or encode/decode Base64, URLs, hex and more.',
+    description: "Squish data with gzip, brotli or zstd, or encode and decode Base64, URLs, hex, Morse and friends.",
     keywords: ['compress', 'decompress', 'zip', 'gzip', 'deflate', 'brotli', 'zstd', 'zstandard', 'base64', 'base64url', 'url encode', 'url decode', 'html entities', 'hex', 'binary', 'unicode', 'morse code', 'encode', 'decode', 'shrink'],
     madeWith:
       "gzip and deflate run through fflate in pure JavaScript. Brotli and Zstandard are the reference C/Rust codecs compiled to WebAssembly, loaded only when you pick them. Text encoding uses TextEncoder first so emoji and accented letters survive round trips; URL coding uses the built-in encodeURIComponent, HTML entities are decoded by the browser's parser in a detached element that never runs markup, and Morse uses the international code table. All of it runs without leaving your browser.",
@@ -70,7 +70,7 @@ export const TOOLS = [
     route: "json-formatter",
     icon: "braces",
     category: "Dev",
-    description: "Validate, pretty-print, minify and sort JSON.",
+    description: "Messy JSON? Make it pretty, minify it, sort it, or find out where it broke.",
     keywords: ["json", "format", "pretty print", "beautify", "minify", "validate", "lint", "sort keys", "viewer"],
     madeWith:
       "The browser's own JSON.parse does the validating; when it fails, the character position in its error is turned into a line and column. Formatting is JSON.stringify with your chosen indent, and key sorting rebuilds objects recursively before printing.",
@@ -81,7 +81,7 @@ export const TOOLS = [
     route: "hash-generator",
     icon: "fingerprint",
     category: "Dev",
-    description: "Hash text or files with MD5, SHA-1, SHA-2 and CRC-32, and verify checksums.",
+    description: "Turn text or files into MD5, SHA and CRC-32 hashes, and check if a download is legit.",
     keywords: ["hash", "checksum", "md5", "sha1", "sha256", "sha512", "crc32", "digest", "verify", "integrity"],
     madeWith:
       "SHA-1 and the SHA-2 family come from the browser's Web Crypto API. MD5 and CRC-32 aren't part of it, so both are written by hand here (MD5 following RFC 1321, CRC-32 with the usual reflected lookup table).",
@@ -92,7 +92,7 @@ export const TOOLS = [
     route: "uuid-generator",
     icon: "hash",
     category: "Dev",
-    description: "Generate UUID v4 and v7, ULIDs and Nano IDs in bulk, or decode an existing ID.",
+    description: "Need a unique ID? Or a thousand? UUID v4 and v7, ULIDs and Nano IDs on tap.",
     keywords: ["uuid", "guid", "v4", "v7", "ulid", "nanoid", "nano id", "unique id", "generator", "decode"],
     madeWith:
       "Every ID draws from crypto.getRandomValues. Version 4 uses the browser's own randomUUID; version 7 packs a 48-bit millisecond timestamp in front of random bits so IDs sort by creation time; ULIDs use Crockford base-32; Nano IDs map bytes onto a 64-symbol alphabet so no symbol is favoured.",
@@ -103,7 +103,7 @@ export const TOOLS = [
     route: "jwt-decoder",
     icon: "shield-check",
     category: "Dev",
-    description: "Decode JSON Web Tokens, check expiry and verify HMAC signatures.",
+    description: "Peek inside a JSON Web Token: see the claims, check if it expired, verify the signature.",
     keywords: ["jwt", "json web token", "decode", "bearer", "token", "claims", "exp", "hs256", "verify signature", "oauth"],
     madeWith:
       "The header and payload are Base64URL-decoded and parsed as JSON, with standard time claims shown as dates relative to now. HS256, HS384 and HS512 signatures are checked with the Web Crypto API's HMAC verify, entirely in your browser.",
@@ -114,7 +114,7 @@ export const TOOLS = [
     route: "regex-tester",
     icon: "regex",
     category: "Dev",
-    description: "Test JavaScript regular expressions with live highlighting, groups and replacement.",
+    description: "Regex looks like a cat walked on the keyboard. Test yours live and see what it matches.",
     keywords: ["regex", "regular expression", "regexp", "pattern", "match", "capture group", "replace", "test"],
     madeWith:
       "Matching uses JavaScript's own RegExp engine, but runs inside a short-lived Web Worker. If a pattern backtracks for too long the worker is terminated, so a runaway expression can't freeze the page.",
@@ -125,7 +125,7 @@ export const TOOLS = [
     route: "timestamp-converter",
     icon: "clock",
     category: "Dev",
-    description: "Convert Unix timestamps to dates and back, across time zones, with ready-to-paste Discord timestamp codes.",
+    description: "Unix timestamps to real dates and back, across time zones, plus Discord timestamp codes.",
     keywords: ["timestamp", "unix time", "epoch", "date", "time zone", "timezone", "iso 8601", "milliseconds", "utc", "convert", "discord", "discord timestamp", "discord time"],
     madeWith:
       "The unit (seconds, milliseconds, micro or nanoseconds) is guessed from how many digits you type, or pick a date and time directly with the picker. Time zones are formatted by the browser's Intl.DateTimeFormat using its built-in time zone database, relative times come from Intl.RelativeTimeFormat, and the Discord codes use its <t:unix:style> timestamp syntax.",
@@ -136,7 +136,7 @@ export const TOOLS = [
     route: "number-base",
     icon: "binary",
     category: "Dev",
-    description: "Convert numbers between binary, octal, decimal, hex and any base up to 36.",
+    description: "Binary, hex, octal, decimal or any base up to 36. Convert between them, however big.",
     keywords: ["base converter", "binary", "octal", "decimal", "hexadecimal", "hex", "radix", "base 36", "two's complement", "bits"],
     madeWith:
       "Numbers are held as BigInt, so values far beyond 2^53 convert exactly. Parsing and printing in each base are plain repeated multiply-and-divide loops.",
@@ -147,7 +147,7 @@ export const TOOLS = [
     route: 'user-agent-parser',
     icon: 'monitor-smartphone',
     category: 'Dev',
-    description: 'Break down a browser user agent string into browser, engine, OS and device.',
+    description: "That weird browser string? Find out which browser, OS and device it really is.",
     keywords: ['user agent', 'useragent', 'ua string', 'browser detection', 'os detection', 'device detection', 'navigator.useragent'],
     madeWith:
       "A hand-written set of regular expressions checks the string against the common browsers, rendering engines and operating systems, in the order that avoids the usual false positives (Edge and Opera both contain the word Chrome, for instance).",
@@ -158,7 +158,7 @@ export const TOOLS = [
     route: 'cron-builder',
     icon: 'calendar-clock',
     category: 'Dev',
-    description: 'Write and understand cron expressions, with a preview of the next run times.',
+    description: "Cron expressions, in plain English, with the next few times it’ll actually run.",
     keywords: ['cron', 'crontab', 'cron expression', 'cron job', 'scheduler', 'schedule', 'cron syntax'],
     madeWith:
       "Each of the five fields is validated and turned into a sentence by hand. The upcoming run times come from a simple minute-by-minute scan against the parsed fields rather than a full scheduling library.",
@@ -169,7 +169,7 @@ export const TOOLS = [
     route: 'gitignore-generator',
     icon: 'file-code',
     category: 'Dev',
-    description: 'Pick your stack and combine ready-made .gitignore rules.',
+    description: "Pick your stack and get a .gitignore that keeps node_modules out of your commits.",
     keywords: ['gitignore', 'git ignore', 'ignore file', 'node modules', 'generator'],
     madeWith:
       "A small hand-picked set of rules for common languages, frameworks and editors, combined with headers so you can see where each block came from.",
@@ -180,7 +180,7 @@ export const TOOLS = [
     route: 'favicon-generator',
     icon: 'app-window',
     category: 'Dev',
-    description: 'Turn a picture into every favicon size a site needs, plus the HTML to link them.',
+    description: "One picture in, every favicon size out, plus the HTML to paste into your site.",
     keywords: ['favicon', 'favicon generator', 'apple touch icon', 'android chrome icon', 'ico file', 'site icon'],
     madeWith:
       "Every size is drawn onto a <canvas> and re-encoded as PNG by the browser. The multi-size .ico file is packed by hand: modern Windows can embed PNG frames directly in an ICO container, so no BMP conversion is needed.",
@@ -191,7 +191,7 @@ export const TOOLS = [
     route: 'file-converter',
     icon: 'file-symlink',
     category: 'Files',
-    description: 'Convert images, RAW photos, audio, video, documents, data, archives and fonts, right in your browser.',
+    description: "Convert pretty much anything: images, RAW photos, audio, video, documents, archives and fonts. No uploads.",
     keywords: [
       'file converter', 'convert', 'conversion', 'format', 'transcode',
       'photo converter', 'image converter', 'picture converter', 'video converter', 'audio converter', 'music converter', 'sound converter', 'movie converter', 'clip converter', 'document converter', 'pdf converter', 'word converter', 'ebook converter', 'archive converter', 'font converter',
@@ -223,7 +223,7 @@ export const TOOLS = [
     route: "pdf-tools",
     icon: "file-stack",
     category: "Files",
-    description: "Merge PDFs, pick pages, or split a PDF into several files.",
+    description: "Glue PDFs together, pull out the pages you want, or split one into pieces.",
     keywords: ["pdf", "merge pdf", "combine pdf", "split pdf", "extract pages", "join pdf", "pdf pages", "reorder"],
     madeWith:
       "pdf-lib reads each document and copies the chosen pages into a new one without re-rendering them, so text stays selectable and quality is untouched. Split results with more than one file are packed into a ZIP with fflate.",
@@ -237,7 +237,7 @@ export const TOOLS = [
     route: 'file-compressor',
     icon: 'package',
     category: 'Files',
-    description: 'Shrink any file with gzip, deflate, brotli or zstd, or unpack one.',
+    description: "Make files smaller with gzip, deflate, brotli or zstd, or unpack them again.",
     keywords: ['file compressor', 'compress file', 'zip file', 'gzip file', 'shrink file', 'reduce file size', 'decompress file', 'unzip'],
     madeWith:
       "The same engines behind the Data Codec, but working on raw file bytes instead of text: fflate for gzip and deflate, and the Brotli and Zstandard WebAssembly builds for the rest.",
@@ -252,7 +252,7 @@ export const TOOLS = [
     route: "image-resizer",
     icon: "scaling",
     category: "Design",
-    description: "Resize and compress images in bulk.",
+    description: "Pictures too big? Resize and compress a whole bunch at once.",
     keywords: ["resize image", "compress image", "image compressor", "shrink", "reduce file size", "thumbnail", "scale", "jpg compressor", "webp"],
     madeWith:
       "Images are decoded with createImageBitmap, drawn onto a canvas at the new size with high-quality smoothing, and re-encoded with the browser's own JPEG, WEBP or PNG encoder at the quality you pick. Batches are zipped with fflate.",
@@ -263,7 +263,7 @@ export const TOOLS = [
     route: 'image-cropper',
     icon: 'crop',
     category: 'Design',
-    description: 'Crop a photo to an exact size, with ready-made social media presets and a live preview.',
+    description: "Crop photos to the perfect size, with presets for profile pics, posts and banners.",
     keywords: ['image cropper', 'crop image', 'photo crop', 'instagram crop', 'profile picture crop', 'social media image sizes', 'thumbnail crop', 'aspect ratio crop'],
     madeWith:
       "The photo sits behind a fixed-size viewport sized to the target ratio; dragging and the zoom slider just pan and scale it, cover-fit style, like a typical avatar cropper. Cropping reads back the exact source rectangle the viewport is showing and draws it onto a canvas at the preset's pixel size.",
@@ -274,7 +274,7 @@ export const TOOLS = [
     route: 'image-slicer',
     icon: 'grid-3x3',
     category: 'Design',
-    description: 'Slice a photo into an Instagram carousel row or profile grid, with a live preview.',
+    description: "Chop one photo into an Instagram carousel or a big profile grid.",
     keywords: ['image slicer', 'instagram grid', 'instagram carousel', 'grid maker', 'photo grid splitter', 'panorama grid', 'split image into grid', '3x3 grid maker'],
     madeWith:
       "The photo is cover-cropped to the grid's overall aspect ratio, then divided into equal square tiles that are each redrawn onto their own canvas. Multiple tiles are bundled into a ZIP with fflate.",
@@ -285,7 +285,7 @@ export const TOOLS = [
     route: 'calculator',
     icon: 'calculator',
     category: 'Math',
-    description: 'A scientific calculator with trig, logs, factorials and a history.',
+    description: "A proper scientific calculator: trig, logs, factorials, and a history of your sums.",
     keywords: ['calculator', 'scientific', 'math', 'maths', 'sin', 'cos', 'tan', 'log', 'ln', 'sqrt', 'factorial', 'arithmetic'],
     madeWith:
       "Expressions are read by a hand-written recursive-descent parser that understands implied multiplication (2π, 3(x+1)), absolute value bars and postfix ! and %. Factorials of fractions use the Lanczos approximation of the gamma function. Everything else is JavaScript's own Math library.",
@@ -296,7 +296,7 @@ export const TOOLS = [
     route: 'graph-calculator',
     icon: 'chart-spline',
     category: 'Math',
-    description: 'Plot several functions at once, then pan, zoom and trace them.',
+    description: "Draw graphs of functions, then pan, zoom and trace along the curves.",
     keywords: ['graph', 'plot', 'function', 'curve', 'chart', 'grapher', 'desmos', 'math', 'maths', 'trace'],
     madeWith:
       'Each function is parsed once by the same expression parser as the calculator, then sampled twice per screen pixel and drawn on a <canvas>. Grid spacing snaps to 1, 2 and 5 steps as you zoom, and lines are broken where a curve jumps off to infinity so asymptotes stay clean.',
@@ -307,7 +307,7 @@ export const TOOLS = [
     route: 'algebra-calculator',
     icon: 'variable',
     category: 'Math',
-    description: 'Solve equations and linear systems, expand and factor polynomials.',
+    description: "Stuck on homework? Solve equations and systems, expand and factor polynomials.",
     keywords: ['algebra', 'solve', 'equation', 'quadratic', 'cubic', 'polynomial', 'factor', 'expand', 'simplify', 'system', 'linear', 'roots', 'math', 'maths'],
     madeWith:
       'Expressions become polynomials stored as maps of monomials to coefficients, so expanding is just multiplying maps. Quadratics get an exact surd form, higher degrees are solved with the Durand–Kerner method, factoring uses the rational root theorem, linear systems use Gaussian elimination, and anything else is solved numerically by bisection.',
@@ -318,7 +318,7 @@ export const TOOLS = [
     route: 'date-calculator',
     icon: 'calendar-clock',
     category: 'Math',
-    description: 'Time between two dates, add or subtract time, and total up durations.',
+    description: "How many days until…? Count the time between dates, add or subtract time, total durations.",
     keywords: ['date', 'time', 'days between', 'difference', 'duration', 'add days', 'subtract', 'weekdays', 'business days', 'hours', 'countdown'],
     madeWith:
       "Built on the browser's Date object in your local time zone. Years, months and days are counted on the calendar (borrowing from the previous month like you would by hand), while hour totals use real elapsed time, so daylight-saving changes are accounted for.",
@@ -329,7 +329,7 @@ export const TOOLS = [
     route: 'age-calculator',
     icon: 'cake',
     category: 'Math',
-    description: 'Exact age in years, months and days, plus a countdown to the next birthday.',
+    description: "How old are you, exactly? Years, months, days, and how long until your birthday cake.",
     keywords: ['age', 'birthday', 'born', 'how old', 'date of birth', 'dob', 'years old', 'zodiac'],
     madeWith:
       'Plain calendar arithmetic on UTC dates so time zones and daylight saving never nudge the result by a day. Leap-day birthdays are celebrated on 28 February in common years.',
@@ -340,7 +340,7 @@ export const TOOLS = [
     route: 'winrate-calculator',
     icon: 'trophy',
     category: 'Math',
-    description: 'Work out a win rate and how many wins it takes to hit a target.',
+    description: "Check your win rate and how many wins in a row it takes to hit your goal. Copium not included.",
     keywords: ['winrate', 'win rate', 'wins', 'losses', 'ratio', 'ranked', 'games', 'percentage', 'streak', 'elo'],
     madeWith:
       'A few lines of algebra: solving (wins + n) / (games + n) ≥ target for n gives the win streak you need, and the same idea in reverse tells you how many losses you can absorb.',
@@ -351,7 +351,7 @@ export const TOOLS = [
     route: 'unit-converter',
     icon: 'ruler',
     category: 'Math',
-    description: 'Convert length, mass, volume, area, speed, time, data and temperature.',
+    description: "Miles to km, pounds to kg, °F to °C, and loads more units.",
     keywords: ['unit', 'convert', 'conversion', 'length', 'mass', 'weight', 'volume', 'area', 'speed', 'time', 'data', 'temperature', 'metric', 'imperial', 'km', 'miles', 'kg', 'lbs', 'celsius', 'fahrenheit'],
     madeWith:
       'Every category converts through a common base unit (metres, kilograms, litres and so on) with plain multiplication and division. Temperature gets its own formulas since °C, °F and K don’t share a zero point. All the conversion factors are hand-typed constants; no unit-conversion library.',
@@ -362,7 +362,7 @@ export const TOOLS = [
     route: 'wage-calculator',
     icon: 'wallet',
     category: 'Math',
-    description: 'Turn a pay rate into hourly, daily, weekly, monthly and annual figures, with a rough tax estimate.',
+    description: "Turn your pay into hourly, daily, weekly, monthly and yearly money, with a rough tax guess.",
     keywords: ['wage', 'salary', 'pay', 'income', 'hourly rate', 'paycheck', 'tax', 'net pay', 'gross pay', 'take home', 'currency', 'annual salary'],
     madeWith:
       "Gross figures are plain arithmetic from your rate, hours and days per week. The tax estimate runs your annual gross through hand-typed progressive brackets for a handful of countries (national/federal only — no local tax, credits or deductions), the same marginal-bracket method real tax tables use.",
@@ -373,7 +373,7 @@ export const TOOLS = [
     route: "percentage-calculator",
     icon: "percent",
     category: "Math",
-    description: "Percent of a number, percentage change, increases, decreases and more.",
+    description: "Percent of a number, discounts, increases and percentage change, with the working shown.",
     keywords: ["percentage", "percent", "% of", "percent change", "increase", "decrease", "discount", "markup", "difference"],
     madeWith:
       "Each card is one rearrangement of part = percent / 100 × whole, with the working shown underneath so you can check it by hand.",
@@ -384,7 +384,7 @@ export const TOOLS = [
     route: "aspect-ratio",
     icon: "proportions",
     category: "Math",
-    description: "Simplify resolutions to aspect ratios and resize while keeping proportions.",
+    description: "Figure out a screen’s aspect ratio, or resize without stretching things.",
     keywords: ["aspect ratio", "resolution", "16:9", "4:3", "resize", "dimensions", "width height", "ratio"],
     madeWith:
       "Ratios are simplified with Euclid's greatest common divisor. Resolutions that don't reduce neatly (like 1366×768) are matched to the nearest common ratio within 3%.",
@@ -395,7 +395,7 @@ export const TOOLS = [
     route: "word-counter",
     icon: "whole-word",
     category: "Text",
-    description: "Count words, characters, sentences and reading time.",
+    description: "Count words, characters and sentences, and see how long it takes to read.",
     keywords: ["word count", "character count", "letter count", "words", "characters", "reading time", "sentences", "paragraphs", "keyword density"],
     madeWith:
       "Words are split with Intl.Segmenter, which understands languages written without spaces, like Chinese and Japanese. Reading time assumes 238 words a minute and speaking time 150.",
@@ -406,7 +406,7 @@ export const TOOLS = [
     route: "text-case",
     icon: "case-sensitive",
     category: "Text",
-    description: "Convert text to UPPER, lower, Title, Sentence, camelCase, snake_case and more.",
+    description: "UPPER, lower, Title, camelCase, snake_case… flip your text into any case.",
     keywords: ["case converter", "uppercase", "lowercase", "title case", "sentence case", "camelcase", "snake case", "kebab case", "pascal case", "constant case"],
     madeWith:
       "Identifier styles split words at spaces, punctuation and lower-to-upper transitions using Unicode-aware regular expressions, so accented letters work. Title case leaves short words like \"of\" and \"the\" lowercase unless they start or end the line.",
@@ -417,7 +417,7 @@ export const TOOLS = [
     route: "text-diff",
     icon: "diff",
     category: "Text",
-    description: "Compare two texts and highlight what was added or removed.",
+    description: "Spot the difference between two texts: what was added, what got removed.",
     keywords: ["diff", "compare", "difference", "text compare", "changes", "version", "side by side"],
     madeWith:
       "Differences are found with Myers' diff algorithm, the one behind git diff, after trimming the shared start and end. Compare by line, word or character, optionally ignoring case and whitespace.",
@@ -428,7 +428,7 @@ export const TOOLS = [
     route: "line-tools",
     icon: "list-filter",
     category: "Text",
-    description: "Sort, dedupe, shuffle and tidy lines, plus find and replace.",
+    description: "Sort, dedupe, shuffle and tidy lists, plus find and replace.",
     keywords: ["sort lines", "remove duplicates", "dedupe", "shuffle", "trim", "blank lines", "find and replace", "regex replace", "alphabetize", "number lines"],
     madeWith:
       "Sorting uses Intl.Collator in numeric mode, so item 2 comes before item 10. Shuffling is a Fisher–Yates shuffle driven by crypto.getRandomValues, and every change can be undone.",
@@ -439,7 +439,7 @@ export const TOOLS = [
     route: 'qr-code',
     icon: 'qr-code',
     category: 'Other',
-    description: 'Turn text or links into a downloadable QR code.',
+    description: "Make QR codes for links, text, WiFi or contacts, and make them look good too.",
     keywords: ['qr', 'barcode', 'scan', 'link', 'url', 'share', 'code', 'wifi', 'vcard', 'contact', 'batch', 'logo'],
     madeWith:
       'QR matrices are generated and styled by qr-code-styling (which builds on qrcode-generator). WiFi and vCard payloads are assembled by hand, the info caption is composed onto the image with a canvas or SVG text, and batch ZIPs are packed with fflate. Layout and feature set inspired by delphitools QR Genny.',
@@ -455,7 +455,7 @@ export const TOOLS = [
     route: 'file-share',
     icon: 'share-2',
     category: 'Other',
-    description: 'Drop a file, get a code, and send it straight to another browser over WebRTC. No upload, no server storage.',
+    description: "Send a file straight to another device with a code. No uploads, no accounts.",
     keywords: ['p2p', 'peer to peer', 'webrtc', 'share', 'transfer', 'send', 'file', 'airdrop', 'code', 'qr'],
     madeWith:
       "Files travel browser-to-browser over an end-to-end encrypted WebRTC data channel. PeerJS's public broker server is used only to help two browsers find each other and exchange connection info; your files themselves never pass through it or any server of ours. Each file is sliced into 4 MB pieces before sending, so neither side ever has to hold a whole large file in memory. Chrome and Edge use the File System Access API to write incoming pieces straight to disk as they arrive, while other browsers buffer the pieces and hand back the finished file once it's complete. The invite QR code is generated the same way as the QR tool, with qr-code-styling.",
@@ -469,7 +469,7 @@ export const TOOLS = [
     route: 'password-generator',
     icon: 'key-round',
     category: 'Other',
-    description: 'Generate a strong random password, or check the strength of one you already use.',
+    description: "Make a strong random password, or find out how long yours would last against hackers.",
     keywords: ['password', 'generator', 'random', 'secure', 'strength', 'entropy', 'passphrase', 'security'],
     madeWith:
       "Passwords are built from crypto.getRandomValues with rejection sampling, so every allowed character stays equally likely (no modulo bias). The strength check estimates entropy from the character classes present and an assumed 10 billion guesses/second offline attack; nothing you type is sent anywhere.",
@@ -480,7 +480,7 @@ export const TOOLS = [
     route: 'lorem-ipsum',
     icon: 'type',
     category: 'Other',
-    description: 'Generate placeholder text by paragraphs, sentences or words.',
+    description: "Fake Latin filler text for when the real words aren’t written yet.",
     keywords: ['lorem ipsum', 'placeholder', 'dummy text', 'filler text', 'generator', 'text'],
     madeWith: 'Sentences are assembled by picking random words from the classic Lorem Ipsum word bank and stitching them into sentences and paragraphs of random length. No external text library.',
     credits: [],
@@ -490,7 +490,7 @@ export const TOOLS = [
     route: "pomodoro-timer",
     icon: "timer",
     category: "Other",
-    description: "Focus in timed sessions with short breaks and a long break every few rounds.",
+    description: "Focus for a bit, break for a bit, repeat. Your procrastination’s worst enemy.",
     keywords: ["pomodoro", "timer", "focus", "productivity", "study timer", "work timer", "break", "countdown"],
     madeWith:
       "The countdown is measured against the wall clock rather than counting ticks, so it stays accurate when the browser slows background tabs. The chime is synthesised with the Web Audio API and the optional alert uses the Notification API.",
@@ -501,7 +501,7 @@ export const TOOLS = [
     route: "random-picker",
     icon: "dices",
     category: "Other",
-    description: "Spin a wheel, draw names or split a list into random teams.",
+    description: "Can’t decide? Spin a wheel, draw a name, or make random teams.",
     keywords: ["random", "picker", "wheel", "spin the wheel", "name picker", "raffle", "draw", "teams", "random team generator", "decide"],
     madeWith:
       "Winners are chosen with crypto.getRandomValues using rejection sampling, so no entry is favoured, and the wheel animation is then aimed at the result rather than deciding it. Teams come from a Fisher–Yates shuffle dealt out round-robin.",
@@ -512,7 +512,7 @@ export const TOOLS = [
     route: 'quick-notes',
     icon: 'notebook-pen',
     category: 'Other',
-    description: 'Sticky notes with rich text, drawing and stickers, organised into folders. No account needed.',
+    description: "Sticky notes you can type, doodle and slap stickers on, sorted into folders.",
     keywords: ['notes', 'notebook', 'sticky note', 'draw', 'drawing', 'sketch', 'sticker', 'folder', 'journal', 'todo', 'font'],
     madeWith:
       "Notes are edited in the browser's own contenteditable, formatted with document.execCommand. Drawing and stickers sit on a transparent <canvas> layered right over the text, the way a phone's notes app lets you scribble on the page instead of switching modes. A custom font is registered from an uploaded file with the FontFace API. Ctrl+F inside the tool also searches every note's text, not just what's on screen. Everything is saved to your browser's local storage; nothing is ever uploaded.",
@@ -523,7 +523,7 @@ export const TOOLS = [
     route: 'chess',
     icon: 'chess-knight',
     category: 'Fun',
-    description: 'Play chess against the computer at three levels, or against a friend over a direct P2P link. Clocks, Chess960, premoves and drag-and-drop.',
+    description: "Outsmart the computer or a friend. Clocks, Chess960, premoves and drag-and-drop included.",
     keywords: ['chess', 'board game', 'checkmate', 'chess ai', 'play chess online', 'multiplayer', 'p2p', 'game', 'blitz', 'bullet', 'chess960', 'premove'],
     madeWith:
       "chess.js handles the rules: legal moves, check, castling, en passant, promotion and every kind of draw. The computer is a small hand-written engine on top of it: alpha-beta search with move ordering and a capture-only quiescence search, scoring positions by material and piece-square tables. It deepens one move at a time within a time budget and yields to the browser between slices, so the board never freezes while it thinks. Pieces live in their own layer and slide between squares with CSS transitions; after every change each piece on the new board is matched to the nearest piece of its kind on the old one, so moves, castling, captures and takebacks all animate without special cases. Premoves are checked against piece movement only, then played the moment it's your turn if they're legal. Online games use PeerJS to connect the two browsers directly; each move is sent with the resulting position and both clocks, so the boards can't drift apart.",
@@ -537,7 +537,7 @@ export const TOOLS = [
     route: 'snake',
     icon: 'worm',
     category: 'Fun',
-    description: 'Classic snake on your own, or a battle of up to four snakes against the computer and your friends.',
+    description: "Eat apples, get long, don’t bite yourself. Solo, or a four-snake brawl with friends.",
     keywords: ['snake', 'arcade', 'retro game', 'nokia snake', 'multiplayer', 'p2p', 'game'],
     madeWith:
       "The board is a <canvas> redrawn every tick. The rules are plain JavaScript: heads move first, then collisions are settled against where every snake ends up, so head-on crashes are fair. The computer snake finds the nearest apple with a breadth-first search, refuses to enter a pocket smaller than its own body (checked with a flood fill), avoids squares another head could reach next, and occasionally wanders so it can be beaten. Online, the host runs the game and streams each tick to everyone over PeerJS connections; guests only send their turns.",
@@ -548,7 +548,7 @@ export const TOOLS = [
     route: 'woono',
     icon: 'layers',
     category: 'Fun',
-    description: 'Our take on Uno, played first person around a 3D table: up to eight players, computer or friends, with house rules like stacking, 7 swap, 0 rotate and jump-in.',
+    description: "Do you want your friendships to end? Our take on Uno, around a 3D table with up to 8 players.",
     keywords: ['woono', 'uno', 'uno online', 'lan', 'offline multiplayer', 'hotspot', 'challenge', 'turn timer', 'card game', 'cards', 'wild card', 'multiplayer', 'p2p', 'game', 'house rules', 'stacking', 'avatar', '3d', 'first person'],
     madeWith:
       "The deck and rules are plain JavaScript: Skips, Reverses (which act as Skips with two players), Draw Twos, Wilds and Wild Draw Fours, plus optional house rules for stacking, sevens, zeros, jump-ins and drawing until you can play. The table is a small three.js scene loaded only when you open Woono, seen through your own avatar's eyes: your cards are real 3D cards held in front of the camera and picked with a raycast, while name tags, the draw button and stacked-draw warnings are sprites that always face you. Avatars are chibi doodles built from a few toon-shaded shapes with ink outlines (the back faces of each shape, pushed outwards), on a squircle head rather than a sphere; each hairstyle is a shell grown round that head down to a hairline, which hangs straight down past the widest point, so a bowl cut, a mullet and hair to the waist are all just different hairlines. Faces and cards are drawn once on a 2D canvas and reused as textures. Effects are pooled: one particle buffer, a handful of recycled rings and cards, so nothing is allocated mid-game. On phones, the gyroscope's orientation is turned into a quaternion relative to where you were facing when you switched it on, so tilting the phone looks around. Computer players really think: for each move they could make, they play the rest of the game out hundreds of times (dealing the cards they can't see at random, so they never peek), keep the move that wins most, and chat in pun-filled lines picked by what just happened. The turn timer runs on the host, which sends everyone the time left rather than a timestamp, since device clocks never quite agree. Online, the host runs the game and sends each player only what they're allowed to see, so no one can peek at another hand. Public rooms are found without any server keeping a list: each one also claims one of a dozen well-known listing ids, and browsing simply knocks on each. Nearby play needs no internet at all: the two WebRTC connection descriptions a broker would normally pass along are deflated with fflate and swapped by QR code (read with the browser's BarcodeDetector) or copy and paste, and with no STUN server only local network addresses are used.",
@@ -560,11 +560,22 @@ export const TOOLS = [
     ],
   },
   {
+    label: 'Avatar Editor',
+    route: 'avatar-editor',
+    icon: 'person-standing',
+    category: 'Fun',
+    description: "Make yourself, your OC, or something cursed. Dress them up, pose them, snap a picture.",
+    keywords: ['avatar', 'avatar maker', 'character creator', 'pose', 'posing', 'rig', '3d', 'profile picture', 'pfp', 'chibi', 'oc', 'original character', 'character maker', 'dress up', 'game profile', 'screenshot'],
+    madeWith:
+      "The avatar is the same small three.js model the games use: toon-shaded shapes with ink outlines, built from a flat, storable description of the look. Poses are plain data too: a few joints (body, head, arms, legs) each turned by a couple of angles in degrees, plus an expression that swaps the face texture. The rig puts a pivot at the neck, shoulders and hips, so a pose is just rotations on those groups; picking a joint casts a ray from the pointer into the scene and walks up from whatever mesh it hit to the joint that owns it, and dragging maps sideways and up-down movement onto that joint's two main angles. Photos re-render the scene once at the size you pick into an offscreen canvas, with or without a background, and save it as a PNG. Saved looks, with their poses, stay in this browser; the pose travels with your profile, so other players see it on your lobby portrait.",
+    credits: [{ name: 'three.js', author: 'three.js authors', license: 'MIT', url: 'https://threejs.org' }],
+  },
+  {
     label: 'JJS Stuff',
     route: 'jjs-stuff',
     icon: 'swords',
     category: 'Fun',
-    description: 'Jujutsu Shenanigans Skill Builder notes: sound IDs, emote music, punch, kick and flip directions, run animations, move startups and presets.',
+    description: "Jujutsu Shenanigans Skill Builder cheat sheet: sound IDs, emotes, animations, startups and presets.",
     keywords: ['jjs', 'jujutsu shenanigans', 'skill builder', 'skillbuilder', 'roblox', 'sound id', 'audio id', 'sounds', 'emotes', 'animations', 'vfx', 'presets', 'moveset', 'startup', 'gojo', 'sukuna', 'yuji'],
     madeWith:
       "The notes are kept as the plain text they were written in and read by a small parser: bold lines become headings, a heading followed by another heading becomes a character or category, long numbers become copyable sound IDs, and times like 0.483~ become startups. Search filters every tab at once and shows how many matches each one has. The text is loaded only when you open the page.",
@@ -585,6 +596,8 @@ export const SITE_CREDITS = [
   { name: 'crayon-css', author: 'TeriyakiBomb', license: 'MIT', url: 'https://github.com/TeriyakiBomb/crayon' },
   { name: 'sketchyicons', author: 'Fantomiald', license: 'MIT, geometry from Lucide (ISC)', url: 'https://sketchyicons.com' },
   { name: 'Moderustic & Inconsolata', author: 'Google Fonts', license: 'OFL', url: 'https://fonts.google.com' },
+  { name: 'Sound effects (Casino Audio, Interface Sounds, UI Audio, Impact Sounds, Music Jingles)', author: 'Kenney', license: 'CC0', url: 'https://kenney.nl/assets/category:Audio' },
+  { name: 'Keyboard Soundpack #1', author: 'Unicae Games', license: 'CC0', url: 'https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-keystrokes' },
 ];
 
 // Subsequence match: every query char must appear in order. Higher is better,

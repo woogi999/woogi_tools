@@ -54,7 +54,11 @@ export async function think(state, index, { signal, budgetMs = MAX_THINK_MS } = 
 // The moves worth weighing. Wild cards only consider the two colours the bot holds most of.
 function candidates(state, index) {
   const colors = favouriteColors(state.players[index].hand).slice(0, 2);
-  return legalActions(state, index).filter((a) => a.type !== 'play' || a.color === null || colors.includes(a.color));}
+  const actions = legalActions(state, index);
+  // Drawing again with a card to play (allowed when drawing until you can play) is never worth weighing.
+  const canPlayOne = !state.pending && actions.some((a) => a.type === 'play');
+  return actions.filter((a) => (a.type !== 'play' || a.color === null || colors.includes(a.color)) && !(canPlayOne && a.type === 'draw'));
+}
 
 // Upper-confidence picking: mostly try the moves that look best, but give every move a fair look.
 function chooseArm(stats, total) {

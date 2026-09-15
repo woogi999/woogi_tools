@@ -103,7 +103,7 @@ export default class LoremIpsumPage extends Component {
   };
 
   <template>
-    <ToolPage @route="lorem-ipsum" @subtitle="Generate placeholder text by paragraphs, sentences or words.">
+    <ToolPage @route="lorem-ipsum" @subtitle="Generate placeholder text by paragraphs, sentences or words. Lorem ipsum dolor sit whatever.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Options</h3>

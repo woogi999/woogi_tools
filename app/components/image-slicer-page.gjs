@@ -163,7 +163,7 @@ export default class ImageSlicerPage extends Component {
   };
 
   <template>
-    <ToolPage @route="image-slicer" @subtitle="Slice a photo into an Instagram carousel row or profile grid, with a live preview.">
+    <ToolPage @route="image-slicer" @subtitle="Slice a photo into a swipeable Instagram carousel or a profile grid, and preview it before you post.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOverFile}} {{on "drop" this.dropFile}}>

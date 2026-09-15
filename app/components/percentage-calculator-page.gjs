@@ -55,7 +55,7 @@ export default class PercentageCalculatorPage extends Component {
   };
 
   <template>
-    <ToolPage @route="percentage-calculator" @subtitle="Percent of a number, percentage change, increases, decreases and more, with the working shown.">
+    <ToolPage @route="percentage-calculator" @subtitle="What’s 15% off? How much did it go up? Percentages of all kinds, with the working shown so you can check.">
       <div class="math-grid pop-in">
         {{#each this.problems key="id" as |p|}}
           <section class="math-card">

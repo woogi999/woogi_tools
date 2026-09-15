@@ -46,6 +46,8 @@ export const DEFAULT_RULES = {
   challenge: false,
   // Answer a draw card or a Skip aimed at you with a Skip (cancel it) or a Reverse (send it back).
   defense: false,
+  // Draws lean towards whoever's behind, without ever adding cards that aren't in the deck.
+  drawBalancing: false,
   cards: DEFAULT_CARDS,
 };
 
@@ -89,6 +91,7 @@ export function normaliseRules(rules) {
     turnTime: TURN_TIMES.includes(Number(r.turnTime)) ? Number(r.turnTime) : 0,
     challenge: Boolean(r.challenge),
     defense: Boolean(r.defense),
+    drawBalancing: Boolean(r.drawBalancing),
     cards: Object.fromEntries(CARD_TYPES.map(({ id }) => [id, typeof r.cards?.[id] === 'boolean' ? r.cards[id] : DEFAULT_CARDS[id]])),
   };
 }
@@ -166,7 +169,7 @@ export function createGame(players, rules = DEFAULT_RULES) {
   state.discard.push(top);
   state.color = top.color;
   note(state, `Game on. First card: ${cardName(top)}.`);
-  emit(state, { type: 'deal' });
+  emit(state, { type: 'deal', players: state.players.length, handSize: r.handSize });
   return state;
 }
 
@@ -235,7 +238,8 @@ export function canDrawNow(state, index) {
   if (state.winner !== null || state.swapPending !== null || state.choice || state.turn !== index || state.drawn) return false;
   if (state.pending) return state.pending.target === index;
   if (!state.drewThisTurn) return true;
-  return state.rules.drawUntilPlayable && !handPlayable(state, index) && state.drewThisTurn < DRAW_UNTIL_LIMIT && state.drawPile.length + state.discard.length > 1;
+  // Drawing until you can play, you can keep drawing even after keeping a playable card, until one goes down.
+  return state.rules.drawUntilPlayable && state.drewThisTurn < DRAW_UNTIL_LIMIT && state.drawPile.length + state.discard.length > 1;
 }
 
 // After drawing, you can pass. Drawing until you can play, you can't: a card has to go down
@@ -276,21 +280,79 @@ const resetUno = (player) => {
   player.exposed = false;
 };
 
-function takeFromPile(state) {
+// `who` ({ index, reason, streak }), with Draw Balancing on, lets the draw lean towards what that player needs.
+function takeFromPile(state, who = null) {
   if (!state.drawPile.length) {
     // Reshuffle everything under the top card back into the draw pile.
     const top = state.discard.pop();
     state.drawPile = shuffle(state.discard);
     state.discard = [top];
   }
-  return state.drawPile.pop();
+  const pile = state.drawPile;
+  if (!state.rules.drawBalancing || !who || pile.length < 2) return pile.pop();
+  const at = balancedPick(state, who);
+  // The pile is shuffled, so order doesn't matter: swap the pick to the end and take it.
+  [pile[at], pile[pile.length - 1]] = [pile[pile.length - 1], pile[at]];
+  return pile.pop();
+}
+
+// ─── Draw Balancing ─────────────────────────────────────────────────────
+//
+// Draws are rigged a little to keep games close, but only ever between the
+// cards really left in the deck: every card still in the pile can come up,
+// some are just more likely than others.
+//
+//   Behind on cards?  Power cards (Skips, Reverses, draw cards, Wilds) come up more.
+//   Ahead?            Mostly plain numbers.
+//   Drawing again and again (Draw until you can play, or a long turn of draws):
+//                     each extra draw makes a card matching the top card's colour or number likelier.
+//   Taking a big hit: a card to fight back with (to stack, block or reflect) is a bit likelier.
+//   Missing a colour: cards of colours you don't hold come up a bit more, so you're less stuck.
+//
+// The Wild Draw 99 is never boosted. Each card's weight stays within
+// WEIGHT_RANGE, so the deck is nudged, never stacked.
+
+const WEIGHT_RANGE = [0.3, 4];
+const isPower = (card) => !/^\d$/.test(card.value);
+
+function balancedPick(state, { index, reason, streak = 0 }) {
+  const players = state.players;
+  const hand = players[index].hand;
+  const average = players.reduce((sum, p) => sum + p.hand.length, 0) / players.length;
+  // Positive when behind (more cards than the table's average), negative when ahead.
+  const behind = hand.length - average;
+  const powerBoost = Math.max(0.35, Math.min(2.6, 1 + behind * 0.12));
+  const numberBoost = Math.max(0.6, Math.min(1.5, 1 - behind * 0.04));
+  const top = topCard(state);
+  const heldColors = new Set(hand.map((c) => c.color).filter(Boolean));
+  const penalty = reason === 'hit' || reason === 'challenge' || reason === 'callout';
+  const rules = state.rules;
+
+  const weights = state.drawPile.map((card) => {
+    let w = 1;
+    if (card.value === 'draw99') return behind > 0 ? 1 : 0.5;
+    w *= isPower(card) ? powerBoost : numberBoost;
+    // Drawing until something fits: every extra draw leans towards the top card's colour or number.
+    if (streak > 0 && top && (card.color === state.color || card.value === top.value)) w *= 1 + streak * 0.35;
+    // A big hit: something to fight back with next time.
+    if (penalty && ((rules.defense && (card.value === 'skip' || card.value === 'reverse')) || (rules.stacking !== 'off' && drawAmount(card) > 0 && drawAmount(card) < 99))) w *= 1.35;
+    if (card.color && !heldColors.has(card.color) && hand.length <= 12) w *= 1.25;
+    return Math.max(WEIGHT_RANGE[0], Math.min(WEIGHT_RANGE[1], w));
+  });
+
+  let roll = Math.random() * weights.reduce((sum, w) => sum + w, 0);
+  for (let i = 0; i < weights.length; i++) {
+    roll -= weights[i];
+    if (roll <= 0) return i;
+  }
+  return weights.length - 1;
 }
 
 function drawCards(state, index, count, reason) {
   const player = state.players[index];
   let drawn = 0;
   for (let i = 0; i < count; i++) {
-    const card = takeFromPile(state);
+    const card = takeFromPile(state, { index, reason });
     if (!card) break;
     player.hand.push(card);
     drawn++;
@@ -530,7 +592,7 @@ export function draw(state, index) {
     takePending(state);
     return true;
   }
-  const card = takeFromPile(state);
+  const card = takeFromPile(state, { index, reason: 'centre', streak: state.drewThisTurn });
   if (!card) {
     note(state, `${player.name} can't draw: the deck is empty.`);
     advance(state);
@@ -735,12 +797,22 @@ export function handToBot(state, id) {
 // Roughly how long the table takes to animate these events, so no one acts while cards are still flying.
 const EVENT_MS = { color: 700, play: 900, draw: 700, keep: 550, skip: 900, reverse: 900, swap: 1000, rotate: 900, challenge: 1500, uno: 700, callout: 1100, block: 1000, reflect: 1100, attack: 500, timeout: 600, deal: 600 };
 
+// The opening deal: a quick riffle, then cards flicked out one at a time round the table.
+// Shared by the table animation and the host, so no one can move before their cards arrive.
+export function dealTiming(players, handSize) {
+  const rounds = Math.min(handSize, 7);
+  const shuffleMs = 900;
+  const stepMs = Math.max(35, Math.min(110, 1700 / Math.max(1, rounds * players)));
+  return { rounds, shuffleMs, stepMs, flyMs: 440, totalMs: shuffleMs + rounds * players * stepMs + 440 + 150 };
+}
+
 export function settleMs(events) {
   let longest = 0;
   let played = false;
   for (const event of events) {
     let ms = EVENT_MS[event.type] ?? 0;
     if (event.type === 'draw') ms = event.reason === 'centre' ? 750 : 550 + 90 * Math.min(event.count, 6);
+    if (event.type === 'deal' && event.players) ms = dealTiming(event.players, event.handSize).totalMs;
     if (event.type === 'play') played = true;
     longest = Math.max(longest, ms);
   }

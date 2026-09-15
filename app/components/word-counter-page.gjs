@@ -61,7 +61,7 @@ export default class WordCounterPage extends Component {
   setText = (event) => (this.text = event.target.value);
 
   <template>
-    <ToolPage @route="word-counter" @subtitle="Count words, characters, sentences and reading time as you type.">
+    <ToolPage @route="word-counter" @subtitle="Type or paste your text for words, characters, sentences and reading time, live as you go.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <label class="field-label" for="wc-text">Your text</label>

@@ -8,7 +8,7 @@ const LINES = {
   hello: ['Booting up… ready to crush you. Respectfully.', 'Hello, fleshy friends. May the best algorithm win.', 'I have simulated this game 14 million times. I won once.', 'Beep boop. That means good luck.', 'Loading my A-game. Please wait.', 'Let’s keep it clean. I just defragmented.'],
   wild4: ['Draw four, {name}. Nothing personal, it’s just business logic.', 'Plus four! Consider it a software update.', 'Sorry {name}, my cache was full of these.', 'Four cards, delivered at the speed of fibre.', 'I call this move Ctrl+Alt+Defeat.'],
   draw2: ['Two for you, {name}. Buffering your comeback…', 'Plus two! Consider it a free download.', 'Here’s a little packet for you, {name}.'],
-  skip: ['Skip! Your turn has been deprecated, {name}.', 'Sorry {name}, your request timed out.', 'You’ve been put on standby mode.', 'Skipping you like a YouTube ad.'],
+  skip: ['Skip! Your turn has been deprecated, {name}.', 'Sorry {name}, your request timed out.', 'You’ve been put on standby mode.', 'Skipping you like a WooTube ad.'],
   reverse: ['Reverse! Rolling back to the previous version.', 'Uno reverse, but make it Woono.', 'Git revert. Wheee.', 'Changing direction. My gyroscope loves this.'],
   wild: ['New colour, who dis?', 'Recalibrating the colour palette.', 'I’m feeling very RGB right now.', 'Wild card! My randomness is certified.'],
   hit: ['Ow. That’s going in my error log.', 'Rude. I’m filing a bug report.', 'My circuits did not consent to this.', '{name}, I will remember this. I have excellent memory.', 'Low battery, high stress.', 'Critical hit to my RAM.'],

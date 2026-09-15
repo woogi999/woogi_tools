@@ -9,6 +9,27 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.5.0',
+    date: '2026-09-15',
+    title: 'Avatar Editor, poses, game sounds and moving your data',
+    changes: [
+      { type: 'new', text: 'Avatar Editor is its own tool under Fun. The preview is big, tall and stays still (drag to turn it), with a toon shadow underneath. Pose your avatar with presets (wave, cheer, point, running and more) or joint by joint: click a dot on the body and drag, or use the sliders. Pick an expression too.' },
+      { type: 'new', text: 'Save pictures of your avatar as PNGs, full body or head and shoulders, with a transparent or coloured background, up to 2048 px. Or copy the image.' },
+      { type: 'new', text: 'Your pose shows on your portrait in game lobbies, for other players too.' },
+      { type: 'improved', text: 'Settings and game lobbies now pick between your saved avatars, with a button to open the Avatar Editor.' },
+      { type: 'new', text: 'Real sound effects across the whole site: card shuffles, slides and slaps in Woono and on the home page’s hand of cards, wooden taps in Chess, plucks in Snake, and soft clicks and hovers on buttons and the search bar. All recorded sounds from Kenney’s public domain packs.' },
+      { type: 'new', text: 'A volume button next to the light and dark mode switch, to set the volume or mute everything.' },
+      { type: 'new', text: 'Going back to the lobby mid-game asks first: hold the button for 3 seconds to end the game.' },
+      { type: 'new', text: 'Game lobby rules are remembered for next time, and you can save rule sets by name.' },
+      { type: 'new', text: 'Export and import all your site data in Settings, or send it straight to another device with a link. The other device has to confirm first.' },
+      { type: 'improved', text: 'File Share connects devices directly instead of through a relay, so transfers are much faster. Only share with people you trust: they can see your IP address.' },
+      { type: 'fixed', text: 'Woono: with Draw until you can play on, keeping a card you drew now lets you draw again.' },
+      { type: 'fixed', text: 'Avatar portraits no longer blink when something in the lobby changes.' },
+      { type: 'improved', text: 'Woono runs smoother on phones: players and parts of the table you can’t see (off screen, or hidden under the table) aren’t drawn, and phones render fewer pixels.' },
+      { type: 'removed', text: 'The flat 2D portrait that showed while the 3D one loaded.' },
+    ],
+  },
+  {
     version: '1.4.0',
     date: '2026-09-15',
     title: 'Avatars remade, with clothes',

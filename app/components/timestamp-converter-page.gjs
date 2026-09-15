@@ -140,7 +140,7 @@ export default class TimestampConverterPage extends Component {
   removeZone = (zone) => (this.shownZones = this.shownZones.filter((z) => z !== zone));
 
   <template>
-    <ToolPage @route="timestamp-converter" @subtitle="Convert Unix timestamps to readable dates and back, across time zones.">
+    <ToolPage @route="timestamp-converter" @subtitle="Turn those long Unix numbers into actual dates (and back), in any time zone. Grab a Discord timestamp code while you’re here.">
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <div class="field-head">

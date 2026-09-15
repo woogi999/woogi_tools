@@ -34,9 +34,13 @@ import {
   Raycaster,
   MathUtils,
 } from 'three';
-import { createElement, Bot, Crown } from 'sketchyicons';
+import { createElement, Bot, Crown, Hand, Octagon } from 'sketchyicons';
 import config from 'woogi-tools/config/environment';
 import { avatarKey } from '../utils/avatar';
+import { createCuller } from './culling';
+import { rendererOptions, createGovernor, tabHidden } from './perf';
+import { sfx } from '../utils/sound';
+import { dealTiming } from '../utils/uno';
 import { AvatarKit, HEAD_Y, buildAvatar, disposeAvatar, disposeGroup, holdCards, moodFace, reachArms, withOutline } from './avatar-model';
 
 export { createAvatarPreview } from './avatar-model';
@@ -94,6 +98,15 @@ class Kit extends AvatarKit {
       }
     };
     image.src = BACK_ART_URL;
+    // Skip cards use sketchy icons; repaint any drawn before they loaded.
+    loadSketches(() => {
+      for (const [key, texture] of this.textures) {
+        const [kind, color, value] = key.split(':');
+        if (kind !== 'card' || value !== 'skip') continue;
+        drawCard(texture.image.getContext('2d'), texture.image.width, texture.image.height, { color: color === 'wild' ? null : color, value }, this.backArt);
+        texture.needsUpdate = true;
+      }
+    });
   }
 
   cardFace(card) {
@@ -196,9 +209,14 @@ function drawCard(ctx, w, h, card, backArt) {
     ctx.stroke();
     ctx.restore();
   }
-  ctx.font = `800 ${(symbol.length > 2 ? 40 : symbol.length > 1 ? 50 : 62) * unit}px Moderustic, sans-serif`;
-  ctx.fillStyle = ink;
-  ctx.fillText(symbol, w / 2, h / 2 + 3 * unit);
+  const stop = card.value === 'skip';
+  if (stop) {
+    drawStopHand(ctx, w / 2, h / 2, 66 * unit, ink, '#fff');
+  } else {
+    ctx.font = `800 ${(symbol.length > 2 ? 40 : symbol.length > 1 ? 50 : 62) * unit}px Moderustic, sans-serif`;
+    ctx.fillStyle = ink;
+    ctx.fillText(symbol, w / 2, h / 2 + 3 * unit);
+  }
   ctx.font = `800 ${(symbol.length > 2 ? 20 : 26) * unit}px Moderustic, sans-serif`;
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
@@ -207,10 +225,98 @@ function drawCard(ctx, w, h, card, backArt) {
     ctx.save();
     ctx.translate(x * unit, y * unit);
     ctx.rotate(turn);
-    ctx.strokeText(symbol, 0, 0);
-    ctx.fillText(symbol, 0, 0);
+    if (stop) {
+      drawStopHand(ctx, 0, 0, 24 * unit, '#fff', ink);
+    } else {
+      ctx.strokeText(symbol, 0, 0);
+      ctx.fillText(symbol, 0, 0);
+    }
     ctx.restore();
   }
+}
+
+// Sketchy Octagon and Hand icons, drawn white once and tinted per colour on demand.
+const SKETCHES = {};
+const tinted = new Map();
+let sketchesLoading = null;
+function loadSketches(onReady) {
+  sketchesLoading ??= Promise.all(
+    Object.entries({ octagon: Octagon, hand: Hand }).map(
+      ([name, node]) =>
+        new Promise((resolve) => {
+          const svg = createElement(node, { width: 128, height: 128, stroke: '#fff', 'stroke-width': 2.2 });
+          const image = new Image();
+          image.onload = () => {
+            SKETCHES[name] = image;
+            resolve();
+          };
+          image.onerror = resolve;
+          image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+        })
+    )
+  );
+  sketchesLoading.then(onReady);
+}
+
+function sketch(name, color) {
+  const key = `${name}:${color}`;
+  if (!tinted.has(key)) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(SKETCHES[name], 0, 0, 128, 128);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, 128, 128);
+    tinted.set(key, canvas);
+  }
+  return tinted.get(key);
+}
+
+// The Skip symbol: a stop sign (an octagon) with a raised open hand on it,
+// in the site's sketchy icons (a plain drawing until they've loaded).
+function drawStopHand(ctx, cx, cy, size, sign, hand) {
+  const r = size / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = Math.PI / 8 + (i * Math.PI) / 4;
+    ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+  }
+  ctx.closePath();
+  ctx.fillStyle = sign;
+  ctx.fill();
+  if (SKETCHES.octagon && SKETCHES.hand) {
+    ctx.drawImage(sketch('octagon', hand), -r * 1.08, -r * 1.08, r * 2.16, r * 2.16);
+    ctx.drawImage(sketch('hand', hand), -r * 0.62, -r * 0.62, r * 1.24, r * 1.24);
+    ctx.restore();
+    return;
+  }
+  ctx.lineWidth = size * 0.05;
+  ctx.strokeStyle = hand;
+  ctx.stroke();
+  // The hand, in units of the sign's radius: four fingers, a thumb, and the palm.
+  const u = r / 10;
+  ctx.fillStyle = hand;
+  const bar = (x, y, width, height) => {
+    ctx.beginPath();
+    ctx.roundRect(x * u, y * u, width * u, height * u, (width * u) / 2);
+    ctx.fill();
+  };
+  bar(-4.6, -6.4, 2, 7);
+  bar(-2.2, -7.4, 2, 8);
+  bar(0.2, -7, 2, 7.6);
+  bar(2.6, -5.6, 1.9, 6.4);
+  ctx.save();
+  ctx.translate(-5 * u, 1.2 * u);
+  ctx.rotate(-0.75);
+  bar(-1, -4.2, 2, 5.2);
+  ctx.restore();
+  ctx.beginPath();
+  ctx.roundRect(-4.6 * u, -1.4 * u, 9.1 * u, 7.4 * u, 3 * u);
+  ctx.fill();
+  ctx.restore();
 }
 
 // ─── Animation helpers ────────────────────────────────────────────────
@@ -518,8 +624,12 @@ const CENTRE_Y = 0.78;
 const sortHand = (hand) => [...hand].sort((a, b) => (COLOR_ORDER[a.color] ?? 9) - (COLOR_ORDER[b.color] ?? 9) || VALUE_ORDER.indexOf(a.value) - VALUE_ORDER.indexOf(b.value));
 
 export function createUnoScene(canvas) {
-  const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  // Every device: no antialiasing on high-density screens, fewer pixels on phones, and the
+  // resolution eases down while frames run slow (lazy/perf.js).
+  const phone = window.matchMedia?.('(pointer: coarse)').matches;
+  const options = rendererOptions(phone ? 1.25 : 1.5);
+  const renderer = new WebGLRenderer({ canvas, antialias: options.antialias, alpha: true, powerPreference: 'default' });
+  const governor = createGovernor(renderer, { max: options.pixelRatio });
   renderer.outputColorSpace = SRGBColorSpace;
   const calm = reducedMotion();
 
@@ -531,6 +641,8 @@ export function createUnoScene(canvas) {
   const basePitch = -Math.atan2(EYE.y - LOOK_TARGET.y, EYE.z - LOOK_TARGET.z);
   camera.rotation.set(basePitch, 0, 0);
   scene.add(camera);
+  // Skips drawing whole groups that are off screen or hidden under the table (see lazy/culling.js).
+  const culler = createCuller(camera);
 
   scene.add(new HemisphereLight('#ffffff', '#7a7a8c', 1.7));
   const sun = new DirectionalLight('#ffffff', 1.5);
@@ -551,11 +663,15 @@ export function createUnoScene(canvas) {
   const leg = new Mesh(new CylinderGeometry(0.5, 0.9, 1.8, 20), kit.toon('#5E3F28'));
   leg.position.y = -0.95;
   table.add(leg);
+  // The table top hides everything underneath it from where you sit: its pedestal, the floor shadow, other players' legs.
+  culler.addOccluder({ type: 'disc', center: new Vector3(0, 0.06, 0), radius: TABLE_RADIUS });
   const glow = glowTexture();
   const shadow = new Mesh(new CircleGeometry(TABLE_RADIUS * 1.5, 40), new MeshBasicMaterial({ map: glow, color: '#000000', transparent: true, opacity: 0.35, depthWrite: false }));
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = -1.84;
   scene.add(shadow);
+  culler.track(leg);
+  culler.track(shadow);
 
   // A ring round the discard pile in the colour to match, with arrows showing the direction of play.
   const colorRing = new Mesh(new RingGeometry(0.72, 0.84, 48), new MeshBasicMaterial({ color: '#ffffff', side: DoubleSide, transparent: true, opacity: 0.9 }));
@@ -879,6 +995,8 @@ export function createUnoScene(canvas) {
         holdCards(avatar);
         group.add(avatar);
         scene.add(group);
+        culler.track(group);
+        for (const hip of avatar.userData.legs ?? []) culler.track(hip);
         const tag = new Label(360, 150, 0.42);
         const top = headPoint(index);
         tag.sprite.position.copy(top);
@@ -928,15 +1046,21 @@ export function createUnoScene(canvas) {
     pile.children.forEach((child, i) => (child.position.y = i * 0.006));
   }
 
-  function flyCard(card, from, to, { delay = 0, faceUp = true, done, startRotation = null } = {}) {
+  // sound plays as the card leaves, landSound as it lands, so what you hear matches what you see.
+  function flyCard(card, from, to, { delay = 0, faceUp = true, done, startRotation = null, sound = null, landSound = null } = {}) {
     const mesh = takeCard(faceUp ? card : null);
     mesh.visible = false;
     scene.add(mesh);
     const spin = (Math.random() - 0.5) * 1.2;
     const tilt = startRotation ?? -0.4;
+    let launched = false;
     tweens.add(
       440,
       (t) => {
+        if (!launched) {
+          launched = true;
+          if (sound) sfx(sound);
+        }
         mesh.visible = true;
         const e = easeInOut(t);
         mesh.position.lerpVectors(from, to, e);
@@ -948,6 +1072,7 @@ export function createUnoScene(canvas) {
         delay,
         done: () => {
           cards.release(mesh);
+          if (landSound) sfx(landSound);
           done?.();
         },
       },
@@ -1162,6 +1287,9 @@ export function createUnoScene(canvas) {
     for (const event of events) playEvent(event, fresh, { afterPlay: played ? 450 : 0, afterCentre: drewToCentre ? 450 : 0 });
   }
 
+  // A sound now, or after delay ms, in step with the animation it belongs to.
+  const soundAt = (name, delay = 0) => (delay > 0 ? tweens.add(1, () => {}, { delay, done: () => sfx(name) }) : sfx(name));
+
   function playEvent(event, fresh, { afterPlay = 0, afterCentre = 0 } = {}) {
     switch (event.type) {
       case 'play': {
@@ -1171,7 +1299,9 @@ export function createUnoScene(canvas) {
         const from = event.fromCentre ? centrePoint(event.player) : mine && leftHand.has(card.id) ? leftHand.get(card.id) : handPoint(event.player);
         const to = PILE_POS.clone().add(new Vector3(0, 0.05, 0));
         const special = card.value in SYMBOLS;
+        const landSound = card.value === 'skip' ? 'uno.skip' : card.value === 'reverse' ? 'uno.reverseCard' : !card.color ? 'uno.wild' : /draw|target/.test(card.value) ? 'uno.attack' : 'uno.play';
         flyCard(card, from, to, {
+          landSound,
           startRotation: mine ? 0.2 : -0.4,
           done: () => {
             setTopCard(card);
@@ -1186,18 +1316,27 @@ export function createUnoScene(canvas) {
         // The wild's colour is picked: the table flashes it.
         feltFlash = 1;
         flashColor.set(UNO_COLORS[event.color] ?? '#ffffff');
+        sfx('uno.color');
         shockwave(PILE_POS, UNO_COLORS[event.color] ?? '#ffffff', { size: 4.5, duration: 900 });
         break;
       case 'draw': {
         const deckTop = DECK_POS.clone().add(new Vector3(0, 0.2, 0));
         if (event.reason === 'centre') {
           // One card up into the middle, where its player decides what to do with it.
-          flyCard(null, deckTop, centrePoint(event.player), { faceUp: false });
+          flyCard(null, deckTop, centrePoint(event.player), { faceUp: false, sound: 'uno.draw' });
           centreRevealAt = performance.now() + 420;
           break;
         }
         const delay = event.reason === 'hit' ? afterPlay : 0;
-        for (let i = 0; i < Math.min(event.count, 6); i++) flyCard(null, deckTop, handPoint(event.player), { faceUp: false, delay: delay + i * 90 });
+        const flying = Math.min(event.count, 6);
+        const mine = relative(event.player) === 0;
+        // Each card whooshes off the deck, and the last one lands with a thud (a slam for a big pile).
+        for (let i = 0; i < flying; i++) {
+          const last = i === flying - 1;
+          flyCard(null, deckTop, handPoint(event.player), { faceUp: false, delay: delay + i * 90, sound: mine || i % 2 === 0 ? 'uno.receive' : null, landSound: last ? (event.count >= 4 ? 'uno.slam' : 'uno.land') : null });
+        }
+        // Being hit with a draw card gets its own sting, right as the cards start coming at you.
+        if (event.reason === 'hit' && mine && event.count >= 2) soundAt('uno.plused', delay);
         if (event.count >= 2 && fresh) popup(event.player, `+${event.count}`, event.count >= 99 ? INK : UNO_COLORS.red, { big: event.count >= 4, delay });
         if (event.reason === 'hit') {
           // The draw lands only once it's taken (or can't be answered): the hit, the shake, the reaction.
@@ -1213,10 +1352,12 @@ export function createUnoScene(canvas) {
       }
       case 'keep':
         // The drawn card goes from the middle into their hand (yours glides in on its own).
-        if (relative(event.player) !== 0) flyCard(null, centrePoint(event.player), handPoint(event.player), { faceUp: false, delay: afterCentre });
+        if (relative(event.player) !== 0) flyCard(null, centrePoint(event.player), handPoint(event.player), { faceUp: false, delay: afterCentre, sound: 'uno.keep' });
+        else soundAt('uno.keep', afterCentre);
         break;
       case 'uno': {
         popup(event.player, 'Woono!', '#F2B90D', { color: INK, big: true });
+        sfx('uno.uno');
         hop(event.player);
         emote(event.player, 'cheer');
         const at = relative(event.player) === 0 ? handPoint(event.player) : headPoint(event.player, -0.6);
@@ -1225,10 +1366,12 @@ export function createUnoScene(canvas) {
       }
       case 'callout':
         popup(event.target, 'Caught!', '#E8740C', { big: true });
+        sfx('uno.callout');
         emote(event.player, 'smug');
         break;
       case 'skip': {
-        popup(event.player, '⊘ Skip', '#ffffff', { color: UNO_COLORS.red, delay: afterPlay });
+        popup(event.player, 'Skipped!', '#ffffff', { color: UNO_COLORS.red, delay: afterPlay });
+        if (relative(event.player) === 0) soundAt('uno.skipped', afterPlay);
         emote(event.player, 'annoyed', afterPlay);
         const k = relative(event.player);
         if (k !== 0) {
@@ -1238,7 +1381,8 @@ export function createUnoScene(canvas) {
         break;
       }
       case 'block':
-        popup(event.player, '⊘ Blocked!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        popup(event.player, 'Blocked!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        soundAt('uno.block', afterPlay);
         emote(event.player, 'smug', afterPlay);
         emote(event.from, 'shocked', afterPlay + 200);
         shockwave(PILE_POS, '#ffffff', { size: 3, duration: 700, delay: afterPlay });
@@ -1246,27 +1390,34 @@ export function createUnoScene(canvas) {
       case 'reflect':
         arrowBoost = 1;
         popup(event.player, '⇄ Sent back!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        soundAt('uno.reflect', afterPlay);
         emote(event.player, 'smug', afterPlay);
         emote(event.target, 'shocked', afterPlay + 250);
-        if (event.kind === 'draw') for (let i = 0; i < 3; i++) flyCard(null, handPoint(event.player), handPoint(event.target), { faceUp: false, delay: afterPlay + i * 80 });
+        // No cards move yet: whoever it's sent back to still gets to answer. When someone finally
+        // takes it, their 'draw' event flies the cards to them from the deck.
         break;
       case 'reverse':
         arrowBoost = 1;
+        // The reverse jingle, once the card has landed.
+        soundAt('uno.reverse', 450);
         shockwave(new Vector3(0, 0, 0), '#ffffff', { size: 3.2, duration: 700 });
         break;
       case 'swap': {
         for (const [a, b] of [[event.a, event.b], [event.b, event.a]]) for (let i = 0; i < 4; i++) flyCard(null, handPoint(a), handPoint(b), { faceUp: false, delay: i * 70 });
         popup(event.a, '⇄ Swap', '#ffffff', { color: INK });
+        sfx('uno.swap');
         emote(event.a, 'smug', 500);
         emote(event.b, 'angry', 500);
         break;
       }
       case 'rotate':
         arrowBoost = 1;
+        sfx('uno.rotate');
         for (let p = 0; p < playerCount; p++) flyCard(null, handPoint(p), handPoint((p + event.direction + playerCount) % playerCount), { faceUp: false });
         break;
       case 'challenge': {
         popup(event.player, 'Challenge!', '#ffffff', { color: INK, big: true });
+        sfx('uno.challenge');
         // Whoever was caught out (the +4 player if it worked, the challenger if not) gets the red flash.
         const loser = event.success ? event.offender : event.player;
         tweens.add(1, () => {}, {
@@ -1284,9 +1435,11 @@ export function createUnoScene(canvas) {
       }
       case 'timeout':
         popup(event.player, 'Time’s up!', UNO_COLORS.red);
+        sfx('uno.timeout');
         break;
       case 'win':
         popup(event.player, relative(event.player) === 0 ? 'You win!' : 'Winner!', '#F2B90D', { color: INK, big: true });
+        if (fresh) soundAt(relative(event.player) === 0 ? 'uno.win' : 'uno.lose', 450);
         if (fresh) {
           confetti();
           // The winner celebrates; everyone else claps, or sulks if they were close.
@@ -1337,7 +1490,7 @@ export function createUnoScene(canvas) {
   }
 
   // `kept`: a card you just kept glides down from where it waited above the hand, after `keptDelay` ms.
-  function syncHand(next, { kept = false, keptDelay = 0 } = {}) {
+  function syncHand(next, { kept = false, keptDelay = 0, drawnDelay = 0 } = {}) {
     const sorted = sortHand(next.hand);
     const ids = new Set(sorted.map((c) => c.id));
     leftHand.clear();
@@ -1347,11 +1500,8 @@ export function createUnoScene(canvas) {
       releaseHandCard(mesh);
       handCards.delete(id);
     }
-    const n = sorted.length;
-    // Spread the fan wider for more cards, but never past the edges of the view.
-    const room = (handHalfWidth * 2) / hand.scale.x / FAN_RADIUS - 0.3;
-    const spread = Math.min(n <= 1 ? 0 : 0.12 * (n - 1), MathUtils.clamp(room, 0.3, 1.5));
-    sorted.forEach((card, i) => {
+    handOrder = [];
+    sorted.forEach((card) => {
       let mesh = handCards.get(card.id);
       if (!mesh) {
         mesh = takeCard(card);
@@ -1373,17 +1523,41 @@ export function createUnoScene(canvas) {
           mesh.position.set(-handHalfWidth * 1.3, 0.4, 0);
           mesh.rotation.set(0, 0, 0.6);
           mesh.scale.setScalar(HAND_CARD_SCALE * 0.6);
+          // Stays hidden until the card you drew has actually flown from the deck to your hand.
+          if (drawnDelay) mesh.userData.holdUntil = performance.now() + drawnDelay;
         }
         hand.add(mesh);
         handCards.set(card.id, mesh);
       }
-      const angle = n > 1 ? (i / (n - 1) - 0.5) * spread : 0;
       mesh.userData.card = card;
+      handOrder.push(mesh);
+    });
+    layoutHand(performance.now());
+    refreshHandLook(next);
+  }
+
+  // Your hand in order, and the fan laid out over only the cards that have actually arrived:
+  // cards still flying in (held back by holdUntil) don't take up room until they land.
+  let handOrder = [];
+  function layoutHand(now) {
+    const arrived = handOrder.filter((mesh) => !(mesh.userData.holdUntil > now));
+    const n = arrived.length;
+    // Spread the fan wider for more cards, but never past the edges of the view.
+    const room = (handHalfWidth * 2) / hand.scale.x / FAN_RADIUS - 0.3;
+    const spread = Math.min(n <= 1 ? 0 : 0.12 * (n - 1), MathUtils.clamp(room, 0.3, 1.5));
+    arrived.forEach((mesh, i) => {
+      const angle = n > 1 ? (i / (n - 1) - 0.5) * spread : 0;
       mesh.userData.angle = angle;
       mesh.userData.order = i;
+      mesh.userData.arrived = true;
       mesh.userData.home = new Vector3(Math.sin(angle) * FAN_RADIUS, (Math.cos(angle) - 1) * FAN_RADIUS * FAN_CURVE, i * 0.004);
     });
-    refreshHandLook(next);
+    for (const mesh of handOrder) {
+      if (mesh.userData.holdUntil > now) mesh.userData.arrived = false;
+      mesh.userData.home ??= new Vector3();
+      mesh.userData.angle ??= 0;
+      mesh.userData.order ??= 0;
+    }
   }
 
   function refreshHandLook(next) {
@@ -1399,6 +1573,8 @@ export function createUnoScene(canvas) {
     const ease = 1 - Math.exp(-dt * 14);
     const myTurn = view && view.turn === view.you && view.winner === null;
     const pulse = 0.35 + Math.sin(now / 260) * 0.2;
+    // A card that just landed makes room for itself.
+    if (handOrder.some((mesh) => !mesh.userData.arrived && !(mesh.userData.holdUntil > now))) layoutHand(now);
     for (const mesh of handCards.values()) {
       const { home, angle, order, playable } = mesh.userData;
       const focused = mesh.userData.cardId === (selectedId ?? hoverId);
@@ -1464,6 +1640,8 @@ export function createUnoScene(canvas) {
       syncCentre(next);
       syncPicker(next);
       for (const seat of seats.values()) endEmote(seat);
+      const deal = next.events[next.events.length - 1];
+      if (deal?.type === 'deal' && deal.players) runDeal(next, deal);
       updateBillboards();
       return;
     }
@@ -1471,7 +1649,11 @@ export function createUnoScene(canvas) {
     lastEventId = next.events[next.events.length - 1]?.id ?? lastEventId;
     const kept = fresh.some((e) => e.type === 'keep' && e.player === me);
     const drewToCentre = fresh.some((e) => e.type === 'draw' && e.reason === 'centre');
-    syncHand(next, { kept, keptDelay: drewToCentre ? 450 : 0 });
+    // A card straight into your hand shouldn't appear until the cards flying from the
+    // deck actually land there — otherwise you'd have it before you'd taken it.
+    const myDraw = fresh.find((e) => e.type === 'draw' && e.reason !== 'centre' && e.player === me);
+    const drawnDelay = myDraw ? (myDraw.reason === 'hit' && fresh.some((e) => e.type === 'play') ? 450 : 0) + (Math.min(myDraw.count, 6) - 1) * 90 + 440 : 0;
+    syncHand(next, { kept, keptDelay: drewToCentre ? 450 : 0, drawnDelay });
     let playedTop = false;
     for (const event of fresh) if (event.type === 'play' && event.card.id === next.top.id) playedTop = true;
     playEvents(fresh, true);
@@ -1487,6 +1669,41 @@ export function createUnoScene(canvas) {
     }
     wasMyTurn = myTurn;
     updateBillboards();
+  }
+
+  // The opening deal, in step with its sounds: a riffle, then a card flicked from the deck to each
+  // player in turn, round after round. Your cards appear (and your fan opens up) as each one lands;
+  // everyone else's cards show once the deal is done.
+  function runDeal(next, deal) {
+    const { rounds, shuffleMs, stepMs, flyMs } = dealTiming(deal.players, deal.handSize);
+    const n = next.players.length;
+    const start = performance.now();
+    sfx('uno.deal');
+    const deckTop = DECK_POS.clone().add(new Vector3(0, 0.2, 0));
+    for (let r = 0; r < rounds; r++) {
+      for (let k = 0; k < n; k++) {
+        const index = (me + 1 + k) % n;
+        flyCard(null, deckTop, handPoint(index), { faceUp: false, delay: shuffleMs + (r * n + k) * stepMs, sound: 'uno.dealCard' });
+      }
+    }
+    // You're dealt last in each round; with a big starting hand the rest arrive with the last round.
+    handOrder.forEach((mesh, i) => {
+      const round = Math.min(i, rounds - 1);
+      mesh.userData.holdUntil = start + shuffleMs + (round * n + n - 1) * stepMs + flyMs;
+      mesh.position.set(-handHalfWidth * 1.3, 0.4, 0);
+      mesh.rotation.set(0, 0, 0.6);
+      mesh.scale.setScalar(HAND_CARD_SCALE * 0.6);
+    });
+    layoutHand(start);
+    const fans = [...seats.values()].map((seat) => seat.fan).filter(Boolean);
+    for (const fan of fans) fan.visible = false;
+    tweens.add(1, () => {}, {
+      delay: shuffleMs + rounds * n * stepMs + flyMs,
+      done: () => {
+        for (const fan of fans) fan.visible = true;
+        sfx('uno.land');
+      },
+    });
   }
 
   function syncCentre(next) {
@@ -1515,7 +1732,7 @@ export function createUnoScene(canvas) {
     drawLabel.sprite.visible = ready;
     const stacked = Boolean(pending) && view.winner === null;
     // Just the amount: who it's aimed at is on the turn marker and in the log.
-    const label = pending ? (pending.kind === 'draw' ? `+${pending.amount}` : '⊘ Skip') : '';
+    const label = pending ? (pending.kind === 'draw' ? `+${pending.amount}` : 'Skip') : '';
     stackLabel.draw(label, (ctx, w, h) => stacked && drawBanner(ctx, w, h, label, UNO_COLORS.red));
     stackLabel.sprite.visible = stacked;
   }
@@ -1570,6 +1787,13 @@ export function createUnoScene(canvas) {
     gyro.reference = null;
     look.dragYaw = 0;
     look.dragPitch = 0;
+  }
+
+  // Locked look: the camera steers itself (see the render loop). Unlocking starts again from straight ahead.
+  let autoAim = false;
+  function setAutoLook(on) {
+    autoAim = Boolean(on);
+    if (!autoAim) recenter();
   }
 
   // Where you're looking, from -1 to 1 (right and down are positive), for other players to see.
@@ -1664,10 +1888,11 @@ export function createUnoScene(canvas) {
   const shakeOffset = new Vector3();
   const discTarget = new Vector3();
   renderer.setAnimationLoop((now) => {
-    if (!running || !visible) {
+    if (!running || !visible || tabHidden()) {
       last = now;
       return;
     }
+    governor.frame(now - last, now);
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     tweens.tick(now);
@@ -1681,7 +1906,19 @@ export function createUnoScene(canvas) {
     // Where you look: the gyroscope, or a touch drag, plus a glance toward the mouse near the edges.
     let yawGoal;
     let pitchGoal;
-    if (gyro.on) {
+    if (autoAim) {
+      // Locked: follow the game, glancing at whoever's move it is and back to the table on yours.
+      const focus = view?.choice?.player ?? view?.pending?.target ?? winner ?? turn;
+      const k = playerCount && focus !== null && focus !== undefined ? relative(focus) : 0;
+      if (k === 0 || view?.choice) {
+        yawGoal = 0;
+        pitchGoal = 0;
+      } else {
+        const { x, z } = seatPosition(k, playerCount);
+        yawGoal = MathUtils.clamp(Math.atan2(-(x - EYE.x), -(z - EYE.z)) * 0.75, -LOOK_YAW, LOOK_YAW);
+        pitchGoal = 0.04;
+      }
+    } else if (gyro.on) {
       yawGoal = gyro.yaw;
       pitchGoal = gyro.pitch;
     } else {
@@ -1689,7 +1926,7 @@ export function createUnoScene(canvas) {
       yawGoal = MathUtils.clamp(look.dragYaw - (pointer.active ? edge(pointer.x) : 0) * LOOK_YAW, -LOOK_YAW, LOOK_YAW);
       pitchGoal = MathUtils.clamp(look.dragPitch - (pointer.active ? Math.min(0, edge(pointer.y)) : 0) * LOOK_PITCH, -LOOK_PITCH, LOOK_PITCH);
     }
-    const lookEase = 1 - Math.exp(-dt * (gyro.on ? 12 : 5));
+    const lookEase = 1 - Math.exp(-dt * (autoAim ? 2.5 : gyro.on ? 12 : 5));
     look.yaw += (yawGoal - look.yaw) * lookEase;
     look.pitch += (pitchGoal - look.pitch) * lookEase;
     shake = Math.max(0, shake - dt * 0.35);
@@ -1740,6 +1977,7 @@ export function createUnoScene(canvas) {
       feltFlash = Math.max(0, feltFlash - dt * 1.4);
       feltMaterial.color.copy(feltColor).lerp(flashColor, feltFlash * 0.55);
     }
+    culler.update(now);
     renderer.render(scene, camera);
   });
 
@@ -1752,6 +1990,7 @@ export function createUnoScene(canvas) {
     setOrientation,
     setGyro,
     recenter,
+    setAutoLook,
     pick,
     setHover,
     clearHover,
@@ -1761,6 +2000,7 @@ export function createUnoScene(canvas) {
     dispose() {
       running = false;
       renderer.setAnimationLoop(null);
+      culler.dispose();
       observer.disconnect();
       visibility.disconnect();
       for (const [index, seat] of seats) removeSeat(index, seat);

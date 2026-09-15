@@ -4,12 +4,16 @@ import { service } from '@ember/service';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import Icon from './icon';
-import AvatarEditor from './avatar-editor';
+import AvatarPicker from './avatar-picker';
 import AvatarPortrait from './avatar-portrait';
+import SoundMixer from './sound-mixer';
+import DataTransfer, { transferCodeFromUrl } from './data-transfer';
 import { loadProfile, saveProfile, NAME_LENGTH } from '../utils/profile';
 import { formatBytes } from '../utils/file-share';
+import { downloadBackup, applyBackup, validateBackup, summarise, STORAGE_PREFIX } from '../utils/site-data';
 import { TOOLS, groupTools } from '../tools';
 import { APP_VERSION } from '../changelog';
+import { askConfirm } from '../utils/confirm';
 
 const eq = (a, b) => a === b;
 
@@ -25,8 +29,6 @@ const MOTIONS = [
   { id: 'system', label: 'Match system' },
   { id: 'reduce', label: 'Reduced' },
 ];
-
-const STORAGE_PREFIX = 'woogi-';
 
 function storedBytes() {
   try {
@@ -61,20 +63,46 @@ export default class SettingsPage extends Component {
   @tracked toolSearch = '';
   // Your name and avatar in games; every game lobby reads the same saved profile.
   @tracked profile = loadProfile();
-  @tracked editingAvatar = false;
   nameLength = NAME_LENGTH;
+  // Opened from a transfer link: show that section straight away.
+  transferring = Boolean(transferCodeFromUrl());
 
   setProfileName = (event) => {
     this.profile = saveProfile({ ...this.profile, name: event.target.value });
     this.storageVersion++;
   };
 
-  setAvatar = (avatar) => {
-    this.profile = saveProfile({ ...this.profile, avatar });
+  pickAvatar = (look) => {
+    this.profile = saveProfile({ ...this.profile, ...look });
     this.storageVersion++;
   };
 
-  toggleAvatarEditor = () => (this.editingAvatar = !this.editingAvatar);
+  // ─── Whole-site backup ───────────────────────────────────────────────
+
+  exportAll = () => {
+    const { data } = downloadBackup();
+    this.notify(`Downloaded a backup of ${Object.keys(data).length} saved items.`);
+  };
+
+  importAll = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const backup = validateBackup(JSON.parse(reader.result));
+        const s = summarise(backup);
+        if (!window.confirm(`Replace everything saved on this device with this backup?\n\n${s.notes} notes, ${s.avatars} saved avatars, ${s.favourites} favourites, ${s.keys} items in all.\n\nThis can't be undone.`)) return;
+        applyBackup(backup);
+        // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a page reload, not a data request
+        window.location.reload();
+      } catch (error) {
+        this.notify(error instanceof SyntaxError ? "That file isn't valid JSON." : error.message, true);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   get visibilityGroups() {
     const query = this.toolSearch.trim().toLowerCase();
@@ -127,7 +155,7 @@ export default class SettingsPage extends Component {
   };
 
   clearOffline = async () => {
-    if (!window.confirm('Remove the offline copy of Woogi Tools? Your notes and settings are kept.')) return;
+    if (!(await askConfirm({ title: 'Remove the offline copy?', message: 'Woogi Tools will need the internet again until it downloads a fresh copy. Your notes and settings are kept.', confirmLabel: 'Hold to remove', holdMs: 1500 }))) return;
     await this.offline.clear();
     this.notify('Offline copy removed.');
   };
@@ -170,20 +198,20 @@ export default class SettingsPage extends Component {
     reader.readAsText(file);
   };
 
-  clearFavourites = () => {
-    if (!window.confirm('Remove all favourites?')) return;
+  clearFavourites = async () => {
+    if (!(await askConfirm({ title: 'Clear favourites?', message: 'Every starred tool on the home page will be unstarred.', confirmLabel: 'Hold to clear', holdMs: 1500 }))) return;
     this.favourites.clear();
     this.notify('Favourites cleared.');
   };
 
-  deleteNotes = () => {
-    if (!window.confirm('Delete every note and folder? Export them first if you want a backup.')) return;
+  deleteNotes = async () => {
+    if (!(await askConfirm({ title: 'Delete all notes?', message: 'Every note and folder in Quick Notes will be deleted. Export them first if you want a backup.', confirmLabel: 'Hold to delete' }))) return;
     this.notes.clearAll();
     this.notify('All notes deleted.');
   };
 
   resetEverything = async () => {
-    if (!window.confirm('Reset Woogi Tools? This deletes notes, favourites, settings and the offline copy saved in this browser.')) return;
+    if (!(await askConfirm({ title: 'Reset Woogi Tools?', message: 'This deletes the notes, favourites, avatars, settings and offline copy saved in this browser, then reloads.', confirmLabel: 'Hold to reset' }))) return;
     try {
       Object.keys(localStorage)
         .filter((key) => key.startsWith(STORAGE_PREFIX))
@@ -252,21 +280,23 @@ export default class SettingsPage extends Component {
         </section>
 
         <section class="math-card settings-avatar">
-          <h3 class="qr-heading">Games profile</h3>
-          <p class="tool-hint">Your name and avatar in Woono, Chess and Snake lobbies. Changes here show up next time you open a game.</p>
+          <h3 class="qr-heading">You</h3>
+          <p class="tool-hint">Your name and the avatar that represents you around the site, games included. Pick any look you’ve made in the Avatar Editor, whether that’s you, your OC or a little gremlin.</p>
           <div class="settings-avatar-row">
-            <AvatarPortrait @avatar={{this.profile.avatar}} @size={{64}} />
+            <AvatarPortrait @avatar={{this.profile.avatar}} @pose={{this.profile.pose}} @size={{64}} />
             <label class="lobby-name">
               <span class="qr-label is-muted">Name</span>
               <input type="text" maxlength={{this.nameLength}} value={{this.profile.name}} aria-label="Your name in games" {{on "input" this.setProfileName}} />
             </label>
-            <button type="button" class="btn math-use {{if this.editingAvatar 'active'}}" aria-expanded={{if this.editingAvatar "true" "false"}} {{on "click" this.toggleAvatarEditor}}>
-              <Icon @name="shirt" @size={{13}} /> {{if this.editingAvatar "Done" "Customise avatar"}}
-            </button>
           </div>
-          {{#if this.editingAvatar}}
-            <AvatarEditor @avatar={{this.profile.avatar}} @name={{this.profile.name}} @onChange={{this.setAvatar}} />
-          {{/if}}
+          <span class="qr-label is-muted">Avatar</span>
+          <AvatarPicker @profile={{this.profile}} @onPick={{this.pickAvatar}} @size={{60}} />
+        </section>
+
+        <section class="math-card" id="sound">
+          <h3 class="qr-heading">Sound</h3>
+          <p class="tool-hint">Turn down, or off, just the sounds you don’t want. Slide a channel to hear it at its new level.</p>
+          <SoundMixer />
         </section>
 
         <section class="math-card">
@@ -345,9 +375,29 @@ export default class SettingsPage extends Component {
             </div>
           </div>
 
+          <div class="settings-row">
+            <div class="settings-label">
+              <span class="qr-label">Back up all site data</span>
+              <span class="tool-hint">Download everything this site saved in this browser (notes, favourites, settings, avatars, game rules) as one file, then import it on another device. Importing replaces what's there.</span>
+            </div>
+            <div class="settings-actions">
+              <button type="button" class="btn math-use" {{on "click" this.exportAll}}><Icon @name="download" @size={{13}} /> Export all</button>
+              <label class="btn math-use settings-file">
+                <Icon @name="upload" @size={{13}} /> Import all
+                <input type="file" accept="application/json,.json" class="sr-only" {{on "change" this.importAll}} />
+              </label>
+            </div>
+          </div>
+
           {{#if this.message}}
             <p class="{{if this.isError 'tool-error' 'tool-hint'}}" role="status">{{this.message}}</p>
           {{/if}}
+
+          <details class="settings-transfer" open={{this.transferring}}>
+            <summary><Icon @name="arrow-right-left" @size={{14}} /> Transfer data to another device</summary>
+            <p class="tool-hint">Send all your data straight to another device with a link, no file needed. The other device has to confirm before anything is replaced.</p>
+            <DataTransfer />
+          </details>
         </section>
 
         <section class="math-card settings-danger">

@@ -106,7 +106,7 @@ export default class AspectRatioPage extends Component {
   swap = () => ([this.width, this.height] = [this.height, this.width]);
 
   <template>
-    <ToolPage @route="aspect-ratio" @subtitle="Simplify a resolution to its aspect ratio and resize while keeping proportions.">
+    <ToolPage @route="aspect-ratio" @subtitle="Turn a resolution into its aspect ratio, or resize while keeping the proportions right.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Dimensions</h3>

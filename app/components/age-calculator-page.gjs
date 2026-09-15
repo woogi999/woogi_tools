@@ -72,7 +72,7 @@ export default class AgeCalculatorPage extends Component {
   today = () => (this.asOf = toDateInput(new Date()));
 
   <template>
-    <ToolPage @route="age-calculator" @subtitle="Pick a date of birth to get an exact age, handy totals and how long until the next birthday.">
+    <ToolPage @route="age-calculator" @subtitle="Pick a birthday for the exact age, some fun totals, and a countdown to the next birthday.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <div class="math-row">

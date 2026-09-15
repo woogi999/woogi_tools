@@ -102,7 +102,7 @@ export default class BackgroundRemoverPage extends Component {
   };
 
   <template>
-    <ToolPage @route="background-remover" @subtitle="Cut the background out of a photo, right in your browser.">
+    <ToolPage @route="background-remover" @subtitle="Drop in a photo and the background disappears. It all happens on your device, so your pics stay yours.">
       <div class="fs">
         <div class="fs-frame fc-panel pop-in">
           <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>

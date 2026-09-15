@@ -123,7 +123,7 @@ export default class RandomPickerPage extends Component {
   toggleRemove = () => (this.removeWinner = !this.removeWinner);
 
   <template>
-    <ToolPage @route="random-picker" @subtitle="Spin a wheel, draw names, or split a list into random teams.">
+    <ToolPage @route="random-picker" @subtitle="Spin the wheel, pull a name out of the hat, or split a list into random teams. Let fate decide.">
       <div class="math-grid pop-in">
         <section class="math-card">
           <label class="field-label" for="rp-list">Entries · {{this.entries.length}}</label>

@@ -292,7 +292,7 @@ export default class GraphCalculatorPage extends Component {
   addFunction = () => (this.functions = [...this.functions, newFunction('', this.functions.length)]);
 
   <template>
-    <ToolPage @route="graph-calculator" @subtitle="Type functions of x to plot them. Drag to pan, scroll to zoom, and hover to trace values.">
+    <ToolPage @route="graph-calculator" @subtitle="Type some functions of x and watch them plot. Drag to pan, scroll to zoom, hover to trace.">
       <div class="graph pop-in">
         <section class="math-card graph-side">
           <h3 class="qr-heading">Functions</h3>

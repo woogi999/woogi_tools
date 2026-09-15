@@ -5,10 +5,11 @@ import { fn } from '@ember/helper';
 import Icon from './icon';
 import CopyButton from './copy-button';
 import AvatarPortrait from './avatar-portrait';
-import AvatarEditor from './avatar-editor';
+import AvatarPicker from './avatar-picker';
 import GameChat from './game-chat';
 import NearbyPanel from './nearby-panel';
 import GameRoom from '../utils/game-room';
+import { askConfirm } from '../utils/confirm';
 
 // The lobby every game shares. Everyone gathers here before a game starts:
 // the host adds computer players, sets the rules and presses Start; friends
@@ -31,7 +32,16 @@ export default class GameLobby extends Component {
   @tracked joinPassword = '';
   @tracked rooms = null;
   @tracked browsing = false;
-  @tracked editingAvatar = false;
+  @tracked pickingAvatar = false;
+  @tracked presetName = '';
+
+  constructor(owner, args) {
+    super(owner, args);
+    // Coming back from the Avatar Editor or Settings: use the profile saved there.
+    queueMicrotask(() => {
+      if (!this.isDestroying) this.room.reloadProfile();
+    });
+  }
 
   get room() {
     return this.args.room;
@@ -64,8 +74,26 @@ export default class GameLobby extends Component {
     }
   }
 
-  setAvatar = (avatar) => this.room.setProfile({ avatar });
-  toggleAvatarEditor = () => (this.editingAvatar = !this.editingAvatar);
+  pickAvatar = (look) => this.room.setProfile(look);
+  toggleAvatarPicker = () => (this.pickingAvatar = !this.pickingAvatar);
+
+  // Saved rule sets.
+  setPresetName = (event) => (this.presetName = event.target.value);
+  savePreset = (event) => {
+    event.preventDefault();
+    this.room.savePreset(this.presetName);
+    this.presetName = '';
+  };
+  applyPreset = (event) => {
+    if (event.target.value) this.room.applyPreset(event.target.value);
+    event.target.value = '';
+  };
+  deletePreset = async (id) => {
+    const preset = this.room.presets.find((p) => p.id === id);
+    if (!(await askConfirm({ title: `Delete “${preset?.name ?? 'these rules'}”?`, message: 'The saved rule set will be removed. The rules you’re using now stay as they are.', confirmLabel: 'Hold to delete', cancelLabel: 'Cancel', holdMs: 1500 }))) return;
+    this.room.deletePreset(id);
+  };
+  resetRules = () => this.room.resetSettings();
   setName = (event) => this.room.setProfile({ name: event.target.value });
   setJoinInput = (event) => (this.joinInput = event.target.value);
   setJoinPassword = (event) => (this.joinPassword = event.target.value);
@@ -113,8 +141,32 @@ export default class GameLobby extends Component {
   };
 
   host = () => this.room.host();
-  leaveRoom = () => this.room.close();
   kick = (id) => this.room.kick(id);
+
+  // Closing a room with people in it, or leaving one you've joined, asks first.
+  leaveRoom = async () => {
+    const hosting = this.room.status === 'open' && this.room.guests.length;
+    const joined = this.room.status === 'joined';
+    if (hosting || joined) {
+      const ok = await askConfirm(
+        hosting
+          ? { title: 'Close the room?', message: 'Everyone in it will be disconnected.', confirmLabel: 'Hold to close', cancelLabel: 'Keep it open', holdMs: 1500 }
+          : { title: 'Leave the room?', message: 'You’ll need the code or link to join again.', confirmLabel: 'Hold to leave', cancelLabel: 'Stay', holdMs: 1500 },
+      );
+      if (!ok) return;
+    }
+    this.room.close();
+  };
+
+  get hasGuests() {
+    return this.room.status === 'open' && this.room.guests.length > 0;
+  }
+
+  get startDisabled() {
+    return Boolean(this.args.blocker) || this.room.isBusy || !this.room.allReady;
+  }
+
+  readyCheck = () => this.room.callReadyCheck();
 
   <template>
     <div class="game-lobby pop-in">
@@ -130,7 +182,7 @@ export default class GameLobby extends Component {
             {{#each @seats key="id" as |seat|}}
               <li class="lobby-seat {{if seat.isYou 'is-you'}} pop-in">
                 {{#if seat.avatar}}
-                  <AvatarPortrait @avatar={{seat.avatar}} @size={{40}} />
+                  <AvatarPortrait @avatar={{seat.avatar}} @pose={{seat.pose}} @size={{40}} />
                 {{else}}
                   <span class="lobby-seat-bot"><Icon @name="bot" @size={{20}} /></span>
                 {{/if}}
@@ -140,6 +192,13 @@ export default class GameLobby extends Component {
                     {{#if seat.isYou}}<span class="lobby-tag">You</span>{{/if}}
                     {{#if seat.isHost}}<span class="lobby-tag is-host"><Icon @name="crown" @size={{10}} /> Host</span>{{/if}}
                     {{#if (isBot seat)}}<span class="lobby-tag">Computer</span>{{/if}}
+                    {{#if this.room.isOnline}}
+                      {{#unless (isBot seat)}}
+                        {{#unless seat.isHost}}
+                          <span class="lobby-tag lobby-ready-tag {{if seat.ready 'is-ready'}}"><Icon @name={{if seat.ready "check" "clock"}} @size={{10}} /> {{if seat.ready "Ready" "Not ready"}}</span>
+                        {{/unless}}
+                      {{/unless}}
+                    {{/if}}
                   </span>
                 </span>
                 {{#if this.canEdit}}
@@ -244,6 +303,33 @@ export default class GameLobby extends Component {
             <Icon @name="sliders-horizontal" @size={{14}} /> Rules
             {{#unless this.canEdit}}<span class="lobby-tag">Set by the host</span>{{/unless}}
           </h3>
+          {{#if this.canEdit}}
+            <div class="lobby-presets">
+              <p class="tool-hint lobby-presets-note"><Icon @name="save" @size={{12}} /> Your rules are remembered for next time.</p>
+              <div class="lobby-presets-row">
+                {{#if this.room.presets.length}}
+                  <select class="lobby-preset-select" aria-label="Load saved rules" {{on "change" this.applyPreset}}>
+                    <option value="">Load saved rules…</option>
+                    {{#each this.room.presets key="id" as |p|}}
+                      <option value={{p.id}}>{{p.name}}</option>
+                    {{/each}}
+                  </select>
+                {{/if}}
+                <form class="lobby-preset-save" {{on "submit" this.savePreset}}>
+                  <input type="text" maxlength="32" placeholder="Name these rules" aria-label="Name for these rules" value={{this.presetName}} {{on "input" this.setPresetName}} />
+                  <button type="submit" class="btn"><Icon @name="save" @size={{13}} /> Save</button>
+                </form>
+                <button type="button" class="btn" title="Back to the default rules" {{on "click" this.resetRules}}><Icon @name="rotate-ccw" @size={{13}} /> Defaults</button>
+              </div>
+              {{#if this.room.presets.length}}
+                <ul class="lobby-preset-chips" aria-label="Saved rules">
+                  {{#each this.room.presets key="id" as |p|}}
+                    <li class="lobby-tag lobby-preset-chip">{{p.name}}<button type="button" class="lobby-preset-remove" aria-label="Delete saved rules {{p.name}}" {{on "click" (fn this.deletePreset p.id)}}><Icon @name="x" @size={{10}} /></button></li>
+                  {{/each}}
+                </ul>
+              {{/if}}
+            </div>
+          {{/if}}
           <fieldset class="lobby-rules-body" disabled={{if this.canEdit false true}}>
             {{yield this.canEdit to="rules"}}
           </fieldset>
@@ -254,17 +340,17 @@ export default class GameLobby extends Component {
         <section class="lobby-panel lobby-profile" aria-label="Your profile">
           <h3 class="lobby-panel-title"><Icon @name="user-round" @size={{14}} /> You</h3>
           <div class="lobby-profile-row">
-            <AvatarPortrait @avatar={{this.room.profile.avatar}} @size={{52}} />
+            <AvatarPortrait @avatar={{this.room.profile.avatar}} @pose={{this.room.profile.pose}} @size={{52}} />
             <label class="lobby-name">
               <span class="qr-label is-muted">Name</span>
               <input type="text" maxlength="20" value={{this.room.profile.name}} {{on "input" this.setName}} />
             </label>
-            <button type="button" class="btn lobby-avatar-toggle {{if this.editingAvatar 'active'}}" aria-expanded={{if this.editingAvatar "true" "false"}} {{on "click" this.toggleAvatarEditor}}>
-              <Icon @name="shirt" @size={{13}} /> {{if this.editingAvatar "Done" "Customise avatar"}}
+            <button type="button" class="btn lobby-avatar-toggle {{if this.pickingAvatar 'active'}}" aria-expanded={{if this.pickingAvatar "true" "false"}} {{on "click" this.toggleAvatarPicker}}>
+              <Icon @name="shirt" @size={{13}} /> {{if this.pickingAvatar "Done" "Change avatar"}}
             </button>
           </div>
-          {{#if this.editingAvatar}}
-            <AvatarEditor @avatar={{this.room.profile.avatar}} @name={{this.room.profile.name}} @onChange={{this.setAvatar}} />
+          {{#if this.pickingAvatar}}
+            <AvatarPicker @profile={{this.room.profile}} @onPick={{this.pickAvatar}} />
           {{/if}}
           {{yield to="profile"}}
         </section>
@@ -278,17 +364,44 @@ export default class GameLobby extends Component {
         {{else if @blocker}}
           <p class="tool-hint">{{@blocker}}</p>
         {{else if this.canEdit}}
-          <p class="tool-hint">Everyone’s in? Start when you’re ready.</p>
+          {{#if this.room.allReady}}
+            <p class="tool-hint">Everyone’s ready. Start when you are.</p>
+          {{else}}
+            <p class="tool-hint">Waiting for everyone to press Ready ({{this.room.readyCount}}/{{this.room.members.length}}).</p>
+          {{/if}}
+        {{else if this.room.iAmReady}}
+          <p class="tool-hint">You’re ready. Waiting for the host to start the game…</p>
         {{else}}
-          <p class="tool-hint">Waiting for the host to start the game…</p>
+          <p class="tool-hint {{if this.room.readyCheckAt 'lobby-ready-nudge'}}">{{if this.room.readyCheckAt "The host is asking if you’re ready!" "Press Ready when you’re set to play."}}</p>
         {{/if}}
         {{#if this.canEdit}}
-          <button type="button" class="btn active lobby-start" disabled={{if @blocker true this.room.isBusy}} {{on "click" @onStart}}>
+          {{#if this.hasGuests}}
+            <button type="button" class="btn" disabled={{this.room.allReady}} title="Ask everyone to press Ready" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{14}} /> Ready check</button>
+          {{/if}}
+          <button type="button" class="btn active lobby-start" disabled={{this.startDisabled}} {{on "click" @onStart}}>
             <Icon @name="play" @size={{14}} /> {{if @startLabel @startLabel "Start game"}}
           </button>
+        {{else if this.room.isOnline}}
+          <ReadyButton @room={{this.room}} />
         {{/if}}
       </footer>
     </div>
+  </template>
+}
+
+// A guest's Ready toggle; also shown at the end of a game, to agree to a rematch.
+export class ReadyButton extends Component {
+  get ready() {
+    return this.args.room.iAmReady;
+  }
+
+  toggle = () => this.args.room.setReady(!this.ready);
+
+  <template>
+    <button type="button" class="btn lobby-ready-btn {{if this.ready 'is-ready' 'active'}} {{if @class @class}}" aria-pressed={{if this.ready "true" "false"}} {{on "click" this.toggle}}>
+      <Icon @name={{if this.ready "circle-check-big" "check"}} @size={{14}} />
+      {{if this.ready (if @readyLabel @readyLabel "Ready!") (if @label @label "Ready")}}
+    </button>
   </template>
 }
 

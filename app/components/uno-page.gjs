@@ -7,7 +7,7 @@ import { registerDestructor } from '@ember/destroyable';
 import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
-import GameLobby from './game-lobby';
+import GameLobby, { ReadyButton } from './game-lobby';
 import GameChat from './game-chat';
 import GameRoom from '../utils/game-room';
 import { roomCodeFromUrl } from '../utils/file-share';
@@ -16,6 +16,9 @@ import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { COLORS, MAX_PLAYERS, DEFAULT_RULES, DEFAULT_CARDS, CARD_TYPES, HAND_SIZE_RANGE, PENALTY_RANGE, clampInt, normaliseRules, cardName, createGame, viewFor, act, actorIndex, timeOut, botJumpIn, handToBot, settleMs, TURN_TIMES, CHALLENGE_EXTRA } from '../utils/uno';
 import { think } from '../utils/uno-bot';
+import { sfx, preloadSounds } from '../utils/sound';
+import HoldConfirm from './hold-confirm';
+import { askConfirm } from '../utils/confirm';
 
 const JUMP_IN_DELAY_MS = 650;
 // Computer players are people too: how long they take to notice someone forgot to say Woono (or that they did).
@@ -23,7 +26,7 @@ const CALLOUT_REACTION_MS = [1400, 3800];
 const LATE_UNO_REACTION_MS = [900, 2600];
 // Most of the time a computer player remembers to press Woono before playing its second-last card.
 const BOT_REMEMBERS_UNO = 0.85;
-const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4', target2: '◎+2', target4: '◎+4', draw99: '+99' };
+const SYMBOLS = { skip: '✋', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4', target2: '◎+2', target4: '◎+4', draw99: '+99' };
 const COLOR_ORDER = { red: 0, yellow: 1, green: 2, blue: 3 };
 const VALUE_ORDER = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2', 'target2', 'wild', 'wild4', 'target4', 'draw99'];
 const STACKING = [
@@ -44,9 +47,19 @@ const SWITCH_RULES = [
   { key: 'zeros', label: 'Zeros rotate', hint: 'Play a 0 and every hand moves along to the next player.' },
   { key: 'jumpIn', label: 'Jump-in', hint: 'Hold an exact copy of the top card? Play it out of turn.' },
   { key: 'drawUntilPlayable', label: 'Draw until you can play', hint: 'Draw and you have to put a card down: keep drawing until you can. No passing.' },
+  { key: 'drawBalancing', label: 'Draw balancing', hint: 'The deck plays fair-ish. Lots of cards? Power cards find you more often. Nearly out? Mostly numbers. Keep drawing and matching cards get likelier. Only ever cards still in the deck.' },
   { key: 'challenge', label: 'Challenge wild draw cards', hint: `Think a wild draw card was played while they still had the colour in play? Challenge it. Right: they draw instead. Wrong: you draw ${CHALLENGE_EXTRA} extra.` },
 ];
 const TIMER_OPTIONS = TURN_TIMES.map((seconds) => ({ id: seconds, label: seconds ? `${seconds}s` : 'Off' }));
+
+const LOOK_LOCK_KEY = 'woogi-woono-autolook';
+const readLookLock = () => {
+  try {
+    return localStorage.getItem(LOOK_LOCK_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
 
 const eq = (a, b) => a === b;
 const symbol = (card) => SYMBOLS[card.value] ?? card.value;
@@ -116,6 +129,7 @@ export default class UnoPage extends Component {
     super(owner, args);
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
+    preloadSounds('uno');
     this.gyroAvailable = typeof window.DeviceOrientationEvent !== 'undefined' && coarsePointer();
     registerDestructor(this, () => {
       this.stopBots();
@@ -185,6 +199,8 @@ export default class UnoPage extends Component {
     const bots = this.state.players.filter((p) => p.kind === 'bot');
     if (bots.length) this.chatter.say(bots[Math.floor(Math.random() * bots.length)].name, 'hello', { urgent: true });
     this.room.setLocked(true);
+    // A rematch needs everyone to press Ready again.
+    this.room.resetReady();
     this.refresh();
   };
 
@@ -212,10 +228,10 @@ export default class UnoPage extends Component {
     this.runBots();
   }
 
-  // Only 'uno' (saying it) can be done while the table is still settling.
+  // Saying Woono and calling someone out are instant: they work while the table is still settling, on anyone's turn.
   apply(index, action) {
     if (!this.state || index < 0) return false;
-    if (action?.type !== 'uno' && Date.now() < this.busyUntil) return false;
+    if (action?.type !== 'uno' && action?.type !== 'callout' && Date.now() < this.busyUntil) return false;
     return act(this.state, index, action);
   }
 
@@ -388,12 +404,22 @@ export default class UnoPage extends Component {
   show(view) {
     this.mode = 'playing';
     if (!this.isHostSide) this.turnDeadline = typeof view.turnLeft === 'number' ? Date.now() + view.turnLeft : null;
-    if (this.turnDeadline && !this.clockTimer) this.clockTimer = setInterval(() => (this.now = Date.now()), 250);
+    if (this.turnDeadline && !this.clockTimer) {
+      this.clockTimer = setInterval(() => {
+        const before = this.secondsLeft;
+        this.now = Date.now();
+        const left = this.secondsLeft;
+        // Your last few seconds tick.
+        if (left !== before && left && left <= 5 && this.isMyTurn) sfx('uno.tick');
+      }, 250);
+    }
     if (!this.turnDeadline) {
       clearInterval(this.clockTimer);
       this.clockTimer = null;
     }
+    const previous = this.view;
     this.view = view;
+    this.playSounds(previous, view);
     // Locked while the last move animates; the scene shows nothing to play until then.
     clearTimeout(this.settleTimer);
     this.settling = view.settleLeft > 0;
@@ -405,6 +431,31 @@ export default class UnoPage extends Component {
     }
     this.scene?.setView(this.sceneView);
   }
+
+  // Sounds for whatever happened since the last view: every event once, plus a ping when it becomes your turn.
+  playSounds(previous, view) {
+    const sameGame = previous?.gameId === view.gameId;
+    const events = view.events ?? [];
+    if (!sameGame) {
+      this.soundSeen = events.at(-1)?.id ?? null;
+      return;
+    }
+    const fresh = events.filter((e) => this.soundSeen === null || e.id > this.soundSeen);
+    this.soundSeen = events.at(-1)?.id ?? this.soundSeen;
+    // The 3D table plays each event's sound in step with its animation (lazy/uno-scene.js).
+    // Without the table, play them here instead.
+    if (this.sceneFailed) {
+      fresh.slice(-4).forEach((event, i) => {
+        const name = unoSoundFor(event, view);
+        if (name) setTimeout(() => sfx(name), i * 110);
+      });
+    }
+    const myTurnNow = view.turn === view.you && view.winner === null;
+    const myTurnBefore = previous.turn === previous.you && previous.turnId === view.turnId;
+    if (myTurnNow && !myTurnBefore && !fresh.some((e) => e.type === 'win')) setTimeout(() => sfx('uno.myturn'), Math.max(0, view.settleLeft ?? 0));
+  }
+
+  soundSeen = null;
 
   get sceneView() {
     const view = this.view;
@@ -507,7 +558,7 @@ export default class UnoPage extends Component {
     const r = this.view?.rules;
     if (!r) return [];
     const stacking = { same: 'Stack same', up: 'Stack up', mixed: 'Stack any' }[r.stacking];
-    return [stacking, r.defense && 'Block & reflect', r.sevens && '7 swap', r.zeros && '0 rotate', r.jumpIn && 'Jump-in', r.drawUntilPlayable && 'Draw till play', r.challenge && 'Challenge', r.cards?.draw99 && '+99', r.turnTime && `${r.turnTime}s turns`].filter(Boolean);
+    return [stacking, r.defense && 'Block & reflect', r.sevens && '7 swap', r.zeros && '0 rotate', r.jumpIn && 'Jump-in', r.drawUntilPlayable && 'Draw till play', r.challenge && 'Challenge', r.drawBalancing && 'Balanced draws', r.cards?.draw99 && '+99', r.turnTime && `${r.turnTime}s turns`].filter(Boolean);
   }
 
   get status() {
@@ -534,7 +585,10 @@ export default class UnoPage extends Component {
     }
     if (view.turn === view.you) {
       if (view.drawn) return this.drawnPlayable ? 'You drew a card you can play. Play it, or keep it.' : 'You drew a card.';
-      if (view.drewThisTurn) return view.canDraw ? 'Still nothing to play. Draw again.' : 'Play a card from your hand, or pass.';
+      if (view.drewThisTurn) {
+        if (view.canDraw) return view.playable.length ? 'Play a card from your hand, or draw again.' : 'Still nothing to play. Draw again.';
+        return view.canPass ? 'Play a card from your hand, or pass.' : 'Play a card from your hand.';
+      }
       if (!view.playable.length) return 'Nothing to play. Tap the deck to draw.';
       return this.touchControls ? 'Your turn. Swipe up a glowing card, or tap the deck to draw.' : 'Your turn. Play a glowing card, or draw from the deck.';
     }
@@ -555,6 +609,7 @@ export default class UnoPage extends Component {
         this.scene = scene;
         if (this.view) scene.setView(this.sceneView);
         if (this.gyroOn) scene.setGyro(true);
+        scene.setAutoLook(this.lookLocked);
       })
       .catch((error) => {
         console.warn('3D table unavailable:', error);
@@ -752,23 +807,40 @@ export default class UnoPage extends Component {
     this.scene?.setGyro(false);
   }
 
-  toggleGyro = () => {
-    if (this.listening) this.stopGyro();
-    else this.startGyro();
+  // Auto look: the camera follows the game by itself (the same on phones and computers). Remembered.
+  @tracked lookLocked = readLookLock();
+
+  toggleLookLock = () => {
+    this.lookLocked = !this.lookLocked;
+    try {
+      localStorage.setItem(LOOK_LOCK_KEY, this.lookLocked ? '1' : '0');
+    } catch {
+      // storage blocked
+    }
+    this.scene?.setAutoLook(this.lookLocked);
   };
 
-  recenter = () => this.scene?.recenter();
-
-  // On phones that don't need permission, tilt-to-look is on from the start.
+  // On phones, tilting to look around is always on. Where the browser asks permission first
+  // (iPhones), it's asked on the first tap on the table.
   autoGyro = modifier(() => {
-    if (this.gyroAvailable && typeof window.DeviceOrientationEvent?.requestPermission !== 'function') this.startGyro();
+    let askOnTap = null;
+    if (this.gyroAvailable) {
+      if (typeof window.DeviceOrientationEvent?.requestPermission !== 'function') this.startGyro();
+      else {
+        askOnTap = () => this.startGyro();
+        window.addEventListener('pointerup', askOnTap, { once: true, capture: true });
+      }
+    }
     // Turning the phone sideways brings the whole table into view.
     const landscape = window.matchMedia?.('(orientation: landscape)');
     const onTurn = () => {
       if (landscape.matches && coarsePointer()) document.querySelector('.uno-stage')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     };
     landscape?.addEventListener('change', onTurn);
-    return () => landscape?.removeEventListener('change', onTurn);
+    return () => {
+      landscape?.removeEventListener('change', onTurn);
+      if (askOnTap) window.removeEventListener('pointerup', askOnTap, { capture: true });
+    };
   });
 
   // ─── Your moves ──────────────────────────────────────────────────────
@@ -814,14 +886,31 @@ export default class UnoPage extends Component {
 
   // ─── Leaving ─────────────────────────────────────────────────────────
 
-  playAgain = () => this.start();
+  playAgain = () => this.room.allReady && this.start();
+  readyCheck = () => this.room.callReadyCheck();
+
+  // Mid-game, going back to the lobby asks first (hold to confirm), since it ends the game for everyone.
+  @tracked confirmingLobby = false;
+
+  askLobby = () => {
+    if (this.isOver) this.toLobby();
+    else this.confirmingLobby = true;
+  };
+
+  cancelLobby = () => (this.confirmingLobby = false);
+
+  get lobbyWarning() {
+    return this.room.isOnline ? 'The game in progress will be cancelled for everyone at the table, and all hands will be lost.' : 'The game in progress will be cancelled and all hands will be lost.';
+  }
 
   toLobby = () => {
+    this.confirmingLobby = false;
     if (this.room.isOnline) this.room.send({ type: 'lobby' });
     this.backToLobby();
   };
 
   backToLobby() {
+    this.confirmingLobby = false;
     this.stopBots();
     clearTimeout(this.turnTimer);
     clearTimeout(this.settleTimer);
@@ -837,7 +926,8 @@ export default class UnoPage extends Component {
     this.state = null;
   }
 
-  leave = () => {
+  leave = async () => {
+    if (!this.isOver && !(await askConfirm({ title: 'Leave the game?', message: 'You’ll be disconnected, and the computer takes over your hand.', confirmLabel: 'Hold to leave', cancelLabel: 'Keep playing' }))) return;
     this.room.close();
     this.backToLobby();
   };
@@ -862,7 +952,7 @@ export default class UnoPage extends Component {
   }
 
   <template>
-    <ToolPage @route="woono" @busy={{this.busy}} @closeWarning={{this.closeWarning}} @landscape={{true}} @game={{true}} @subtitle="Match colours and numbers and empty your hand first, first person around a 3D table with up to eight players. House rules included.">
+    <ToolPage @route="woono" @busy={{this.busy}} @closeWarning={{this.closeWarning}} @landscape={{true}} @game={{true}} @subtitle="Do you want your friendships to end? Match colours and numbers, stack +4s on your best friend, and empty your hand first. Up to eight players around a 3D table, with all the house rules.">
       {{#if (eq this.mode "playing")}}
         <div class="game-shell uno-shell pop-in" {{this.autoGyro}}>
           {{! Everything you play with sits inside the table view: your cards, the buttons, the chat. }}
@@ -917,7 +1007,7 @@ export default class UnoPage extends Component {
 
             <div class="uno-overlay uno-top-right">
               {{#if this.isHostSide}}
-                <button type="button" class="btn" {{on "click" this.toLobby}}><Icon @name="users" @size={{13}} /> Lobby</button>
+                <button type="button" class="btn" {{on "click" this.askLobby}}><Icon @name="users" @size={{13}} /> Lobby</button>
               {{else}}
                 <button type="button" class="btn" {{on "click" this.leave}}><Icon @name="log-out" @size={{13}} /> Leave</button>
               {{/if}}
@@ -931,22 +1021,24 @@ export default class UnoPage extends Component {
             {{#if this.exposedPlayers.length}}
               <div class="uno-overlay uno-callouts">
                 {{#each this.exposedPlayers key="index" as |p|}}
-                  <button type="button" class="btn uno-callout" disabled={{this.settling}} {{on "click" (fn this.callOut p.index)}}><Icon @name="flag" @size={{13}} /> {{p.name}} didn’t say Woono!</button>
+                  <button type="button" class="btn uno-callout" {{on "click" (fn this.callOut p.index)}}><Icon @name="flag" @size={{13}} /> {{p.name}} didn’t say Woono!</button>
                 {{/each}}
               </div>
             {{/if}}
 
             <div class="uno-overlay uno-actions">
               <button type="button" class="btn uno-icon-btn {{if this.helpOpen 'active'}}" aria-expanded={{if this.helpOpen "true" "false"}} aria-controls="uno-help" aria-label="Controls" title="Controls" {{on "click" this.toggleHelp}}><Icon @name="info" @size={{15}} /></button>
-              {{#if this.gyroAvailable}}
-                <button type="button" class="btn uno-icon-btn {{if this.gyroOn 'active'}}" aria-pressed={{if this.gyroOn "true" "false"}} aria-label="Tilt your phone to look around" title="Tilt to look" {{on "click" this.toggleGyro}}><Icon @name="smartphone" @size={{15}} /></button>
-                <button type="button" class="btn uno-icon-btn" aria-label="Look back at the table" title="Recentre" {{on "click" this.recenter}}><Icon @name="locate-fixed" @size={{15}} /></button>
-              {{/if}}
+              <button type="button" class="btn uno-icon-btn {{if this.lookLocked 'active'}}" aria-pressed={{if this.lookLocked "true" "false"}} aria-label="Look around automatically" title={{if this.lookLocked "Auto look is on: the view follows the game" "Auto look: let the view follow the game"}} {{on "click" this.toggleLookLock}}><Icon @name="locate-fixed" @size={{15}} /></button>
               {{#if this.isOver}}
                 {{#if this.isHostSide}}
-                  <button type="button" class="btn active" {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
+                  {{#unless this.room.allReady}}
+                    <span class="uno-hud-chip">{{this.room.readyCount}}/{{this.room.members.length}} ready</span>
+                    <button type="button" class="btn" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{13}} /> Ready check</button>
+                  {{/unless}}
+                  <button type="button" class="btn active" disabled={{if this.room.allReady false true}} title={{if this.room.allReady "" "Everyone has to press Ready first"}} {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
                 {{else}}
-                  <span class="uno-hud-chip">Waiting for the host…</span>
+                  <ReadyButton @room={{this.room}} @label="Play again?" @readyLabel="Ready for another" />
+                  {{#if this.room.iAmReady}}<span class="uno-hud-chip">Waiting for the host…</span>{{/if}}
                 {{/if}}
               {{else}}
                 {{#if this.view.canKeep}}
@@ -986,18 +1078,22 @@ export default class UnoPage extends Component {
                     <li><strong>Swipe it up</strong> or <strong>tap it again</strong> to play it</li>
                     <li><strong>Slide along your hand</strong> to flip through your cards</li>
                     <li><strong>Tap the deck</strong> to draw, then play the card or keep it</li>
-                    <li><strong>Drag the table</strong>{{if this.gyroAvailable " or tilt your phone"}} to look around</li>
+                    <li>{{if this.gyroAvailable "Tilt your phone" "Drag the table"}} to look around, or turn on <strong>auto look</strong> <Icon @name="locate-fixed" @size={{12}} /> to let the view follow the game</li>
                   </ul>
                 {{else}}
                   <ul>
                     <li><strong>Hover a card</strong> to lift it</li>
                     <li><strong>Click it</strong> to play it</li>
                     <li><strong>Click the deck</strong> to draw, then play the card or keep it</li>
-                    <li><strong>Move to the edges</strong> to look around</li>
+                    <li><strong>Move to the edges</strong> to look around, or turn on <strong>auto look</strong> <Icon @name="locate-fixed" @size={{12}} /> to let the view follow the game</li>
                   </ul>
                 {{/if}}
                 <p class="tool-hint">Press <strong>Woono!</strong> with two cards left and it’s said as you play. Forgot? Press it before someone calls you out, or draw {{this.view.rules.unoPenalty}}.</p>
               </div>
+            {{/if}}
+
+            {{#if this.confirmingLobby}}
+              <HoldConfirm @title="Back to the lobby?" @message={{this.lobbyWarning}} @confirmLabel="Hold to end game" @onConfirm={{this.toLobby}} @onCancel={{this.cancelLobby}} />
             {{/if}}
 
             <p class="uno-rotate-hint" aria-hidden="true"><Icon @name="rotate-cw" @size={{14}} /> Turn your phone sideways for the full table</p>
@@ -1114,6 +1210,48 @@ export default class UnoPage extends Component {
       {{/if}}
     </ToolPage>
   </template>
+}
+
+function unoSoundFor(event, view) {
+  switch (event.type) {
+    case 'play': {
+      const value = event.card?.value;
+      if (value === 'skip') return 'uno.skip';
+      if (value === 'reverse') return 'uno.reverse';
+      if (value === 'wild') return 'uno.wild';
+      return 'uno.play';
+    }
+    case 'draw':
+      return event.reason === 'centre' ? 'uno.draw' : 'uno.hit';
+    case 'keep':
+      return 'uno.keep';
+    case 'attack':
+      return 'uno.attack';
+    case 'color':
+      return 'uno.color';
+    case 'uno':
+      return 'uno.uno';
+    case 'callout':
+      return 'uno.callout';
+    case 'block':
+      return 'uno.block';
+    case 'reflect':
+      return 'uno.reflect';
+    case 'swap':
+      return 'uno.swap';
+    case 'rotate':
+      return 'uno.rotate';
+    case 'challenge':
+      return 'uno.challenge';
+    case 'timeout':
+      return 'uno.timeout';
+    case 'skip':
+      return event.player === view.you ? 'uno.hit' : null;
+    case 'win':
+      return event.player === view.you ? 'uno.win' : 'uno.lose';
+    default:
+      return null;
+  }
 }
 
 function cardLabel(card) {

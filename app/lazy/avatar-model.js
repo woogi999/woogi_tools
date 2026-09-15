@@ -34,7 +34,10 @@ import {
   Vector2,
   Vector3,
   MathUtils,
+  Raycaster,
 } from 'three';
+import { normalisePose, poseKey } from '../utils/pose';
+import { rendererOptions, createGovernor, tabHidden } from './perf';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { drawFace, normaliseAvatar, avatarKey, hairStyle, hairline, maxHairline, hairPoint, hairGrow, hairTop, headAt, headPoint, HEAD, HANG_FROM, FACE_SPAN } from '../utils/avatar';
 
@@ -46,6 +49,7 @@ import { drawFace, normaliseAvatar, avatarKey, hairStyle, hairline, maxHairline,
 const INK = '#141414';
 const Y_AXIS = new Vector3(0, 1, 0);
 export const HEAD_Y = 1.14;
+const HIP_Y = 0.3;
 const ROBOT_HEAD_R = 0.5;
 
 // ─── Shared materials & textures ──────────────────────────────────────
@@ -342,23 +346,28 @@ function buildHuman(avatar, kit, group) {
   const { top, bottom } = avatar;
   const dress = top === 'dress';
 
-  // Legs and shoes.
+  // Legs and shoes, hanging from a hip pivot so they can be posed.
   const trousers = bottom === 'trousers' && !dress;
+  const legs = [];
   for (const side of [-1, 1]) {
-    const x = side * 0.095;
-    add(kit.geometry('leg', () => new CylinderGeometry(0.066, 0.06, 0.26, 12)), trousers ? pants : skin, group, { position: [x, 0.19, 0] });
-    if (bottom === 'shorts' && !dress) add(kit.geometry('shorts-leg', () => new CylinderGeometry(0.09, 0.085, 0.1, 12)), pants, group, { position: [x, 0.27, 0] });
+    const hip = new Group();
+    hip.position.set(side * 0.095, HIP_Y, 0);
+    group.add(hip);
+    legs.push(hip);
+    const at = (y, z = 0) => [0, y - HIP_Y, z];
+    add(kit.geometry('leg', () => new CylinderGeometry(0.066, 0.06, 0.26, 12)), trousers ? pants : skin, hip, { position: at(0.19) });
+    if (bottom === 'shorts' && !dress) add(kit.geometry('shorts-leg', () => new CylinderGeometry(0.09, 0.085, 0.1, 12)), pants, hip, { position: at(0.27) });
     switch (avatar.shoes) {
       case 'boots':
-        add(kit.geometry('boot', () => new CylinderGeometry(0.08, 0.086, 0.15, 12)), shoes, group, { position: [x, 0.1, 0] });
-        add(sphere(0.1), shoes, group, { position: [x, 0.045, 0.04], scale: [0.85, 0.5, 1.2] });
+        add(kit.geometry('boot', () => new CylinderGeometry(0.08, 0.086, 0.15, 12)), shoes, hip, { position: at(0.1) });
+        add(sphere(0.1), shoes, hip, { position: at(0.045, 0.04), scale: [0.85, 0.5, 1.2] });
         break;
       case 'flats':
-        add(sphere(0.1), shoes, group, { position: [x, 0.035, 0.03], scale: [0.72, 0.38, 1.12] });
+        add(sphere(0.1), shoes, hip, { position: at(0.035, 0.03), scale: [0.72, 0.38, 1.12] });
         break;
       default:
-        add(sphere(0.1), shoes, group, { position: [x, 0.055, 0.03], scale: [0.8, 0.55, 1.2] });
-        add(kit.geometry('sole', () => new CylinderGeometry(0.085, 0.085, 0.025, 14)), white, group, { position: [x, 0.018, 0.035], scale: [0.95, 1, 1.4] });
+        add(sphere(0.1), shoes, hip, { position: at(0.055, 0.03), scale: [0.8, 0.55, 1.2] });
+        add(kit.geometry('sole', () => new CylinderGeometry(0.085, 0.085, 0.025, 14)), white, hip, { position: at(0.018, 0.035), scale: [0.95, 1, 1.4] });
     }
   }
   if (bottom === 'skirt' && !dress) add(kit.geometry('skirt', () => lathe(SKIRT, { steps: 6 })), pants, group, { scale: [1, 1, 0.84] });
@@ -562,7 +571,7 @@ function buildHuman(avatar, kit, group) {
 
   buildHat(avatar, kit, head, { add, point, sphere, on, style, crown, hair, hatColor, white, dark, gold, pink });
   // Cards are held at the chest, low enough to clear the chin and far enough out to clear the belly.
-  return { head, body, face, arms, hold: { y: 0.46, z: 0.27, grip: 0.09 } };
+  return { head, body, face, arms, legs, hold: { y: 0.46, z: 0.27, grip: 0.09 } };
 }
 
 function buildHat(avatar, kit, head, { add, point, sphere, on, style, crown, hair, hatColor, white, dark, gold, pink }) {
@@ -913,36 +922,207 @@ function lights(scene) {
   scene.add(sun);
 }
 
-// ─── Avatar maker preview: one avatar, slowly turning ──────────────────
+// ─── Poses ─────────────────────────────────────────────────────────────
 
-export function createAvatarPreview(canvas) {
-  const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'low-power' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const DEG = Math.PI / 180;
+
+// Turns a pose (utils/pose.js) into rotations on the rig. `idle` adds the gentle breathing sway of the preview.
+export function applyPose(group, kit, poseInput, { now = 0, idle = false } = {}) {
+  const pose = normalisePose(poseInput);
+  const { head, arms, legs, face, faceOpen } = group.userData;
+  const sway = idle ? Math.sin(now / 600) * 3 : 0;
+  group.rotation.set(pose.root.bow * DEG, pose.root.turn * DEG, -pose.root.lean * DEG, 'YXZ');
+  head.rotation.set(pose.head.nod * DEG, pose.head.turn * DEG, (-pose.head.tilt + (idle ? Math.sin(now / 800) * 3.4 : 0)) * DEG);
+  // Arms: raised out to the side (z), then swung forward (x). Left is the avatar's own left, at -x.
+  [pose.armL, pose.armR].forEach((arm, i) => {
+    const side = i === 0 ? -1 : 1;
+    const shoulder = arms[i];
+    if (!shoulder) return;
+    shoulder.rotation.set(-arm.swing * DEG, 0, side * (arm.raise - sway) * DEG, 'XYZ');
+    const { arm: mesh, hand, reach } = shoulder.userData;
+    // Chibi arms are too short to get past the head, so they stretch as they rise (and reach forward).
+    const lift = Math.max(Math.max(0, arm.raise), Math.abs(arm.swing) * 0.6) / 175;
+    const stretch = 1 + Math.min(1, lift) * 1.8;
+    mesh.userData.baseY ??= mesh.position.y;
+    mesh.position.y = mesh.userData.baseY * stretch;
+    mesh.scale.y = stretch;
+    hand.position.y = -reach * stretch;
+  });
+  [pose.legL, pose.legR].forEach((leg, i) => {
+    const hip = legs?.[i];
+    if (!hip) return;
+    const side = i === 0 ? -1 : 1;
+    hip.rotation.set(-leg.swing * DEG, 0, side * leg.spread * DEG, 'XYZ');
+  });
+  const moodMaterial = pose.expression === 'neutral' ? faceOpen : moodFace(group, kit, pose.expression);
+  face.material = moodMaterial;
+  return pose;
+}
+
+// ─── Avatar maker preview: one avatar, turning, posable ────────────────
+
+const FRAMES = {
+  // Head to toe, raised arms included, in the wide 16:9 frame.
+  full: { position: [0, 1.0, 4.7], target: [0, 0.92, 0] },
+  portrait: { position: [0, 1.2, 3.2], target: [0, 1.12, 0] },
+};
+
+// Where each joint's handle sits, in that joint's own space.
+const HANDLE_AT = { root: [0, 0.5, 0], head: [0, -0.36, 0], armL: [0, -0.1, 0], armR: [0, -0.1, 0], legL: [0, -0.12, 0], legR: [0, -0.12, 0] };
+// How a drag turns each joint: [axis for sideways drag, axis for up-down drag, degrees per canvas width].
+const DRAG_AXES = {
+  root: ['turn', 'bow', 220],
+  head: ['turn', 'nod', 160],
+  armL: ['swing', 'raise', 300],
+  armR: ['swing', 'raise', 300],
+  legL: ['spread', 'swing', 200],
+  legR: ['spread', 'swing', 200],
+};
+
+// Options: onPose(pose) when a joint is dragged, onSelect(jointId) when one is picked.
+export function createAvatarPreview(canvas, { onPose, onSelect } = {}) {
+  const phone = window.matchMedia?.('(pointer: coarse)').matches;
+  const options = rendererOptions(phone ? 1.5 : 2);
+  const renderer = new WebGLRenderer({ canvas, antialias: options.antialias, alpha: true, powerPreference: 'low-power', preserveDrawingBuffer: false });
+  const governor = createGovernor(renderer, { max: options.pixelRatio, min: 1 });
+  let lastFrame = performance.now();
   renderer.outputColorSpace = SRGBColorSpace;
   const kit = new AvatarKit();
   const scene = new Scene();
   const camera = new PerspectiveCamera(30, 1, 0.1, 20);
-  camera.position.set(0, 1.15, 4.6);
-  camera.lookAt(0, 0.92, 0);
+  let frame = 'full';
+  const aim = () => {
+    const { position, target } = FRAMES[frame];
+    camera.position.set(...position);
+    camera.lookAt(...target);
+  };
+  aim();
   lights(scene);
+
+  // The stage turns (drag on empty space); the avatar inside it takes the pose.
+  const stage = new Group();
+  scene.add(stage);
+
+  // A toon shadow on the floor: two flat, hard-edged discs, a soft outer band and a darker core.
+  const shadowGeometry = new CircleGeometry(1, 48);
+  const shadowOuter = new MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.12, depthWrite: false });
+  const shadowInner = new MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.2, depthWrite: false });
+  for (const [material, radius, y] of [
+    [shadowOuter, 0.5, 0.002],
+    [shadowInner, 0.34, 0.004],
+  ]) {
+    const disc = new Mesh(shadowGeometry, material);
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.y = y;
+    disc.scale.setScalar(radius);
+    disc.raycast = () => {};
+    scene.add(disc);
+  }
 
   let avatar = null;
   let key = '';
-  let dragging = null;
+  let pose = normalisePose(null);
+  let posing = false;
+  // No idle panning: the avatar stays where you turned it.
+  let spin = false;
+  let selected = null;
   let angle = 0.35;
   let velocity = 0;
+  let press = null;
+
+  // Joint handles: small dots drawn over everything while posing.
+  const handleGeometry = new SphereGeometry(0.045, 14, 10);
+  const handleMaterial = new MeshBasicMaterial({ color: '#4f8cff', depthTest: false, transparent: true, opacity: 0.85 });
+  const handleActive = new MeshBasicMaterial({ color: '#ffb020', depthTest: false, transparent: true, opacity: 1 });
+  let handles = [];
+  const raycaster = new Raycaster();
+  const pointer = new Vector2();
+
+  const jointObject = (id) => {
+    const d = avatar?.userData;
+    if (!d) return null;
+    return { root: avatar, head: d.head, armL: d.arms?.[0], armR: d.arms?.[1], legL: d.legs?.[0], legR: d.legs?.[1] }[id] ?? null;
+  };
+
+  const buildHandles = () => {
+    handles.forEach((h) => h.removeFromParent());
+    handles = [];
+    if (!avatar) return;
+    for (const id of Object.keys(HANDLE_AT)) {
+      const parent = jointObject(id);
+      if (!parent) continue;
+      const handle = new Mesh(handleGeometry, id === selected ? handleActive : handleMaterial);
+      handle.position.set(...HANDLE_AT[id]);
+      handle.renderOrder = 10;
+      handle.scale.setScalar(id === selected ? 1.5 : 1);
+      handle.userData.joint = id;
+      handle.visible = posing;
+      parent.add(handle);
+      handles.push(handle);
+    }
+  };
+
+  const refreshHandles = () => {
+    for (const h of handles) {
+      const active = h.userData.joint === selected;
+      h.material = active ? handleActive : handleMaterial;
+      h.scale.setScalar(active ? 1.5 : 1);
+      h.visible = posing;
+    }
+  };
+
+  // What's under the pointer: a handle, else the nearest joint that owns the mesh hit.
+  const pickJoint = (event) => {
+    if (!avatar) return null;
+    const rect = canvas.getBoundingClientRect();
+    pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    const handleHit = raycaster.intersectObjects(handles, false)[0];
+    if (handleHit) return handleHit.object.userData.joint;
+    const hit = raycaster.intersectObject(avatar, true).find((h) => h.object.isMesh && !h.object.userData.joint);
+    if (!hit) return null;
+    const owners = { head: avatar.userData.head, armL: avatar.userData.arms?.[0], armR: avatar.userData.arms?.[1], legL: avatar.userData.legs?.[0], legR: avatar.userData.legs?.[1] };
+    for (let obj = hit.object; obj && obj !== avatar; obj = obj.parent) {
+      const found = Object.entries(owners).find(([, owner]) => owner === obj);
+      if (found) return found[0];
+    }
+    return 'root';
+  };
+
+  const select = (id) => {
+    selected = id;
+    refreshHandles();
+    onSelect?.(id);
+  };
 
   const onDown = (event) => {
-    dragging = event.clientX;
     canvas.setPointerCapture?.(event.pointerId);
+    const joint = posing ? pickJoint(event) : null;
+    if (joint) select(joint);
+    press = { x: event.clientX, y: event.clientY, joint, start: joint ? { ...pose[joint] } : null };
   };
   const onMove = (event) => {
-    if (dragging === null) return;
-    velocity = (event.clientX - dragging) * 0.012;
-    angle += velocity;
-    dragging = event.clientX;
+    if (!press) return;
+    const rect = canvas.getBoundingClientRect();
+    const dx = (event.clientX - press.x) / rect.width;
+    const dy = (event.clientY - press.y) / rect.height;
+    if (press.joint) {
+      const [across, upDown, scale] = DRAG_AXES[press.joint];
+      // Facing away, sideways drags turn the other way, so the limb follows the pointer.
+      const facing = Math.cos(stage.rotation.y + pose.root.turn * DEG) < 0 ? -1 : 1;
+      const sideSign = press.joint === 'armL' || press.joint === 'legL' ? -1 : 1;
+      const acrossSign = press.joint === 'root' || press.joint === 'head' ? 1 : sideSign;
+      const next = { ...press.start, [across]: press.start[across] + dx * scale * acrossSign * facing, [upDown]: press.start[upDown] + (press.joint.startsWith('arm') ? -dy : dy) * scale };
+      if (press.joint.startsWith('leg')) next.swing = press.start.swing - dy * scale;
+      pose = normalisePose({ ...pose, [press.joint]: next });
+      onPose?.(pose);
+    } else {
+      velocity = (event.clientX - (press.lastX ?? press.x)) * 0.012;
+      angle += velocity;
+      press.lastX = event.clientX;
+    }
   };
-  const onUp = () => (dragging = null);
+  const onUp = () => (press = null);
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
   canvas.addEventListener('pointerup', onUp);
@@ -959,26 +1139,37 @@ export function createAvatarPreview(canvas) {
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
   resize();
+  // Nothing to draw while the preview is scrolled out of sight.
+  let onScreen = true;
+  const visibility = new IntersectionObserver(([entry]) => (onScreen = entry.isIntersecting));
+  visibility.observe(canvas);
 
   let blinkAt = performance.now() + 2000;
-  renderer.setAnimationLoop((now) => {
-    if (!avatar) return;
-    if (dragging === null) {
-      velocity *= 0.92;
-      angle += velocity + 0.004;
+  const pose3d = (now, idle) => {
+    applyPose(avatar, kit, pose, { now, idle });
+    const { body, face, faceClosed, antenna } = avatar.userData;
+    body.scale.y = 1 + (idle ? Math.sin(now / 500) * 0.015 : 0);
+    if (antenna) antenna.position.x = idle ? Math.sin(now / 300) * 0.02 : 0;
+    // Blinks only with a neutral face; expressions keep their own eyes.
+    if (pose.expression === 'neutral' && idle) {
+      const blinking = now > blinkAt;
+      if (now > blinkAt + 140) blinkAt = now + 1800 + Math.random() * 2500;
+      if (blinking) face.material = faceClosed;
     }
-    const { body, head, face, faceOpen, faceClosed, arms, antenna } = avatar.userData;
-    // Swings most of the way round, so the back (tails, capes, backpacks) shows too.
-    avatar.rotation.y = Math.sin(angle) * 1.9;
-    body.scale.y = 1 + Math.sin(now / 500) * 0.015;
-    head.rotation.z = Math.sin(now / 800) * 0.06;
-    // Arms at rest by their sides here, with a little wave.
-    arms[0].rotation.set(0, 0, -0.25 + Math.sin(now / 600) * 0.05);
-    arms[1].rotation.set(0, 0, 0.25 - Math.sin(now / 600) * 0.05);
-    if (antenna) antenna.position.x = Math.sin(now / 300) * 0.02;
-    const blinking = now > blinkAt;
-    if (now > blinkAt + 140) blinkAt = now + 1800 + Math.random() * 2500;
-    face.material = blinking ? faceClosed : faceOpen;
+  };
+
+  renderer.setAnimationLoop((now) => {
+    const gap = now - lastFrame;
+    lastFrame = now;
+    if (!avatar || !onScreen || tabHidden()) return;
+    governor.frame(gap, now);
+    if (!press || press.joint) {
+      velocity *= 0.92;
+      angle += velocity + (spin && !posing ? 0.004 : 0);
+    }
+    // Swings most of the way round while showing off, so the back (tails, capes, backpacks) shows too.
+    stage.rotation.y = spin && !posing ? Math.sin(angle) * 1.9 : angle;
+    pose3d(now, !posing);
     renderer.render(scene, camera);
   });
 
@@ -988,20 +1179,87 @@ export function createAvatarPreview(canvas) {
       if (nextKey === key) return;
       key = nextKey;
       if (avatar) {
-        scene.remove(avatar);
+        stage.remove(avatar);
         disposeAvatar(avatar);
       }
       avatar = buildAvatar(next, kit);
-      scene.add(avatar);
+      stage.add(avatar);
+      buildHandles();
+    },
+    setPose(next) {
+      pose = normalisePose(next);
+    },
+    // Posing mode: no spinning, handles shown, drags move joints.
+    setPosing(on) {
+      const wasPosing = posing;
+      posing = Boolean(on);
+      // Posing starts from a three-quarter front view, so both arms and the face are visible.
+      if (posing && !wasPosing) angle = 0.35;
+      velocity = 0;
+      refreshHandles();
+    },
+    setSpin(on) {
+      spin = Boolean(on);
+    },
+    select(id) {
+      selected = id;
+      refreshHandles();
+    },
+    setView(turnDegrees) {
+      angle = turnDegrees * DEG;
+      velocity = 0;
+    },
+    setFrame(name) {
+      frame = FRAMES[name] ? name : 'full';
+      aim();
+    },
+    // A still image of the avatar as it stands now: { size, frame, background (CSS colour or null for transparent) } -> canvas.
+    snapshot({ width = 1024, height = width, frame: shot = frame, background = null, turn = null } = {}) {
+      if (!avatar) return null;
+      const saved = { frame, rotation: stage.rotation.y, aspect: camera.aspect };
+      handles.forEach((h) => (h.visible = false));
+      if (turn !== null) stage.rotation.y = turn * DEG;
+      frame = shot;
+      aim();
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      pose3d(performance.now(), false);
+      renderer.setPixelRatio(1);
+      renderer.setSize(width, height, false);
+      renderer.render(scene, camera);
+      const out = document.createElement('canvas');
+      out.width = width;
+      out.height = height;
+      const ctx = out.getContext('2d');
+      if (background) {
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, width, height);
+      }
+      ctx.drawImage(renderer.domElement, 0, 0, width, height);
+      // Back to the live view.
+      frame = saved.frame;
+      aim();
+      stage.rotation.y = saved.rotation;
+      renderer.setPixelRatio(governor.ratio);
+      resize();
+      refreshHandles();
+      return out;
     },
     dispose() {
       renderer.setAnimationLoop(null);
       observer.disconnect();
+      visibility.disconnect();
       canvas.removeEventListener('pointerdown', onDown);
       canvas.removeEventListener('pointermove', onMove);
       canvas.removeEventListener('pointerup', onUp);
       canvas.removeEventListener('pointercancel', onUp);
       if (avatar) disposeAvatar(avatar);
+      handleGeometry.dispose();
+      shadowGeometry.dispose();
+      shadowOuter.dispose();
+      shadowInner.dispose();
+      handleMaterial.dispose();
+      handleActive.dispose();
       kit.dispose();
       renderer.dispose();
     },
@@ -1028,16 +1286,27 @@ function portraitRig() {
   return rig;
 }
 
+export const portraitKey = (avatarInput, pose, size) => `${avatarKey(avatarInput)}#${pose ? poseKey(pose) : ''}@${size}`;
+
+// Whether a portrait is already rendered, so it can be drawn without any flash.
+export const hasPortrait = (avatarInput, pose, size) => portraits.has(portraitKey(avatarInput, pose, size));
+
 // Paints the avatar's portrait onto a square canvas, at the canvas's own size.
-// Throws if WebGL isn't available, so the caller can keep the flat drawing.
-export function paintPortrait(target, avatarInput) {
+// Throws if WebGL isn't available, so the caller can fall back to the flat drawing.
+export function paintPortrait(target, avatarInput, pose = null) {
   const size = target.width;
-  const key = `${avatarKey(avatarInput)}@${size}`;
+  const key = portraitKey(avatarInput, pose, size);
   let image = portraits.get(key);
   if (!image) {
     const { renderer, scene, camera, kit } = portraitRig();
     const avatar = buildAvatar(avatarInput, kit);
-    avatar.rotation.y = 0.3;
+    if (pose) {
+      applyPose(avatar, kit, pose);
+      // Portraits face the camera a little turned, whatever the pose's own turn.
+      avatar.rotation.y = 0.3 + normalisePose(pose).root.turn * DEG * 0.25;
+    } else {
+      avatar.rotation.y = 0.3;
+    }
     scene.add(avatar);
     renderer.setSize(size, size, false);
     renderer.render(scene, camera);

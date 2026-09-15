@@ -427,7 +427,7 @@ export default class QrCodePage extends Component {
   };
 
   <template>
-    <ToolPage @route="qr-code" @subtitle="Generate styled QR codes for links, text, WiFi and contacts. Download as PNG or SVG, or batch into a ZIP.">
+    <ToolPage @route="qr-code" @subtitle="Make a styled QR code for a link, text, WiFi or a contact. Download it as PNG or SVG, or make a batch at once.">
       <div class="qr">
         <div class="qr-tabs pop-in" role="tablist" aria-label="QR type">
           {{#each this.modes as |m|}}

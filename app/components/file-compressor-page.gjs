@@ -141,7 +141,7 @@ export default class FileCompressorPage extends Component {
   };
 
   <template>
-    <ToolPage @route="file-compressor" @subtitle="Shrink any file with gzip, deflate, brotli or zstd, or unpack one, right in your browser.">
+    <ToolPage @route="file-compressor" @subtitle="Shrink any file with gzip, deflate, brotli or zstd, or unpack one. Right here in your browser.">
       <div class="fs">
         <div class="fs-frame fc-panel pop-in">
           <div class="tool-controls">

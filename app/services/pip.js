@@ -1,5 +1,6 @@
 import Service, { service } from '@ember/service';
 import { tracked } from '@glimmer/tracking';
+import { askConfirm } from '../utils/confirm';
 
 const WINDOW_WIDTH = 440;
 const WINDOW_HEIGHT = 330;
@@ -153,9 +154,11 @@ export default class PipService extends Service {
 
   // Closing a busy tool (a game in progress) asks first, since it disconnects
   // you, or ends the game for everyone if you're hosting.
-  close = (session) => {
+  close = async (session) => {
     const { busy, warning } = this.status(session.route);
-    if (busy && !window.confirm(warning || 'Close this? It is still running.')) return;
+    if (busy && !(await askConfirm({ title: 'Close this?', message: warning || 'It’s still running.', confirmLabel: 'Hold to close', cancelLabel: 'Keep it open' }))) return;
+    // Already gone while the prompt was open.
+    if (this.byRoute.get(session.route) !== session) return;
     this.remove(session);
     // Closed while its own page is open: that page starts afresh.
     if (this.router.currentRouteName === session.route && this.slots.has(session.route)) {
