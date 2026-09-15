@@ -20,6 +20,8 @@ import { findBestMove, LEVELS } from '../utils/chess-ai';
 import { sfx, preloadSounds } from '../utils/sound';
 import HoldConfirm from './hold-confirm';
 import { askConfirm } from '../utils/confirm';
+import { listenForActions, onScreen, openChat } from '../utils/game-input';
+import { CommandError } from '../utils/debug-commands';
 import { FILES, STANDARD_FEN, TIME_CONTROLS, clockFor, formatClock, chess960Fen, premoveTargets, reachableAfterReply, applyPremoves, syncTokens, canMate } from '../utils/chess-extras';
 
 const PIECE_ICON = { k: 'chess-king', q: 'chess-queen', r: 'chess-rook', b: 'chess-bishop', n: 'chess-knight', p: 'chess-pawn' };
@@ -124,7 +126,13 @@ export default class ChessPage extends Component {
     preloadSounds('chess');
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
+    this.room.setDebugTools(this.debugTools());
+    const stopInput = listenForActions('chess', {
+      active: () => this.mode === 'playing' && onScreen(this.boardEl),
+      onAction: (action) => this.onAction(action),
+    });
     registerDestructor(this, () => {
+      stopInput();
       this.chatter.dispose();
       this.abort?.abort();
       clearInterval(this.clockTimer);
@@ -223,6 +231,8 @@ export default class ChessPage extends Component {
     this.confirmingLobby = false;
     sfx('chess.start');
     this.mode = 'playing';
+    this.room.debug.clearHistory();
+    this.room.recordDebugState('New game');
     clearInterval(this.clockTimer);
     if (clock) this.clockTimer = setInterval(() => this.tickClock(), 100);
     this.afterChange();
@@ -514,6 +524,7 @@ export default class ChessPage extends Component {
     this.selected = null;
     this.pendingPromotion = null;
     if (this.offer?.kind === 'takeback') this.offer = null;
+    this.room.recordDebugState(`${COLOR_NAME[result.color]} played ${result.san}`);
     sfx(result.san.includes('+') || result.san.includes('#') ? 'chess.check' : result.promotion ? 'chess.promote' : /^O-O/.test(result.san) ? 'chess.castle' : result.captured ? 'chess.capture' : 'chess.move');
     this.afterChange();
     // The computer reacts to captures and checks, its own and yours.
@@ -589,8 +600,215 @@ export default class ChessPage extends Component {
 
   // Keyboard users press Enter/Space on a square; pointer input is handled on the board.
   keySquare = (square, event) => {
+    this.cursor = square;
     if (event.detail === 0) this.clickSquare(square);
   };
+
+  // ─── Debug mode (see utils/debug-commands.js) ──────────────────────
+
+  debugTools() {
+    const need = () => {
+      if (this.mode !== 'playing') throw new CommandError('No game is running. Start one first.');
+    };
+    const colorOf = (word) => {
+      const c = String(word ?? '').toLowerCase()[0];
+      if (c !== 'w' && c !== 'b') throw new CommandError('Say white or black.');
+      return c;
+    };
+    // Changed the position: show it, tell the other player, save it for /undo.
+    const changed = (ctx, label) => {
+      this.selected = null;
+      this.premoves = [];
+      this.result = null;
+      this.endSounded = false;
+      this.afterChange();
+      this.syncPosition();
+      this.room.recordDebugState(label);
+      ctx.announce(label);
+      this.maybeBotMove();
+    };
+    return {
+      players: () => [
+        { id: this.room.selfId, name: `${this.room.profile.name || 'Host'} (${COLOR_NAME[this.playerColor]})` },
+        { id: this.room.members.find((m) => !m.isYou)?.id ?? 'bot', name: `${this.opponentName} (${COLOR_NAME[other(this.playerColor)]})` },
+      ],
+      describe: () => (this.mode === 'playing' ? `Chess: ${COLOR_NAME[this.chess.turn()]} to move, move ${this.chess.moveNumber()}. ${this.isOver ? 'Game over.' : ''}\nFEN: ${this.chess.fen()}` : 'Chess: in the lobby.'),
+      snapshot: () => (this.mode === 'playing' ? { pgn: this.chess.pgn(), fen: this.chess.fen(), clocks: this.clocks, result: this.result } : null),
+      restore: (snap) => {
+        const chess = new Chess();
+        try {
+          chess.loadPgn(snap.pgn);
+        } catch {
+          chess.load(snap.fen);
+        }
+        this.abort?.abort();
+        this.thinking = false;
+        this.chess = chess;
+        this.clocks = snap.clocks;
+        if (this.clocks) this.turnStartedAt = performance.now();
+        this.selected = null;
+        this.premoves = [];
+        this.result = snap.result;
+        this.endSounded = Boolean(snap.result);
+        this.afterChange();
+        this.syncPosition();
+        this.maybeBotMove();
+      },
+      commands: {
+        fen: { usage: '/fen', help: 'The position as FEN.', run: () => (need(), this.chess.fen()) },
+        pgn: { usage: '/pgn', help: 'The moves so far as PGN.', run: () => (need(), this.chess.pgn() || '(no moves yet)') },
+        board: { usage: '/board', help: 'The board as text.', run: () => (need(), this.chess.ascii()) },
+        moves: {
+          usage: '/moves [square]',
+          help: 'Every legal move, or just the ones from a square.',
+          run: ([square]) => {
+            need();
+            const list = this.chess.moves(square ? { square } : undefined);
+            return list.length ? list.join(' ') : 'No legal moves.';
+          },
+        },
+        setfen: {
+          usage: '/setfen <fen>',
+          help: 'Sets up any position (the clocks keep going).',
+          run: (words, ctx) => {
+            need();
+            const fen = words.join(' ');
+            const check = validateFen(fen);
+            if (!check.ok) throw new CommandError(`That FEN isn’t valid: ${check.error}`);
+            this.abort?.abort();
+            this.thinking = false;
+            this.chess = new Chess(fen);
+            changed(ctx, `${ctx.fromName} set up a new position.`);
+          },
+        },
+        move: {
+          usage: '/move <move>',
+          help: 'Plays a move for whoever’s turn it is, like /move e4 or /move g1f3.',
+          run: ([san], ctx) => {
+            need();
+            let result;
+            try {
+              const long = /^([a-h][1-8])([a-h][1-8])([qrbn])?$/i.exec(san ?? '');
+              result = this.chess.move(long ? { from: long[1], to: long[2], promotion: long[3] } : san);
+            } catch {
+              throw new CommandError(`${san ?? 'That'} isn’t a legal move. See /moves.`);
+            }
+            changed(ctx, `${ctx.fromName} played ${result.san} for ${COLOR_NAME[result.color]}.`);
+          },
+        },
+        clock: {
+          usage: '/clock <white|black> <seconds>',
+          help: 'Sets how much time a side has left.',
+          run: ([side, seconds], ctx) => {
+            need();
+            if (!this.clocks) throw new CommandError('This game has no clocks.');
+            const color = colorOf(side);
+            const ms = Math.max(1, Number(seconds) || 0) * 1000;
+            this.freezeClocks();
+            this.clocks = { ...this.clocks, [color]: ms };
+            if (!this.isOver) this.turnStartedAt = performance.now();
+            changed(ctx, `${ctx.fromName} set ${COLOR_NAME[color]}’s clock to ${Math.round(ms / 1000)}s.`);
+          },
+        },
+        level: {
+          usage: '/level <easy|medium|hard>',
+          help: 'Changes how strong the computer plays.',
+          run: ([id], ctx) => {
+            if (!LEVELS[id]) throw new CommandError(`Pick one of ${Object.keys(LEVELS).join(', ')}.`);
+            this.level = id;
+            ctx.announce(`${ctx.fromName} set the computer to ${LEVELS[id].label}.`);
+          },
+        },
+        end: {
+          usage: '/end <white|black|draw>',
+          help: 'Ends the game with that result.',
+          run: ([word], ctx) => {
+            need();
+            const winner = /^d/i.test(word ?? '') ? null : colorOf(word);
+            this.endWith(winner === null ? { winner: null, reason: 'agreement' } : { winner, reason: 'resign' });
+            this.syncPosition();
+            ctx.announce(`${ctx.fromName} ended the game: ${winner === null ? 'a draw' : `${COLOR_NAME[winner]} wins`}.`);
+          },
+        },
+      },
+    };
+  }
+
+  // Host: sends the whole position to the other player after a debug change.
+  syncPosition() {
+    if (this.isBot || !this.room.isOnline) return;
+    this.room.send({ type: 'sync', pgn: this.chess.pgn(), fen: this.chess.fen(), clocks: this.clocks, result: this.result });
+  }
+
+  // ─── Keyboard & controller (bound in Settings) ──────────────────────
+
+  // The square the keyboard/controller cursor is on; it's the focused square button.
+  cursor = null;
+
+  onAction(action) {
+    if (this.pendingPromotion && action !== 'cancel') return false;
+    switch (action) {
+      case 'up':
+      case 'down':
+      case 'left':
+      case 'right':
+        this.moveCursor(action);
+        return true;
+      case 'select': {
+        // Enter on some other focused button (Resign, Rematch) presses that button instead.
+        const focused = document.activeElement;
+        if (focused?.matches?.('button, a[href]') && !this.boardEl?.contains(focused)) return false;
+        const square = this.cursor ?? this.selected;
+        if (!square) {
+          this.moveCursor('up');
+          return true;
+        }
+        // The key press is prevented, so a focused square button doesn't click itself as well.
+        this.clickSquare(square);
+        return true;
+      }
+      case 'cancel':
+        if (this.pendingPromotion) this.cancelPromotion();
+        else if (this.selected) this.selected = null;
+        else return false;
+        return true;
+      case 'takeback':
+        if (!this.canTakeback) return false;
+        this.requestTakeback();
+        return true;
+      case 'draw':
+        if (this.isBot || this.isOver || this.offer) return false;
+        this.offerDraw();
+        return true;
+      case 'resign':
+        if (this.isOver) return false;
+        this.resign();
+        return true;
+      case 'chat':
+        openChat();
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  moveCursor(direction) {
+    const start = this.cursor ?? this.selected ?? (this.playerColor === 'w' ? 'e2' : 'e7');
+    let file = FILES.indexOf(start[0]);
+    let rank = Number(start[1]) - 1;
+    // Up is always up the screen, so a flipped board moves the other way.
+    const flip = this.flipped ? -1 : 1;
+    if (this.cursor) {
+      if (direction === 'up') rank += flip;
+      if (direction === 'down') rank -= flip;
+      if (direction === 'left') file -= flip;
+      if (direction === 'right') file += flip;
+    }
+    file = Math.max(0, Math.min(7, file));
+    rank = Math.max(0, Math.min(7, rank));
+    this.cursor = `${FILES[file]}${rank + 1}`;
+    this.boardEl?.querySelector(`.chess-square[data-square="${this.cursor}"]`)?.focus({ focusVisible: true });
+  }
 
   promote = (piece) => {
     const { from, to } = this.pendingPromotion;
@@ -853,6 +1071,24 @@ export default class ChessPage extends Component {
       case 'lobby':
         this.backToLobby();
         break;
+      case 'sync': {
+        // The host changed the position in debug mode.
+        const chess = new Chess();
+        try {
+          chess.loadPgn(message.pgn);
+        } catch {
+          chess.load(message.fen);
+        }
+        this.chess = chess;
+        this.clocks = message.clocks ?? this.clocks;
+        if (this.clocks) this.turnStartedAt = performance.now();
+        this.result = message.result ?? null;
+        this.endSounded = Boolean(message.result);
+        this.selected = null;
+        this.premoves = [];
+        this.afterChange();
+        break;
+      }
     }
   }
 

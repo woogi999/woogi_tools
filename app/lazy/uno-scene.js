@@ -40,7 +40,7 @@ import { avatarKey } from '../utils/avatar';
 import { createCuller } from './culling';
 import { rendererOptions, createGovernor, tabHidden } from './perf';
 import { sfx } from '../utils/sound';
-import { dealTiming } from '../utils/uno';
+import { dealTiming, RESHUFFLE_MS } from '../utils/uno';
 import { AvatarKit, HEAD_Y, buildAvatar, disposeAvatar, disposeGroup, holdCards, moodFace, reachArms, withOutline } from './avatar-model';
 
 export { createAvatarPreview } from './avatar-model';
@@ -723,6 +723,32 @@ export function createUnoScene(canvas) {
   const pile = new Group();
   pile.position.copy(PILE_POS);
   scene.add(pile);
+
+  // The deck gets thinner as it's drawn from: its height follows the cards left,
+  // as a share of the most it's held this game. At zero it's gone until the pile is shuffled back in.
+  const DECK_HEIGHT = 0.3;
+  const DECK_MIN = 0.014;
+  const DECK_BOTTOM = deckBox.position.y - DECK_HEIGHT / 2;
+  let deckFull = 1;
+  let deckLevel = 1;
+  let deckGoal = 1;
+
+  function setDeckLevel(count) {
+    deckFull = Math.max(deckFull, count, 1);
+    deckGoal = Math.max(0, Math.min(1, count / deckFull));
+  }
+
+  function animateDeck(dt) {
+    deckLevel += (deckGoal - deckLevel) * (1 - Math.exp(-dt * 6));
+    if (Math.abs(deckGoal - deckLevel) < 0.001) deckLevel = deckGoal;
+    const empty = deckLevel < 0.002 && deckGoal === 0;
+    const height = empty ? 0 : DECK_MIN + (DECK_HEIGHT - DECK_MIN) * deckLevel;
+    deckBox.visible = !empty;
+    deckTop.visible = !empty;
+    deckBox.scale.y = Math.max(height, 0.001) / DECK_HEIGHT;
+    deckBox.position.y = DECK_BOTTOM + height / 2;
+    deckTop.position.y = DECK_BOTTOM + height + 0.005;
+  }
 
   // ─── Picking a wild's colour, or a target, right on the table ─────
 
@@ -1640,6 +1666,9 @@ export function createUnoScene(canvas) {
       syncCentre(next);
       syncPicker(next);
       for (const seat of seats.values()) endEmote(seat);
+      deckFull = Math.max(1, next.drawPileCount);
+      deckLevel = 1;
+      setDeckLevel(next.drawPileCount);
       const deal = next.events[next.events.length - 1];
       if (deal?.type === 'deal' && deal.players) runDeal(next, deal);
       updateBillboards();
@@ -1647,16 +1676,29 @@ export function createUnoScene(canvas) {
     }
     const fresh = next.events.filter((e) => lastEventId === null || e.id > lastEventId);
     lastEventId = next.events[next.events.length - 1]?.id ?? lastEventId;
+    // The deck ran out: whatever happened before plays now, the pile is gathered back into the deck,
+    // and everything after (the draws that needed it) waits until that's done.
+    const reshuffle = fresh.find((e) => e.type === 'reshuffle');
+    const before = reshuffle ? fresh.filter((e) => e.id < reshuffle.id) : fresh;
+    const after = reshuffle ? fresh.filter((e) => e.id > reshuffle.id) : [];
+    const reshuffleAt = reshuffle && before.some((e) => e.type === 'play') ? 450 : 0;
+    const waitForDeck = reshuffle ? reshuffleAt + RESHUFFLE_MS : 0;
     const kept = fresh.some((e) => e.type === 'keep' && e.player === me);
     const drewToCentre = fresh.some((e) => e.type === 'draw' && e.reason === 'centre');
     // A card straight into your hand shouldn't appear until the cards flying from the
     // deck actually land there — otherwise you'd have it before you'd taken it.
     const myDraw = fresh.find((e) => e.type === 'draw' && e.reason !== 'centre' && e.player === me);
-    const drawnDelay = myDraw ? (myDraw.reason === 'hit' && fresh.some((e) => e.type === 'play') ? 450 : 0) + (Math.min(myDraw.count, 6) - 1) * 90 + 440 : 0;
-    syncHand(next, { kept, keptDelay: drewToCentre ? 450 : 0, drawnDelay });
+    const drawnDelay = myDraw ? waitForDeck + (myDraw.reason === 'hit' && !reshuffle && fresh.some((e) => e.type === 'play') ? 450 : 0) + (Math.min(myDraw.count, 6) - 1) * 90 + 440 : 0;
+    syncHand(next, { kept, keptDelay: (drewToCentre ? 450 : 0) + waitForDeck, drawnDelay });
     let playedTop = false;
     for (const event of fresh) if (event.type === 'play' && event.card.id === next.top.id) playedTop = true;
-    playEvents(fresh, true);
+    playEvents(before, true);
+    if (reshuffle) {
+      runReshuffle(reshuffleAt, reshuffle.count, next.drawPileCount);
+      if (after.length) tweens.add(1, () => {}, { delay: waitForDeck, done: () => playEvents(after, true) });
+    } else {
+      setDeckLevel(next.drawPileCount);
+    }
     syncCentre(next);
     syncPicker(next);
     if (!playedTop) setTopCard(next.top);
@@ -1669,6 +1711,56 @@ export function createUnoScene(canvas) {
     }
     wasMyTurn = myTurn;
     updateBillboards();
+  }
+
+  // Out of cards: everything under the top card flies off the pile back into the deck, which fills
+  // up as they land, gets a riffle and a little shake, and then play carries on.
+  function runReshuffle(delay, count, leftAfter) {
+    const flying = Math.min(count, calm ? 5 : 16);
+    const step = Math.min(60, 700 / Math.max(1, flying));
+    const deckAt = DECK_POS.clone().add(new Vector3(0, 0.12, 0));
+    // The pile shrinks to just its top card as the rest take off.
+    tweens.add(1, () => {}, {
+      delay,
+      done: () => {
+        while (pile.children.length > 1) cards.release(pile.children[0]);
+        pile.children.forEach((child) => (child.position.y = 0));
+        deckGoal = 0;
+      },
+    });
+    for (let i = 0; i < flying; i++) {
+      const from = PILE_POS.clone().add(new Vector3((Math.random() - 0.5) * 0.25, 0.06 + i * 0.004, (Math.random() - 0.5) * 0.25));
+      flyCard(null, from, deckAt, {
+        faceUp: false,
+        delay: delay + i * step,
+        startRotation: (Math.random() - 0.5) * 1.2,
+        sound: i % 3 === 0 ? 'uno.dealCard' : null,
+        // The deck grows with every card that lands.
+        done: () => {
+          deckFull = Math.max(deckFull, count, 1);
+          deckGoal = Math.min(1, ((i + 1) / flying) * (count / deckFull));
+        },
+      });
+    }
+    const gathered = delay + flying * step + 440;
+    soundAt('uno.deal', gathered - 150);
+    // A riffle: the deck wobbles and hops while it's shuffled.
+    tweens.add(
+      Math.max(300, delay + RESHUFFLE_MS - gathered),
+      (t) => {
+        deck.rotation.y = Math.sin(t * Math.PI * 6) * 0.18 * (1 - t);
+        deck.position.y = DECK_POS.y + Math.abs(Math.sin(t * Math.PI * 3)) * 0.06 * (1 - t);
+      },
+      {
+        delay: gathered,
+        done: () => {
+          deck.rotation.y = 0;
+          deck.position.y = DECK_POS.y;
+          shockwave(DECK_POS, '#ffffff', { size: 1.6, duration: 600 });
+          setDeckLevel(leftAfter);
+        },
+      },
+    );
   }
 
   // The opening deal, in step with its sounds: a riffle, then a card flicked from the deck to each
@@ -1842,6 +1934,22 @@ export function createUnoScene(canvas) {
     return hit;
   }
 
+  // For the keyboard and controller: your cards left to right (the drawn card last),
+  // the players the arrows point at, and highlighting a colour or arrow as if hovered.
+  function getHandIds() {
+    const ids = handOrder.map((mesh) => mesh.userData.cardId);
+    if (myCentre.visible && myCentre.userData.cardId !== undefined) ids.push(myCentre.userData.cardId);
+    return ids;
+  }
+
+  function getTargetIndices() {
+    return targetArrows.children.map((arrow) => arrow.userData.index);
+  }
+
+  function setPickHover(hit) {
+    pickHover = hit;
+  }
+
   function clearHover() {
     pickHover = null;
     hoverId = null;
@@ -1967,6 +2075,7 @@ export function createUnoScene(canvas) {
       turnDisc.material.opacity = 0.28 + Math.sin(now / 250) * 0.08;
     }
 
+    animateDeck(dt);
     const ready = canDraw();
     drawRing.material.opacity = ready ? 0.55 + Math.sin(now / 200) * 0.25 + (hoverDeck ? 0.2 : 0) : 0;
     drawRing.scale.setScalar(ready ? 1 + Math.sin(now / 200) * 0.05 + (hoverDeck ? 0.08 : 0) : 1);
@@ -1991,6 +2100,9 @@ export function createUnoScene(canvas) {
     setGyro,
     recenter,
     setAutoLook,
+    getHandIds,
+    getTargetIndices,
+    setPickHover,
     pick,
     setHover,
     clearHover,

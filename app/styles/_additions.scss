@@ -476,6 +476,195 @@
   }
 }
 
+// ─── Settings tabs ───────────────────────────────────────────────────────
+
+.settings-tabs {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 0 auto 24px;
+  width: fit-content;
+  max-width: 100%;
+  backdrop-filter: blur(6px);
+}
+
+.settings-tabs .qr-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+// ─── Debug mode in chat ──────────────────────────────────────────────────
+
+.game-chat-system.is-debug {
+  align-self: stretch;
+  padding: 4px 8px;
+  border-left: 2px solid #f5a524;
+  border-radius: 4px;
+  background: color-mix(in oklab, #f5a524 9%, transparent);
+  color: var(--text);
+  font-family: Inconsolata, ui-monospace, monospace;
+  font-size: 0.72rem;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lobby-tag.is-debug {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-color: #f5a524;
+  color: #f5a524;
+}
+
+// ─── Controls (Settings) ─────────────────────────────────────────────────
+
+.controls-settings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.controls-settings > .tool-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.controls-table {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.controls-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-color);
+  font-size: 0.8rem;
+}
+
+.controls-row.is-head {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-bottom-style: solid;
+}
+
+.controls-row.is-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.controls-binds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.controls-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.controls-chip kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.controls-chip-remove {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-faint);
+}
+
+.controls-chip-remove:hover {
+  color: var(--text);
+}
+
+.controls-add,
+.controls-select {
+  padding: 1px 8px;
+  border: 1px dashed var(--border-color);
+  border-radius: 5px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.controls-select {
+  max-width: 7.5rem;
+}
+
+.controls-add.is-listening {
+  border-style: solid;
+  border-color: #f5a524;
+  color: var(--text);
+  animation: ready-pulse 1s ease-in-out infinite;
+}
+
+@media (max-width: 640px) {
+  .controls-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .controls-row .controls-action {
+    grid-column: 1 / -1;
+    font-weight: 700;
+  }
+
+  .controls-row.is-head span:first-child {
+    display: none;
+  }
+}
+
+.uno-help-keys summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.uno-help-keys ul {
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.uno-help-bind {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+// ─── Controller focus ────────────────────────────────────────────────────
+// Using a controller: whatever's focused gets a big, obvious ring.
+
+.is-pad :focus {
+  outline: 3px solid #f5a524 !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px color-mix(in oklab, #f5a524 25%, transparent);
+}
+
 // ─── Ready (lobbies and rematches) ───────────────────────────────────────
 
 .lobby-ready-tag {

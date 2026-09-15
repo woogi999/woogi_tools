@@ -287,6 +287,8 @@ function takeFromPile(state, who = null) {
     const top = state.discard.pop();
     state.drawPile = shuffle(state.discard);
     state.discard = [top];
+    // The table gathers the pile back into the deck before any card is drawn from it.
+    if (state.drawPile.length) emit(state, { type: 'reshuffle', count: state.drawPile.length });
   }
   const pile = state.drawPile;
   if (!state.rules.drawBalancing || !who || pile.length < 2) return pile.pop();
@@ -363,6 +365,13 @@ function drawCards(state, index, count, reason) {
   }
   return drawn;
 }
+
+// Debug mode (utils/uno-debug.js): deal cards from the deck to a player, animated like any other draw.
+export function debugDraw(state, index, count) {
+  return drawCards(state, index, count, 'debug');
+}
+
+export { buildDeck as debugBuildDeck, shuffle as debugShuffle, emit as debugEmit, note as debugNote, setTurn as debugSetTurn };
 
 // Each action returns true if it was allowed.
 
@@ -806,6 +815,9 @@ export function dealTiming(players, handSize) {
   return { rounds, shuffleMs, stepMs, flyMs: 440, totalMs: shuffleMs + rounds * players * stepMs + 440 + 150 };
 }
 
+// How long gathering the pile back into the deck takes on the table.
+export const RESHUFFLE_MS = 1600;
+
 export function settleMs(events) {
   let longest = 0;
   let played = false;
@@ -818,6 +830,8 @@ export function settleMs(events) {
   }
   // Cards drawn because of a card just played start flying once it lands.
   if (played && events.some((e) => e.type === 'draw' && e.reason !== 'centre')) longest += 450;
+  // Everything after a reshuffle waits for the cards to be gathered back into the deck.
+  if (events.some((e) => e.type === 'reshuffle')) longest += RESHUFFLE_MS;
   return longest;
 }
 

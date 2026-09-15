@@ -7,6 +7,7 @@ import Icon from './icon';
 import AvatarPicker from './avatar-picker';
 import AvatarPortrait from './avatar-portrait';
 import SoundMixer from './sound-mixer';
+import ControlsSettings from './controls-settings';
 import DataTransfer, { transferCodeFromUrl } from './data-transfer';
 import { loadProfile, saveProfile, NAME_LENGTH } from '../utils/profile';
 import { formatBytes } from '../utils/file-share';
@@ -16,6 +17,36 @@ import { APP_VERSION } from '../changelog';
 import { askConfirm } from '../utils/confirm';
 
 const eq = (a, b) => a === b;
+
+const TABS = [
+  { id: 'appearance', label: 'Appearance', icon: 'palette' },
+  { id: 'controls', label: 'Controls', icon: 'gamepad-2' },
+  { id: 'sound', label: 'Sound', icon: 'volume-2' },
+  { id: 'tools', label: 'Tools', icon: 'eye' },
+  { id: 'data', label: 'Data', icon: 'database' },
+];
+const TAB_KEY = 'woogi-settings-tab';
+let requestedTab = null;
+
+// Opens Settings on a particular tab next time it's shown (the volume popover uses it for 'sound').
+export function openSettingsTab(id) {
+  // Already on Settings: just switch.
+  if (livePage && !livePage.isDestroying) livePage.setTab(id);
+  else requestedTab = id;
+}
+let livePage = null;
+
+function takeRequestedTab() {
+  const id = requestedTab;
+  requestedTab = null;
+  if (TABS.some((t) => t.id === id)) return id;
+  try {
+    const saved = sessionStorage.getItem(TAB_KEY);
+    return TABS.some((t) => t.id === saved) ? saved : null;
+  } catch {
+    return null;
+  }
+}
 
 const VISIBILITY_GROUPS = groupTools(TOOLS.filter((t) => t.category));
 
@@ -67,6 +98,29 @@ export default class SettingsPage extends Component {
   // Opened from a transfer link: show that section straight away.
   transferring = Boolean(transferCodeFromUrl());
 
+  tabs = TABS;
+  // A transfer link opens the data tab; the volume popover's mixer button asks for the sound tab.
+  @tracked tab = this.transferring ? 'data' : takeRequestedTab() ?? 'appearance';
+
+  constructor(owner, args) {
+    super(owner, args);
+    livePage = this;
+  }
+
+  willDestroy() {
+    super.willDestroy();
+    if (livePage === this) livePage = null;
+  }
+
+  setTab = (id) => {
+    this.tab = id;
+    try {
+      sessionStorage.setItem(TAB_KEY, id);
+    } catch {
+      // storage blocked
+    }
+  };
+
   setProfileName = (event) => {
     this.profile = saveProfile({ ...this.profile, name: event.target.value });
     this.storageVersion++;
@@ -93,7 +147,8 @@ export default class SettingsPage extends Component {
       try {
         const backup = validateBackup(JSON.parse(reader.result));
         const s = summarise(backup);
-        if (!window.confirm(`Replace everything saved on this device with this backup?\n\n${s.notes} notes, ${s.avatars} saved avatars, ${s.favourites} favourites, ${s.keys} items in all.\n\nThis can't be undone.`)) return;
+        const ok = await askConfirm({ title: 'Replace everything on this device?', message: `This backup has ${s.notes} notes, ${s.avatars} saved avatars, ${s.favourites} favourites, ${s.keys} items in all. What's saved here now will be replaced, and this can't be undone.`, confirmLabel: 'Hold to replace' });
+        if (!ok) return;
         applyBackup(backup);
         // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a page reload, not a data request
         window.location.reload();
@@ -234,7 +289,16 @@ export default class SettingsPage extends Component {
         </div>
       </section>
 
+      <div class="math-tabs settings-tabs" role="tablist" aria-label="Settings sections">
+        {{#each this.tabs key="id" as |t|}}
+          <button type="button" role="tab" class="qr-tab {{if (eq this.tab t.id) 'active'}}" aria-selected={{if (eq this.tab t.id) "true" "false"}} {{on "click" (fn this.setTab t.id)}}>
+            <Icon @name={{t.icon}} @size={{14}} /> {{t.label}}
+          </button>
+        {{/each}}
+      </div>
+
       <div class="settings pop-in">
+        {{#if (eq this.tab "appearance")}}
         <section class="math-card">
           <h3 class="qr-heading">Appearance</h3>
 
@@ -278,7 +342,9 @@ export default class SettingsPage extends Component {
             </label>
           </div>
         </section>
+        {{/if}}
 
+        {{#if (eq this.tab "appearance")}}
         <section class="math-card settings-avatar">
           <h3 class="qr-heading">You</h3>
           <p class="tool-hint">Your name and the avatar that represents you around the site, games included. Pick any look you’ve made in the Avatar Editor, whether that’s you, your OC or a little gremlin.</p>
@@ -292,13 +358,25 @@ export default class SettingsPage extends Component {
           <span class="qr-label is-muted">Avatar</span>
           <AvatarPicker @profile={{this.profile}} @onPick={{this.pickAvatar}} @size={{60}} />
         </section>
+        {{/if}}
 
+        {{#if (eq this.tab "controls")}}
+        <section class="math-card" id="controls">
+          <h3 class="qr-heading">Controls</h3>
+          <p class="tool-hint">Keyboard shortcuts and controller buttons for the games. Change anything you like.</p>
+          <ControlsSettings />
+        </section>
+        {{/if}}
+
+        {{#if (eq this.tab "sound")}}
         <section class="math-card" id="sound">
           <h3 class="qr-heading">Sound</h3>
           <p class="tool-hint">Turn down, or off, just the sounds you don’t want. Slide a channel to hear it at its new level.</p>
           <SoundMixer />
         </section>
+        {{/if}}
 
+        {{#if (eq this.tab "tools")}}
         <section class="math-card">
           <h3 class="qr-heading">Tool visibility</h3>
           <p class="tool-hint">Hide tools or whole categories you don't use. Everything is shown by default; nothing is deleted, and you can bring it back any time.</p>
@@ -336,7 +414,9 @@ export default class SettingsPage extends Component {
             <p class="tool-hint">No tools match "{{this.toolSearch}}".</p>
           {{/unless}}
         </section>
+        {{/if}}
 
+        {{#if (eq this.tab "data")}}
         <section class="math-card">
           <h3 class="qr-heading">Your data</h3>
           <div class="math-stats">
@@ -399,7 +479,9 @@ export default class SettingsPage extends Component {
             <DataTransfer />
           </details>
         </section>
+        {{/if}}
 
+        {{#if (eq this.tab "data")}}
         <section class="math-card settings-danger">
           <h3 class="qr-heading">Danger zone</h3>
           <div class="settings-row">
@@ -424,6 +506,7 @@ export default class SettingsPage extends Component {
             <button type="button" class="btn math-use is-danger" {{on "click" this.resetEverything}}>Reset</button>
           </div>
         </section>
+        {{/if}}
       </div>
     </div>
   </template>
