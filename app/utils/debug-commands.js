@@ -174,7 +174,7 @@ export class DebugConsole {
     const isHost = from === room.selfId;
     const fromName = room.members.find((m) => m.id === from)?.name ?? 'Someone';
     const reply = (message) => message && room.whisper(from, message);
-    const announce = (message) => room.postChat({ system: true, debug: true, text: `🛠 ${message}` });
+    const announce = (message) => room.postChat({ system: true, debug: true, text: message });
 
     if (name === 'debug') {
       if (!isHost) return reply('Only the host can switch debug mode on or off.');

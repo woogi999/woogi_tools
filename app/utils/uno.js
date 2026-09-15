@@ -199,7 +199,9 @@ export function canAnswer(state, card) {
   const pending = state.pending;
   const rules = state.rules;
   if (!pending) return false;
-  if (rules.defense && (card.value === 'skip' || card.value === 'reverse')) return true;
+  // Anything that isn't the same card as the attack still has to follow the colour.
+  const followsColour = !card.color || card.color === state.color || card.value === topCard(state).value;
+  if (rules.defense && (card.value === 'skip' || card.value === 'reverse')) return followsColour;
   const amount = drawAmount(card);
   if (pending.kind !== 'draw' || !amount) return false;
   // A coloured draw card worth something different still has to follow the colour.

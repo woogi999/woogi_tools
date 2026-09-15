@@ -22,7 +22,7 @@ import { askConfirm } from '../utils/confirm';
 import { listenForActions, onScreen, openChat } from '../utils/game-input';
 import { padStick } from '../utils/gamepad';
 import { unoDebugTools } from '../utils/uno-debug';
-import { bindingText, GAME_CONTROLS } from '../utils/keybinds';
+import { bindingParts, GAME_CONTROLS } from '../utils/keybinds';
 
 const JUMP_IN_DELAY_MS = 650;
 // Computer players are people too: how long they take to notice someone forgot to say Woono (or that they did).
@@ -548,7 +548,7 @@ export default class UnoPage extends Component {
   }
 
   get unoLabel() {
-    if (this.view?.unoArmed) return 'Woono ✓';
+    if (this.view?.unoArmed) return 'Woono';
     return this.iAmExposed ? 'Say Woono!' : 'Woono!';
   }
 
@@ -591,11 +591,15 @@ export default class UnoPage extends Component {
     return [stacking, r.defense && 'Block & reflect', r.sevens && '7 swap', r.zeros && '0 rotate', r.jumpIn && 'Jump-in', r.drawUntilPlayable && 'Draw till play', r.challenge && 'Challenge', r.drawBalancing && 'Balanced draws', r.cards?.draw99 && '+99', r.turnTime && `${r.turnTime}s turns`].filter(Boolean);
   }
 
+  get iWon() {
+    return this.view ? this.view.winner !== null && this.view.winner === this.view.you : false;
+  }
+
   get status() {
     const view = this.view;
     if (!view) return '';
     const name = (i) => (i === view.you ? 'You' : view.players[i].name);
-    if (view.winner !== null) return view.winner === view.you ? 'You win! 🎉' : `${name(view.winner)} wins.`;
+    if (view.winner !== null) return view.winner === view.you ? 'You win!' : `${name(view.winner)} wins.`;
     if (view.choice) {
       if (view.choice.player !== view.you) return `${name(view.choice.player)} is picking ${view.choice.needs === 'color' ? 'a colour' : 'who draws'}…`;
       return view.choice.needs === 'color' ? 'Pick a colour on the table.' : 'Who draws? Pick an arrow, even the one pointing at you.';
@@ -809,7 +813,7 @@ export default class UnoPage extends Component {
   canvasEl = null;
 
   get keyHelp() {
-    return (GAME_CONTROLS.find((g) => g.game === 'woono')?.actions ?? []).map((a) => ({ id: a.id, label: a.label, text: bindingText('woono', a.id) }));
+    return (GAME_CONTROLS.find((g) => g.game === 'woono')?.actions ?? []).map((a) => ({ id: a.id, label: a.label, ...bindingParts('woono', a.id) }));
   }
   // Which colour or arrow the keyboard is on while picking.
   pickCursor = 0;
@@ -1177,7 +1181,7 @@ export default class UnoPage extends Component {
               </ol>
             </div>
 
-            <p class="uno-overlay uno-status {{if this.isOver 'is-over'}}" role="status">{{this.status}}</p>
+            <p class="uno-overlay uno-status {{if this.isOver 'is-over'}}" role="status">{{#if this.iWon}}<Icon @name="party-popper" @size={{15}} /> {{/if}}{{this.status}}</p>
 
             {{#if this.exposedPlayers.length}}
               <div class="uno-overlay uno-callouts">
@@ -1221,7 +1225,7 @@ export default class UnoPage extends Component {
                 {{#if this.view.canChallenge}}
                   <button type="button" class="btn active uno-challenge" disabled={{this.locked}} {{on "click" this.challengeCard}}><Icon @name="flag" @size={{13}} /> Challenge</button>
                 {{/if}}
-                <button type="button" class="btn uno-call {{if this.view.canCallUno 'is-ready'}} {{if this.view.unoArmed 'is-armed'}} {{if this.iAmExposed 'is-urgent'}}" disabled={{if this.view.canCallUno false true}} title={{if this.view.unoArmed "You’ll say Woono when you play your next card" "Press with two cards left, before you play one"}} {{on "click" this.sayUno}}>{{this.unoLabel}}</button>
+                <button type="button" class="btn uno-call {{if this.view.canCallUno 'is-ready'}} {{if this.view.unoArmed 'is-armed'}} {{if this.iAmExposed 'is-urgent'}}" disabled={{if this.view.canCallUno false true}} title={{if this.view.unoArmed "You’ll say Woono when you play your next card" "Press with two cards left, before you play one"}} {{on "click" this.sayUno}}>{{#if this.view.unoArmed}}<Icon @name="check" @size={{13}} /> {{/if}}{{this.unoLabel}}</button>
               {{/if}}
             </div>
 
@@ -1253,7 +1257,7 @@ export default class UnoPage extends Component {
                   <summary>Keyboard & controller</summary>
                   <ul>
                     {{#each this.keyHelp key="id" as |k|}}
-                      <li><strong>{{k.label}}</strong> <span class="uno-help-bind">{{k.text}}</span></li>
+                      <li><strong>{{k.label}}</strong> <span class="uno-help-bind">{{#if k.keys}}<Icon @name="keyboard" @size={{12}} /> {{k.keys}}{{/if}}{{#if k.pad}}{{#if k.keys}}  ·  {{/if}}<Icon @name="gamepad-2" @size={{12}} /> {{k.pad}}{{/if}}{{#unless k.keys}}{{#unless k.pad}}Not bound{{/unless}}{{/unless}}</span></li>
                     {{/each}}
                   </ul>
                   <p class="tool-hint">Change them any time in Settings → Controls.</p>

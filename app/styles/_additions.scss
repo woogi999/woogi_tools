@@ -737,6 +737,18 @@
     bottom: 38%;
   }
 
+  // Opened above the hand, the panel has to fit in what's left of the view
+  // (and leave the action buttons their half), or it spills off the top.
+  .game-chat.uno-chat.is-open {
+    width: min(300px, 52%);
+    max-height: calc(62% - 64px);
+  }
+
+  .game-chat.uno-chat.is-open .game-chat-list {
+    min-height: 40px;
+    max-height: none;
+  }
+
   .uno-help {
     bottom: auto;
     top: 56px;

@@ -59,8 +59,22 @@ export const GAME_CONTROLS = [
       { id: 'down', label: 'Down', keys: ['ArrowDown', 'KeyS'], pad: ['DPadDown'] },
       { id: 'left', label: 'Left', keys: ['ArrowLeft', 'KeyA'], pad: ['DPadLeft'] },
       { id: 'right', label: 'Right', keys: ['ArrowRight', 'KeyD'], pad: ['DPadRight'] },
+      { id: 'boost', label: 'Boost (costs 1 length)', keys: ['ShiftLeft', 'ShiftRight', 'KeyE'], pad: ['A'] },
       { id: 'pause', label: 'Pause / resume', keys: ['Space', 'KeyP'], pad: ['Start'] },
       { id: 'chat', label: 'Open chat', keys: ['KeyT'], pad: [] },
+    ],
+  },
+  {
+    game: 'mines',
+    label: 'Minesweeper',
+    actions: [
+      { id: 'up', label: 'Walk up', keys: ['ArrowUp', 'KeyW'], pad: ['DPadUp'] },
+      { id: 'down', label: 'Walk down', keys: ['ArrowDown', 'KeyS'], pad: ['DPadDown'] },
+      { id: 'left', label: 'Walk left', keys: ['ArrowLeft', 'KeyA'], pad: ['DPadLeft'] },
+      { id: 'right', label: 'Walk right', keys: ['ArrowRight', 'KeyD'], pad: ['DPadRight'] },
+      { id: 'dig', label: 'Dig the tile you’re on', keys: ['Space', 'KeyJ', 'Enter'], pad: ['A'] },
+      { id: 'flag', label: 'Flag / unflag the tile you’re on', keys: ['KeyF', 'KeyK'], pad: ['X'] },
+      { id: 'chat', label: 'Open chat', keys: ['KeyT'], pad: ['Back'] },
     ],
   },
 ];
@@ -176,5 +190,24 @@ export function isTyping(event) {
 export function bindingText(game, action) {
   const keys = keybinds.keys(game, action).map(keyLabel);
   const pad = keybinds.pad(game, action).map(padLabel);
-  return [keys.join(' / '), pad.length ? `🎮 ${pad.join(' / ')}` : ''].filter(Boolean).join('  ·  ') || 'Not bound';
+  return [keys.join(' / '), pad.length ? pad.join(' / ') : ''].filter(Boolean).join('  ·  ') || 'Not bound';
+}
+
+// Keyboard keys and controller buttons for an action, kept apart so a help panel can show each with its own icon.
+export function bindingParts(game, action) {
+  return { keys: keybinds.keys(game, action).map(keyLabel).join(' / '), pad: keybinds.pad(game, action).map(padLabel).join(' / ') };
+}
+
+// Short reminders for an in-game controls panel: one key (or controller button) per action,
+// never the full list. `groups` is [{ label, actions: [action ids] }]; a group of several
+// actions (steering) shows the first key of each, or just "D-pad" on a controller.
+export function controlHints(game, groups) {
+  return groups
+    .map(({ label, actions }) => {
+      const keys = actions.map((id) => keybinds.keys(game, id)[0]).filter(Boolean).map(keyLabel);
+      const buttons = actions.map((id) => keybinds.pad(game, id)[0]).filter(Boolean);
+      const pad = buttons.length > 1 && buttons.every((b) => b.startsWith('DPad')) ? [{ id: 'dpad', label: 'D-pad' }] : [...new Set(buttons)].map((b) => ({ id: b.toLowerCase(), label: b.startsWith('DPad') ? padLabel(b) : b }));
+      return { label, keys, pad };
+    })
+    .filter((hint) => hint.keys.length || hint.pad.length);
 }
