@@ -1457,6 +1457,26 @@
   display: none;
 }
 
+.arcade-minimap.is-expandable {
+  cursor: zoom-in;
+  pointer-events: auto;
+  transition:
+    width 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.arcade-minimap.is-expandable.is-big {
+  width: min(62%, 72vh, 560px);
+  cursor: zoom-out;
+  opacity: 1;
+}
+
+.defuse-panel.is-waiting .defuse-text,
+.defuse-panel.is-waiting .defuse-head ~ :not(.defuse-timer) {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .arcade-arrows {
   position: absolute;
   inset: 0;

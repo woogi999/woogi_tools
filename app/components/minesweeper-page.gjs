@@ -25,8 +25,11 @@ import DefusePuzzle from './defuse-puzzle';
 import { DEFUSED, RUN_MODES, STAMINA_MAX, TIME_RANGE, runStep, stepOn, resolveDefuse, startDefuse } from '../utils/minesweeper';
 import { PUZZLE_TYPES } from '../utils/defuse-puzzles';
 import { CommandError } from '../utils/debug-commands';
-import { MAX_PLAYERS, FIELDS, PLAYER_COLORS, HIDDEN, EXPLODED, DROP_MS, BLAST_RADIUS, BLAST_RADIUS_RANGE, MINE_PERCENT_RANGE, BOT_LEVELS, createGame, dig, toggleFlag, removePlayer, walk, tick, viewOf, botStep, tileAt } from '../utils/minesweeper';
+import { MAX_PLAYERS, FIELDS, PLAYER_COLORS, HIDDEN, EXPLODED, DROP_MS, BLAST_RADIUS, BLAST_RADIUS_RANGE, MINE_PERCENT_RANGE, BOT_LEVELS, createGame, dig, toggleFlag, removePlayer, walk, tick, viewOf, botStep, tileAt, themeOf } from '../utils/minesweeper';
 import { sfx, preloadSounds } from '../utils/sound';
+
+// Minimap number colours (the same as on the tiles).
+const MAP_NUMBER_COLORS = ['', '#2f6fe0', '#2e9e4f', '#e5484d', '#3a3fa8', '#9b2c2c', '#15999a', '#141414', '#7a7a7a'];
 
 const DEFAULTS = { field: 'normal', time: 300, bots: 1, stunOnly: true, blast: false, blastRadius: 2, sprint: false, minePercent: null, botLevel: 'normal', run: 'off', defuse: false };
 const SIM_MS = 50;
@@ -143,33 +146,58 @@ export default class MinesweeperPage extends Component {
 
   getScene = () => this.scene;
 
-  // The whole field in miniature: grass for hidden tiles, sand for dug ones, flags and blown mines, and everyone (you outlined).
-  drawMap = (ctx, size) => {
+  // The whole field in miniature, in the game's theme: covered and dug tiles, the numbers, flags and blown mines, and everyone with their names (you outlined).
+  drawMap = (ctx, size, scale = 1) => {
     const v = this.latest;
     if (!v) return;
+    const theme = themeOf(v.theme);
     const cell = size / Math.max(v.width, v.height);
     const sq = Math.ceil(cell);
     const ox = (size - cell * v.width) / 2;
     const oy = (size - cell * v.height) / 2;
+    // Numbers only once they're big enough to read (always on the enlarged map).
+    const numbers = cell >= 6 * scale;
+    ctx.font = `800 ${Math.round(cell * 0.78)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     for (let y = 0; y < v.height; y++) {
       for (let x = 0; x < v.width; x++) {
         const i = y * v.width + x;
         const c = v.cells[i];
-        ctx.fillStyle = c === DEFUSED ? '#4d8ff0' : c === EXPLODED || (c === HIDDEN && v.mines?.[i]) ? '#2b2b2b' : c === HIDDEN ? (v.flags[i] ? '#e5484d' : (x + y) % 2 ? '#6fbf4a' : '#66b343') : '#e9d5a0';
+        const odd = (x + y) % 2;
+        ctx.fillStyle = c === DEFUSED ? '#4d8ff0' : c === EXPLODED || (c === HIDDEN && v.mines?.[i]) ? '#2b2b2b' : c === HIDDEN ? (v.flags[i] ? '#e5484d' : theme.grass[odd]) : theme.sand[odd];
         ctx.fillRect(ox + x * cell, oy + y * cell, sq, sq);
+        if (numbers && c >= 1 && c <= 8) {
+          ctx.fillStyle = MAP_NUMBER_COLORS[c];
+          ctx.fillText(String(c), ox + (x + 0.5) * cell, oy + (y + 0.54) * cell);
+        }
       }
     }
+    const nameSize = Math.round(Math.max(9 * scale, Math.min(14 * scale, size / 18)));
     for (const p of v.players) {
       if (p.left) continue;
       const mine = p.id === this.myId;
       const pos = mine && this.me ? this.me : p;
+      const px = ox + pos.x * cell;
+      const py = oy + pos.y * cell;
+      const radius = Math.max(3 * scale, cell * 0.7);
       ctx.beginPath();
-      ctx.arc(ox + pos.x * cell, oy + pos.y * cell, Math.max(3, cell * 0.7), 0, Math.PI * 2);
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
       ctx.fillStyle = p.dead ? '#9e9e9e' : PLAYER_COLORS[p.color % PLAYER_COLORS.length];
       ctx.fill();
-      ctx.lineWidth = Math.max(1.5, cell * 0.22);
+      ctx.lineWidth = Math.max(1.5 * scale, cell * 0.22);
       ctx.strokeStyle = mine ? '#ffffff' : '#141414';
       ctx.stroke();
+      // The name above the dot, kept inside the map.
+      ctx.font = `700 ${nameSize}px system-ui, sans-serif`;
+      const half = ctx.measureText(p.name).width / 2 + 2 * scale;
+      const nx = Math.max(half, Math.min(size - half, px));
+      const ny = Math.max(nameSize / 2 + scale, py - radius - nameSize * 0.7);
+      ctx.lineWidth = 3 * scale;
+      ctx.strokeStyle = 'rgb(20 20 20 / 85%)';
+      ctx.strokeText(p.name, nx, ny);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(p.name, nx, ny);
     }
   };
 
@@ -928,7 +956,7 @@ export default class MinesweeperPage extends Component {
             <div class="arcade-speedlines" aria-hidden="true"></div>
             <div class="mines-winded" aria-hidden="true"></div>
             <canvas class="snake-canvas" aria-label="Minefield. Walk with the arrow keys or WASD, dig with Space and flag with F, or use the joystick and buttons on a touch screen." {{this.setupScene}}></canvas>
-            <ArcadeRadar @getScene={{this.getScene}} @drawMap={{this.drawMap}} @hideMap={{this.isOver}} />
+            <ArcadeRadar @getScene={{this.getScene}} @drawMap={{this.drawMap}} @hideMap={{this.isOver}} @expandable={{true}} />
 
             <div class="uno-overlay uno-top-left arcade-scores">
               <div class="mines-hud">

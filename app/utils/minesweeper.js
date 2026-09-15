@@ -14,7 +14,18 @@ export const FIELDS = [
   { id: 'small', label: 'Small', width: 12, height: 12, mines: 22 },
   { id: 'normal', label: 'Normal', width: 16, height: 16, mines: 42 },
   { id: 'large', label: 'Large', width: 22, height: 22, mines: 85 },
+  { id: 'extreme', label: 'Extreme', width: 32, height: 32, mines: 180 },
 ];
+// Scenery, picked at random each game: the island's look plus the colours of covered and dug tiles.
+export const THEMES = [
+  { id: 'meadow', island: 'meadow', grass: ['#8fd16a', '#80c45d'], sand: ['#f3e2b3', '#e9d5a0'] },
+  { id: 'beach', island: 'palms', grass: ['#f2cf7e', '#e6c16c'], sand: ['#fbf1d6', '#f1e4c0'] },
+  { id: 'lagoon', island: 'lagoon', grass: ['#5fc9a8', '#52bb9a'], sand: ['#e8f2dc', '#dbe8cc'] },
+  { id: 'autumn', island: 'autumn', grass: ['#e8964a', '#d9853d'], sand: ['#efdcc0', '#e3cdae'] },
+  { id: 'snow', island: 'snow', grass: ['#e9f3fb', '#d9e8f4'], sand: ['#b9c7d3', '#aebdca'] },
+  { id: 'desert', island: 'desert', grass: ['#d9a15f', '#cc9452'], sand: ['#f6dfae', '#ecd29b'] },
+];
+export const themeOf = (id) => THEMES.find((t) => t.id === id) ?? THEMES[0];
 export const PLAYER_COLORS = ['#ff6b81', '#4d8ff0', '#7ed957', '#f2b90d'];
 
 export const HIDDEN = -1;
@@ -37,7 +48,8 @@ export const WINDED_SPEED = 1.5; // run dry and you trudge at this until stamina
 const DEFUSE_POINTS = 5;
 export const TIME_RANGE = [30, 3600]; // seconds a game can last
 // Time to defuse: 10 seconds for your first mine, 15% less for each one after, never under 2.
-export const defuseMs = (level) => Math.max(2000, Math.round(10000 * 0.85 ** level));
+export const DEFUSE_GRACE_MS = 750; // input's ignored this long when a puzzle comes up
+export const defuseMs =(level) => Math.max(2000, Math.round(10000 * 0.85 ** level));
 export const BLAST_RADIUS = 2; // tiles, with the Explosions stun nearby rule on (the default)
 export const BLAST_RADIUS_RANGE = [1, 6];
 const SPRINT_AT = 0.9; // share of safe tiles uncovered before Last-minute sprint kicks in
@@ -99,6 +111,7 @@ export function createGame(players, { field = 'normal', time = 300, stunOnly = t
     width: w,
     height: h,
     mineCount,
+    theme: THEMES[Math.floor(Math.random() * THEMES.length)].id,
     stunOnly: stunOnly !== false,
     blast: Boolean(blast),
     blastRadius: Math.max(BLAST_RADIUS_RANGE[0], Math.min(BLAST_RADIUS_RANGE[1], Math.round(Number(blastRadius)) || BLAST_RADIUS)),
@@ -270,7 +283,8 @@ export function startDefuse(state, player, x, y, options = {}) {
   const total = defuseMs(level);
   player.moving = false;
   player.running = false;
-  player.defusing = { x, y, ms: total, total, level, seed: Math.floor(Math.random() * 1e9) + 1, type: options.type ?? null };
+  // The clock only starts after a short grace, so a key held from running in can't set it off.
+  player.defusing = { x, y, ms: total + DEFUSE_GRACE_MS, total, level, seed: Math.floor(Math.random() * 1e9) + 1, type: options.type ?? null };
   // Computer players "solve" it after a while, more reliably the better they are.
   if (player.bot) player.defusing.botAt = total * (0.25 + Math.random() * 0.5);
   emit(state, { kind: 'defusing', x, y, by: player.id });
@@ -420,6 +434,7 @@ export function viewOf(state) {
     width: state.width,
     height: state.height,
     mineCount: state.mineCount,
+    theme: state.theme,
     cells: state.cells,
     flags: state.flags,
     mines: over && state.mines ? state.mines : null,

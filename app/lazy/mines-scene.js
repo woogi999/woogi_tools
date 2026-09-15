@@ -2,15 +2,13 @@ import { Group, Mesh, InstancedMesh, Object3D, PlaneGeometry, CylinderGeometry, 
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { buildAvatar, disposeAvatar, reachArms } from './avatar-model';
 import { createStage, createSea, buildIsland, Particles, Tweens, nameTag, startEmote, playEmote, swingLimbs, blobShadow, easeOut, Shockwaves, dizzyStars } from './island-world';
-import { HIDDEN, EXPLODED, DEFUSED, DROP_MS, PLAYER_COLORS } from '../utils/minesweeper';
+import { HIDDEN, EXPLODED, DEFUSED, DROP_MS, PLAYER_COLORS, themeOf } from '../utils/minesweeper';
 
 // Minesweeper on the island: every tile is an instance of one rounded block,
 // pressed into the sand as it's dug. Players are their avatars, dropped in from
 // the sky, walking about the field.
 
 const NUMBER_COLORS = ['', '#2f6fe0', '#2e9e4f', '#e5484d', '#3a3fa8', '#9b2c2c', '#15999a', '#141414', '#7a7a7a'];
-const GRASS = ['#8fd16a', '#80c45d'];
-const SAND = ['#f3e2b3', '#e9d5a0'];
 const AVATAR_SCALE = 0.5;
 const HIDDEN_Y = 0.17;
 const OPEN_Y = -0.06;
@@ -69,20 +67,21 @@ export function createMinesScene(canvas) {
   // ─── The field ─────────────────────────────────────────────────────
 
   function buildField(v) {
-    const key = `${v.width}x${v.height}`;
+    const theme = themeOf(v.theme);
+    const key = `${v.width}x${v.height}:${theme.id}`;
     if (field?.key === key) return;
     if (field) {
       field.group.removeFromParent();
       field.sea.mesh.removeFromParent();
     }
-    const group = buildIsland(kit, { width: v.width, depth: v.height, theme: 'meadow', walls: true, seed: v.width * 13 + 3 });
+    const group = buildIsland(kit, { width: v.width, depth: v.height, theme: theme.island, walls: true, seed: v.width * 13 + 3 });
     const sea = createSea((v.width + 5) / 2, (v.height + 5) / 2);
     const count = v.width * v.height;
     const tiles = new InstancedMesh(new RoundedBoxGeometry(0.94, 0.34, 0.94, 2, 0.07), kit.toon('#ffffff'), count);
     tiles.setColorAt(0, color.set('#ffffff'));
     group.add(tiles);
     scene.add(sea.mesh, group);
-    field = { key, width: v.width, height: v.height, group, sea, tiles, tileY: new Float32Array(count).fill(HIDDEN_Y), shown: Array(count).fill(HIDDEN), animating: new Map(), numbers: new Map(), flags: new Map(), mines: new Map() };
+    field = { key, theme, width: v.width, height: v.height, group, sea, tiles, tileY: new Float32Array(count).fill(HIDDEN_Y), shown: Array(count).fill(HIDDEN), animating: new Map(), numbers: new Map(), flags: new Map(), mines: new Map() };
     for (let i = 0; i < count; i++) placeTile(i, HIDDEN_Y, 1);
     tiles.instanceMatrix.needsUpdate = true;
     tiles.instanceColor.needsUpdate = true;
@@ -102,7 +101,7 @@ export function createMinesScene(canvas) {
     field.tiles.setMatrixAt(i, dummy.matrix);
     const cell = field.shown[i];
     const odd = (x + row) % 2;
-    field.tiles.setColorAt(i, color.set(cell === HIDDEN ? GRASS[odd] : cell === EXPLODED ? '#6b5a4f' : cell === DEFUSED ? '#a9c4d8' : SAND[odd]));
+    field.tiles.setColorAt(i, color.set(cell === HIDDEN ? field.theme.grass[odd] : cell === EXPLODED ? '#6b5a4f' : cell === DEFUSED ? '#a9c4d8' : field.theme.sand[odd]));
   }
 
   // Tiles that have just been uncovered sink in a ripple out from where the dig was.

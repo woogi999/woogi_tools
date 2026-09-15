@@ -231,6 +231,9 @@ export const THEMES = {
   palms: { tiles: ['#f6e4ae', '#ecd699'], lip: '#d9bd7c', sand: '#f3dea4', wet: '#d6ba7a' },
   lagoon: { tiles: ['#a1dc78', '#92d06c'], lip: '#74b150', sand: '#f3dea4', wet: '#d6ba7a' },
   reef: { tiles: ['#f4e1a8', '#e9d293'], lip: '#d5b977', sand: '#f0d89a', wet: '#cfb070' },
+  autumn: { tiles: ['#e8964a', '#d9853d'], lip: '#b8672e', sand: '#e9cfa3', wet: '#c9a877' },
+  snow: { tiles: ['#e9f3fb', '#d9e8f4'], lip: '#a9bccb', sand: '#f4f8fb', wet: '#cddbe6' },
+  desert: { tiles: ['#d9a15f', '#cc9452'], lip: '#b07a3e', sand: '#f0cf8e', wet: '#d4ab66' },
 };
 
 function checkerTexture(width, depth, [a, b]) {

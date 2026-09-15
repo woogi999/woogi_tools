@@ -1,18 +1,30 @@
 import Component from '@glimmer/component';
+import { tracked } from '@glimmer/tracking';
+import { on } from '@ember/modifier';
 import { modifier } from 'ember-modifier';
 
 // The minimap in the top-right corner and arrows at the screen edge pointing to
 // players you can't see. Both are drawn straight to the DOM each frame, outside tracking.
 //
 //   @getScene: () => scene with markers() -> [{ id, name, color, x, y, behind }] (x, y in -1..1)
-//   @drawMap:  (ctx, size) => void, drawing the whole field into a size×size square
+//   @drawMap:  (ctx, size, scale) => void, drawing the whole field into a size×size square (scale: canvas pixels per CSS pixel)
 //   @hideMap:  hides the minimap (the arrows stay)
+//   @expandable: tapping the minimap blows it up (and tapping again shrinks it)
 
 const MAP_EVERY_MS = 100;
 const EDGE_X = 0.9;
 const EDGE_Y = 0.82;
 
 export default class ArcadeRadar extends Component {
+  @tracked big = false;
+  redraw = false;
+
+  toggleBig = () => {
+    if (!this.args.expandable) return;
+    this.big = !this.big;
+    this.redraw = true;
+  };
+
   setup = modifier((root) => {
     const canvas = root.querySelector('.arcade-minimap');
     const layer = root.querySelector('.arcade-arrows');
@@ -20,12 +32,14 @@ export default class ArcadeRadar extends Component {
     const arrows = new Map(); // id -> element
     let mapAt = 0;
     let frame = requestAnimationFrame(function step(now) {
-      if (now - mapAt > MAP_EVERY_MS && canvas.offsetWidth) {
+      if ((this.redraw || now - mapAt > MAP_EVERY_MS) && canvas.offsetWidth) {
         mapAt = now;
-        const size = Math.round(canvas.offsetWidth * Math.min(2, window.devicePixelRatio || 1));
+        this.redraw = false;
+        const scale = Math.min(2, window.devicePixelRatio || 1);
+        const size = Math.round(canvas.offsetWidth * scale);
         if (canvas.width !== size) canvas.width = canvas.height = size;
         ctx.clearRect(0, 0, size, size);
-        this.args.drawMap?.(ctx, size);
+        this.args.drawMap?.(ctx, size, scale);
       }
       this.placeArrows(layer, arrows);
       frame = requestAnimationFrame(step.bind(this));
@@ -74,7 +88,8 @@ export default class ArcadeRadar extends Component {
   <template>
     <div class="arcade-radar" {{this.setup}}>
       <div class="arcade-arrows" aria-hidden="true"></div>
-      <canvas class="uno-overlay arcade-minimap {{if @hideMap 'is-hidden'}}" aria-hidden="true"></canvas>
+      {{! template-lint-disable no-invalid-interactive }}
+      <canvas class="uno-overlay arcade-minimap {{if @hideMap 'is-hidden'}} {{if @expandable 'is-expandable'}} {{if this.big 'is-big'}}" aria-hidden="true" {{on "click" this.toggleBig}}></canvas>
     </div>
   </template>
 }
