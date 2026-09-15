@@ -732,10 +732,14 @@ export function createUnoScene(canvas) {
   let deckFull = 1;
   let deckLevel = 1;
   let deckGoal = 1;
+  // Each card is at least this thick, so a deck with a few cards left still clearly has cards in it.
+  const CARD_THICKNESS = 0.004;
 
   function setDeckLevel(count) {
     deckFull = Math.max(deckFull, count, 1);
-    deckGoal = Math.max(0, Math.min(1, count / deckFull));
+    const share = count / deckFull;
+    const byCards = (DECK_MIN + count * CARD_THICKNESS) / DECK_HEIGHT;
+    deckGoal = count <= 0 ? 0 : Math.max(0, Math.min(1, Math.max(share, byCards)));
   }
 
   function animateDeck(dt) {
@@ -1681,15 +1685,21 @@ export function createUnoScene(canvas) {
     const reshuffle = fresh.find((e) => e.type === 'reshuffle');
     const before = reshuffle ? fresh.filter((e) => e.id < reshuffle.id) : fresh;
     const after = reshuffle ? fresh.filter((e) => e.id > reshuffle.id) : [];
-    const reshuffleAt = reshuffle && before.some((e) => e.type === 'play') ? 450 : 0;
-    const waitForDeck = reshuffle ? reshuffleAt + RESHUFFLE_MS : 0;
+    // The reshuffle starts once whatever came before it has landed: a played card, then any cards drawn.
+    const playedBefore = before.some((e) => e.type === 'play');
+    const drawsBefore = before.filter((e) => e.type === 'draw');
+    const drawLanding = drawsBefore.reduce((longest, e) => Math.max(longest, e.reason === 'centre' ? 420 : (playedBefore && e.reason === 'hit' ? 450 : 0) + (Math.min(e.count, 6) - 1) * 90 + 440), 0);
+    const reshuffleAt = reshuffle ? Math.max(playedBefore ? 450 : 0, drawLanding) : 0;
+    // Only what comes after the reshuffle (draws that needed the new deck) waits for it.
+    const waitForDeck = reshuffle && after.length ? reshuffleAt + RESHUFFLE_MS : 0;
     const kept = fresh.some((e) => e.type === 'keep' && e.player === me);
     const drewToCentre = fresh.some((e) => e.type === 'draw' && e.reason === 'centre');
     // A card straight into your hand shouldn't appear until the cards flying from the
     // deck actually land there — otherwise you'd have it before you'd taken it.
     const myDraw = fresh.find((e) => e.type === 'draw' && e.reason !== 'centre' && e.player === me);
-    const drawnDelay = myDraw ? waitForDeck + (myDraw.reason === 'hit' && !reshuffle && fresh.some((e) => e.type === 'play') ? 450 : 0) + (Math.min(myDraw.count, 6) - 1) * 90 + 440 : 0;
-    syncHand(next, { kept, keptDelay: (drewToCentre ? 450 : 0) + waitForDeck, drawnDelay });
+    const myDrawWaits = Boolean(myDraw) && after.includes(myDraw);
+    const drawnDelay = myDraw ? (myDrawWaits ? waitForDeck : 0) + (myDraw.reason === 'hit' && !myDrawWaits && fresh.some((e) => e.type === 'play') ? 450 : 0) + (Math.min(myDraw.count, 6) - 1) * 90 + 440 : 0;
+    syncHand(next, { kept, keptDelay: (drewToCentre ? 450 : 0) + (after.some((e) => e.type === 'draw' && e.reason === 'centre') ? waitForDeck : 0), drawnDelay });
     let playedTop = false;
     for (const event of fresh) if (event.type === 'play' && event.card.id === next.top.id) playedTop = true;
     playEvents(before, true);
