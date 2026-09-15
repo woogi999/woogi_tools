@@ -350,6 +350,17 @@ function balancedPick(state, { index, reason, streak = 0 }) {
   return weights.length - 1;
 }
 
+// The moment the last card is drawn, the pile (all but its top card) is shuffled back in,
+// so the deck never sits empty. Called after the draw is announced, so the table shows
+// the draw first and the reshuffle after it.
+function refillIfEmpty(state) {
+  if (state.drawPile.length || state.discard.length < 2) return;
+  const top = state.discard.pop();
+  state.drawPile = shuffle(state.discard);
+  state.discard = [top];
+  emit(state, { type: 'reshuffle', count: state.drawPile.length });
+}
+
 function drawCards(state, index, count, reason) {
   const player = state.players[index];
   let drawn = 0;
@@ -363,6 +374,7 @@ function drawCards(state, index, count, reason) {
     resetUno(player);
     emit(state, { type: 'draw', player: index, count: drawn, reason });
   }
+  refillIfEmpty(state);
   return drawn;
 }
 
@@ -611,6 +623,7 @@ export function draw(state, index) {
   state.drewThisTurn++;
   emit(state, { type: 'draw', player: index, count: 1, reason: 'centre' });
   note(state, `${player.name} drew a card.`);
+  refillIfEmpty(state);
   // A card that can't be played has nothing to decide: it goes into the hand.
   if (!canPlay(state, card)) keep(state, index);
   return true;
