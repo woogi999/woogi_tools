@@ -1,17 +1,35 @@
 // Woono (our Uno-style card game) rules, kept free of any rendering. The host runs this (games against the
 // computer are just a lobby no one else joined) and sends each player only
 // what they're allowed to see: their own hand and everyone else's card counts.
+//
+// Draw cards and (with Block & reflect on) Skips don't land straight away:
+// they become a *pending attack* aimed at one player, who answers it on their
+// turn. They can stack a draw card on it, block it with a Skip, reflect it
+// back with a Reverse, challenge a wild draw card, or take it.
 
 export const COLORS = ['red', 'yellow', 'green', 'blue'];
 export const MAX_PLAYERS = 8;
 const HISTORY = 6;
 const EVENT_HISTORY = 24;
-const DRAW_UNTIL_LIMIT = 40;
+export const DRAW_UNTIL_LIMIT = 40;
+
+// Action cards that can be switched off in the lobby. Numbers are always in.
+export const CARD_TYPES = [
+  { id: 'skip', label: 'Skip', hint: 'The next player misses a turn.' },
+  { id: 'reverse', label: 'Reverse', hint: 'Play turns the other way.' },
+  { id: 'draw2', label: 'Draw Two', hint: 'The next player draws 2.' },
+  { id: 'wild', label: 'Wild', hint: 'Pick the colour.' },
+  { id: 'wild4', label: 'Wild Draw Four', hint: 'Pick the colour, and the next player draws 4.' },
+  { id: 'target2', label: 'Targeted Draw Two', hint: 'You choose who draws 2.' },
+  { id: 'target4', label: 'Targeted Wild Draw Four', hint: 'Pick the colour, and choose who draws 4.' },
+  { id: 'draw99', label: 'Wild Draw 99', hint: 'One per deck. Good luck.' },
+];
+export const DEFAULT_CARDS = { skip: true, reverse: true, draw2: true, wild: true, wild4: true, target2: true, target4: true, draw99: false };
 
 // House rules, all set in the lobby.
 export const DEFAULT_RULES = {
   handSize: 7,
-  // 'off' | 'same' (+2 on +2, +4 on +4) | 'mixed' (any draw card on any other)
+  // 'off' | 'same' (only the same amount) | 'up' (the same amount or more) | 'mixed' (any draw card)
   stacking: 'off',
   // Play a 7 to swap hands with a player of your choice.
   sevens: false,
@@ -24,16 +42,25 @@ export const DEFAULT_RULES = {
   unoPenalty: 2,
   // Seconds each player gets to move; 0 means no limit.
   turnTime: 0,
-  // Challenge a Wild Draw Four: if the player had a card of the colour in play, they draw instead.
+  // Challenge a wild draw card: if the player had a card of the colour in play, they draw instead.
   challenge: false,
+  // Answer a draw card or a Skip aimed at you with a Skip (cancel it) or a Reverse (send it back).
+  defense: false,
+  cards: DEFAULT_CARDS,
 };
 
+export const STACKING_MODES = ['off', 'same', 'up', 'mixed'];
 export const TURN_TIMES = [0, 10, 15, 30, 60];
 // A failed challenge costs the challenger this many cards on top of the draw.
 export const CHALLENGE_EXTRA = 2;
 
-const LABELS = { skip: 'Skip', reverse: 'Reverse', draw2: 'Draw Two', wild: 'Wild', wild4: 'Wild Draw Four' };
+const LABELS = { skip: 'Skip', reverse: 'Reverse', draw2: 'Draw Two', wild: 'Wild', wild4: 'Wild Draw Four', target2: 'Targeted Draw Two', target4: 'Targeted Wild Draw Four', draw99: 'Wild Draw 99' };
 const capitalise = (s) => s[0].toUpperCase() + s.slice(1);
+const DRAW_AMOUNT = { draw2: 2, wild4: 4, target2: 2, target4: 4, draw99: 99 };
+
+export const drawAmount = (card) => DRAW_AMOUNT[card?.value] ?? 0;
+export const isTargeted = (card) => card?.value === 'target2' || card?.value === 'target4';
+const isWildDraw = (card) => !card.color && drawAmount(card) > 0;
 
 export function cardName(card) {
   if (!card.color) return LABELS[card.value];
@@ -53,7 +80,7 @@ export function normaliseRules(rules) {
   const r = { ...DEFAULT_RULES, ...rules };
   return {
     handSize: clampInt(r.handSize, HAND_SIZE_RANGE, DEFAULT_RULES.handSize),
-    stacking: ['off', 'same', 'mixed'].includes(r.stacking) ? r.stacking : 'off',
+    stacking: STACKING_MODES.includes(r.stacking) ? r.stacking : 'off',
     sevens: Boolean(r.sevens),
     zeros: Boolean(r.zeros),
     jumpIn: Boolean(r.jumpIn),
@@ -61,25 +88,34 @@ export function normaliseRules(rules) {
     unoPenalty: clampInt(r.unoPenalty, PENALTY_RANGE, DEFAULT_RULES.unoPenalty),
     turnTime: TURN_TIMES.includes(Number(r.turnTime)) ? Number(r.turnTime) : 0,
     challenge: Boolean(r.challenge),
+    defense: Boolean(r.defense),
+    cards: Object.fromEntries(CARD_TYPES.map(({ id }) => [id, typeof r.cards?.[id] === 'boolean' ? r.cards[id] : DEFAULT_CARDS[id]])),
   };
 }
 
-// The standard 108-card deck: per colour one 0, two of each 1–9, Skip, Reverse
-// and Draw Two; plus four Wilds and four Wild Draw Fours. Big tables and big
-// starting hands shuffle in more decks.
-export function buildDeck(copies = 1) {
-  const cards = [];
+// The standard deck: per colour one 0, two of each 1–9, two each of Skip,
+// Reverse and Draw Two, and one Targeted Draw Two; plus four Wilds, four Wild
+// Draw Fours, two Targeted Wild Draw Fours and a single Wild Draw 99. Cards
+// switched off are left out. Big tables and big hands shuffle in more decks.
+export function buildDeck(copies = 1, cards = DEFAULT_CARDS) {
+  const out = [];
   let id = 0;
+  const add = (color, value, count = 1) => {
+    if (value in DEFAULT_CARDS && !cards[value]) return;
+    for (let i = 0; i < count; i++) out.push({ id: id++, color, value });
+  };
   for (let copy = 0; copy < copies; copy++) {
     for (const color of COLORS) {
-      cards.push({ id: id++, color, value: '0' });
-      for (const value of ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2']) {
-        cards.push({ id: id++, color, value }, { id: id++, color, value });
-      }
+      add(color, '0');
+      for (const value of ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2']) add(color, value, 2);
+      add(color, 'target2');
     }
-    for (let i = 0; i < 4; i++) cards.push({ id: id++, color: null, value: 'wild' }, { id: id++, color: null, value: 'wild4' });
+    add(null, 'wild', 4);
+    add(null, 'wild4', 4);
+    add(null, 'target4', 2);
+    add(null, 'draw99');
   }
-  return cards;
+  return out;
 }
 
 function shuffle(cards) {
@@ -93,23 +129,32 @@ function shuffle(cards) {
 // players: [{ id, name, kind, avatar }] where kind is 'human' | 'bot'.
 export function createGame(players, rules = DEFAULT_RULES) {
   const r = normaliseRules(rules);
+  const perDeck = buildDeck(1, r.cards).length;
   const state = {
     // Tells screens a new game from a rematch of the same players.
     gameId: Math.random().toString(36).slice(2, 10),
     rules: r,
-    players: players.map((p) => ({ ...p, hand: [], calledUno: false })),
+    // uno: 'none' | 'armed' (pressed with two cards, said on the next play) | 'said'.
+    // exposed: down to one card without saying it, so anyone can call them out.
+    players: players.map((p) => ({ ...p, hand: [], uno: 'none', exposed: false })),
     // Enough decks that the deal leaves at least ~40 cards to draw from.
-    drawPile: shuffle(buildDeck(Math.max(1, Math.ceil((players.length * r.handSize + 40) / 108)))),
+    drawPile: shuffle(buildDeck(Math.max(1, Math.ceil((players.length * r.handSize + 40) / perDeck)), r.cards)),
     discard: [],
     color: null,
     turn: Math.floor(Math.random() * players.length),
     direction: 1,
-    drawnCardId: null, // after drawing a playable card, only that card may be played (or pass)
-    pendingDraw: 0, // stacked +2/+4 cards the player to move must answer or draw
-    pendingType: null,
+    // A card just drawn, face up in front of the player whose turn it is, waiting for "play it" or "keep it".
+    drawn: null,
+    // Cards drawn so far this turn.
+    drewThisTurn: 0,
+    // { kind: 'draw' | 'skip', amount, value, from, target, resume, offender, hadMatch, prevColor }
+    pending: null,
+    // { player, card, color, target, ... }: a wild or targeted card on the pile, waiting for its colour or target.
+    choice: null,
     swapPending: null, // a player who played a 7 and still has to pick who to swap with
-    challengeable: null, // { offender, hadMatch }: the Wild Draw Four the player to move may challenge
     winner: null,
+    turnId: 0,
+    version: 0,
     log: [],
     events: [],
     seq: 0,
@@ -125,27 +170,47 @@ export function createGame(players, rules = DEFAULT_RULES) {
   return state;
 }
 
+// Simulated games (the computer thinking ahead) skip the log and the animations.
 function note(state, text) {
+  if (state.sim) return;
   state.log = [...state.log.slice(-(HISTORY - 1)), { id: ++state.seq, text }];
 }
 
 // Things that happened, for the table to animate. Public information only.
 function emit(state, event) {
+  if (state.sim) return;
   state.events = [...state.events.slice(-(EVENT_HISTORY - 1)), { id: ++state.seq, ...event }];
 }
 
 export const topCard = (state) => state.discard[state.discard.length - 1];
+const name = (state, i) => state.players[i].name;
 
+// Whether a card can go on the pile in an ordinary turn.
 export function canPlay(state, card) {
   const top = topCard(state);
-  if (state.pendingDraw) {
-    // A Wild Draw Four waiting on a challenge, with no stacking: take it or challenge it.
-    if (state.rules.stacking === 'off') return false;
-    if (card.value === 'wild4') return state.rules.stacking === 'mixed' || state.pendingType === 'wild4';
-    if (card.value === 'draw2') return state.pendingType === 'draw2' || (state.rules.stacking === 'mixed' && card.color === state.color);
-    return false;
-  }
   return !card.color || card.color === state.color || card.value === top.value;
+}
+
+// Whether a card answers the attack aimed at its holder.
+export function canAnswer(state, card) {
+  const pending = state.pending;
+  const rules = state.rules;
+  if (!pending) return false;
+  if (rules.defense && (card.value === 'skip' || card.value === 'reverse')) return true;
+  const amount = drawAmount(card);
+  if (pending.kind !== 'draw' || !amount) return false;
+  // A coloured draw card worth something different still has to follow the colour.
+  if (card.color && amount !== pending.value && card.color !== state.color) return false;
+  switch (rules.stacking) {
+    case 'same':
+      return amount === pending.value;
+    case 'up':
+      return amount >= pending.value;
+    case 'mixed':
+      return true;
+    default:
+      return false;
+  }
 }
 
 // An exact copy of the top card, which Jump-In lets anyone play at any time.
@@ -154,12 +219,42 @@ function isJumpIn(state, card) {
   return state.rules.jumpIn && Boolean(top.color) && card.color === top.color && card.value === top.value;
 }
 
+const handPlayable = (state, index) => state.players[index].hand.some((c) => canPlay(state, c));
+
 export function playableIds(state, index) {
-  if (state.winner !== null || state.swapPending !== null) return [];
+  if (state.winner !== null || state.swapPending !== null || state.choice) return [];
   const hand = state.players[index].hand;
-  if (state.turn !== index) return hand.filter((c) => isJumpIn(state, c)).map((c) => c.id);
-  if (state.drawnCardId !== null) return hand.filter((c) => c.id === state.drawnCardId && canPlay(state, c)).map((c) => c.id);
+  if (state.pending) return state.pending.target === index ? hand.filter((c) => canAnswer(state, c)).map((c) => c.id) : [];
+  if (state.turn !== index) return state.drawn ? [] : hand.filter((c) => isJumpIn(state, c)).map((c) => c.id);
+  if (state.drawn) return canPlay(state, state.drawn) ? [state.drawn.id] : [];
   return hand.filter((c) => canPlay(state, c)).map((c) => c.id);
+}
+
+// Draw from the deck: to take a pending draw, for your turn's first card, or (drawing until you can play) another.
+export function canDrawNow(state, index) {
+  if (state.winner !== null || state.swapPending !== null || state.choice || state.turn !== index || state.drawn) return false;
+  if (state.pending) return state.pending.target === index;
+  if (!state.drewThisTurn) return true;
+  return state.rules.drawUntilPlayable && !handPlayable(state, index) && state.drewThisTurn < DRAW_UNTIL_LIMIT && state.drawPile.length + state.discard.length > 1;
+}
+
+// After drawing, you can pass. Drawing until you can play, you can't: a card has to go down
+// (unless the deck has run dry with nothing to play).
+export function canPassNow(state, index) {
+  if (state.winner !== null || state.choice || state.turn !== index || state.pending || state.drawn || !state.drewThisTurn || canDrawNow(state, index)) return false;
+  return !state.rules.drawUntilPlayable || !handPlayable(state, index);
+}
+
+export function canChallengeNow(state, index) {
+  const pending = state.pending;
+  return state.winner === null && !state.choice && Boolean(pending) && pending.kind === 'draw' && pending.offender !== null && pending.target === index;
+}
+
+// Woono can be pressed ahead with two cards left, only when one of them can go down right now.
+export function canArmUno(state, index) {
+  const player = state.players[index];
+  if (state.winner !== null || !player || player.hand.length !== 2 || player.uno !== 'none') return false;
+  return playableIds(state, index).some((id) => player.hand.some((c) => c.id === id));
 }
 
 export const nextIndex = (state, steps = 1, from = state.turn) => {
@@ -167,107 +262,190 @@ export const nextIndex = (state, steps = 1, from = state.turn) => {
   return (((from + state.direction * steps) % n) + n) % n;
 };
 
-function advance(state, steps = 1) {
-  state.turn = nextIndex(state, steps);
-  state.drawnCardId = null;
-  state.turnId = (state.turnId ?? 0) + 1;
+function setTurn(state, index) {
+  state.turn = index;
+  state.drawn = null;
+  state.drewThisTurn = 0;
+  state.turnId++;
 }
 
-function drawCards(state, index, count) {
-  const drawn = [];
-  for (let i = 0; i < count; i++) {
-    if (!state.drawPile.length) {
-      // Reshuffle everything under the top card back into the draw pile.
-      const top = state.discard.pop();
-      state.drawPile = shuffle(state.discard);
-      state.discard = [top];
-      if (!state.drawPile.length) break;
-    }
-    const card = state.drawPile.pop();
-    state.players[index].hand.push(card);
-    drawn.push(card);
+const advance = (state, steps = 1) => setTurn(state, nextIndex(state, steps));
+
+const resetUno = (player) => {
+  player.uno = 'none';
+  player.exposed = false;
+};
+
+function takeFromPile(state) {
+  if (!state.drawPile.length) {
+    // Reshuffle everything under the top card back into the draw pile.
+    const top = state.discard.pop();
+    state.drawPile = shuffle(state.discard);
+    state.discard = [top];
   }
-  if (drawn.length) emit(state, { type: 'draw', player: index, count: drawn.length });
+  return state.drawPile.pop();
+}
+
+function drawCards(state, index, count, reason) {
+  const player = state.players[index];
+  let drawn = 0;
+  for (let i = 0; i < count; i++) {
+    const card = takeFromPile(state);
+    if (!card) break;
+    player.hand.push(card);
+    drawn++;
+  }
+  if (drawn) {
+    resetUno(player);
+    emit(state, { type: 'draw', player: index, count: drawn, reason });
+  }
   return drawn;
 }
 
 // Each action returns true if it was allowed.
 
-export function play(state, index, cardId, chosenColor) {
+const validTarget = (state, target) => target !== null && target !== undefined && target !== '' && Boolean(state.players[Number(target)]);
+
+// Plays a card. A wild card's colour and a targeted card's target can come
+// with it (the computer players do that) or be picked afterwards, once the
+// card is down (see `choose`): its effect waits until they're picked.
+export function play(state, index, cardId, chosenColor, chosenTarget) {
   if (!playableIds(state, index).includes(cardId)) return false;
   const player = state.players[index];
-  const card = player.hand.find((c) => c.id === cardId);
-  if (!card.color && !COLORS.includes(chosenColor)) return false;
-  // Whether this Wild Draw Four was played while holding the colour in play (which a challenge catches).
-  const hadMatch = card.value === 'wild4' && player.hand.some((c) => c.id !== card.id && c.color === state.color);
-  state.challengeable = null;
+  const fromCentre = state.drawn?.id === cardId;
+  const card = fromCentre ? state.drawn : player.hand.find((c) => c.id === cardId);
+  const answering = state.pending;
+  // Whether a wild draw card was played while holding the colour in play (which a challenge catches).
+  const prevColor = state.color;
+  const hadMatch = isWildDraw(card) && player.hand.some((c) => c.id !== card.id && c.color === prevColor);
 
-  if (state.turn !== index) {
+  if (!answering && state.turn !== index) {
     note(state, `${player.name} jumped in!`);
-    state.turn = index;
-    state.drawnCardId = null;
-    state.turnId = (state.turnId ?? 0) + 1;
+    setTurn(state, index);
   }
 
-  player.hand = player.hand.filter((c) => c.id !== cardId);
+  if (fromCentre) state.drawn = null;
+  else player.hand = player.hand.filter((c) => c.id !== cardId);
   state.discard.push(card);
-  state.color = card.color ?? chosenColor;
-  note(state, `${player.name} played ${cardName(card)}${card.color ? '' : `, chose ${chosenColor}`}.`);
-  emit(state, { type: 'play', player: index, card, color: state.color });
+  if (card.color) state.color = card.color;
+  note(state, `${player.name} played ${cardName(card)}.`);
+  emit(state, { type: 'play', player: index, card, color: card.color, fromCentre });
 
   if (!player.hand.length) {
     state.winner = index;
-    state.pendingDraw = 0;
+    state.pending = null;
+    resetUno(player);
     note(state, `${player.name} won!`);
     emit(state, { type: 'win', player: index });
     return true;
   }
 
-  // Down to one card without calling UNO: draw the penalty.
-  if (player.hand.length === 1 && !player.calledUno) {
-    drawCards(state, index, state.rules.unoPenalty);
-    note(state, `${player.name} forgot to call Woono and drew ${state.rules.unoPenalty}.`);
+  // Down to one card: say Woono if it was pressed in time, otherwise anyone can call them out until they say it.
+  if (player.hand.length === 1) {
+    if (player.uno === 'armed') {
+      player.uno = 'said';
+      note(state, `${player.name}: Woono!`);
+      emit(state, { type: 'uno', player: index });
+    } else if (player.uno !== 'said') {
+      player.exposed = true;
+    }
+  } else if (player.hand.length > 2) {
+    resetUno(player);
   }
-  player.calledUno = false;
 
+  const context = { answering, hadMatch, prevColor };
+  const color = COLORS.includes(chosenColor) ? chosenColor : null;
+  const target = validTarget(state, chosenTarget) ? Number(chosenTarget) : null;
+  if ((!card.color && !color) || (isTargeted(card) && target === null)) {
+    state.choice = { player: index, card, color: card.color ? null : color, target, ...context };
+    return true;
+  }
+  resolvePlay(state, index, card, color, target, context);
+  return true;
+}
+
+// Picks the colour of the wild card just played, or who a targeted card is aimed at (anyone, yourself included).
+export function choose(state, index, { color, target } = {}) {
+  const choice = state.choice;
+  if (!choice || choice.player !== index || state.winner !== null) return false;
+  let changed = false;
+  let pickedColor = false;
+  if (!choice.card.color && !choice.color && COLORS.includes(color)) {
+    choice.color = color;
+    changed = pickedColor = true;
+  }
+  const colorDone = choice.card.color || choice.color;
+  if (colorDone && isTargeted(choice.card) && choice.target === null && validTarget(state, target)) {
+    choice.target = Number(target);
+    changed = true;
+  }
+  if (!changed) return false;
+  if (!colorDone) return true;
+  if (pickedColor && isTargeted(choice.card) && choice.target === null) {
+    // Colour picked; the target is next.
+    state.color = choice.color;
+    return true;
+  }
+  state.choice = null;
+  resolvePlay(state, index, choice.card, choice.color, choice.target, choice);
+  return true;
+}
+
+// What a card does once it's down (and its colour and target are known).
+function resolvePlay(state, index, card, chosenColor, target, { answering, hadMatch, prevColor }) {
+  const player = state.players[index];
+  if (!card.color) {
+    state.color = chosenColor;
+    note(state, `${player.name} chose ${chosenColor}.`);
+    emit(state, { type: 'color', player: index, color: chosenColor });
+  }
+  if (isTargeted(card)) note(state, `${player.name} aimed it at ${target === index ? 'themselves' : name(state, target)}.`);
   const rules = state.rules;
+  if (answering) {
+    if (rules.defense && card.value === 'skip') {
+      state.pending = null;
+      note(state, `${player.name} blocked it.`);
+      emit(state, { type: 'block', player: index, from: answering.from });
+      setTurn(state, answering.resume !== index ? answering.resume : nextIndex(state, 1, index));
+      return true;
+    }
+    if (rules.defense && card.value === 'reverse') {
+      state.direction *= -1;
+      state.pending = { ...answering, from: index, target: answering.from, resume: nextIndex(state, 1, index), offender: null, hadMatch: false };
+      note(state, `${player.name} sent it back to ${name(state, answering.from)}!`);
+      emit(state, { type: 'reflect', player: index, target: answering.from, kind: answering.kind, amount: answering.amount });
+      setTurn(state, answering.from);
+      autoResolve(state);
+      return true;
+    }
+    attack(state, index, card, target, { hadMatch, prevColor });
+    return true;
+  }
+
   const twoPlayers = state.players.length === 2;
   if (card.value === 'skip') {
-    const skipped = nextIndex(state);
-    note(state, `${state.players[skipped].name} is skipped.`);
-    emit(state, { type: 'skip', player: skipped });
-    advance(state, 2);
+    const victim = nextIndex(state, 1, index);
+    if (rules.defense) {
+      state.pending = { kind: 'skip', amount: 0, value: 0, from: index, target: victim, resume: nextIndex(state, 1, victim), offender: null, hadMatch: false };
+      setTurn(state, victim);
+      autoResolve(state);
+    } else {
+      note(state, `${name(state, victim)} is skipped.`);
+      emit(state, { type: 'skip', player: victim, from: index });
+      advance(state, 2);
+    }
   } else if (card.value === 'reverse') {
-    emit(state, { type: 'reverse' });
+    emit(state, { type: 'reverse', player: index });
     if (twoPlayers) advance(state, 2); // with two players, Reverse works like Skip
     else {
       state.direction *= -1;
       advance(state);
     }
-  } else if (card.value === 'draw2' || card.value === 'wild4') {
-    const count = card.value === 'draw2' ? 2 : 4;
-    if (card.value === 'wild4' && rules.challenge) {
-      // The next player gets to decide: take the cards, challenge, or stack if stacking is on.
-      state.pendingDraw += count;
-      state.pendingType = card.value;
-      advance(state);
-      state.challengeable = { offender: index, hadMatch };
-      note(state, `${state.players[state.turn].name} can take ${state.pendingDraw} or challenge.`);
-    } else if (rules.stacking !== 'off') {
-      state.pendingDraw += count;
-      state.pendingType = card.value;
-      advance(state);
-      note(state, `${state.players[state.turn].name} must stack or draw ${state.pendingDraw}.`);
-    } else {
-      const victim = nextIndex(state);
-      drawCards(state, victim, count);
-      note(state, `${state.players[victim].name} draws ${count} and is skipped.`);
-      emit(state, { type: 'skip', player: victim });
-      advance(state, 2);
-    }
+  } else if (drawAmount(card)) {
+    attack(state, index, card, target, { hadMatch, prevColor });
   } else if (card.value === '7' && rules.sevens) {
     state.swapPending = index;
-    state.turnId = (state.turnId ?? 0) + 1;
+    state.turnId++;
     note(state, `${player.name} gets to swap hands with someone.`);
   } else if (card.value === '0' && rules.zeros) {
     rotateHands(state);
@@ -278,11 +456,53 @@ export function play(state, index, cardId, chosenColor) {
   return true;
 }
 
+// A draw card: aimed at the next player (or the chosen one), added to anything already stacked.
+function attack(state, index, card, chosenTarget, { hadMatch, prevColor }) {
+  const rules = state.rules;
+  const amount = drawAmount(card);
+  const total = (state.pending?.amount ?? 0) + amount;
+  const victim = isTargeted(card) ? chosenTarget : nextIndex(state, 1, index);
+  const challengeable = rules.challenge && isWildDraw(card);
+  const pending = { kind: 'draw', amount: total, value: amount, from: index, target: victim, resume: nextIndex(state, 1, index), offender: challengeable ? index : null, hadMatch, prevColor };
+  emit(state, { type: 'attack', player: index, target: victim, amount: total });
+  state.pending = pending;
+  if (rules.stacking === 'off' && !rules.defense && !challengeable) {
+    takePending(state);
+    return;
+  }
+  setTurn(state, victim);
+  autoResolve(state);
+}
+
+// The attack lands: the target draws (or misses their turn), and play moves on.
+function takePending(state) {
+  const pending = state.pending;
+  state.pending = null;
+  const victim = pending.target;
+  if (pending.kind === 'draw') {
+    const drew = drawCards(state, victim, pending.amount, 'hit');
+    note(state, `${name(state, victim)} draws ${drew}${pending.resume === victim ? ' and is skipped' : ''}.`);
+  } else {
+    note(state, `${name(state, victim)} is skipped.`);
+    emit(state, { type: 'skip', player: victim, from: pending.from });
+  }
+  setTurn(state, pending.resume !== victim ? pending.resume : nextIndex(state, 1, victim));
+}
+
+// An attack its target can't answer (no card to stack, block or reflect with, nothing to challenge) lands straight away.
+function autoResolve(state) {
+  while (state.pending && state.winner === null) {
+    const target = state.pending.target;
+    if (state.pending.offender !== null || playableIds(state, target).length) return;
+    takePending(state);
+  }
+}
+
 function rotateHands(state) {
   const hands = state.players.map((p) => p.hand);
   state.players.forEach((p, i) => {
     p.hand = hands[nextIndex(state, -1, i)];
-    p.calledUno = false;
+    resetUno(p);
   });
   note(state, `Everyone passes their hand ${state.direction === 1 ? 'to the left' : 'to the right'}.`);
   emit(state, { type: 'rotate', direction: state.direction });
@@ -293,8 +513,8 @@ export function swapWith(state, index, target) {
   const me = state.players[index];
   const them = state.players[target];
   [me.hand, them.hand] = [them.hand, me.hand];
-  me.calledUno = false;
-  them.calledUno = false;
+  resetUno(me);
+  resetUno(them);
   state.swapPending = null;
   note(state, `${me.name} swapped hands with ${them.name}.`);
   emit(state, { type: 'swap', a: index, b: target });
@@ -302,99 +522,205 @@ export function swapWith(state, index, target) {
   return true;
 }
 
+// Takes a pending attack, or draws one card into the middle for the player to play or keep.
 export function draw(state, index) {
-  if (state.winner !== null || state.turn !== index || state.drawnCardId !== null || state.swapPending !== null) return false;
+  if (!canDrawNow(state, index)) return false;
   const player = state.players[index];
-  player.calledUno = false;
-
-  if (state.pendingDraw) {
-    const count = state.pendingDraw;
-    drawCards(state, index, count);
-    state.pendingDraw = 0;
-    state.pendingType = null;
-    state.challengeable = null;
-    note(state, `${player.name} drew ${count}.`);
+  if (state.pending) {
+    takePending(state);
+    return true;
+  }
+  const card = takeFromPile(state);
+  if (!card) {
+    note(state, `${player.name} can't draw: the deck is empty.`);
     advance(state);
     return true;
   }
+  state.drawn = card;
+  state.drewThisTurn++;
+  emit(state, { type: 'draw', player: index, count: 1, reason: 'centre' });
+  note(state, `${player.name} drew a card.`);
+  // A card that can't be played has nothing to decide: it goes into the hand.
+  if (!canPlay(state, card)) keep(state, index);
+  return true;
+}
 
-  let card = drawCards(state, index, 1)[0];
-  let count = 1;
-  while (state.rules.drawUntilPlayable && card && !canPlay(state, card) && count < DRAW_UNTIL_LIMIT) {
-    card = drawCards(state, index, 1)[0];
-    count++;
-  }
-  const drew = count === 1 ? 'a card' : `${count} cards`;
-  if (card && canPlay(state, card)) {
-    state.drawnCardId = card.id;
-    note(state, `${player.name} drew ${drew}.`);
-  } else {
-    note(state, `${player.name} drew ${drew} and passed.`);
+// The drawn card goes into the hand. The turn carries on if there's still something to play (or to draw).
+export function keep(state, index) {
+  if (state.turn !== index || !state.drawn) return false;
+  const player = state.players[index];
+  player.hand.push(state.drawn);
+  state.drawn = null;
+  resetUno(player);
+  emit(state, { type: 'keep', player: index });
+  if (!handPlayable(state, index) && !canDrawNow(state, index)) {
+    note(state, `${player.name} passed.`);
     advance(state);
   }
   return true;
 }
 
 export function pass(state, index) {
-  if (state.turn !== index || state.drawnCardId === null) return false;
+  if (!canPassNow(state, index)) return false;
   note(state, `${state.players[index].name} passed.`);
   advance(state);
   return true;
 }
 
-// The player facing a Wild Draw Four says it was played illegally. Right:
+// The player facing a wild draw card says it was played illegally. Right:
 // the one who played it draws the cards and the challenger plays on. Wrong:
 // the challenger draws them plus two more, and loses their turn.
 export function challenge(state, index) {
-  const pending = state.challengeable;
-  if (!pending || state.turn !== index || state.winner !== null) return false;
+  if (!canChallengeNow(state, index)) return false;
+  const pending = state.pending;
   const challenger = state.players[index];
   const offender = state.players[pending.offender];
-  const count = state.pendingDraw;
-  state.challengeable = null;
-  state.pendingDraw = 0;
-  state.pendingType = null;
+  state.pending = null;
   if (pending.hadMatch) {
-    drawCards(state, pending.offender, count);
-    offender.calledUno = false;
-    note(state, `${challenger.name} challenged and was right! ${offender.name} draws ${count}.`);
-    emit(state, { type: 'challenge', player: index, offender: pending.offender, success: true, count });
+    drawCards(state, pending.offender, pending.amount, 'challenge');
+    note(state, `${challenger.name} challenged and was right! ${offender.name} draws ${pending.amount}.`);
+    emit(state, { type: 'challenge', player: index, offender: pending.offender, success: true, count: pending.amount });
+    setTurn(state, index);
   } else {
-    drawCards(state, index, count + CHALLENGE_EXTRA);
-    note(state, `${challenger.name} challenged and was wrong, and draws ${count + CHALLENGE_EXTRA}.`);
-    emit(state, { type: 'challenge', player: index, offender: pending.offender, success: false, count: count + CHALLENGE_EXTRA });
-    advance(state);
+    const count = pending.amount + CHALLENGE_EXTRA;
+    drawCards(state, index, count, 'challenge');
+    note(state, `${challenger.name} challenged and was wrong, and draws ${count}.`);
+    emit(state, { type: 'challenge', player: index, offender: pending.offender, success: false, count });
+    setTurn(state, pending.resume !== index ? pending.resume : nextIndex(state, 1, index));
   }
   return true;
 }
 
+// Whoever has to act right now.
+export const actorIndex = (state) => state.choice?.player ?? state.swapPending ?? state.pending?.target ?? state.turn;
+
 // Out of time: the game moves for you, as gently as it can. Picks someone
-// at random to swap with, takes a pending draw, passes a drawn card, or draws.
+// at random to swap with, takes an attack, keeps a drawn card, or draws and passes.
 export function timeOut(state) {
   if (state.winner !== null) return false;
-  const index = state.swapPending ?? state.turn;
+  const index = actorIndex(state);
   const player = state.players[index];
   note(state, `${player.name} ran out of time.`);
   emit(state, { type: 'timeout', player: index });
+  if (state.choice) {
+    // A colour at random, and a target at random (never yourself).
+    const others = state.players.map((_, i) => i).filter((i) => i !== index);
+    choose(state, index, { color: COLORS[Math.floor(Math.random() * COLORS.length)] });
+    if (state.choice) choose(state, index, { target: others[Math.floor(Math.random() * others.length)] });
+    return true;
+  }
   if (state.swapPending !== null) {
     const others = state.players.map((_, i) => i).filter((i) => i !== index);
     return swapWith(state, index, others[Math.floor(Math.random() * others.length)]);
   }
-  if (state.drawnCardId !== null) return pass(state, index);
-  const drew = draw(state, index);
-  // Drawing a card you could play would leave the turn waiting on you again; time's up means it moves on.
-  if (drew && state.drawnCardId !== null && state.turn === index) pass(state, index);
-  return drew;
+  if (state.pending) {
+    takePending(state);
+    return true;
+  }
+  if (!state.drewThisTurn) draw(state, index);
+  if (state.turn === index && state.drawn) keep(state, index);
+  // Time's up means the turn moves on, whatever is left to play.
+  if (state.turn === index && state.winner === null) advance(state);
+  return true;
 }
 
-// Call it with two cards in hand, before playing the second-to-last one.
+// Press it holding two cards and it's said the moment you play the next one.
+// Forgot? Press it with one card left, before anyone calls you out.
 export function callUno(state, index) {
   const player = state.players[index];
-  if (state.winner !== null || player.hand.length !== 2 || player.calledUno) return false;
-  player.calledUno = true;
-  note(state, `${player.name}: Woono!`);
-  emit(state, { type: 'uno', player: index });
+  if (state.winner !== null || !player) return false;
+  if (canArmUno(state, index)) {
+    player.uno = 'armed';
+    return true;
+  }
+  if (player.hand.length === 1 && player.exposed) {
+    player.exposed = false;
+    player.uno = 'said';
+    note(state, `${player.name}: Woono! (just in time)`);
+    emit(state, { type: 'uno', player: index, late: true });
+    return true;
+  }
+  return false;
+}
+
+// Someone's down to one card and hasn't said Woono: they draw the penalty.
+export function callOut(state, index, target) {
+  const caught = state.players[target];
+  if (state.winner !== null || target === index || !caught?.exposed) return false;
+  caught.exposed = false;
+  note(state, `${name(state, index)} called out ${caught.name} for not saying Woono!`);
+  emit(state, { type: 'callout', player: index, target });
+  drawCards(state, target, state.rules.unoPenalty, 'callout');
   return true;
+}
+
+// Every move, by type, as sent over the network: { type, cardId, color, target }.
+export function act(state, index, action) {
+  if (!state || index < 0 || !state.players[index]) return false;
+  let done = false;
+  switch (action?.type) {
+    case 'play':
+      done = play(state, index, action.cardId, action.color, action.target);
+      break;
+    case 'choose':
+      done = choose(state, index, { color: action.color, target: action.target });
+      break;
+    case 'draw':
+      done = draw(state, index);
+      break;
+    case 'keep':
+      done = keep(state, index);
+      break;
+    case 'pass':
+      done = pass(state, index);
+      break;
+    case 'uno':
+      done = callUno(state, index);
+      break;
+    case 'callout':
+      done = callOut(state, index, Number(action.target));
+      break;
+    case 'swap':
+      done = swapWith(state, index, Number(action.target));
+      break;
+    case 'challenge':
+      done = challenge(state, index);
+      break;
+    default:
+      break;
+  }
+  if (done) state.version++;
+  return done;
+}
+
+// Every move a player could make right now (Woono and call-outs aside).
+export function legalActions(state, index) {
+  const out = [];
+  if (state.winner !== null) return out;
+  const others = state.players.map((_, i) => i).filter((i) => i !== index);
+  if (state.choice) {
+    if (state.choice.player !== index) return out;
+    const { card, color } = state.choice;
+    if (!card.color && !color) for (const c of COLORS) out.push({ type: 'choose', color: c });
+    else state.players.forEach((_, target) => out.push({ type: 'choose', target }));
+    return out;
+  }
+  if (state.swapPending !== null) {
+    if (state.swapPending === index) for (const target of others) out.push({ type: 'swap', target });
+    return out;
+  }
+  const hand = state.players[index].hand;
+  for (const id of playableIds(state, index)) {
+    const card = state.drawn?.id === id ? state.drawn : hand.find((c) => c.id === id);
+    for (const color of card.color ? [null] : COLORS) {
+      for (const target of isTargeted(card) ? state.players.map((_, i) => i) : [null]) out.push({ type: 'play', cardId: id, color, target });
+    }
+  }
+  if (canDrawNow(state, index)) out.push({ type: 'draw' });
+  if (state.drawn && state.turn === index) out.push({ type: 'keep' });
+  if (canPassNow(state, index)) out.push({ type: 'pass' });
+  if (canChallengeNow(state, index)) out.push({ type: 'challenge' });
+  return out;
 }
 
 // A player who left mid-game: the computer takes over their seat.
@@ -406,27 +732,56 @@ export function handToBot(state, id) {
   return true;
 }
 
+// Roughly how long the table takes to animate these events, so no one acts while cards are still flying.
+const EVENT_MS = { color: 700, play: 900, draw: 700, keep: 550, skip: 900, reverse: 900, swap: 1000, rotate: 900, challenge: 1500, uno: 700, callout: 1100, block: 1000, reflect: 1100, attack: 500, timeout: 600, deal: 600 };
+
+export function settleMs(events) {
+  let longest = 0;
+  let played = false;
+  for (const event of events) {
+    let ms = EVENT_MS[event.type] ?? 0;
+    if (event.type === 'draw') ms = event.reason === 'centre' ? 750 : 550 + 90 * Math.min(event.count, 6);
+    if (event.type === 'play') played = true;
+    longest = Math.max(longest, ms);
+  }
+  // Cards drawn because of a card just played start flying once it lands.
+  if (played && events.some((e) => e.type === 'draw' && e.reason !== 'centre')) longest += 450;
+  return longest;
+}
+
 // What one seat is allowed to see.
 export function viewFor(state, index) {
   const me = state.players[index];
+  const pending = state.pending;
   return {
     gameId: state.gameId,
     you: index,
     rules: state.rules,
-    players: state.players.map((p) => ({ id: p.id, name: p.name, kind: p.kind, avatar: p.avatar, count: p.hand.length, calledUno: p.calledUno })),
+    players: state.players.map((p) => ({ id: p.id, name: p.name, kind: p.kind, avatar: p.avatar, count: p.hand.length, said: p.uno === 'said', exposed: p.exposed })),
     hand: me.hand,
     playable: playableIds(state, index),
     top: topCard(state),
     color: state.color,
     turn: state.turn,
     direction: state.direction,
-    drawnCardId: state.turn === index ? state.drawnCardId : null,
-    pendingDraw: state.pendingDraw,
+    // Your own drawn card, face up; everyone else only knows there is one.
+    drawn: state.turn === index ? state.drawn : null,
+    drawnPending: Boolean(state.drawn),
+    drewThisTurn: state.turn === index ? state.drewThisTurn : 0,
+    pending: pending ? { kind: pending.kind, amount: pending.amount, from: pending.from, target: pending.target } : null,
+    pendingDraw: pending?.kind === 'draw' ? pending.amount : 0,
     choosingSwap: state.swapPending === index,
     swapPending: state.swapPending,
-    canChallenge: Boolean(state.challengeable) && state.turn === index && state.winner === null,
-    turnId: state.turnId ?? 0,
-    canCallUno: me.hand.length === 2 && !me.calledUno && state.winner === null,
+    canDraw: canDrawNow(state, index),
+    canKeep: state.turn === index && Boolean(state.drawn),
+    canPass: canPassNow(state, index),
+    canChallenge: canChallengeNow(state, index),
+    canTake: Boolean(pending) && pending.target === index && state.winner === null && !state.choice,
+    // Someone just played a wild or targeted card and is picking its colour or target.
+    choice: state.choice ? { player: state.choice.player, needs: !state.choice.card.color && !state.choice.color ? 'color' : 'target', amount: drawAmount(state.choice.card) } : null,
+    turnId: state.turnId,
+    unoArmed: me.uno === 'armed',
+    canCallUno: state.winner === null && (canArmUno(state, index) || me.exposed),
     drawPileCount: state.drawPile.length,
     winner: state.winner,
     log: state.log,
@@ -434,56 +789,9 @@ export function viewFor(state, index) {
   };
 }
 
-// ─── Computer player ───────────────────────────────────────────────────
-
-function pickColor(player, except) {
-  const counts = Object.fromEntries(COLORS.map((c) => [c, 0]));
-  for (const c of player.hand) if (c.color && c.id !== except) counts[c.color]++;
-  return COLORS.reduce((best, c) => (counts[c] > counts[best] ? c : best), COLORS[Math.floor(Math.random() * 4)]);
-}
-
-export function botTurn(state, index) {
-  const player = state.players[index];
-
-  if (state.swapPending === index) {
-    // Swap with whoever is closest to winning.
-    const target = state.players.map((p, i) => ({ i, n: p.hand.length })).filter((p) => p.i !== index).sort((a, b) => a.n - b.n)[0];
-    return swapWith(state, index, target.i);
-  }
-
-  // Facing a challengeable +4: challenge sometimes, more often when the player had lots of cards to choose from.
-  if (state.challengeable && state.turn === index) {
-    const offender = state.players[state.challengeable.offender];
-    if (Math.random() < Math.min(0.6, 0.15 + offender.hand.length * 0.04)) return challenge(state, index);
-  }
-
-  const playable = playableIds(state, index).map((id) => player.hand.find((c) => c.id === id));
-  if (!playable.length) return state.drawnCardId !== null ? pass(state, index) : draw(state, index);
-
-  if (player.hand.length === 2) callUno(state, index);
-
-  const rules = state.rules;
-  const nextPlayer = state.players[nextIndex(state)];
-  const threatened = nextPlayer.hand.length <= 2;
-  const fewestOther = Math.min(...state.players.filter((_, i) => i !== index).map((p) => p.hand.length));
-  const rank = (card) => {
-    let score = 0;
-    if (card.color === state.color) score += 10;
-    if (/^\d$/.test(card.value)) score += Number(card.value) / 10; // shed high numbers first
-    if (['skip', 'reverse', 'draw2'].includes(card.value)) score += threatened ? 30 : 5;
-    if (card.value === 'wild4') score += threatened || state.pendingDraw ? 40 : -30; // hold the strongest card unless it's needed
-    if (card.value === 'draw2' && state.pendingDraw) score += 50; // stack the cheaper card first
-    if (card.value === 'wild') score += -20;
-    if (card.value === '7' && rules.sevens && fewestOther < player.hand.length - 1) score += 25;
-    return score;
-  };
-  const card = playable.sort((a, b) => rank(b) - rank(a))[0];
-  return play(state, index, card.id, card.color ? null : pickColor(player, card.id));
-}
-
 // A computer player holding an exact copy of the top card, who might jump in.
 export function botJumpIn(state) {
-  if (!state.rules.jumpIn || state.winner !== null || state.swapPending !== null) return null;
+  if (!state.rules.jumpIn || state.winner !== null || state.swapPending !== null || state.pending || state.drawn) return null;
   const candidates = state.players.map((p, i) => ({ p, i })).filter(({ p, i }) => p.kind === 'bot' && i !== state.turn && playableIds(state, i).length);
   if (!candidates.length) return null;
   const { i } = candidates[Math.floor(Math.random() * candidates.length)];

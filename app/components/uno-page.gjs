@@ -14,34 +14,44 @@ import { roomCodeFromUrl } from '../utils/file-share';
 import { robotAvatar } from '../utils/avatar';
 import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
-import { COLORS, MAX_PLAYERS, DEFAULT_RULES, HAND_SIZE_RANGE, PENALTY_RANGE, clampInt, normaliseRules, cardName, createGame, viewFor, play, draw, pass, callUno, swapWith, challenge, timeOut, botTurn, botJumpIn, handToBot, TURN_TIMES, CHALLENGE_EXTRA } from '../utils/uno';
+import { COLORS, MAX_PLAYERS, DEFAULT_RULES, DEFAULT_CARDS, CARD_TYPES, HAND_SIZE_RANGE, PENALTY_RANGE, clampInt, normaliseRules, cardName, createGame, viewFor, act, actorIndex, timeOut, botJumpIn, handToBot, settleMs, TURN_TIMES, CHALLENGE_EXTRA } from '../utils/uno';
+import { think } from '../utils/uno-bot';
 
-const BOT_DELAY_MS = 1000;
 const JUMP_IN_DELAY_MS = 650;
-const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4' };
+// Computer players are people too: how long they take to notice someone forgot to say Woono (or that they did).
+const CALLOUT_REACTION_MS = [1400, 3800];
+const LATE_UNO_REACTION_MS = [900, 2600];
+// Most of the time a computer player remembers to press Woono before playing its second-last card.
+const BOT_REMEMBERS_UNO = 0.85;
+const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4', target2: '◎+2', target4: '◎+4', draw99: '+99' };
 const COLOR_ORDER = { red: 0, yellow: 1, green: 2, blue: 3 };
-const VALUE_ORDER = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2', 'wild', 'wild4'];
+const VALUE_ORDER = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2', 'target2', 'wild', 'wild4', 'target4', 'draw99'];
 const STACKING = [
   { id: 'off', label: 'Off' },
-  { id: 'same', label: '+2 on +2, +4 on +4' },
+  { id: 'same', label: 'Same amount' },
+  { id: 'up', label: 'Equal or higher' },
   { id: 'mixed', label: 'Any draw card' },
 ];
 // Where you're looking is sent to other players at most this often.
 const LOOK_SEND_MS = 150;
 // A touch that moves further than this (CSS px) is a drag to look around, not a tap.
 const DRAG_PX = 8;
+// A lifted card swiped up at least this far (CSS px, or 12% of the table's height if that's more) is played.
+const SWIPE_MIN_PX = 48;
 const SWITCH_RULES = [
+  { key: 'defense', label: 'Block & reflect', hint: 'A draw card or Skip coming at you? Play any Skip to cancel it, or any Reverse to send it back to whoever played it.' },
   { key: 'sevens', label: 'Sevens swap', hint: 'Play a 7 and swap hands with anyone.' },
   { key: 'zeros', label: 'Zeros rotate', hint: 'Play a 0 and every hand moves along to the next player.' },
   { key: 'jumpIn', label: 'Jump-in', hint: 'Hold an exact copy of the top card? Play it out of turn.' },
-  { key: 'drawUntilPlayable', label: 'Draw until you can play', hint: 'Keep drawing instead of stopping after one card.' },
-  { key: 'challenge', label: 'Challenge Wild Draw Fours', hint: `Think a +4 was played while they still had the colour in play? Challenge it. Right: they draw instead. Wrong: you draw ${CHALLENGE_EXTRA} extra.` },
+  { key: 'drawUntilPlayable', label: 'Draw until you can play', hint: 'Draw and you have to put a card down: keep drawing until you can. No passing.' },
+  { key: 'challenge', label: 'Challenge wild draw cards', hint: `Think a wild draw card was played while they still had the colour in play? Challenge it. Right: they draw instead. Wrong: you draw ${CHALLENGE_EXTRA} extra.` },
 ];
 const TIMER_OPTIONS = TURN_TIMES.map((seconds) => ({ id: seconds, label: seconds ? `${seconds}s` : 'Off' }));
 
 const eq = (a, b) => a === b;
 const symbol = (card) => SYMBOLS[card.value] ?? card.value;
 const coarsePointer = () => window.matchMedia?.('(pointer: coarse)').matches;
+const between = ([min, max]) => min + Math.random() * (max - min);
 
 export default class UnoPage extends Component {
   colors = COLORS;
@@ -51,14 +61,13 @@ export default class UnoPage extends Component {
   penaltyMin = PENALTY_RANGE[0];
   penaltyMax = PENALTY_RANGE[1];
   switchRules = SWITCH_RULES;
+  cardTypes = CARD_TYPES;
   timerOptions = TIMER_OPTIONS;
 
   // 'lobby' | 'playing'
   @tracked mode = 'lobby';
   // What this device's player can see; replaced after every action.
   @tracked view = null;
-  // A wild card waiting for its colour.
-  @tracked choosingFor = null;
   @tracked sceneFailed = false;
   @tracked pointing = false;
   // Phone tilt steers the camera once the gyroscope has sent a reading.
@@ -67,10 +76,21 @@ export default class UnoPage extends Component {
   // When the player to move runs out of time (this device's clock), and a clock that ticks to show it.
   @tracked turnDeadline = null;
   @tracked now = Date.now();
+  // The list of controls, opened from the ⓘ button.
+  @tracked helpOpen = false;
+  // True while the table is still animating the last move; no one can act until it settles.
+  @tracked settling = false;
+  touchControls = coarsePointer();
 
   // The full game, only on the host.
   state = null;
+  // Host: nobody acts before this time, while the table animates.
+  busyUntil = 0;
+  settledEvent = null;
+  settleTimer = null;
   botTimer = null;
+  botAbort = null;
+  reactions = new Map(); // `${kind}:${bot}:${target}` -> timer
   turnTimer = null;
   timerTurn = null;
   clockTimer = null;
@@ -98,8 +118,9 @@ export default class UnoPage extends Component {
     if (code) this.room.join(code);
     this.gyroAvailable = typeof window.DeviceOrientationEvent !== 'undefined' && coarsePointer();
     registerDestructor(this, () => {
-      clearTimeout(this.botTimer);
+      this.stopBots();
       clearTimeout(this.turnTimer);
+      clearTimeout(this.settleTimer);
       clearInterval(this.clockTimer);
       this.chatter.dispose();
       this.stopGyro();
@@ -131,6 +152,7 @@ export default class UnoPage extends Component {
 
   setRule = (key, value) => this.room.setSettings({ [key]: value });
   toggleRule = (key, event) => this.room.setSettings({ [key]: event.target.checked });
+  toggleCard = (id, event) => this.room.setSettings({ cards: { ...DEFAULT_CARDS, ...this.settings.cards, [id]: event.target.checked } });
   addBot = () => this.room.setSettings({ bots: Math.min(this.settings.bots + 1, MAX_PLAYERS - this.room.members.length) });
   removeBot = () => this.room.setSettings({ bots: Math.max(0, Math.min(this.settings.bots, MAX_PLAYERS - this.room.members.length) - 1) });
   setNumberRule = (key, event) => {
@@ -154,14 +176,15 @@ export default class UnoPage extends Component {
   // ─── Running the game (on the host) ─────────────────────────────────
 
   start = () => {
-    clearTimeout(this.botTimer);
+    this.stopBots();
     const players = this.seats.map((seat) => ({ id: seat.id, name: seat.name, kind: seat.kind, avatar: seat.avatar }));
     this.state = createGame(players, normaliseRules(this.settings));
     this.banterSeen = this.state.events.at(-1)?.id ?? null;
+    this.settledEvent = null;
+    this.busyUntil = 0;
     const bots = this.state.players.filter((p) => p.kind === 'bot');
     if (bots.length) this.chatter.say(bots[Math.floor(Math.random() * bots.length)].name, 'hello', { urgent: true });
     this.room.setLocked(true);
-    this.choosingFor = null;
     this.refresh();
   };
 
@@ -169,35 +192,119 @@ export default class UnoPage extends Component {
     return this.state ? this.state.players.findIndex((p) => p.id === this.room.selfId) : -1;
   }
 
-  // Rebuilds what everyone sees, then lets a computer player move if it's their turn.
+  // Rebuilds what everyone sees, then gets the computer players thinking.
   refresh() {
     const state = this.state;
+    // Nobody moves until the table has finished animating what just happened.
+    const fresh = state.events.filter((e) => this.settledEvent === null || e.id > this.settledEvent);
+    this.settledEvent = state.events.at(-1)?.id ?? this.settledEvent;
+    const settle = settleMs(fresh);
+    if (settle) this.busyUntil = Math.max(this.busyUntil, Date.now() + settle);
     this.armTurnTimer();
-    // Everyone gets the time left rather than a timestamp, since device clocks disagree.
+    // Everyone gets times left rather than timestamps, since device clocks disagree.
     const turnLeft = this.turnDeadline ? Math.max(0, this.turnDeadline - Date.now()) : null;
-    this.show({ ...viewFor(state, this.myIndex), turnLeft });
+    const settleLeft = Math.max(0, this.busyUntil - Date.now());
+    this.show({ ...viewFor(state, this.myIndex), turnLeft, settleLeft });
     state.players.forEach((player, i) => {
-      if (player.kind === 'human' && player.id !== this.room.selfId) this.room.sendTo(player.id, { type: 'view', view: { ...viewFor(state, i), turnLeft } });
+      if (player.kind === 'human' && player.id !== this.room.selfId) this.room.sendTo(player.id, { type: 'view', view: { ...viewFor(state, i), turnLeft, settleLeft } });
     });
-    clearTimeout(this.botTimer);
     this.banter(state);
-    if (state.winner !== null) return;
+    this.runBots();
+  }
+
+  // Only 'uno' (saying it) can be done while the table is still settling.
+  apply(index, action) {
+    if (!this.state || index < 0) return false;
+    if (action?.type !== 'uno' && Date.now() < this.busyUntil) return false;
+    return act(this.state, index, action);
+  }
+
+  stopBots() {
+    clearTimeout(this.botTimer);
+    this.botAbort?.abort();
+    this.botAbort = null;
+    for (const timer of this.reactions.values()) clearTimeout(timer);
+    this.reactions.clear();
+  }
+
+  // Waits for the table to settle, then runs `task` (unless the game moved on meanwhile).
+  afterSettle(task, extraMs = 0) {
+    const wait = Math.max(0, this.busyUntil - Date.now()) + extraMs;
+    return setTimeout(() => {
+      if (Date.now() < this.busyUntil) this.afterSettle(task);
+      else task();
+    }, wait);
+  }
+
+  // The computer player to move thinks it over (see utils/uno-bot.js) and moves once the table has settled.
+  runBots() {
+    const state = this.state;
+    clearTimeout(this.botTimer);
+    this.botAbort?.abort();
+    this.botAbort = null;
+    if (!state || state.winner !== null) return;
+    this.scheduleReactions();
 
     const jump = botJumpIn(state);
     if (jump && Math.random() < 0.5) {
-      this.botTimer = setTimeout(() => play(state, jump.index, jump.cardId) && this.refresh(), JUMP_IN_DELAY_MS);
+      const version = state.version;
+      this.botTimer = this.afterSettle(() => {
+        if (this.state === state && state.version === version && this.apply(jump.index, { type: 'play', cardId: jump.cardId })) this.refresh();
+      }, JUMP_IN_DELAY_MS);
       return;
     }
-    const actor = state.swapPending ?? state.turn;
-    if (state.players[actor].kind === 'bot') {
-      this.botTimer = setTimeout(() => {
-        botTurn(state, actor);
+
+    const actor = actorIndex(state);
+    if (state.players[actor].kind !== 'bot') return;
+    const version = state.version;
+    const abort = new AbortController();
+    this.botAbort = abort;
+    // With a turn timer, leave plenty of the turn for the move itself.
+    const budgetMs = state.rules.turnTime ? Math.min(2200, state.rules.turnTime * 300) : undefined;
+    think(state, actor, { signal: abort.signal, budgetMs }).then((move) => {
+      if (abort.signal.aborted || this.state !== state || state.version !== version) return;
+      this.botTimer = this.afterSettle(() => {
+        if (abort.signal.aborted || this.state !== state || state.version !== version) return;
+        const player = state.players[actor];
+        if (player.hand.length === 2 && move?.type === 'play' && Math.random() < BOT_REMEMBERS_UNO) act(state, actor, { type: 'uno' });
+        if (!move || !this.apply(actor, move)) {
+          timeOut(state);
+          state.version++;
+        }
         this.refresh();
-      }, BOT_DELAY_MS);
+      });
+    });
+  }
+
+  // Computer players notice when someone's down to one card without saying Woono, and call them out;
+  // one who forgot says it as soon as it notices.
+  scheduleReactions() {
+    const state = this.state;
+    const live = new Set();
+    state.players.forEach((bot, b) => {
+      if (bot.kind !== 'bot') return;
+      state.players.forEach((player, t) => {
+        if (!player.exposed) return;
+        const kind = t === b ? 'uno' : 'callout';
+        const key = `${kind}:${b}:${t}`;
+        live.add(key);
+        if (this.reactions.has(key)) return;
+        const timer = this.afterSettle(() => {
+          this.reactions.delete(key);
+          if (this.state !== state || !state.players[t].exposed) return;
+          if (this.apply(b, kind === 'uno' ? { type: 'uno' } : { type: 'callout', target: t })) this.refresh();
+        }, between(kind === 'uno' ? LATE_UNO_REACTION_MS : CALLOUT_REACTION_MS));
+        this.reactions.set(key, timer);
+      });
+    });
+    for (const [key, timer] of this.reactions) {
+      if (live.has(key)) continue;
+      clearTimeout(timer);
+      this.reactions.delete(key);
     }
   }
 
-  // Host: a fresh countdown whenever the turn passes to someone new.
+  // Host: a fresh countdown whenever the turn passes to someone new. It starts once the table settles.
   armTurnTimer() {
     const state = this.state;
     const seconds = state.rules.turnTime;
@@ -210,11 +317,14 @@ export default class UnoPage extends Component {
     if (this.timerTurn === state.turnId) return;
     this.timerTurn = state.turnId;
     clearTimeout(this.turnTimer);
-    this.turnDeadline = Date.now() + seconds * 1000;
+    this.turnDeadline = Math.max(Date.now(), this.busyUntil) + seconds * 1000;
     const turnId = state.turnId;
     this.turnTimer = setTimeout(() => {
-      if (this.state === state && state.turnId === turnId && timeOut(state)) this.refresh();
-    }, seconds * 1000);
+      if (this.state === state && state.turnId === turnId && timeOut(state)) {
+        state.version++;
+        this.refresh();
+      }
+    }, this.turnDeadline - Date.now());
   }
 
   // Computer players comment on what just happened: their own big plays, and being on the wrong end of yours.
@@ -231,14 +341,24 @@ export default class UnoPage extends Component {
     for (const event of fresh) {
       switch (event.type) {
         case 'play': {
-          const victim = players.length ? (event.player + state.direction + players.length) % players.length : null;
-          const kind = { wild4: 'wild4', draw2: 'draw2', skip: 'skip', reverse: 'reverse', wild: 'wild' }[event.card.value];
-          if (isBot(event.player) && kind) this.chatter.say(name(event.player), kind, { chance: kind === 'wild4' ? 0.8 : 0.45, vars: { name: name(victim) } });
-          else if (!isBot(event.player) && ['wild4', 'draw2', 'skip'].includes(event.card.value) && isBot(victim)) this.chatter.say(name(victim), 'hit', { chance: 0.6, vars: { name: name(event.player) } });
+          const kind = { skip: 'skip', reverse: 'reverse', wild: 'wild' }[event.card.value];
+          if (isBot(event.player) && kind) this.chatter.say(name(event.player), kind, { chance: 0.45, vars: { name: name((event.player + state.direction + players.length) % players.length) } });
           break;
         }
+        case 'attack':
+          if (isBot(event.player)) this.chatter.say(name(event.player), event.amount >= 4 ? 'wild4' : 'draw2', { chance: event.amount >= 4 ? 0.8 : 0.45, vars: { name: name(event.target) } });
+          else if (isBot(event.target)) this.chatter.say(name(event.target), 'hit', { chance: 0.6, vars: { name: name(event.player) } });
+          break;
+        case 'block':
+        case 'reflect':
+          if (isBot(event.player)) this.chatter.say(name(event.player), event.type, { chance: 0.7, vars: { name: name(event.from ?? event.target) } });
+          break;
         case 'uno':
           if (isBot(event.player)) this.chatter.say(name(event.player), 'uno', { chance: 0.8, urgent: true });
+          break;
+        case 'callout':
+          if (isBot(event.player)) this.chatter.say(name(event.player), 'callout', { urgent: true, vars: { name: name(event.target) } });
+          else if (isBot(event.target)) this.chatter.say(name(event.target), 'caught', { urgent: true });
           break;
         case 'swap':
           if (isBot(event.a)) this.chatter.say(name(event.a), 'swap', { chance: 0.6, vars: { name: name(event.b) } });
@@ -274,8 +394,22 @@ export default class UnoPage extends Component {
       this.clockTimer = null;
     }
     this.view = view;
-    if (!view.playable.includes(this.choosingFor?.id)) this.choosingFor = null;
-    this.scene?.setView(view);
+    // Locked while the last move animates; the scene shows nothing to play until then.
+    clearTimeout(this.settleTimer);
+    this.settling = view.settleLeft > 0;
+    if (this.settling) {
+      this.settleTimer = setTimeout(() => {
+        this.settling = false;
+        this.scene?.setView(this.view);
+      }, view.settleLeft);
+    }
+    this.scene?.setView(this.sceneView);
+  }
+
+  get sceneView() {
+    const view = this.view;
+    // The colour wheel and arrows appear once the card has landed.
+    return this.settling ? { ...view, playable: [], canDraw: false, choice: null } : view;
   }
 
   act(action) {
@@ -283,27 +417,6 @@ export default class UnoPage extends Component {
       if (this.apply(this.myIndex, action)) this.refresh();
     } else {
       this.room.send({ type: 'action', action });
-    }
-  }
-
-  apply(index, action) {
-    const state = this.state;
-    if (!state || index < 0) return false;
-    switch (action?.type) {
-      case 'play':
-        return play(state, index, action.cardId, action.color);
-      case 'draw':
-        return draw(state, index);
-      case 'pass':
-        return pass(state, index);
-      case 'uno':
-        return callUno(state, index);
-      case 'swap':
-        return swapWith(state, index, action.target);
-      case 'challenge':
-        return challenge(state, index);
-      default:
-        return false;
     }
   }
 
@@ -318,12 +431,44 @@ export default class UnoPage extends Component {
     return Boolean(view) && view.turn === view.you && view.winner === null && view.swapPending === null;
   }
 
+  // Buttons wait for the table to settle.
+  get locked() {
+    return this.settling || this.isOver;
+  }
+
   get canDraw() {
-    return this.isMyTurn && this.view.drawnCardId === null;
+    return !this.locked && Boolean(this.view?.canDraw);
   }
 
   get canPass() {
-    return this.isMyTurn && this.view.drawnCardId !== null;
+    return !this.locked && Boolean(this.view?.canPass);
+  }
+
+  get drawnPlayable() {
+    const view = this.view;
+    return Boolean(view?.drawn) && view.playable.includes(view.drawn.id);
+  }
+
+  get takeLabel() {
+    const pending = this.view?.pending;
+    if (!pending) return '';
+    return pending.kind === 'draw' ? `Take ${pending.amount}` : 'Take the skip';
+  }
+
+  // Everyone else who's down to one card without saying Woono.
+  get exposedPlayers() {
+    const view = this.view;
+    if (!view || this.isOver) return [];
+    return view.players.map((p, index) => ({ ...p, index })).filter((p) => p.exposed && p.index !== view.you);
+  }
+
+  get iAmExposed() {
+    return Boolean(this.view?.players[this.view.you]?.exposed);
+  }
+
+  get unoLabel() {
+    if (this.view?.unoArmed) return 'Woono ✓';
+    return this.iAmExposed ? 'Say Woono!' : 'Woono!';
   }
 
   // Your hand as a plain list: for screen readers, and for playing without WebGL.
@@ -333,6 +478,11 @@ export default class UnoPage extends Component {
     if (!view) return [];
     const sorted = [...view.hand].sort((a, b) => (COLOR_ORDER[a.color] ?? 9) - (COLOR_ORDER[b.color] ?? 9) || VALUE_ORDER.indexOf(a.value) - VALUE_ORDER.indexOf(b.value));
     return sorted.map((card) => ({ key: card.id, card, playable: view.playable.includes(card.id), symbol: symbol(card), label: cardName(card) }));
+  }
+
+  get drawnItem() {
+    const card = this.view?.drawn;
+    return card ? { key: card.id, card, playable: this.drawnPlayable, symbol: symbol(card), label: cardName(card) } : null;
   }
 
   get opponents() {
@@ -356,7 +506,8 @@ export default class UnoPage extends Component {
   get ruleBadges() {
     const r = this.view?.rules;
     if (!r) return [];
-    return [r.stacking !== 'off' && 'Stacking', r.sevens && '7 swap', r.zeros && '0 rotate', r.jumpIn && 'Jump-in', r.drawUntilPlayable && 'Draw till play', r.challenge && 'Challenge +4', r.turnTime && `${r.turnTime}s turns`].filter(Boolean);
+    const stacking = { same: 'Stack same', up: 'Stack up', mixed: 'Stack any' }[r.stacking];
+    return [stacking, r.defense && 'Block & reflect', r.sevens && '7 swap', r.zeros && '0 rotate', r.jumpIn && 'Jump-in', r.drawUntilPlayable && 'Draw till play', r.challenge && 'Challenge', r.cards?.draw99 && '+99', r.turnTime && `${r.turnTime}s turns`].filter(Boolean);
   }
 
   get status() {
@@ -364,16 +515,32 @@ export default class UnoPage extends Component {
     if (!view) return '';
     const name = (i) => (i === view.you ? 'You' : view.players[i].name);
     if (view.winner !== null) return view.winner === view.you ? 'You win! 🎉' : `${name(view.winner)} wins.`;
+    if (view.choice) {
+      if (view.choice.player !== view.you) return `${name(view.choice.player)} is picking ${view.choice.needs === 'color' ? 'a colour' : 'who draws'}…`;
+      return view.choice.needs === 'color' ? 'Pick a colour on the table.' : 'Who draws? Pick an arrow, even the one pointing at you.';
+    }
     if (view.choosingSwap) return 'Pick someone to swap hands with.';
     if (view.swapPending !== null) return `${name(view.swapPending)} is picking who to swap hands with…`;
-    if (view.turn === view.you) {
-      if (view.canChallenge) return `Wild Draw Four! Take ${view.pendingDraw}${view.playable.length ? ', stack one' : ''}, or challenge it.`;
-      if (view.pendingDraw) return view.playable.length ? `Stack a draw card, or take ${view.pendingDraw} from the deck.` : `Nothing to stack. Tap the deck to draw ${view.pendingDraw}.`;
-      if (view.drawnCardId !== null) return 'You drew a card you can play. Play it or pass.';
-      return view.playable.length ? 'Your turn. Play a glowing card, or draw from the deck.' : 'Nothing to play. Tap the deck to draw.';
+    const pending = view.pending;
+    const defense = view.rules.defense;
+    if (pending) {
+      const what = pending.kind === 'draw' ? `+${pending.amount}` : 'A Skip';
+      if (pending.target === view.you) {
+        const answers = [view.rules.stacking !== 'off' && pending.kind === 'draw' && 'stack', defense && 'block it with a Skip', defense && 'send it back with a Reverse'].filter(Boolean);
+        const options = view.playable.length ? `${answers.join(', ')}, ` : '';
+        return `${what} is coming at you! ${capitalise(`${options}${view.canChallenge ? 'challenge it, ' : ''}or take it.`)}`;
+      }
+      return `${what} is heading for ${name(pending.target)}…`;
     }
+    if (view.turn === view.you) {
+      if (view.drawn) return this.drawnPlayable ? 'You drew a card you can play. Play it, or keep it.' : 'You drew a card.';
+      if (view.drewThisTurn) return view.canDraw ? 'Still nothing to play. Draw again.' : 'Play a card from your hand, or pass.';
+      if (!view.playable.length) return 'Nothing to play. Tap the deck to draw.';
+      return this.touchControls ? 'Your turn. Swipe up a glowing card, or tap the deck to draw.' : 'Your turn. Play a glowing card, or draw from the deck.';
+    }
+    const drawing = view.drawnPending ? ' They drew a card.' : '';
     const jump = view.playable.length ? ' You can jump in!' : '';
-    return `${name(view.turn)}’s turn…${jump}`;
+    return `${name(view.turn)}’s turn…${drawing}${jump}`;
   }
 
   // ─── The 3D table ────────────────────────────────────────────────────
@@ -386,7 +553,7 @@ export default class UnoPage extends Component {
         if (cancelled) return;
         scene = createUnoScene(canvas);
         this.scene = scene;
-        if (this.view) scene.setView(this.view);
+        if (this.view) scene.setView(this.sceneView);
         if (this.gyroOn) scene.setGyro(true);
       })
       .catch((error) => {
@@ -404,35 +571,72 @@ export default class UnoPage extends Component {
   });
 
   // Mouse: hover lifts a card, click plays it, the view glances toward the edges.
-  // Touch: tap a card to lift it and again to play it, drag anywhere to look around.
+  // Touch: tap a card to lift it, then tap it again or swipe it up to play it.
+  // Slide along your hand to flip through the cards; drag anywhere else to look around.
   interact = modifier((canvas) => {
     let press = null;
     const point = (event) => {
       const rect = canvas.getBoundingClientRect();
       return { x: ((event.clientX - rect.left) / rect.width) * 2 - 1, y: ((event.clientY - rect.top) / rect.height) * 2 - 1, rect };
     };
+    // How far up (CSS px) a card has to be swiped to play it.
+    const swipeDistance = (rect) => Math.max(SWIPE_MIN_PX, rect.height * 0.12);
     const down = (event) => {
-      press = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY, dragged: false, mouse: event.pointerType === 'mouse' };
-      if (!press.mouse) canvas.setPointerCapture?.(event.pointerId);
+      const mouse = event.pointerType === 'mouse';
+      press = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY, dragged: false, mouse, card: null, mode: null };
+      if (mouse) return;
+      canvas.setPointerCapture?.(event.pointerId);
+      const p = point(event);
+      const hit = this.scene?.pick(p.x, p.y);
+      if (hit?.type === 'card' || hit?.type === 'drawn') {
+        press.card = { wasUp: this.selectedId === hit.id };
+        this.select(hit.id);
+      }
     };
     const move = (event) => {
       const p = point(event);
       if (event.pointerType === 'mouse') {
         this.scene?.setPointer(p.x, p.y);
         const hit = this.scene?.setHover(p.x, p.y);
-        this.pointing = Boolean(hit && (hit.type === 'deck' ? this.canDraw : hit.playable));
+        this.pointing = !this.locked && Boolean(hit && (hit.type === 'deck' ? this.canDraw : hit.playable));
         return;
       }
       if (!press || press.id !== event.pointerId) return;
-      if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > DRAG_PX) press.dragged = true;
-      if (press.dragged && !this.gyroOn) this.scene?.dragLook((event.clientX - press.lastX) / p.rect.width, (event.clientY - press.lastY) / p.rect.height);
+      const dx = event.clientX - press.x;
+      const dy = event.clientY - press.y;
+      if (Math.hypot(dx, dy) > DRAG_PX) press.dragged = true;
+      if (press.card && press.dragged) {
+        // Up is a swipe to play; sideways flips through the hand. A slide can still turn into a swipe.
+        if (-dy > Math.abs(dx)) press.mode = 'swipe';
+        else if (press.mode !== 'swipe') press.mode = 'slide';
+        if (press.mode === 'slide') {
+          const hit = this.scene?.pick(p.x, p.y);
+          if (hit?.type === 'card' && hit.id !== this.selectedId) {
+            this.select(hit.id);
+            // Measure the next swipe from where this card was picked up.
+            press.x = event.clientX;
+            press.y = event.clientY;
+          }
+          this.scene?.setSwipe(0);
+        } else {
+          this.scene?.setSwipe(-dy / swipeDistance(p.rect));
+        }
+      } else if (press.dragged && !this.gyroOn) {
+        this.scene?.dragLook((event.clientX - press.lastX) / p.rect.width, (event.clientY - press.lastY) / p.rect.height);
+      }
       press.lastX = event.clientX;
       press.lastY = event.clientY;
     };
     const up = (event) => {
       if (!press || press.id !== event.pointerId) return;
-      const { dragged, mouse } = press;
+      const { dragged, mouse, card, mode, y } = press;
       press = null;
+      if (card) {
+        this.scene?.setSwipe(0);
+        const swiped = mode === 'swipe' && y - event.clientY >= swipeDistance(canvas.getBoundingClientRect());
+        if (swiped || (!dragged && card.wasUp)) this.playSelected();
+        return;
+      }
       if (!dragged) this.tap(point(event), mouse);
     };
     const leave = (event) => {
@@ -441,7 +645,10 @@ export default class UnoPage extends Component {
       this.scene?.clearHover();
       this.pointing = false;
     };
-    const cancel = () => (press = null);
+    const cancel = () => {
+      press = null;
+      this.scene?.setSwipe(0);
+    };
     canvas.addEventListener('pointerdown', down);
     canvas.addEventListener('pointermove', move);
     canvas.addEventListener('pointerup', up);
@@ -464,7 +671,15 @@ export default class UnoPage extends Component {
       if (this.canDraw) this.drawCard();
       return;
     }
-    if (hit?.type === 'card') {
+    if (hit?.type === 'color') {
+      this.chooseColor(hit.color);
+      return;
+    }
+    if (hit?.type === 'target') {
+      this.chooseTarget(hit.index);
+      return;
+    }
+    if (hit?.type === 'card' || hit?.type === 'drawn') {
       // A tap lifts the card so you can see it; tapping the lifted card plays it.
       if (mouse || this.selectedId === hit.id) {
         if (hit.playable) this.playCard(hit.id);
@@ -481,6 +696,15 @@ export default class UnoPage extends Component {
     this.selectedId = id;
     this.scene?.setSelected(id);
   }
+
+  // Plays the lifted card if it can be played; either way it drops back into the hand.
+  playSelected() {
+    const id = this.selectedId;
+    this.select(null);
+    if (id !== null && this.view?.playable.includes(id)) this.playCard(id);
+  }
+
+  toggleHelp = () => (this.helpOpen = !this.helpOpen);
 
   sendLook() {
     if (!this.scene || !this.room.isOnline || !this.view) return;
@@ -549,23 +773,42 @@ export default class UnoPage extends Component {
 
   // ─── Your moves ──────────────────────────────────────────────────────
 
+  // The card goes down first; a wild's colour and a targeted card's target are picked on the table after.
   playCard = (id) => {
-    const card = this.view?.hand.find((c) => c.id === id);
-    if (!card || !this.view.playable.includes(id)) return;
-    if (!card.color) this.choosingFor = card;
-    else this.act({ type: 'play', cardId: card.id });
+    if (this.locked || !this.view?.playable.includes(id)) return;
+    this.act({ type: 'play', cardId: id });
   };
 
-  chooseColor = (color) => {
-    const card = this.choosingFor;
-    this.choosingFor = null;
-    this.act({ type: 'play', cardId: card.id, color });
-  };
+  playDrawn = () => this.view?.drawn && this.playCard(this.view.drawn.id);
 
-  cancelColor = () => (this.choosingFor = null);
+  chooseColor = (color) => !this.settling && this.act({ type: 'choose', color });
+  chooseTarget = (target) => !this.settling && this.act({ type: 'choose', target });
+
+  get myChoice() {
+    const view = this.view;
+    return view?.choice && view.choice.player === view.you && view.winner === null ? view.choice : null;
+  }
+
+  get choosingColor() {
+    return this.myChoice?.needs === 'color';
+  }
+
+  get choosingTargetNow() {
+    return this.myChoice?.needs === 'target';
+  }
+
+  // Everyone, you included, for aiming a targeted card.
+  get allPlayers() {
+    const view = this.view;
+    if (!view) return [];
+    return view.players.map((p, index) => ({ ...p, index, label: index === view.you ? 'You' : p.name }));
+  }
+
   drawCard = () => this.act({ type: 'draw' });
+  keepCard = () => this.act({ type: 'keep' });
   passTurn = () => this.act({ type: 'pass' });
   sayUno = () => this.act({ type: 'uno' });
+  callOut = (target) => this.act({ type: 'callout', target });
   swapTarget = (index) => this.act({ type: 'swap', target: index });
   challengeCard = () => this.act({ type: 'challenge' });
 
@@ -579,17 +822,19 @@ export default class UnoPage extends Component {
   };
 
   backToLobby() {
-    clearTimeout(this.botTimer);
+    this.stopBots();
     clearTimeout(this.turnTimer);
+    clearTimeout(this.settleTimer);
     clearInterval(this.clockTimer);
     this.clockTimer = null;
     this.turnDeadline = null;
     this.timerTurn = null;
+    this.settling = false;
+    this.busyUntil = 0;
     this.room.setLocked(false);
     this.mode = 'lobby';
     this.view = null;
     this.state = null;
-    this.choosingFor = null;
   }
 
   leave = () => {
@@ -631,6 +876,12 @@ export default class UnoPage extends Component {
                     <span class="uno-card-corner">{{symbol this.view.top}}</span>
                     <span class="uno-card-symbol">{{symbol this.view.top}}</span>
                   </div>
+                  {{#if this.drawnItem}}
+                    <button type="button" class="uno-card is-{{if this.drawnItem.card.color this.drawnItem.card.color 'wild'}} {{unless this.drawnItem.playable 'is-dim'}}" aria-label="You drew: {{this.drawnItem.label}}" disabled={{if this.drawnItem.playable false true}} {{on "click" this.playDrawn}}>
+                      <span class="uno-card-corner">{{this.drawnItem.symbol}}</span>
+                      <span class="uno-card-symbol">{{this.drawnItem.symbol}}</span>
+                    </button>
+                  {{/if}}
                   <ul class="uno-fallback-players">
                     {{#each this.opponents key="index" as |p|}}
                       <li class={{if (eq this.view.turn p.index) "is-turn"}}>{{p.name}} · {{p.count}}</li>
@@ -677,7 +928,16 @@ export default class UnoPage extends Component {
 
             <p class="uno-overlay uno-status {{if this.isOver 'is-over'}}" role="status">{{this.status}}</p>
 
+            {{#if this.exposedPlayers.length}}
+              <div class="uno-overlay uno-callouts">
+                {{#each this.exposedPlayers key="index" as |p|}}
+                  <button type="button" class="btn uno-callout" disabled={{this.settling}} {{on "click" (fn this.callOut p.index)}}><Icon @name="flag" @size={{13}} /> {{p.name}} didn’t say Woono!</button>
+                {{/each}}
+              </div>
+            {{/if}}
+
             <div class="uno-overlay uno-actions">
+              <button type="button" class="btn uno-icon-btn {{if this.helpOpen 'active'}}" aria-expanded={{if this.helpOpen "true" "false"}} aria-controls="uno-help" aria-label="Controls" title="Controls" {{on "click" this.toggleHelp}}><Icon @name="info" @size={{15}} /></button>
               {{#if this.gyroAvailable}}
                 <button type="button" class="btn uno-icon-btn {{if this.gyroOn 'active'}}" aria-pressed={{if this.gyroOn "true" "false"}} aria-label="Tilt your phone to look around" title="Tilt to look" {{on "click" this.toggleGyro}}><Icon @name="smartphone" @size={{15}} /></button>
                 <button type="button" class="btn uno-icon-btn" aria-label="Look back at the table" title="Recentre" {{on "click" this.recenter}}><Icon @name="locate-fixed" @size={{15}} /></button>
@@ -689,31 +949,81 @@ export default class UnoPage extends Component {
                   <span class="uno-hud-chip">Waiting for the host…</span>
                 {{/if}}
               {{else}}
-                {{#if this.canPass}}
-                  <button type="button" class="btn" {{on "click" this.passTurn}}>Pass</button>
+                {{#if this.view.canKeep}}
+                  {{#if this.drawnPlayable}}
+                    <button type="button" class="btn active" disabled={{this.locked}} {{on "click" this.playDrawn}}>Play it</button>
+                  {{/if}}
+                  <button type="button" class="btn" disabled={{this.locked}} {{on "click" this.keepCard}}>Keep it</button>
+                {{/if}}
+                {{#if this.view.canTake}}
+                  <button type="button" class="btn" disabled={{this.locked}} {{on "click" this.drawCard}}>{{this.takeLabel}}</button>
+                {{else if this.view.drewThisTurn}}
+                  {{#if this.view.canDraw}}
+                    <button type="button" class="btn" disabled={{this.locked}} {{on "click" this.drawCard}}>Draw again</button>
+                  {{/if}}
+                {{/if}}
+                {{#if this.view.canPass}}
+                  <button type="button" class="btn" disabled={{this.locked}} {{on "click" this.passTurn}}>Pass</button>
                 {{/if}}
                 {{#if this.view.canChallenge}}
-                  <button type="button" class="btn" {{on "click" this.drawCard}}>Take {{this.view.pendingDraw}}</button>
-                  <button type="button" class="btn active uno-challenge" {{on "click" this.challengeCard}}><Icon @name="flag" @size={{13}} /> Challenge</button>
+                  <button type="button" class="btn active uno-challenge" disabled={{this.locked}} {{on "click" this.challengeCard}}><Icon @name="flag" @size={{13}} /> Challenge</button>
                 {{/if}}
-                <button type="button" class="btn uno-call {{if this.view.canCallUno 'is-ready'}}" disabled={{if this.view.canCallUno false true}} {{on "click" this.sayUno}}>Woono!</button>
+                <button type="button" class="btn uno-call {{if this.view.canCallUno 'is-ready'}} {{if this.view.unoArmed 'is-armed'}} {{if this.iAmExposed 'is-urgent'}}" disabled={{if this.view.canCallUno false true}} title={{if this.view.unoArmed "You’ll say Woono when you play your next card" "Press with two cards left, before you play one"}} {{on "click" this.sayUno}}>{{this.unoLabel}}</button>
               {{/if}}
             </div>
 
             <GameChat @room={{this.room}} @floating={{true}} @class="uno-overlay uno-chat" />
 
+            {{#if this.helpOpen}}
+              <div id="uno-help" class="uno-help pop-in" role="dialog" aria-label="Controls">
+                <div class="uno-help-head">
+                  <span class="qr-label">Controls</span>
+                  <button type="button" class="btn uno-icon-btn" aria-label="Close" {{on "click" this.toggleHelp}}><Icon @name="x" @size={{14}} /></button>
+                </div>
+                {{#if this.touchControls}}
+                  <ul>
+                    <li><strong>Tap a card</strong> to lift it</li>
+                    <li><strong>Swipe it up</strong> or <strong>tap it again</strong> to play it</li>
+                    <li><strong>Slide along your hand</strong> to flip through your cards</li>
+                    <li><strong>Tap the deck</strong> to draw, then play the card or keep it</li>
+                    <li><strong>Drag the table</strong>{{if this.gyroAvailable " or tilt your phone"}} to look around</li>
+                  </ul>
+                {{else}}
+                  <ul>
+                    <li><strong>Hover a card</strong> to lift it</li>
+                    <li><strong>Click it</strong> to play it</li>
+                    <li><strong>Click the deck</strong> to draw, then play the card or keep it</li>
+                    <li><strong>Move to the edges</strong> to look around</li>
+                  </ul>
+                {{/if}}
+                <p class="tool-hint">Press <strong>Woono!</strong> with two cards left and it’s said as you play. Forgot? Press it before someone calls you out, or draw {{this.view.rules.unoPenalty}}.</p>
+              </div>
+            {{/if}}
+
             <p class="uno-rotate-hint" aria-hidden="true"><Icon @name="rotate-cw" @size={{14}} /> Turn your phone sideways for the full table</p>
 
-            {{#if this.choosingFor}}
-              <div class="uno-dialog pop-in" role="dialog" aria-label="Choose a colour">
-                <span class="qr-label">Choose a colour</span>
-                <div class="uno-color-choices">
-                  {{#each this.colors as |color|}}
-                    <button type="button" class="uno-color-btn is-{{color}}" aria-label={{color}} {{on "click" (fn this.chooseColor color)}}></button>
-                  {{/each}}
+            {{! The colour and target are picked on the 3D table; these dialogs only stand in without WebGL. }}
+            {{#if this.sceneFailed}}
+              {{#if this.choosingColor}}
+                <div class="uno-dialog pop-in" role="dialog" aria-label="Choose a colour">
+                  <span class="qr-label">Choose a colour</span>
+                  <div class="uno-color-choices">
+                    {{#each this.colors as |color|}}
+                      <button type="button" class="uno-color-btn is-{{color}}" aria-label={{color}} disabled={{this.settling}} {{on "click" (fn this.chooseColor color)}}></button>
+                    {{/each}}
+                  </div>
                 </div>
-                <button type="button" class="btn" {{on "click" this.cancelColor}}>Cancel</button>
-              </div>
+              {{/if}}
+              {{#if this.choosingTargetNow}}
+                <div class="uno-dialog pop-in" role="dialog" aria-label="Who draws">
+                  <span class="qr-label">Who draws?</span>
+                  <div class="uno-swap-choices">
+                    {{#each this.allPlayers key="index" as |p|}}
+                      <button type="button" class="btn" disabled={{this.settling}} {{on "click" (fn this.chooseTarget p.index)}}>{{p.label}} <span class="lobby-tag">{{p.count}} {{if (eq p.count 1) "card" "cards"}}</span></button>
+                    {{/each}}
+                  </div>
+                </div>
+              {{/if}}
             {{/if}}
 
             {{#if this.view.choosingSwap}}
@@ -721,7 +1031,7 @@ export default class UnoPage extends Component {
                 <span class="qr-label">Swap hands with…</span>
                 <div class="uno-swap-choices">
                   {{#each this.opponents key="index" as |p|}}
-                    <button type="button" class="btn" {{on "click" (fn this.swapTarget p.index)}}>{{p.name}} <span class="lobby-tag">{{p.count}} {{if (eq p.count 1) "card" "cards"}}</span></button>
+                    <button type="button" class="btn" disabled={{this.settling}} {{on "click" (fn this.swapTarget p.index)}}>{{p.name}} <span class="lobby-tag">{{p.count}} {{if (eq p.count 1) "card" "cards"}}</span></button>
                   {{/each}}
                 </div>
               </div>
@@ -729,7 +1039,21 @@ export default class UnoPage extends Component {
           </div>
 
           <div class="sr-only">
-            <button type="button" disabled={{if this.canDraw false true}} {{on "click" this.drawCard}}>Draw {{if this.view.pendingDraw this.view.pendingDraw "a card"}} ({{this.view.drawPileCount}} left)</button>
+            <button type="button" disabled={{if this.canDraw false true}} {{on "click" this.drawCard}}>{{if this.view.canTake this.takeLabel "Draw a card"}} ({{this.view.drawPileCount}} left)</button>
+            {{#if this.drawnItem}}
+              <button type="button" disabled={{if this.drawnItem.playable false true}} {{on "click" this.playDrawn}}>Play the card you drew: {{this.drawnItem.label}}</button>
+              <button type="button" {{on "click" this.keepCard}}>Keep it</button>
+            {{/if}}
+            {{#if this.choosingColor}}
+              {{#each this.colors as |color|}}
+                <button type="button" disabled={{this.settling}} {{on "click" (fn this.chooseColor color)}}>Make it {{color}}</button>
+              {{/each}}
+            {{/if}}
+            {{#if this.choosingTargetNow}}
+              {{#each this.allPlayers key="index" as |p|}}
+                <button type="button" disabled={{this.settling}} {{on "click" (fn this.chooseTarget p.index)}}>Aim it at {{p.label}}</button>
+              {{/each}}
+            {{/if}}
             <ul aria-label="Your hand">
               {{#each this.handItems key="key" as |item|}}
                 <li><button type="button" disabled={{if item.playable false true}} {{on "click" (fn this.playCard item.key)}}>{{item.label}}{{unless item.playable " (can't play)"}}</button></li>
@@ -745,7 +1069,7 @@ export default class UnoPage extends Component {
               <input type="number" class="lobby-number" min={{this.handMin}} max={{this.handMax}} step="1" value={{this.settings.handSize}} {{on "change" (fn this.setNumberRule "handSize")}} />
             </label>
             <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">Stacking</span><span class="tool-hint">Answer a draw card with another and pass the growing pile along.</span></span>
+              <span class="lobby-rule-text"><span class="qr-label">Stacking</span><span class="tool-hint">Answer a draw card with another and pass the growing pile along. “Equal or higher”: +4 on +2 is fine, +2 on +4 isn’t.</span></span>
               <div class="math-tabs" role="group" aria-label="Stacking">
                 {{#each this.stackingOptions as |o|}}
                   <button type="button" class="qr-tab {{if (eq this.settings.stacking o.id) 'active'}}" aria-pressed={{if (eq this.settings.stacking o.id) "true" "false"}} {{on "click" (fn this.setRule "stacking" o.id)}}>{{o.label}}</button>
@@ -770,9 +1094,21 @@ export default class UnoPage extends Component {
               </label>
             {{/each}}
             <label class="lobby-rule is-switch">
-              <span class="lobby-rule-text"><span class="qr-label">Forgetting to call Woono</span><span class="tool-hint">Cards drawn as a penalty, from {{this.penaltyMin}} to {{this.penaltyMax}}. Press Woono! while holding two cards, before you play one of them.</span></span>
+              <span class="lobby-rule-text"><span class="qr-label">Forgetting to call Woono</span><span class="tool-hint">Cards drawn if someone calls you out, from {{this.penaltyMin}} to {{this.penaltyMax}}. Press Woono! with two cards left, or with one before anyone catches you.</span></span>
               <input type="number" class="lobby-number" min={{this.penaltyMin}} max={{this.penaltyMax}} step="1" value={{this.settings.unoPenalty}} {{on "change" (fn this.setNumberRule "unoPenalty")}} />
             </label>
+            <div class="lobby-rule uno-card-rules">
+              <span class="lobby-rule-text"><span class="qr-label">Cards in the deck</span><span class="tool-hint">Numbers are always in. Switch action cards on or off.</span></span>
+              {{#each this.cardTypes as |type|}}
+                <label class="lobby-rule is-switch">
+                  <span class="lobby-rule-text"><span class="qr-label">{{type.label}}</span><span class="tool-hint">{{type.hint}}</span></span>
+                  <span class="qr-switch">
+                    <input type="checkbox" role="switch" checked={{cardOn this.settings type.id}} aria-checked={{if (cardOn this.settings type.id) "true" "false"}} {{on "change" (fn this.toggleCard type.id)}} />
+                    <span class="qr-switch-track" aria-hidden="true"></span>
+                  </span>
+                </label>
+              {{/each}}
+            </div>
           </:rules>
         </GameLobby>
       {{/if}}
@@ -790,4 +1126,12 @@ function lowTime(seconds) {
 
 function ruleOn(settings, key) {
   return Boolean(settings[key]);
+}
+
+function cardOn(settings, id) {
+  return settings.cards?.[id] ?? DEFAULT_CARDS[id];
+}
+
+function capitalise(text) {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }

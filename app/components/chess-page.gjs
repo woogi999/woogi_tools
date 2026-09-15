@@ -17,7 +17,7 @@ import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { robotAvatar } from '../utils/avatar';
 import { findBestMove, LEVELS } from '../utils/chess-ai';
-import { FILES, STANDARD_FEN, TIME_CONTROLS, clockFor, formatClock, chess960Fen, premoveTargets, applyPremoves, syncTokens, canMate } from '../utils/chess-extras';
+import { FILES, STANDARD_FEN, TIME_CONTROLS, clockFor, formatClock, chess960Fen, premoveTargets, reachableAfterReply, applyPremoves, syncTokens, canMate } from '../utils/chess-extras';
 
 const PIECE_ICON = { k: 'chess-king', q: 'chess-queen', r: 'chess-rook', b: 'chess-bishop', n: 'chess-knight', p: 'chess-pawn' };
 const PIECE_NAME = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
@@ -301,8 +301,17 @@ export default class ChessPage extends Component {
     void this.version;
     if (!this.selected) return new Map();
     if (this.isMyTurn) return new Map(this.chess.moves({ square: this.selected, verbose: true }).map((m) => [m.to, m]));
-    if (this.canPremove) return new Map(premoveTargets(this.displayBoard, this.selected).map((sq) => [sq, { premove: true }]));
+    if (this.canPremove) return new Map(this.premoveOptions(this.selected).map((sq) => [sq, { premove: true }]));
     return new Map();
+  }
+
+  // Squares a premove from `from` may go to. The first premove is checked
+  // against every reply the opponent could make, so only moves that can
+  // really be played are offered; later ones are a close approximation.
+  premoveOptions(from) {
+    if (this.pieceAt(from)?.color !== this.playerColor) return [];
+    if (!this.premoves.length) return reachableAfterReply(Chess, this.chess.fen(), from);
+    return premoveTargets(this.displayBoard, from, this.chess.getCastlingRights(this.playerColor));
   }
 
   get flipped() {
@@ -529,10 +538,10 @@ export default class ChessPage extends Component {
       }
       return this.playMine({ from, to, promotion: move.promotion ? 'q' : undefined });
     }
-    if (this.canPremove && premoveTargets(this.displayBoard, from).includes(to)) {
+    if (this.canPremove && this.premoveOptions(from).includes(to)) {
       const piece = this.pieceAt(from);
       const promotion = piece?.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : undefined;
-      this.premoves = [...this.premoves, { from, to, promotion }];
+      this.premoves = [...this.premoves, { from, to, promotion, color: this.playerColor }];
       this.selected = null;
       this.afterChange();
       return true;

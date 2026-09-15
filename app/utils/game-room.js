@@ -4,6 +4,7 @@ import { playerAvatar } from './avatar';
 import { loadProfile, saveProfile } from './profile';
 import { censor } from './censor';
 import { createInvite, answerInvite, LanConnection } from './lan-link';
+import { peerOptions } from './ice';
 
 // Peer ids are namespaced per game, so a Chess code can't collide with a Snake
 // code (or a File Share code) that happens to be the same six characters.
@@ -173,9 +174,9 @@ export default class GameRoom {
   // Takes the first free listing slot, and answers anyone browsing with a short description of the room.
   async list(slot = 0) {
     if (slot >= LISTING_SLOTS || this.status !== 'open' || !this.listed) return;
-    const { default: Peer } = await import('peerjs');
-    if (this.status !== 'open' || !this.listed || this.listingPeer) return;
-    const listing = new Peer(listingId(this.game, slot));
+    const [{ default: Peer }, options] = await Promise.all([import('peerjs'), peerOptions().catch(() => null)]);
+    if (!options || this.status !== 'open' || !this.listed || this.listingPeer) return;
+    const listing = new Peer(listingId(this.game, slot), options);
     this.listingPeer = listing;
     listing.on('open', () => (this.listing = true));
     listing.on('error', (error) => {
@@ -205,10 +206,12 @@ export default class GameRoom {
 
   // Everyone's public rooms for a game, found by knocking on each listing slot.
   static async browse(game) {
-    const { default: Peer } = await import('peerjs');
+    const [{ default: Peer }, options] = await Promise.all([import('peerjs'), peerOptions().catch(() => null)]);
+    // Without a relay, knocking on listed rooms would show them your address; find nothing instead.
+    if (!options) return [];
     return new Promise((resolve) => {
       const rooms = new Map();
-      const peer = new Peer();
+      const peer = new Peer(options);
       const finish = () => {
         peer.destroy();
         resolve([...rooms.values()].sort((a, b) => Number(a.locked) - Number(b.locked) || b.players - a.players));
@@ -446,9 +449,10 @@ export default class GameRoom {
     this.slowTimer = setTimeout(() => (this.slow = true), SLOW_CONNECT_MS);
     try {
       // Only loaded once someone actually plays online.
-      const { default: Peer } = await import('peerjs');
+      const [{ default: Peer }, options] = await Promise.all([import('peerjs'), peerOptions()]);
       if (!this.isBusy) return null; // cancelled while loading
-      const peer = id ? new Peer(id) : new Peer();
+      // Relayed through TURN (utils/ice.js), so no one in the room sees anyone else's IP address.
+      const peer = id ? new Peer(id, options) : new Peer(options);
       this.peer = peer;
       peer.on('error', (error) => this.fail(error));
       return peer;
@@ -466,7 +470,8 @@ export default class GameRoom {
   fail(error) {
     // Once a room is up, broker hiccups don't matter: real losses arrive as a closed connection.
     if (this.isOnline) return;
-    if (error?.type === 'unavailable-id') this.close('That room code just got taken. Try again.');
+    if (error?.type === 'private-connection') this.close(error.message);
+    else if (error?.type === 'unavailable-id') this.close('That room code just got taken. Try again.');
     else if (error?.type === 'peer-unavailable') this.close('No room found with that code. Check it and try again.');
     else this.close("Couldn't reach the connection service. Check your connection and try again.");
   }

@@ -3,8 +3,15 @@
   "compatibility_date": "2026-09-13",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
+  // Only /api/* runs the Worker; every other request is a static file from the build.
+  "main": "./worker/index.js",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
   }
+  // Secrets, set with `npx wrangler secret put <NAME>` (never committed):
+  //   TURN_KEY_ID          the Cloudflare Realtime TURN key id
+  //   TURN_KEY_API_TOKEN   that key's API token
 }

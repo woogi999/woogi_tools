@@ -20,6 +20,9 @@ const LINES = {
   caught: ['You checked my logs?! Rude.', 'I was just testing your security.', 'Busted. Deleting the evidence.'],
   timeout: ['Tick tock, {name}. Is your Wi-Fi okay?', '{name} is buffering…', 'Did {name} go AFK? Shall I ping them?'],
   jumpIn: ['Jumping in! Low latency, baby.', 'Interrupt request granted.'],
+  callout: ['{name} forgot to say it! My sensors never miss.', 'Caught you, {name}. Woono means Woono.', 'Penalty for {name}! I logged that.', 'Ahem. {name}? Forgetting something?'],
+  block: ['Blocked. My firewall says no.', 'Access denied, {name}.', 'Nice try. Request rejected.'],
+  reflect: ['Return to sender, {name}!', 'Uno reverse. I mean Woono reverse.', 'Bounced right back to you, {name}.', 'Ping… pong!'],
   swap: ['Swapsies, {name}! Hot-swapping hands.', 'Let’s trade data, {name}.'],
 
   chessHello: ['Let’s play. I’ve read every opening. Twice.', 'Your move, human. My alpha-beta is warmed up.', 'I promise not to flip the board. I don’t have arms.'],

@@ -123,6 +123,7 @@ export function disposeGroup(group) {
     }
     obj.userData.faceOpen?.dispose();
     obj.userData.faceClosed?.dispose();
+    for (const material of obj.userData.moods?.values() ?? []) material.dispose();
   });
 }
 
@@ -409,12 +410,12 @@ function buildHuman(avatar, kit, group) {
       break;
     case 'choker':
     case 'bell':
-      add(kit.geometry('choker', () => new TorusGeometry(0.125, 0.022, 6, 20)), avatar.neck === 'bell' ? red : dark, group, { position: [0, 0.725, 0], rotation: [Math.PI / 2, 0, 0], scale: [1, 0.85, 1] });
-      if (avatar.neck === 'bell') add(sphere(0.042), gold, group, { position: [0, 0.68, 0.115] });
+      add(kit.geometry('choker', () => new TorusGeometry(0.15, 0.024, 6, 20)), avatar.neck === 'bell' ? red : dark, group, { position: [0, 0.712, 0], rotation: [Math.PI / 2, 0, 0], scale: [1, 0.85, 1] });
+      if (avatar.neck === 'bell') add(sphere(0.045), gold, group, { position: [0, 0.655, 0.155] });
       break;
     case 'necklace':
       add(kit.geometry('necklace', () => new TorusGeometry(0.15, 0.01, 6, 24)), gold, group, { position: [0, 0.67, 0.03], rotation: [Math.PI / 2 - 0.45, 0, 0], scale: [1, 0.85, 1], outline: false });
-      add(kit.geometry('gem', () => new ConeGeometry(0.03, 0.06, 4)), accent, group, { position: [0, 0.59, 0.165], rotation: [Math.PI, 0, 0] });
+      add(kit.geometry('gem', () => new ConeGeometry(0.04, 0.08, 4)), accent, group, { position: [0, 0.58, 0.18], rotation: [Math.PI, 0, 0] });
       break;
     case 'bandana':
       add(kit.geometry('bandana', () => new ConeGeometry(0.15, 0.2, 3)), accent, group, { position: [0, 0.63, 0.16], rotation: [Math.PI, 0, 0], scale: [1, 1, 0.3] });
@@ -461,9 +462,14 @@ function buildHuman(avatar, kit, group) {
     shoulder.position.set(side * 0.215, 0.665, 0);
     shoulder.rotation.set(-1.0, 0, side * 0.3);
     group.add(shoulder);
-    add(kit.geometry('arm', () => new CapsuleGeometry(0.05, 0.15, 4, 8)), longSleeves ? shirt : skin, shoulder, { position: [0, -0.1, 0] });
-    if (shortSleeves) add(kit.geometry('sleeve', () => new CylinderGeometry(0.068, 0.066, 0.09, 12)), shirt, shoulder, { position: [0, -0.035, 0] });
-    add(sphere(0.06, 10, 8), skin, shoulder, { position: [0, -0.2, 0] });
+    const arm = add(kit.geometry('arm', () => new CapsuleGeometry(0.05, 0.15, 4, 8)), longSleeves ? shirt : skin, shoulder, { position: [0, -0.1, 0] });
+    if (shortSleeves) {
+      add(kit.geometry('sleeve', () => new CylinderGeometry(0.068, 0.066, 0.09, 12)), shirt, shoulder, { position: [0, -0.035, 0] });
+      // A rounded cap over the top of the shoulder, where the sleeve meets the body, so no skin pokes through.
+      add(sphere(0.072, 12, 8), shirt, shoulder, { position: [0, 0.005, 0], scale: [1, 0.85, 1] });
+    }
+    const hand = add(sphere(0.06, 10, 8), skin, shoulder, { position: [0, -0.2, 0] });
+    shoulder.userData = { arm, hand, reach: 0.2 };
     arms.push(shoulder);
   }
 
@@ -506,7 +512,8 @@ function buildHuman(avatar, kit, group) {
   const surface = style.none ? { volume: 1, front: 1, side: 1, back: 1, none: true } : style;
   const on = (az, frac, out = 0) => hairPoint(surface, az, frac, out);
   if (!style.none) {
-    if (style.under) add(kit.geometry(`hair:${style.id}:under`, () => hairGeometry(style.under)), kit.toon(darker(avatar.hairColor), { double: true }), head);
+    // Shaved sides: stubble, somewhere between the skin and the hair colour.
+    if (style.under) add(kit.geometry(`hair:${style.id}:under`, () => hairGeometry(style.under)), kit.toon(`#${new Color(avatar.skin).lerp(new Color(avatar.hairColor), 0.45).getHexString()}`, { double: true }), head);
     add(kit.geometry(`hair:${style.id}`, () => hairGeometry(style)), hairDouble, head, { thin: false });
     style.layers?.forEach((layer, i) => add(kit.geometry(`hair:${style.id}:${i}`, () => hairGeometry(layer)), hairDouble, head));
     const cone = kit.geometry('hair-spike', () => new ConeGeometry(0.1, 0.34, 6));
@@ -554,12 +561,13 @@ function buildHuman(avatar, kit, group) {
   }
 
   buildHat(avatar, kit, head, { add, point, sphere, on, style, crown, hair, hatColor, white, dark, gold, pink });
-  const hands = arms;
-  return { head, body, face, arms: hands, handHeight: 0.6 };
+  // Cards are held at the chest, low enough to clear the chin and far enough out to clear the belly.
+  return { head, body, face, arms, hold: { y: 0.46, z: 0.27, grip: 0.09 } };
 }
 
 function buildHat(avatar, kit, head, { add, point, sphere, on, style, crown, hair, hatColor, white, dark, gold, pink }) {
-  const grow = style.none ? 0 : hairGrow(style, 0) + (style.lift ?? 0) * 0.5;
+  // Hats sit over the puffiest layer of hair.
+  const grow = style.none ? 0 : Math.max(hairGrow(style, 0), ...(style.layers ?? []).map((layer) => hairGrow(layer, 0))) + (style.lift ?? 0) * 0.5;
   // A cap of the head's own shape, `down` (as a fraction of π) from the crown.
   const shell = (key, down, out) => kit.geometry(`shell:${key}:${grow.toFixed(3)}`, () => toHead(new SphereGeometry(1, 32, 12, 0, Math.PI * 2, 0, Math.PI * down), grow + out));
   const band = (key, from, to, out) => kit.geometry(`band:${key}:${grow.toFixed(3)}`, () => toHead(new SphereGeometry(1, 32, 3, 0, Math.PI * 2, Math.PI * from, Math.PI * (to - from)), grow + out));
@@ -583,6 +591,46 @@ function buildHat(avatar, kit, head, { add, point, sphere, on, style, crown, hai
       add(shell('bucket', 0.44, 0.045), hatColor, head, { thin: false });
       const [, y] = rim(0.44, 0.045);
       add(kit.geometry('bucket-brim', () => new CylinderGeometry(HEAD.x + 0.02, HEAD.x + 0.2, 0.1, 32, 1, true)), kit.toon(avatar.hatColor, { double: true }), head, { position: [0, y - 0.03, 0], scale: [1 + grow, 1, (HEAD.z + 0.1) / (HEAD.x + 0.1) + grow] });
+      break;
+    }
+    case 'pail': {
+      // An actual bucket, upside down and jammed on, with its handle swung round the back.
+      const [, y] = rim(0.42, 0.05);
+      const depth = (HEAD.z + grow + 0.06) / (HEAD.x + grow + 0.06);
+      const pail = new Group();
+      pail.position.set(0, y - 0.02, 0);
+      pail.rotation.z = 0.06;
+      pail.scale.set(1, 1, depth);
+      head.add(pail);
+      const bottom = HEAD.x + grow + 0.06;
+      const height = crown - y + 0.2;
+      add(kit.geometry(`pail:${bottom.toFixed(3)}:${height.toFixed(3)}`, () => new CylinderGeometry(bottom * 0.78, bottom, height, 28, 1, true)), kit.toon(avatar.hatColor, { double: true }), pail, { position: [0, height / 2, 0], thin: false });
+      add(kit.geometry(`pail-top:${bottom.toFixed(3)}`, () => new CircleGeometry(bottom * 0.78, 28)), hatColor, pail, { position: [0, height, 0], rotation: [-Math.PI / 2, 0, 0], outline: false });
+      add(kit.geometry(`pail-lip:${bottom.toFixed(3)}`, () => new TorusGeometry(bottom, 0.025, 6, 32)), kit.toon(darker(avatar.hatColor, 0.8)), pail, { rotation: [Math.PI / 2, 0, 0] });
+      const handle = new Group();
+      handle.position.set(0, height * 0.45, 0);
+      handle.rotation.x = -(Math.PI / 2 + 0.35);
+      pail.add(handle);
+      const reach = bottom * 0.9 + 0.02;
+      add(kit.geometry(`pail-handle:${reach.toFixed(3)}`, () => new TorusGeometry(reach, 0.014, 6, 24, Math.PI)), kit.toon('#B8BEC8'), handle);
+      for (const side of [-1, 1]) add(sphere(0.035, 8, 6), kit.toon('#B8BEC8'), pail, { position: [side * reach, height * 0.45, 0] });
+      break;
+    }
+    case 'traffic-cone': {
+      // Sits a little crooked, as a traffic cone on someone's head should.
+      const orange = kit.toon('#FF7A1A');
+      const cone = new Group();
+      cone.position.set(0.02, crown - 0.02, 0);
+      cone.rotation.set(-0.06, 0, -0.14);
+      head.add(cone);
+      const tall = 0.72;
+      const base = 0.27;
+      const radiusAt = (h) => base * (1 - h / tall);
+      add(kit.geometry('cone-base', () => new RoundedBoxGeometry(0.62, 0.06, 0.62, 2, 0.02)), kit.toon('#E0600B'), cone, { position: [0, 0.03, 0], thin: false });
+      add(kit.geometry('cone', () => new ConeGeometry(base, tall, 24)), orange, cone, { position: [0, 0.06 + tall / 2, 0], thin: false });
+      for (const [from, to] of [[0.2, 0.3], [0.4, 0.48]]) {
+        add(kit.geometry(`cone-stripe:${from}`, () => new CylinderGeometry(radiusAt(to) + 0.006, radiusAt(from) + 0.006, to - from, 24, 1, true)), white, cone, { position: [0, 0.06 + (from + to) / 2, 0], outline: false });
+      }
       break;
     }
     case 'beret':
@@ -775,13 +823,14 @@ function buildRobot(avatar, kit, group) {
     shoulder.position.set(side * 0.37, 0.7, 0);
     shoulder.rotation.set(-1.0, 0, side * 0.3);
     group.add(shoulder);
-    add(armGeometry, dark, shoulder, { position: [0, -0.13, 0] });
-    add(handGeometry, metal, shoulder, { position: [0, -0.28, 0] });
+    const arm = add(armGeometry, dark, shoulder, { position: [0, -0.13, 0] });
+    const hand = add(handGeometry, metal, shoulder, { position: [0, -0.28, 0] });
+    shoulder.userData = { arm, hand, reach: 0.28 };
     arms.push(shoulder);
   }
   group.userData.glow = glow;
   group.userData.antenna = ball;
-  return { head, body: torso, face, arms, handHeight: 0.6 };
+  return { head, body: torso, face, arms, hold: { y: 0.46, z: 0.34, grip: 0.12 } };
 }
 
 export function buildAvatar(avatarInput, kit) {
@@ -789,11 +838,67 @@ export function buildAvatar(avatarInput, kit) {
   const group = new Group();
   const parts = avatar.type === 'robot' ? buildRobot(avatar, kit, group) : buildHuman(avatar, kit, group);
   Object.assign(group.userData, parts, {
+    avatar,
+    moods: new Map(),
     robot: avatar.type === 'robot',
     faceOpen: parts.face.material,
     faceClosed: new MeshBasicMaterial({ map: faceTexture(kit, avatar, 1), transparent: true, alphaTest: 0.35, depthWrite: false }),
   });
   return group;
+}
+
+const ARM_DOWN = new Vector3(0, -1, 0);
+const reachTo = new Vector3();
+
+// Points one arm at a spot (in the avatar's own space) and stretches it to get
+// there: chibi arms are too short to reach much on their own.
+function reachArm(shoulder, x, y, z) {
+  const { arm, hand, reach } = shoulder.userData;
+  reachTo.set(x, y, z).sub(shoulder.position);
+  const stretch = Math.max(0.6, reachTo.length() / reach);
+  shoulder.quaternion.setFromUnitVectors(ARM_DOWN, reachTo.normalize());
+  arm.position.y = (arm.userData.baseY ??= arm.position.y) * stretch;
+  arm.scale.y = stretch;
+  hand.position.y = -reach * stretch;
+}
+
+// Both hands to these spots: [[x, y, z] for the left hand, [x, y, z] for the right].
+export function reachArms(group, [left, right]) {
+  const [l, r] = group.userData.arms;
+  reachArm(l, ...left);
+  reachArm(r, ...right);
+}
+
+// Both hands on the card-holding spot in front of the chest (userData.hold),
+// gripping either side of the bottom of the cards.
+export function holdCards(group) {
+  const { hold } = group.userData;
+  reachArms(group, [
+    [-hold.grip, hold.y + 0.02, hold.z + 0.035],
+    [hold.grip, hold.y + 0.02, hold.z + 0.035],
+  ]);
+}
+
+// Faces for the emotes: the avatar's own face with the eyes, brows and mouth swapped.
+const MOODS = {
+  stunned: { human: { eyes: 'dizzy', brows: 'worried', mouth: 'o' }, robot: { eyes: 'x', mouth: 'flat' } },
+  angry: { human: { brows: 'angry', mouth: 'frown' }, robot: { eyes: 'x', mouth: 'flat' } },
+  annoyed: { human: { eyes: 'sleepy', brows: 'angry', mouth: 'flat' }, robot: { eyes: 'sleepy', mouth: 'flat' } },
+  shocked: { human: { eyes: 'shocked', brows: 'worried', mouth: 'o' }, robot: { eyes: 'blank', mouth: 'tiny' } },
+  sad: { human: { eyes: 'sleepy', brows: 'worried', mouth: 'frown' }, robot: { eyes: 'sleepy', mouth: 'flat' } },
+  smug: { human: { eyes: 'wink', mouth: 'smirk' }, robot: { eyes: 'happy', mouth: 'smile' } },
+  joy: { human: { eyes: 'happy', brows: 'soft', mouth: 'grin' }, robot: { eyes: 'happy', mouth: 'grin' } },
+  clap: { human: { eyes: 'happy', mouth: 'smile' }, robot: { eyes: 'happy', mouth: 'smile' } },
+  cheer: { human: { eyes: 'happy', mouth: 'open' }, robot: { eyes: 'big', mouth: 'grin' } },
+};
+
+// The face material for a mood, made the first time it's needed and kept with the avatar.
+export function moodFace(group, kit, mood) {
+  const { avatar, moods } = group.userData;
+  const overrides = MOODS[mood]?.[avatar.type === 'robot' ? 'robot' : 'human'];
+  if (!overrides) return group.userData.faceOpen;
+  if (!moods.has(mood)) moods.set(mood, new MeshBasicMaterial({ map: faceTexture(kit, { ...avatar, ...overrides }, 0), transparent: true, alphaTest: 0.35, depthWrite: false }));
+  return moods.get(mood);
 }
 
 export function disposeAvatar(group) {
