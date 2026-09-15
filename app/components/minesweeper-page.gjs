@@ -8,6 +8,7 @@ import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import Joystick from './joystick';
+import ArcadeRadar from './arcade-radar';
 import GameLobby, { ReadyButton } from './game-lobby';
 import GameChat from './game-chat';
 import HoldConfirm from './hold-confirm';
@@ -20,27 +21,34 @@ import { roomCodeFromUrl } from '../utils/file-share';
 import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { robotAvatar } from '../utils/avatar';
-import { MAX_PLAYERS, FIELDS, TIME_LIMITS, PLAYER_COLORS, HIDDEN, EXPLODED, DROP_MS, createGame, dig, toggleFlag, removePlayer, walk, tick, viewOf, botStep, tileAt } from '../utils/minesweeper';
+import DefusePuzzle from './defuse-puzzle';
+import { DEFUSED, RUN_MODES, STAMINA_MAX, TIME_RANGE, runStep, stepOn, resolveDefuse, startDefuse } from '../utils/minesweeper';
+import { PUZZLE_TYPES } from '../utils/defuse-puzzles';
+import { CommandError } from '../utils/debug-commands';
+import { MAX_PLAYERS, FIELDS, PLAYER_COLORS, HIDDEN, EXPLODED, DROP_MS, BLAST_RADIUS, BLAST_RADIUS_RANGE, MINE_PERCENT_RANGE, BOT_LEVELS, createGame, dig, toggleFlag, removePlayer, walk, tick, viewOf, botStep, tileAt } from '../utils/minesweeper';
 import { sfx, preloadSounds } from '../utils/sound';
 
-const DEFAULTS = { field: 'normal', time: 300, bots: 1, stunOnly: true };
-const ON_OFF = [
-  { id: true, label: 'On' },
-  { id: false, label: 'Off' },
-];
+const DEFAULTS = { field: 'normal', time: 300, bots: 1, stunOnly: true, blast: false, blastRadius: 2, sprint: false, minePercent: null, botLevel: 'normal', run: 'off', defuse: false };
 const SIM_MS = 50;
 const SEND_EVERY = 2; // simulation steps between updates to guests (10 a second)
 const POS_SEND_MS = 80;
 // How close (in tiles) a guest has to be to a tile to dig or flag it, give or take lag.
 const REACH = 1.6;
 const MOVES = new Set(['up', 'down', 'left', 'right']);
+// Actions that last while held.
+const HOLDS = new Set([...MOVES, 'run']);
 
 const eq = (a, b) => a === b;
 
 export default class MinesweeperPage extends Component {
   fields = FIELDS;
-  times = TIME_LIMITS;
-  onOff = ON_OFF;
+  botLevels = BOT_LEVELS;
+  runModes = RUN_MODES;
+  percentMin = MINE_PERCENT_RANGE[0];
+  percentMax = MINE_PERCENT_RANGE[1];
+  radiusMin = BLAST_RADIUS_RANGE[0];
+  radiusMax = BLAST_RADIUS_RANGE[1];
+  @tracked sprinting = false;
 
   // 'lobby' | 'playing'
   @tracked mode = 'lobby';
@@ -82,7 +90,7 @@ export default class MinesweeperPage extends Component {
     const stopInput = listenForActions('mines', { active, onAction: (action, info) => this.onAction(action, info) });
     const keyUp = (event) => {
       const action = actionForKey('mines', event);
-      if (MOVES.has(action)) this.held.delete(action);
+      if (HOLDS.has(action)) this.held.delete(action);
     };
     const blur = () => this.held.clear();
     window.addEventListener('keyup', keyUp);
@@ -90,7 +98,7 @@ export default class MinesweeperPage extends Component {
     // The D-pad walks while held, so it needs the releases too.
     const releasePad = pushPadHandler((button, { down }) => {
       const action = actionForPad('mines', button);
-      if (!MOVES.has(action) || !active()) return false;
+      if (!HOLDS.has(action) || !active()) return false;
       if (down) this.held.add(action);
       else this.held.delete(action);
       return true;
@@ -101,6 +109,7 @@ export default class MinesweeperPage extends Component {
       window.removeEventListener('keyup', keyUp);
       window.removeEventListener('blur', blur);
       this.stopTimer();
+      clearTimeout(this.sprintTimer);
       this.chatter.dispose();
       this.room.close();
     });
@@ -132,6 +141,38 @@ export default class MinesweeperPage extends Component {
     return this.view?.status === 'over';
   }
 
+  getScene = () => this.scene;
+
+  // The whole field in miniature: grass for hidden tiles, sand for dug ones, flags and blown mines, and everyone (you outlined).
+  drawMap = (ctx, size) => {
+    const v = this.latest;
+    if (!v) return;
+    const cell = size / Math.max(v.width, v.height);
+    const sq = Math.ceil(cell);
+    const ox = (size - cell * v.width) / 2;
+    const oy = (size - cell * v.height) / 2;
+    for (let y = 0; y < v.height; y++) {
+      for (let x = 0; x < v.width; x++) {
+        const i = y * v.width + x;
+        const c = v.cells[i];
+        ctx.fillStyle = c === DEFUSED ? '#4d8ff0' : c === EXPLODED || (c === HIDDEN && v.mines?.[i]) ? '#2b2b2b' : c === HIDDEN ? (v.flags[i] ? '#e5484d' : (x + y) % 2 ? '#6fbf4a' : '#66b343') : '#e9d5a0';
+        ctx.fillRect(ox + x * cell, oy + y * cell, sq, sq);
+      }
+    }
+    for (const p of v.players) {
+      if (p.left) continue;
+      const mine = p.id === this.myId;
+      const pos = mine && this.me ? this.me : p;
+      ctx.beginPath();
+      ctx.arc(ox + pos.x * cell, oy + pos.y * cell, Math.max(3, cell * 0.7), 0, Math.PI * 2);
+      ctx.fillStyle = p.dead ? '#9e9e9e' : PLAYER_COLORS[p.color % PLAYER_COLORS.length];
+      ctx.fill();
+      ctx.lineWidth = Math.max(1.5, cell * 0.22);
+      ctx.strokeStyle = mine ? '#ffffff' : '#141414';
+      ctx.stroke();
+    }
+  };
+
   get busy() {
     return (this.mode === 'playing' && !this.isOver) || this.room.isOnline;
   }
@@ -147,8 +188,10 @@ export default class MinesweeperPage extends Component {
 
   // The key reminders in the corner: keyboard keys, or controller buttons once a controller's in use (touch screens hide it).
   get controls() {
+    const run = this.view?.run === 'risky' || this.view?.run === 'stamina';
     return controlHints('mines', [
       { label: 'Walk', actions: ['up', 'left', 'down', 'right'] },
+      ...(run ? [{ label: 'Run (hold)', actions: ['run'] }] : []),
       { label: 'Dig', actions: ['dig'] },
       { label: 'Flag', actions: ['flag'] },
       { label: 'Chat', actions: ['chat'] },
@@ -179,7 +222,7 @@ export default class MinesweeperPage extends Component {
   get minesLeft() {
     const v = this.view;
     if (!v) return 0;
-    const marked = v.cells.filter((c, i) => c === EXPLODED || (c === HIDDEN && v.flags[i])).length;
+    const marked = v.cells.filter((c, i) => c === EXPLODED || c === DEFUSED || (c === HIDDEN && v.flags[i])).length;
     return v.mineCount - marked;
   }
 
@@ -202,6 +245,7 @@ export default class MinesweeperPage extends Component {
         flagsRight: p.flagsRight,
         flagsWrong: p.flagsWrong,
         booms: p.booms,
+        defused: p.defused,
         swatch: htmlSafe(`background: ${PLAYER_COLORS[p.color % PLAYER_COLORS.length]}`),
       }));
   }
@@ -212,6 +256,7 @@ export default class MinesweeperPage extends Component {
     if (v.status === 'drop') return 'Dropping in…';
     if (v.status === 'playing') {
       if (this.iAmOut) return 'Boom! You’re out. The others play on.';
+      if (this.myDefusing) return 'You stepped on a mine! Defuse it before the timer runs out.';
       if (this.stunned) return 'Boom! You’re stunned for a moment.';
       return this.isSolo ? 'Walk onto a tile, then dig it or flag it. Don’t dig the mines.' : 'Dig tiles for points, flag the mines, avoid the booms. Highest score wins.';
     }
@@ -231,7 +276,7 @@ export default class MinesweeperPage extends Component {
     this.avatars = new Map(seats.filter((s) => s.avatar).map((s) => [s.id, s.avatar]));
     this.state = createGame(
       seats.map((s) => ({ id: s.id, name: s.name, bot: s.kind === 'bot' })),
-      { field: this.settings.field, time: this.settings.time, stunOnly: this.settings.stunOnly !== false },
+      { run: this.settings.run, defuse: this.settings.defuse === true, field: this.settings.field, time: this.settings.time, stunOnly: this.settings.stunOnly !== false, blast: this.settings.blast === true, blastRadius: this.settings.blastRadius, sprint: this.settings.sprint === true, minePercent: this.settings.minePercent ?? null, botLevel: this.settings.botLevel },
     );
     this.brains = new Map();
     this.mode = 'playing';
@@ -241,7 +286,7 @@ export default class MinesweeperPage extends Component {
     const bots = this.state.players.filter((p) => p.bot);
     if (bots.length) this.chatter.say(bots[Math.floor(Math.random() * bots.length)].name, 'minesHello', { urgent: true });
     const mine = this.state.players.find((p) => p.id === this.myId);
-    this.me = mine ? { x: mine.x, y: mine.y, face: 0, moving: false } : null;
+    this.me = mine ? { x: mine.x, y: mine.y, face: 0, moving: false, stamina: STAMINA_MAX } : null;
     this.publish(true);
     this.stopTimer();
     this.timer = setInterval(() => this.simulate(), SIM_MS);
@@ -262,6 +307,7 @@ export default class MinesweeperPage extends Component {
       let brain = this.brains.get(player.id);
       if (!brain) this.brains.set(player.id, (brain = {}));
       const done = botStep(state, player, brain, dt);
+      stepOn(state, player);
       if (done?.result === 'boom') this.chatter.say(player.name, 'minesBoom', { chance: 0.7 });
       else if (done?.result === 'flag') this.chatter.say(player.name, 'minesFlag', { chance: 0.08 });
     }
@@ -287,7 +333,8 @@ export default class MinesweeperPage extends Component {
     this.playSounds(view);
     this.latest = view;
     // The scoreboard doesn't need every step.
-    if (!this.view || view.status !== this.view.status || this.steps % 4 === 0 || !this.isHostSide) this.view = view;
+    const defusingNow = (v) => v?.players.find((p) => p.id === this.myId)?.defusing?.seed ?? null;
+    if (!this.view || view.status !== this.view.status || this.steps % 4 === 0 || !this.isHostSide || defusingNow(view) !== defusingNow(this.view)) this.view = view;
     this.scene?.setView(view, { myId: this.myId, avatars: this.avatarMap(view) });
   }
 
@@ -311,9 +358,18 @@ export default class MinesweeperPage extends Component {
       else if (event.kind === 'boom') {
         sfx('mines.boom');
         if (event.by === this.myId) setTimeout(() => sfx(event.dead ? 'snake.die' : 'mines.stun'), 300);
+        else if (event.stunned?.includes(this.myId)) setTimeout(() => sfx('mines.stun'), 300);
       }
       else if ((event.kind === 'flag' || event.kind === 'unflag') && nearby) sfx('mines.flag');
       else if (event.kind === 'start') sfx('mines.start');
+      else if (event.kind === 'defusing' && event.by === this.myId) sfx('mines.stun');
+      else if (event.kind === 'defused' && nearby) sfx('mines.clear');
+      else if (event.kind === 'sprint') {
+        sfx('mines.start');
+        this.sprinting = true;
+        clearTimeout(this.sprintTimer);
+        this.sprintTimer = setTimeout(() => (this.sprinting = false), 3000);
+      }
       else if (event.kind === 'over') {
         const won = view.players.length === 1 ? view.safeLeft <= 0 && !event.blownUp : event.winner === this.myId;
         setTimeout(() => sfx(won ? 'mines.win' : 'mines.lose'), 500);
@@ -369,22 +425,32 @@ export default class MinesweeperPage extends Component {
     if (this.held.has('up')) dy -= 1;
     if (this.held.has('down')) dy += 1;
     const mine = view.players.find((p) => p.id === this.myId);
+    const wantsRun = (this.held.has('run') || this.touchRun) && Math.hypot(dx, dy) > 0.05;
     if (this.isHostSide) {
       const player = this.state?.players.find((p) => p.id === this.myId);
       if (!player) return;
-      walk(this.state, player, dx, dy, dt);
-      Object.assign(this.me, { x: player.x, y: player.y, face: player.face, moving: player.moving });
+      const speed = player.defusing ? 0 : runStep(this.state, player, wantsRun, dt);
+      walk(this.state, player, dx, dy, dt, speed);
+      if (stepOn(this.state, player)) this.publish(true);
+      Object.assign(this.me, { x: player.x, y: player.y, face: player.face, moving: player.moving, running: player.running && player.moving, stamina: player.stamina, winded: player.winded });
     } else {
-      const body = { ...this.me, stun: mine?.stun ?? 0, dead: mine?.dead };
-      walk(view, body, dx, dy, dt);
+      const body = { ...this.me, stun: mine?.stun ?? 0, dead: mine?.dead, defusing: mine?.defusing };
+      const speed = body.defusing ? 0 : runStep(view, body, wantsRun, dt);
+      walk(view, body, dx, dy, dt, speed);
       const moved = body.x !== this.me.x || body.y !== this.me.y || body.moving !== this.me.moving;
-      Object.assign(this.me, { x: body.x, y: body.y, face: body.face, moving: body.moving });
+      Object.assign(this.me, { x: body.x, y: body.y, face: body.face, moving: body.moving, running: body.running && body.moving, stamina: body.stamina, winded: body.winded });
       if (moved) sendSoon();
     }
-    // Footsteps while you walk.
+    const stamina = Math.round(this.me.stamina ?? STAMINA_MAX);
+    if (stamina !== this.staminaShown) this.staminaShown = stamina;
+    const runningNow = Boolean(this.me.running && this.me.moving);
+    if (runningNow !== this.iAmRunning) this.iAmRunning = runningNow;
+    const windedNow = view.run === 'stamina' && Boolean(this.me.winded);
+    if (windedNow !== this.iAmWinded) this.iAmWinded = windedNow;
+    // Footsteps while you walk (quicker when running).
     this.stepTimer = this.me.moving ? (this.stepTimer ?? 0) - dt : 0;
     if (this.me.moving && this.stepTimer <= 0) {
-      this.stepTimer = 0.29;
+      this.stepTimer = this.me.running ? 0.18 : 0.32;
       sfx('mines.step');
     }
     this.scene?.setMe(this.me);
@@ -392,7 +458,7 @@ export default class MinesweeperPage extends Component {
 
   sendPosition() {
     if (!this.me || this.isHostSide) return;
-    this.room.send({ type: 'pos', x: this.me.x, y: this.me.y, face: this.me.face, moving: this.me.moving });
+    this.room.send({ type: 'pos', x: this.me.x, y: this.me.y, face: this.me.face, moving: this.me.moving, running: Boolean(this.me.running), stamina: Math.round(this.me.stamina ?? STAMINA_MAX), winded: Boolean(this.me.winded) });
   }
 
   act(action) {
@@ -407,6 +473,61 @@ export default class MinesweeperPage extends Component {
     }
   }
 
+  touchRun = false;
+
+  // Held down on a touch screen, like Shift on a keyboard.
+  holdRun = modifier((button) => {
+    const down = (event) => {
+      event.preventDefault();
+      this.touchRun = true;
+    };
+    const up = () => (this.touchRun = false);
+    button.addEventListener('pointerdown', down);
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) button.addEventListener(type, up);
+    return () => {
+      this.touchRun = false;
+      button.removeEventListener('pointerdown', down);
+      for (const type of ['pointerup', 'pointercancel', 'pointerleave']) button.removeEventListener(type, up);
+    };
+  });
+
+  get myDefusing() {
+    return this.view?.status === 'playing' ? (this.mePlayer?.defusing ?? null) : null;
+  }
+
+  // As a list keyed by seed, so a new mine gets a fresh puzzle.
+  get defuseJobs() {
+    return this.myDefusing ? [this.myDefusing] : [];
+  }
+
+  defuseDone = (ok) => {
+    if (this.isHostSide) {
+      if (resolveDefuse(this.state, this.myId, ok)) this.publish(true);
+    } else {
+      this.room.send({ type: 'defuse', ok });
+    }
+  };
+
+  get viewRunOn() {
+    return this.view?.run === 'risky' || this.view?.run === 'stamina';
+  }
+
+  get staminaOn() {
+    return this.view?.run === 'stamina';
+  }
+
+  @tracked staminaShown = STAMINA_MAX;
+  @tracked iAmRunning = false;
+  @tracked iAmWinded = false;
+
+  get staminaStyle() {
+    return htmlSafe(`width: ${this.staminaShown}%`);
+  }
+
+  get staminaLow() {
+    return this.staminaShown < 35 || this.me?.winded;
+  }
+
   digHere = () => this.act('dig');
   flagHere = () => this.act('flag');
 
@@ -419,7 +540,9 @@ export default class MinesweeperPage extends Component {
   };
 
   onAction(action, { repeat } = {}) {
-    if (MOVES.has(action)) {
+    // The defuse panel has its own controls.
+    if (this.myDefusing && action !== 'chat') return true;
+    if (HOLDS.has(action)) {
       this.held.add(action);
       return true;
     }
@@ -454,6 +577,16 @@ export default class MinesweeperPage extends Component {
   // ─── Debug ───────────────────────────────────────────────────────────
 
   debugTools() {
+    const need = () => {
+      if (!this.state) throw new CommandError('No game is running. Start one first.');
+      return this.state;
+    };
+    const playerAt = (ctx, ref) => need().players[ctx.player(ref)];
+    const changed = (ctx, label) => {
+      this.publish(true);
+      this.room.recordDebugState(label);
+      ctx.announce(label);
+    };
     return {
       players: () => (this.state?.players ?? this.seats).map((p) => ({ id: p.id, name: p.name })),
       describe: () => (this.state ? `Minesweeper: ${this.state.status}, ${this.state.safeLeft} safe tiles left, ${Math.ceil(this.state.timeLeft / 1000)}s. ${this.state.players.map((p) => `${p.name} ${p.score}`).join('; ')}.` : 'Minesweeper: in the lobby.'),
@@ -463,13 +596,246 @@ export default class MinesweeperPage extends Component {
         this.publish(true);
         if (snap.status !== 'over' && !this.timer) this.timer = setInterval(() => this.simulate(), SIM_MS);
       },
-      commands: {},
+      commands: {
+        time: {
+          usage: '/time <seconds>',
+          help: 'Sets the time left on the clock.',
+          run: ([n], ctx) => {
+            const state = need();
+            const seconds = Math.max(1, Math.min(3600, Math.round(Number(n))));
+            if (!Number.isFinite(seconds)) throw new CommandError('Give a number of seconds.');
+            state.timeLeft = seconds * 1000;
+            changed(ctx, `${ctx.fromName} set the clock to ${seconds}s.`);
+          },
+        },
+        score: {
+          usage: '/score <player> <points>',
+          help: 'Sets a player’s score.',
+          run: ([ref, n], ctx) => {
+            const p = playerAt(ctx, ref);
+            p.score = Math.round(Number(n) || 0);
+            changed(ctx, `${ctx.fromName} set ${p.name}’s score to ${p.score}.`);
+          },
+        },
+        stun: {
+          usage: '/stun <player> [seconds]',
+          help: 'Stuns a player (2.5 seconds by default; 0 wakes them up).',
+          run: ([ref, n], ctx) => {
+            const p = playerAt(ctx, ref);
+            p.stun = n === undefined ? 2500 : Math.max(0, Math.min(60, Number(n) || 0)) * 1000;
+            changed(ctx, p.stun ? `${ctx.fromName} stunned ${p.name}.` : `${ctx.fromName} woke ${p.name} up.`);
+          },
+        },
+        kill: {
+          usage: '/kill <player>',
+          help: 'Knocks a player out of the game.',
+          run: ([ref], ctx) => {
+            const p = playerAt(ctx, ref);
+            p.dead = true;
+            p.defusing = null;
+            changed(ctx, `${ctx.fromName} knocked ${p.name} out.`);
+          },
+        },
+        revive: {
+          usage: '/revive <player>',
+          help: 'Brings a knocked-out player back, unstunned.',
+          run: ([ref], ctx) => {
+            const p = playerAt(ctx, ref);
+            p.dead = false;
+            p.stun = 0;
+            changed(ctx, `${ctx.fromName} revived ${p.name}.`);
+          },
+        },
+        teleport: {
+          usage: '/teleport <player> <x> <y>',
+          help: 'Moves a player onto a tile (0 to width−1, 0 to height−1).',
+          run: ([ref, x, y], ctx) => {
+            const state = need();
+            const p = playerAt(ctx, ref);
+            const tx = Math.round(Number(x));
+            const ty = Math.round(Number(y));
+            if (!Number.isFinite(tx) || !Number.isFinite(ty)) throw new CommandError('Give x and y numbers.');
+            p.x = Math.max(0, Math.min(state.width - 1, tx)) + 0.5;
+            p.y = Math.max(0, Math.min(state.height - 1, ty)) + 0.5;
+            if (p.id === this.myId && this.me) Object.assign(this.me, { x: p.x, y: p.y });
+            changed(ctx, `${ctx.fromName} teleported ${p.name} to ${Math.floor(p.x)}, ${Math.floor(p.y)}.`);
+          },
+        },
+        stamina: {
+          usage: '/stamina <player> <0-100>',
+          help: 'Sets a player’s stamina (Stamina running). 0 leaves them winded.',
+          run: ([ref, n], ctx) => {
+            const p = playerAt(ctx, ref);
+            const value = Math.max(0, Math.min(STAMINA_MAX, Number(n)));
+            if (!Number.isFinite(value)) throw new CommandError('Give a number from 0 to 100.');
+            p.stamina = value;
+            p.winded = value <= 0;
+            p.rest = 0;
+            if (p.id === this.myId && this.me) Object.assign(this.me, { stamina: value, winded: p.winded, rest: 0 });
+            changed(ctx, `${ctx.fromName} set ${p.name}’s stamina to ${Math.round(value)}.`);
+          },
+        },
+        defuse: {
+          usage: `/defuse <player> [${PUZZLE_TYPES.join('|')}] [level]`,
+          help: 'Puts up a defuse puzzle for a player, on the mine under them (or a practice one if there isn’t one). Level is how many mines they’ve “already defused”.',
+          run: ([ref, type, level], ctx) => {
+            const state = need();
+            if (state.status !== 'playing') throw new CommandError('Wait for the game to start.');
+            const p = playerAt(ctx, ref);
+            if (type && !PUZZLE_TYPES.includes(type)) throw new CommandError(`Puzzle types: ${PUZZLE_TYPES.join(', ')}.`);
+            if (p.dead) throw new CommandError(`${p.name} is out.`);
+            const [x, y] = tileAt(state, p.x, p.y);
+            startDefuse(state, p, x, y, { type: type ?? null, level: level === undefined ? undefined : Math.max(0, Math.min(20, Math.round(Number(level) || 0))) });
+            changed(ctx, `${ctx.fromName} gave ${p.name} a ${type ?? 'random'} defuse puzzle.`);
+          },
+        },
+        defused: {
+          usage: '/defused <player> <count>',
+          help: 'Sets how many mines a player has defused (makes their next puzzle harder and quicker).',
+          run: ([ref, n], ctx) => {
+            const p = playerAt(ctx, ref);
+            p.defused = Math.max(0, Math.min(50, Math.round(Number(n) || 0)));
+            changed(ctx, `${ctx.fromName} set ${p.name}’s defused mines to ${p.defused}.`);
+          },
+        },
+        clear: {
+          usage: '/clear [percent]',
+          help: 'Uncovers safe tiles at random until that much of the field is dug (90 by default). Needs the mines laid (dig once first).',
+          run: ([n], ctx) => {
+            const state = need();
+            if (!state.mines) throw new CommandError('Dig a tile first, so the mines are laid.');
+            const target = Math.max(0, Math.min(100, Number(n ?? 90))) / 100;
+            const total = state.width * state.height - state.mineCount;
+            const hidden = [];
+            state.cells.forEach((c, i) => c === HIDDEN && !state.mines[i] && hidden.push(i));
+            hidden.sort(() => Math.random() - 0.5);
+            let dug = total - state.safeLeft;
+            for (const i of hidden) {
+              if (dug / total >= target) break;
+              state.cells[i] = 0;
+              state.flags[i] = null;
+              state.safeLeft--;
+              dug++;
+            }
+            // Put the real numbers back on everything uncovered.
+            state.cells.forEach((c, i) => {
+              if (c < 0 || c > 8) return;
+              const x = i % state.width;
+              const y = Math.floor(i / state.width);
+              let count = 0;
+              for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                if ((dx || dy) && nx >= 0 && ny >= 0 && nx < state.width && ny < state.height && state.mines[ny * state.width + nx]) count++;
+              }
+              state.cells[i] = count;
+            });
+            changed(ctx, `${ctx.fromName} dug the field to ${Math.round((dug / total) * 100)}%.`);
+          },
+        },
+        mines: {
+          usage: '/mines',
+          help: 'Tells you (only you) where every mine is, as x,y.',
+          run: () => {
+            const state = need();
+            if (!state.mines) throw new CommandError('No mines yet: they’re laid on the first dig.');
+            const spots = [];
+            state.mines.forEach((m, i) => m && state.cells[i] === HIDDEN && spots.push(`${i % state.width},${Math.floor(i / state.width)}`));
+            return `${spots.length} hidden mines: ${spots.join('  ')}`;
+          },
+        },
+        rule: {
+          usage: '/rule <run|defuse|blast|radius|sprint|stun> <value>',
+          help: 'Changes a rule mid-game. run: off, risky or stamina. radius: 1 to 6. The rest: on or off.',
+          run: ([name, value], ctx) => {
+            const state = need();
+            const on = /^(on|true|yes|1)$/i.test(value ?? '');
+            if (name === 'run') {
+              if (!RUN_MODES.some((m) => m.id === value)) throw new CommandError('run: off, risky or stamina.');
+              state.run = value;
+            } else if (name === 'defuse') state.defuse = on;
+            else if (name === 'blast') state.blast = on;
+            else if (name === 'radius') state.blastRadius = Math.max(BLAST_RADIUS_RANGE[0], Math.min(BLAST_RADIUS_RANGE[1], Math.round(Number(value)) || BLAST_RADIUS));
+            else if (name === 'sprint') state.sprint = on;
+            else if (name === 'stun') state.stunOnly = on;
+            else throw new CommandError('Rules: run, defuse, blast, radius, sprint, stun.');
+            changed(ctx, `${ctx.fromName} set ${name} to ${value}.`);
+          },
+        },
+        end: {
+          usage: '/end',
+          help: 'Ends the game now, as if time ran out.',
+          run: (args, ctx) => {
+            const state = need();
+            if (state.status !== 'playing') throw new CommandError('The game isn’t being played.');
+            state.timeLeft = 0;
+            tick(state, 0);
+            changed(ctx, `${ctx.fromName} ended the game.`);
+          },
+        },
+      },
     };
   }
 
   // ─── Lobby ───────────────────────────────────────────────────────────
 
   setRule = (key, value) => this.room.setSettings({ [key]: value });
+  // Blank means the field's usual count; anything else is clamped into range.
+  setMinePercent = (event) => {
+    const raw = event.target.value.trim();
+    if (raw === '' || !Number.isFinite(Number(raw))) {
+      event.target.value = '';
+      this.room.setSettings({ minePercent: null });
+      return;
+    }
+    const [lo, hi] = MINE_PERCENT_RANGE;
+    const value = Math.max(lo, Math.min(hi, Math.round(Number(raw))));
+    event.target.value = value;
+    this.room.setSettings({ minePercent: value });
+  };
+
+  get timeMinutes() {
+    return Math.round(((this.settings.time ?? 300) / 60) * 100) / 100;
+  }
+
+  setTime = (event) => {
+    const [lo, hi] = TIME_RANGE;
+    const minutes = Number(event.target.value);
+    const seconds = Number.isFinite(minutes) && minutes > 0 ? Math.max(lo, Math.min(hi, Math.round(minutes * 60))) : this.settings.time ?? 300;
+    event.target.value = Math.round((seconds / 60) * 100) / 100;
+    this.room.setSettings({ time: seconds });
+  };
+
+  setBlastRadius = (event) => {
+    const [lo, hi] = BLAST_RADIUS_RANGE;
+    const value = Math.max(lo, Math.min(hi, Math.round(Number(event.target.value)) || BLAST_RADIUS));
+    event.target.value = value;
+    this.room.setSettings({ blastRadius: value });
+  };
+
+  toggleRule = (key, event) => this.room.setSettings({ [key]: event.target.checked });
+
+  get blastOn() {
+    return this.settings.blast === true;
+  }
+
+  get defuseOn() {
+    return this.settings.defuse === true;
+  }
+
+  get sprintOn() {
+    return this.settings.sprint === true;
+  }
+
+  get stunOnlyOn() {
+    return this.settings.stunOnly !== false;
+  }
+
+  get minePercentHint() {
+    const f = FIELDS.find((x) => x.id === this.settings.field) ?? FIELDS[1];
+    const [lo, hi] = MINE_PERCENT_RANGE;
+    return `${lo}–${hi}%. Leave blank for the field’s usual ${Math.round((f.mines / (f.width * f.height)) * 100)}% (${f.mines} mines).`;
+  }
   addBot = () => this.room.setSettings({ bots: Math.min(this.settings.bots + 1, MAX_PLAYERS - this.room.members.length) });
   removeBot = () => this.room.setSettings({ bots: Math.max(0, Math.min(this.settings.bots, MAX_PLAYERS - this.room.members.length) - 1) });
   playAgain = () => this.room.allReady && this.start();
@@ -518,11 +884,19 @@ export default class MinesweeperPage extends Component {
       const player = state?.players.find((p) => p.id === from);
       if (!player) return;
       if (message.type === 'pos') {
-        if (![message.x, message.y, message.face].every(Number.isFinite) || player.stun > 0 || player.dead || state.status !== 'playing') return;
+        if (![message.x, message.y, message.face].every(Number.isFinite) || player.stun > 0 || player.dead || player.defusing || state.status !== 'playing') return;
         player.x = Math.max(0.2, Math.min(state.width - 0.2, message.x));
         player.y = Math.max(0.2, Math.min(state.height - 0.2, message.y));
         player.face = message.face;
         player.moving = Boolean(message.moving);
+        player.running = state.run !== 'off' && Boolean(message.running) && player.moving;
+        if (state.run === 'stamina' && Number.isFinite(message.stamina)) {
+          player.stamina = Math.max(0, Math.min(STAMINA_MAX, message.stamina));
+          player.winded = Boolean(message.winded);
+        }
+        if (stepOn(state, player)) this.publish(true);
+      } else if (message.type === 'defuse') {
+        if (resolveDefuse(state, from, message.ok === true)) this.publish(true);
       } else if (message.type === 'dig' || message.type === 'flag') {
         const x = Math.round(message.x);
         const y = Math.round(message.y);
@@ -537,7 +911,7 @@ export default class MinesweeperPage extends Component {
       const fresh = !this.latest || (view.status === 'drop' && this.latest.status !== 'drop');
       if (fresh || !this.me) {
         const mine = view.players.find((p) => p.id === this.myId);
-        this.me = mine ? { x: mine.x, y: mine.y, face: mine.face, moving: false } : null;
+        this.me = mine ? { x: mine.x, y: mine.y, face: mine.face, moving: false, stamina: STAMINA_MAX } : null;
       }
       this.mode = 'playing';
       this.show(view);
@@ -550,14 +924,20 @@ export default class MinesweeperPage extends Component {
     <ToolPage @route="minesweeper" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Drop onto a 3D minefield, walk around, dig and flag. Up to four players on one field: the highest score wins.">
       {{#if (eq this.mode "playing")}}
         <div class="game-shell uno-shell arcade-shell pop-in">
-          <div class="uno-stage arcade-stage mines-stage">
+          <div class="uno-stage arcade-stage mines-stage {{if this.iAmRunning 'is-boosting is-running'}} {{if this.iAmWinded 'is-winded'}}">
+            <div class="arcade-speedlines" aria-hidden="true"></div>
+            <div class="mines-winded" aria-hidden="true"></div>
             <canvas class="snake-canvas" aria-label="Minefield. Walk with the arrow keys or WASD, dig with Space and flag with F, or use the joystick and buttons on a touch screen." {{this.setupScene}}></canvas>
+            <ArcadeRadar @getScene={{this.getScene}} @drawMap={{this.drawMap}} @hideMap={{this.isOver}} />
 
             <div class="uno-overlay uno-top-left arcade-scores">
               <div class="mines-hud">
                 <span class="arcade-chip {{if this.lowTime 'is-low'}}"><Icon @name="timer" @size={{14}} /> <strong>{{this.clock}}</strong></span>
                 <span class="arcade-chip"><Icon @name="bomb" @size={{14}} /> <strong>{{this.minesLeft}}</strong></span>
                 <span class="arcade-chip"><Icon @name="shovel" @size={{14}} /> <strong>{{this.tilesLeft}}</strong></span>
+                {{#if this.staminaOn}}
+                  <span class="arcade-chip mines-stamina {{if this.staminaLow 'is-low'}}" aria-label="Stamina"><Icon @name="zap" @size={{14}} /><span class="mines-stamina-bar"><span style={{this.staminaStyle}}></span></span></span>
+                {{/if}}
               </div>
               {{#each this.scores key="id" as |s|}}
                 <span class="snake-score arcade-chip {{if s.leading 'is-leading'}} {{if s.left 'is-dead'}} {{if s.dead 'is-dead'}}">
@@ -565,7 +945,7 @@ export default class MinesweeperPage extends Component {
                   {{#if s.leading}}<Icon @name="crown" @size={{12}} />{{/if}}
                   {{s.name}}
                   <strong>{{s.score}}</strong>
-                  {{#if s.over}}<span class="mines-detail"><Icon @name="shovel" @size={{11}} /> {{s.uncovered}} <Icon @name="flag" @size={{11}} /><Icon @name="check" @size={{11}} /> {{s.flagsRight}} <Icon @name="flag" @size={{11}} /><Icon @name="x" @size={{11}} /> {{s.flagsWrong}} <Icon @name="bomb" @size={{11}} /> {{s.booms}}</span>{{/if}}
+                  {{#if s.over}}<span class="mines-detail"><Icon @name="shovel" @size={{11}} /> {{s.uncovered}} <Icon @name="flag" @size={{11}} /><Icon @name="check" @size={{11}} /> {{s.flagsRight}} <Icon @name="flag" @size={{11}} /><Icon @name="x" @size={{11}} /> {{s.flagsWrong}} <Icon @name="bomb" @size={{11}} /> {{s.booms}}{{#if s.defused}} <Icon @name="bomb" @size={{11}} /><Icon @name="check" @size={{11}} /> {{s.defused}}{{/if}}</span>{{/if}}
                 </span>
               {{/each}}
             </div>
@@ -592,7 +972,10 @@ export default class MinesweeperPage extends Component {
             </div>
 
             {{#if (eq this.view.status "drop")}}<span class="snake-paused">Dropping in…</span>{{/if}}
-            {{#if this.iAmOut}}<span class="snake-paused mines-stunned"><Icon @name="bomb" @size={{16}} /> You’re out!</span>{{else if this.stunned}}<span class="snake-paused mines-stunned"><Icon @name="sparkles" @size={{16}} /> Stunned!</span>{{/if}}
+            {{#if this.iAmOut}}<span class="snake-paused mines-stunned"><Icon @name="bomb" @size={{16}} /> You’re out!</span>{{else if this.sprinting}}<span class="snake-paused mines-stunned"><Icon @name="timer" @size={{16}} /> Last-minute sprint!</span>{{/if}}
+            {{#each this.defuseJobs key="seed" as |job|}}
+              <DefusePuzzle @defusing={{job}} @onDone={{this.defuseDone}} />
+            {{/each}}
             {{#if this.sceneFailed}}
               <p class="snake-fallback">The 3D minefield couldn’t start on this device (WebGL is needed).</p>
             {{/if}}
@@ -600,6 +983,9 @@ export default class MinesweeperPage extends Component {
             <div class="snake-touch">
               <Joystick @class="snake-joystick" @label="Walk" @onMove={{this.stickMoved}} @onEnd={{this.stickReleased}} />
               <div class="mines-buttons">
+                {{#if this.viewRunOn}}
+                  <button type="button" class="snake-boost mines-run-btn" data-sound="off" {{this.holdRun}}><Icon @name="zap" @size={{22}} /><span>Run</span></button>
+                {{/if}}
                 <button type="button" class="snake-boost mines-flag-btn" data-sound="off" {{this.pressButton this.flagHere}}><Icon @name="flag" @size={{22}} /><span>Flag</span></button>
                 <button type="button" class="snake-boost mines-dig-btn" data-sound="off" {{this.pressButton this.digHere}}><Icon @name="shovel" @size={{24}} /><span>Dig</span></button>
               </div>
@@ -634,22 +1020,64 @@ export default class MinesweeperPage extends Component {
                 {{/each}}
               </div>
             </div>
+            <label class="lobby-rule is-switch">
+              <span class="lobby-rule-text"><span class="qr-label">Mines (% of the field)</span><span class="tool-hint">{{this.minePercentHint}}</span></span>
+              <input type="number" class="lobby-number" min={{this.percentMin}} max={{this.percentMax}} step="1" placeholder="Auto" value={{this.settings.minePercent}} {{on "change" this.setMinePercent}} />
+            </label>
+            <label class="lobby-rule is-switch">
+              <span class="lobby-rule-text"><span class="qr-label">Explosions stun nearby</span><span class="tool-hint">A mine’s blast stuns anyone close by too. Only whoever dug it loses points.</span></span>
+              <span class="qr-switch">
+                <input type="checkbox" role="switch" checked={{this.blastOn}} aria-checked={{if this.blastOn "true" "false"}} {{on "change" (fn this.toggleRule "blast")}} />
+                <span class="qr-switch-track" aria-hidden="true"></span>
+              </span>
+            </label>
+            {{#if this.blastOn}}
+              <label class="lobby-rule is-switch">
+                <span class="lobby-rule-text"><span class="qr-label">Explosion radius</span><span class="tool-hint">How many tiles a blast reaches, from {{this.radiusMin}} to {{this.radiusMax}}.</span></span>
+                <input type="number" class="lobby-number" min={{this.radiusMin}} max={{this.radiusMax}} step="1" value={{this.settings.blastRadius}} {{on "change" this.setBlastRadius}} />
+              </label>
+            {{/if}}
             <div class="lobby-rule">
+              <span class="lobby-rule-text"><span class="qr-label">Running</span><span class="tool-hint">Hold Shift (or Run) to go faster. Risky: run onto a mine and it goes off under you (walking is safe; with Defusing on, you get the puzzle instead). Stamina: running drains it, it refills 2 seconds after you stop, and if you run dry you’re slowed until it’s full again.</span></span>
+              <div class="math-tabs" role="group" aria-label="Running">
+                {{#each this.runModes as |m|}}
+                  <button type="button" class="qr-tab {{if (eq this.settings.run m.id) 'active'}}" aria-pressed={{if (eq this.settings.run m.id) "true" "false"}} {{on "click" (fn this.setRule "run" m.id)}}>{{m.label}}</button>
+                {{/each}}
+              </div>
+            </div>
+            <label class="lobby-rule is-switch">
+              <span class="lobby-rule-text"><span class="qr-label">Defusing</span><span class="tool-hint">Dig up a mine (or run onto one, with Risky running) and you get a puzzle to defuse it for +5 instead of it going off: cut a wire, punch in a code, and so on. Fail or run out of time and it blows. You get 10 seconds for your first, 15% less for each one after (down to 2), and the puzzles get harder too.</span></span>
+              <span class="qr-switch">
+                <input type="checkbox" role="switch" checked={{this.defuseOn}} aria-checked={{if this.defuseOn "true" "false"}} {{on "change" (fn this.toggleRule "defuse")}} />
+                <span class="qr-switch-track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <label class="lobby-rule is-switch">
+              <span class="lobby-rule-text"><span class="qr-label">Last-minute sprint</span><span class="tool-hint">Once 90% of the safe tiles are dug, the clock drops to 1 minute (if there’s more than that left).</span></span>
+              <span class="qr-switch">
+                <input type="checkbox" role="switch" checked={{this.sprintOn}} aria-checked={{if this.sprintOn "true" "false"}} {{on "change" (fn this.toggleRule "sprint")}} />
+                <span class="qr-switch-track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <div class="lobby-rule">
+              <span class="lobby-rule-text"><span class="qr-label">Computer players</span><span class="tool-hint">Easy ones dawdle and dig blind now and then; hard ones walk fast and barely stop to think.</span></span>
+              <div class="math-tabs" role="group" aria-label="Computer difficulty">
+                {{#each this.botLevels as |l|}}
+                  <button type="button" class="qr-tab {{if (eq this.settings.botLevel l.id) 'active'}}" aria-pressed={{if (eq this.settings.botLevel l.id) "true" "false"}} {{on "click" (fn this.setRule "botLevel" l.id)}}>{{l.label}}</button>
+                {{/each}}
+              </div>
+            </div>
+            <label class="lobby-rule is-switch">
               <span class="lobby-rule-text"><span class="qr-label">Bombs only stun</span><span class="tool-hint">Off: digging a mine knocks you out of the game. On your own, that ends it and shows every mine, like classic Minesweeper.</span></span>
-              <div class="math-tabs" role="group" aria-label="Bombs only stun">
-                {{#each this.onOff as |o|}}
-                  <button type="button" class="qr-tab {{if (eq this.settings.stunOnly o.id) 'active'}}" aria-pressed={{if (eq this.settings.stunOnly o.id) "true" "false"}} {{on "click" (fn this.setRule "stunOnly" o.id)}}>{{o.label}}</button>
-                {{/each}}
-              </div>
-            </div>
-            <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">Time limit</span></span>
-              <div class="math-tabs" role="group" aria-label="Time limit">
-                {{#each this.times as |t|}}
-                  <button type="button" class="qr-tab {{if (eq this.settings.time t.id) 'active'}}" aria-pressed={{if (eq this.settings.time t.id) "true" "false"}} {{on "click" (fn this.setRule "time" t.id)}}>{{t.label}}</button>
-                {{/each}}
-              </div>
-            </div>
+              <span class="qr-switch">
+                <input type="checkbox" role="switch" checked={{this.stunOnlyOn}} aria-checked={{if this.stunOnlyOn "true" "false"}} {{on "change" (fn this.toggleRule "stunOnly")}} />
+                <span class="qr-switch-track" aria-hidden="true"></span>
+              </span>
+            </label>
+            <label class="lobby-rule is-switch">
+              <span class="lobby-rule-text"><span class="qr-label">Time limit (minutes)</span><span class="tool-hint">Anything from half a minute to 60. Decimals work: 2.5 is two and a half minutes.</span></span>
+              <input type="number" class="lobby-number" min="0.5" max="60" step="0.5" value={{this.timeMinutes}} {{on "change" this.setTime}} />
+            </label>
             <p class="tool-hint">Walk with the arrow keys or WASD, dig the tile under your feet with Space and flag it with F (or the joystick and buttons on a touch screen). Every tile you uncover is a point, a mine costs 10 and stuns you (or knocks you out, with Bombs only stun off), and at the end each flag on a mine is worth +2 (−2 if it wasn’t). The game ends when the field is cleared or time runs out, and the highest score wins.</p>
           </:rules>
         </GameLobby>
