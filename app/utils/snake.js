@@ -26,7 +26,17 @@ export const LENGTH_SPEEDS = ['faster', 'off', 'slower'];
 export const MIN_BOOST_LENGTH = 3; // boosting costs a segment, and a snake can't go below 2
 const START_LENGTH = 4;
 const MAX_QUEUED_TURNS = 2;
-const WANDER_CHANCE = 0.12;
+export const BOT_LEVELS = [
+  { id: 'easy', label: 'Easy' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'hard', label: 'Hard' },
+];
+// wander: chance of ignoring food; blunder: chance of a random (possibly deadly) move; boost: chance to boost when it's a good moment.
+const BOT_TUNING = {
+  easy: { wander: 0.3, blunder: 0.025, boost: 0, dodge: false },
+  normal: { wander: 0.12, blunder: 0, boost: 0.06, dodge: true },
+  hard: { wander: 0.02, blunder: 0, boost: 0.18, dodge: true },
+};
 
 export const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -113,7 +123,7 @@ function startsFor(count, size) {
 
 // players: [{ id, name, bot }], up to four. One player is classic snake; more is a battle.
 // options: { size, apples, wrap, map, lengthSpeed ('faster' | 'off' | 'slower') }
-export function createGame(players, { size = 20, apples = 1, wrap = false, map = 'meadow', lengthSpeed = 'faster' } = {}) {
+export function createGame(players, { size = 20, apples = 1, wrap = false, map = 'meadow', lengthSpeed = 'faster', botLevel = 'normal' } = {}) {
   const starts = startsFor(players.length, size);
   // No obstacle on or just ahead of a starting snake.
   const clear = new Set();
@@ -127,6 +137,7 @@ export function createGame(players, { size = 20, apples = 1, wrap = false, map =
     // Older saved rules were on/off: on meant faster.
     lengthSpeed: LENGTH_SPEEDS.includes(lengthSpeed) ? lengthSpeed : lengthSpeed === false ? 'off' : 'faster',
     changed: true,
+    botLevel: BOT_TUNING[botLevel] ? botLevel : 'normal',
     map: MAPS.some((m) => m.id === map) ? map : 'meadow',
     obstacles: [],
     appleCount: Math.max(apples, players.length === 1 ? 1 : 0),
@@ -374,10 +385,15 @@ export const botDirection = (state, snake) => botPlan(state, snake).dir;
 // snake's head could reach next move, and boosts now and then when an apple is
 // close and it's long enough to spare a segment.
 function botPlan(state, snake) {
+  const tuning = BOT_TUNING[state.botLevel] ?? BOT_TUNING.normal;
   const blocked = blockedCells(state);
   const [hx, hy] = snake.body[0];
+  if (Math.random() < tuning.blunder) {
+    const dirs = Object.keys(DIRS).filter((d) => d !== OPPOSITE[snake.dir]);
+    return { dir: dirs[Math.floor(Math.random() * dirs.length)], boost: false };
+  }
   const danger = new Set();
-  for (const other of state.snakes) {
+  for (const other of tuning.dodge ? state.snakes : []) {
     if (other === snake || !other.alive) continue;
     const [ox, oy] = other.body[0];
     for (const [nx, ny] of neighbours(state, ox, oy)) danger.add(key(state, nx, ny));
@@ -397,7 +413,7 @@ function botPlan(state, snake) {
   const calm = options.filter((o) => !o.risky);
   const pool = safe.length ? safe : calm.length ? calm : options;
   // Now and then it wanders instead of beelining for food, so it can be beaten.
-  if (safe.length && Math.random() < WANDER_CHANCE) return { dir: safe[Math.floor(Math.random() * safe.length)].dir, boost: false };
+  if (safe.length && Math.random() < tuning.wander) return { dir: safe[Math.floor(Math.random() * safe.length)].dir, boost: false };
 
   // Breadth-first from each candidate's cell to the nearest apple.
   const apples = new Set(state.apples.map(([x, y]) => key(state, x, y)));
@@ -434,6 +450,6 @@ function botPlan(state, snake) {
       bestDistance = d;
     }
   }
-  const wantsBoost = safe.includes(best) && snake.body.length > 6 && bestDistance >= 2 && bestDistance <= 6 && state.snakes.length > 1 && Math.random() < 0.06;
+  const wantsBoost = safe.includes(best) && snake.body.length > 6 && bestDistance >= 2 && bestDistance <= 6 && state.snakes.length > 1 && Math.random() < tuning.boost;
   return { dir: best.dir, boost: wantsBoost };
 }

@@ -1,8 +1,8 @@
-import { Group, Mesh, InstancedMesh, Object3D, PlaneGeometry, CylinderGeometry, SphereGeometry, ConeGeometry, RingGeometry, BufferGeometry, BufferAttribute, MeshBasicMaterial, CanvasTexture, Color, Vector3, DoubleSide, SRGBColorSpace } from 'three';
+import { Group, Mesh, InstancedMesh, Object3D, PlaneGeometry, CylinderGeometry, SphereGeometry, ConeGeometry, RingGeometry, BufferGeometry, BufferAttribute, MeshBasicMaterial, CanvasTexture, Color, Vector3, DoubleSide, SRGBColorSpace, Sprite, SpriteMaterial } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { buildAvatar, disposeAvatar, reachArms } from './avatar-model';
 import { createStage, createSea, buildIsland, Particles, Tweens, nameTag, startEmote, playEmote, swingLimbs, blobShadow, easeOut, Shockwaves, dizzyStars } from './island-world';
-import { HIDDEN, EXPLODED, DROP_MS, PLAYER_COLORS } from '../utils/minesweeper';
+import { HIDDEN, EXPLODED, DEFUSED, DROP_MS, PLAYER_COLORS } from '../utils/minesweeper';
 
 // Minesweeper on the island: every tile is an instance of one rounded block,
 // pressed into the sand as it's dug. Players are their avatars, dropped in from
@@ -102,7 +102,7 @@ export function createMinesScene(canvas) {
     field.tiles.setMatrixAt(i, dummy.matrix);
     const cell = field.shown[i];
     const odd = (x + row) % 2;
-    field.tiles.setColorAt(i, color.set(cell === HIDDEN ? GRASS[odd] : cell === EXPLODED ? '#6b5a4f' : SAND[odd]));
+    field.tiles.setColorAt(i, color.set(cell === HIDDEN ? GRASS[odd] : cell === EXPLODED ? '#6b5a4f' : cell === DEFUSED ? '#a9c4d8' : SAND[odd]));
   }
 
   // Tiles that have just been uncovered sink in a ripple out from where the dig was.
@@ -132,12 +132,13 @@ export function createMinesScene(canvas) {
         tweens.add(260, (t) => label.scale.setScalar(Math.max(0.001, easeOut(t))), { delay: calm ? 0 : Math.min(delay, 700) + 120 });
       }
       if (cell === EXPLODED) showMine(i, true);
+      if (cell === DEFUSED) showMine(i, true, true);
     }
     // Every mine, once the game is over.
     if (v.mines) v.mines.forEach((mine, i) => mine && !field.mines.has(i) && showMine(i, false));
   }
 
-  function showMine(i, exploded) {
+  function showMine(i, exploded, defused = false) {
     if (field.mines.has(i)) return;
     const mine = new Group();
     const ball = new Mesh(kit.geometry('mine-ball', () => new SphereGeometry(0.22, 14, 10)), kit.toon('#2b2b2b'));
@@ -158,7 +159,7 @@ export function createMinesScene(canvas) {
       holder.add(s);
       mine.add(holder);
     }
-    const glint = new Mesh(kit.geometry('mine-glint', () => new SphereGeometry(0.05, 6, 4)), kit.toon('#ff5050'));
+    const glint = new Mesh(kit.geometry('mine-glint', () => new SphereGeometry(0.05, 6, 4)), kit.toon(defused ? '#4cd964' : '#ff5050'));
     glint.position.set(-0.08, 0.14, 0.14);
     mine.add(glint);
     const x = i % field.width;
@@ -241,13 +242,51 @@ export function createMinesScene(canvas) {
     const tag = nameTag(p.id === myId ? 'You' : p.name, hex, { bot: p.bot });
     tag.sprite.position.y = 1.45;
     holder.add(tag.sprite);
+    const stamina = staminaBar();
+    stamina.sprite.position.y = 1.78;
+    holder.add(stamina.sprite);
     scene.add(holder);
     const stars = dizzyStars(kit);
     scene.add(stars);
-    return { holder, avatar, stars, lastStep: 0, emote: null, tag, shadow, x: p.x, y: p.y, face: p.face, phase: Math.random() * 6, dropDelay: index * 180, action: null, landed: false, stunnedShown: 0 };
+    return { holder, avatar, stars, stamina, lastStep: 0, emote: null, tag, shadow, x: p.x, y: p.y, face: p.face, phase: Math.random() * 6, dropDelay: index * 180, action: null, landed: false, stunnedShown: 0 };
+  }
+
+  // A little stamina bar that floats over a player's head (redrawn only when it changes).
+  function staminaBar() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 20;
+    const ctx = canvas.getContext('2d');
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    const sprite = new Sprite(new SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+    sprite.renderOrder = 10;
+    sprite.scale.set(0.9, 0.14, 1);
+    sprite.visible = false;
+    let last = '';
+    return {
+      sprite,
+      draw(value, winded) {
+        const key = `${Math.round(value)}|${winded}`;
+        if (key === last) return;
+        last = key;
+        ctx.clearRect(0, 0, 128, 20);
+        ctx.fillStyle = '#141414';
+        ctx.beginPath();
+        ctx.roundRect(0, 0, 128, 20, 10);
+        ctx.fill();
+        ctx.fillStyle = winded ? '#e5484d' : '#f2b90d';
+        ctx.beginPath();
+        ctx.roundRect(3, 3, Math.max(0, 122 * (value / 100)), 14, 7);
+        ctx.fill();
+        texture.needsUpdate = true;
+      },
+    };
   }
 
   function removePerson(person) {
+    person.stamina.sprite.material.map.dispose();
+    person.stamina.sprite.material.dispose();
     person.holder.removeFromParent();
     person.shadow.removeFromParent();
     person.stars.removeFromParent();
@@ -290,11 +329,23 @@ export function createMinesScene(canvas) {
         particles.emit(tileCentre(event.x, event.y, 0.4), calm ? 6 : 26, ['#4a4a4a', '#6e6e6e', '#2b2b2b'], { speed: 1.2, up: 2.5, life: 1.6, size: 0.6, gravity: -0.4 });
         shockwaves.add(worldX(event.x + 0.5), 0.3, worldZ(event.y + 0.5), '#ffd84d', { size: 4.5, duration: 520 });
         shockwaves.add(worldX(event.x + 0.5), 0.28, worldZ(event.y + 0.5), '#ff8a3d', { size: 3, duration: 700, delay: 80 });
-        if (person?.avatar) {
-          startEmote(person, 'stunned');
-          person.action = { kind: 'blast', start: performance.now() };
+        // Explosions stun nearby: a wide ring showing the blast's reach, and everyone caught in it reels.
+        if (event.radius) shockwaves.add(worldX(event.x + 0.5), 0.26, worldZ(event.y + 0.5), '#ffffff', { size: (event.radius + 0.5) * 2, duration: 600, delay: 40 });
+        for (const id of [event.by, ...(event.stunned ?? [])]) {
+          const hit = people.get(id);
+          if (!hit?.avatar) continue;
+          startEmote(hit, 'stunned');
+          hit.action = { kind: 'blast', start: performance.now() };
         }
         if (!calm && (event.by === myId || Math.hypot(event.x + 0.5 - (me?.x ?? 0), event.y + 0.5 - (me?.y ?? 0)) < 5)) shake = event.by === myId ? 0.6 : 0.3;
+      } else if (event.kind === 'defusing') {
+        if (person?.avatar) startEmote(person, 'shocked');
+        shockwaves.add(worldX(event.x + 0.5), HIDDEN_Y + 0.22, worldZ(event.y + 0.5), '#ff5050', { size: 1.4, duration: 400 });
+      } else if (event.kind === 'defused') {
+        origin = [event.x, event.y];
+        if (person?.avatar) startEmote(person, 'joy', 150);
+        particles.emit(tileCentre(event.x, event.y, 0.5), calm ? 6 : 24, ['#4cd964', '#ffffff', '#a9c4d8'], { speed: 2.4, up: 3.5, life: 0.8, size: 0.24 });
+        shockwaves.add(worldX(event.x + 0.5), OPEN_Y + 0.22, worldZ(event.y + 0.5), '#4cd964', { size: 2.4, duration: 520 });
       } else if (event.kind === 'flag') {
         if (person) person.action = { kind: 'flag', start: performance.now() };
         const owner = v.players.find((p) => p.id === event.by);
@@ -368,16 +419,40 @@ export function createMinesScene(canvas) {
       person.shadow.scale.setScalar(0.32 * Math.max(0.3, 1 - lift / 14));
       person.tag.draw(p.dead ? `${p.score} · out` : `${p.score}`);
       person.holder.visible = !p.left;
+      // Stamina over the head: shown while it isn't full (or you're winded), with the Stamina running rule.
+      const staminaValue = mine ? (me.stamina ?? 100) : (p.stamina ?? 100);
+      const winded = mine ? Boolean(me.winded) : Boolean(p.winded);
+      const showStamina = view.run === 'stamina' && !p.dead && (staminaValue < 99.5 || winded);
+      person.stamina.sprite.visible = showStamina;
+      if (showStamina) person.stamina.draw(staminaValue, winded);
       person.shadow.visible = !p.left;
 
       const avatar = person.avatar;
       if (!avatar) continue;
-      if (moving) person.phase += dt * 11;
-      // A puff of dust at each footstep.
+      const running = moving && (mine ? me.running : p.running);
+      const tired = view.run === 'stamina' && winded && !p.dead;
+      if (moving) person.phase += dt * (running ? 17 : tired ? 6 : 9);
+      // A puff of dust at each footstep: a big kick of it when running.
       const step = Math.floor(person.phase / Math.PI);
       if (moving && step !== person.lastStep) {
         person.lastStep = step;
-        if (!calm) particles.emit(tmp.set(wx, HIDDEN_Y + 0.2, wz), 2, ['#e9d5a0', '#ffffff'], { speed: 0.6, up: 0.8, life: 0.4, size: 0.2, gravity: 2 });
+        if (!calm && running) {
+          const back = tmp.set(wx - Math.sin(person.face) * 0.25, HIDDEN_Y + 0.22, wz - Math.cos(person.face) * 0.25);
+          particles.emit(back, 6, ['#e9d5a0', '#ffffff', '#cdb784'], { speed: 1.4, up: 1.2, life: 0.5, size: 0.3, gravity: 1.5 });
+        } else if (!calm) particles.emit(tmp.set(wx, HIDDEN_Y + 0.2, wz), 2, ['#e9d5a0', '#ffffff'], { speed: 0.6, up: 0.8, life: 0.4, size: 0.2, gravity: 2 });
+      }
+      // Running: white streaks peel off behind. Winded: sweat drops fly and a huff of breath now and then.
+      if (!calm && running && Math.random() < dt * 22) {
+        const side = (Math.random() - 0.5) * 0.5;
+        particles.emit(tmp.set(wx - Math.sin(person.face) * 0.3 + Math.cos(person.face) * side, HIDDEN_Y + 0.5 + Math.random() * 0.5, wz - Math.cos(person.face) * 0.3 - Math.sin(person.face) * side), 1, ['#ffffff', '#fff7dd'], { speed: 0.3, up: 0.1, life: 0.28, size: 0.16, gravity: 0 });
+      }
+      if (!calm && tired && Math.random() < dt * 5) {
+        avatar.userData.head.getWorldPosition(tmp);
+        particles.emit(tmp.setY(tmp.y + 0.15), 1, ['#7cc7ff', '#b8e2ff'], { speed: 1.1, up: 1.6, life: 0.55, size: 0.14, gravity: 5 });
+      }
+      if (!calm && tired && Math.random() < dt * 1.6) {
+        avatar.userData.head.getWorldPosition(tmp);
+        particles.emit(tmp.set(tmp.x + Math.sin(person.face) * 0.25, tmp.y - 0.05, tmp.z + Math.cos(person.face) * 0.25), 3, ['#ffffff', '#e8eef2'], { speed: 0.4, up: 0.3, life: 0.6, size: 0.26, gravity: -0.3 });
       }
       // Seeing stars while stunned.
       person.stars.visible = p.stun > 0 || p.dead;
@@ -386,9 +461,10 @@ export function createMinesScene(canvas) {
         person.stars.position.set(tmp.x, tmp.y + 0.3, tmp.z);
         person.stars.userData.update(now);
       }
-      swingLimbs(avatar, person.phase, moving ? 0.7 : 0);
-      avatar.rotation.set(0, 0, 0);
-      avatar.position.set(0, moving ? Math.abs(Math.sin(person.phase)) * 0.05 : 0, 0);
+      swingLimbs(avatar, person.phase, running ? 1 : moving ? (tired ? 0.45 : 0.7) : 0);
+      // Leaning into a run; hunched over, bobbing with heavy breaths, when winded.
+      avatar.rotation.set(running ? 0.32 : tired ? 0.22 + Math.sin(now / 260) * 0.05 : 0, 0, 0);
+      avatar.position.set(0, moving ? Math.abs(Math.sin(person.phase)) * (running ? 0.09 : 0.05) : 0, 0);
       const action = person.action;
       if (action) {
         const t = (now - action.start) / 420;
@@ -499,6 +575,18 @@ export function createMinesScene(canvas) {
       const origin = playEvents(next, false);
       syncCells(next, origin);
       syncFlags(next);
+    },
+    // Everyone else's position on screen (-1..1 each way), for the off-screen arrows.
+    markers() {
+      if (!view) return [];
+      const out = [];
+      for (const p of view.players) {
+        const person = people.get(p.id);
+        if (p.id === myId || p.left || !person?.landed) continue;
+        const point = new Vector3(worldX(person.x), 0.9, worldZ(person.y)).project(camera);
+        out.push({ id: p.id, name: p.name, color: PLAYER_COLORS[p.color % PLAYER_COLORS.length], x: point.x, y: point.y, behind: point.z > 1 });
+      }
+      return out;
     },
     // Where you are right now on this device, ahead of the host's next update.
     setMe(position) {

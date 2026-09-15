@@ -18,7 +18,8 @@ import { roomCodeFromUrl } from '../utils/file-share';
 import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { robotAvatar } from '../utils/avatar';
-import { MAX_SNAKES, SNAKE_COLORS, MAPS, MIN_BOOST_LENGTH, COUNTDOWN_TICKS, SUBSTEPS, createGame, step, queueTurn, removeSnake, boost, leader } from '../utils/snake';
+import ArcadeRadar from './arcade-radar';
+import { MAX_SNAKES, SNAKE_COLORS, MAPS, MIN_BOOST_LENGTH, COUNTDOWN_TICKS, SUBSTEPS, BOT_LEVELS, createGame, step, queueTurn, removeSnake, boost, leader } from '../utils/snake';
 import { sfx, preloadSounds } from '../utils/sound';
 import { controlHints } from '../utils/keybinds';
 import { padState } from '../utils/gamepad';
@@ -49,7 +50,7 @@ const WALLS = [
   { id: false, label: 'Fenced in' },
   { id: true, label: 'Wrap around' },
 ];
-const DEFAULTS = { speed: 'normal', size: 20, apples: 3, wrap: false, bots: 1, map: 'meadow', lengthSpeed: 'faster' };
+const DEFAULTS = { speed: 'normal', size: 20, apples: 3, wrap: false, bots: 1, map: 'meadow', lengthSpeed: 'faster', botLevel: 'normal' };
 const SWIPE_PX = 18;
 const STICK_DEAD = 0.35;
 const BEST_KEY = 'woogi-snake-best';
@@ -72,6 +73,7 @@ export default class SnakePage extends Component {
   walls = WALLS;
   maps = MAPS;
   lengthOptions = LENGTH_OPTIONS;
+  botLevels = BOT_LEVELS;
 
   // 'lobby' | 'playing'
   @tracked mode = 'lobby';
@@ -230,6 +232,38 @@ export default class SnakePage extends Component {
   }
 
   // Picture-in-picture: leaving the page mid-game floats it, and closing it asks first.
+  getScene = () => this.scene;
+
+  // The whole island in miniature: sea-coloured obstacles, apples, and every snake (yours outlined).
+  drawMap = (ctx, size) => {
+    const game = this.game;
+    if (!game) return;
+    const cell = size / game.size;
+    const sq = Math.ceil(cell);
+    ctx.fillStyle = game.map === 'palms' ? '#e9d5a0' : '#8fd16a';
+    ctx.fillRect(0, 0, size, size);
+    const OBSTACLE = { water: '#4da6e0', rock: '#8a8a8a', palm: '#2f7d32' };
+    for (const [x, y, kind] of game.obstacles) {
+      ctx.fillStyle = OBSTACLE[kind] ?? '#8a8a8a';
+      ctx.fillRect(x * cell, y * cell, sq, sq);
+    }
+    ctx.fillStyle = '#e5484d';
+    for (const [x, y] of game.apples) {
+      ctx.beginPath();
+      ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, Math.max(1.5, cell * 0.45), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (const snake of game.snakes) {
+      if (!snake.alive) continue;
+      ctx.fillStyle = SNAKE_COLORS[snake.color % SNAKE_COLORS.length];
+      for (const [x, y] of snake.body) ctx.fillRect(x * cell, y * cell, sq, sq);
+      const [hx, hy] = snake.body[0];
+      ctx.lineWidth = Math.max(1.5, cell * 0.25);
+      ctx.strokeStyle = snake.id === this.myId ? '#ffffff' : '#141414';
+      ctx.strokeRect(hx * cell, hy * cell, sq, sq);
+    }
+  };
+
   get busy() {
     return (this.mode === 'playing' && !this.isOver) || this.room.isOnline;
   }
@@ -246,8 +280,8 @@ export default class SnakePage extends Component {
   start = () => {
     const seats = this.seats;
     const players = seats.map((seat) => ({ id: seat.id, name: seat.name, bot: seat.kind === 'bot' }));
-    const { size, apples, wrap, map, lengthSpeed } = this.settings;
-    this.state = createGame(players, { size, apples, wrap, map, lengthSpeed });
+    const { size, apples, wrap, map, lengthSpeed, botLevel } = this.settings;
+    this.state = createGame(players, { size, apples, wrap, map, lengthSpeed, botLevel });
     this.mode = 'playing';
     this.paused = false;
     this.room.setLocked(true);
@@ -704,6 +738,7 @@ export default class SnakePage extends Component {
           <div class="uno-stage arcade-stage {{if this.iAmBoosting 'is-boosting'}}">
             <canvas class="snake-canvas" aria-label="Snake island. Steer with the arrow keys or WASD, boost with Shift, or use the joystick and Boost button on a touch screen." {{this.setupScene}} {{this.swipe}}></canvas>
             <div class="arcade-speedlines" aria-hidden="true"></div>
+            <ArcadeRadar @getScene={{this.getScene}} @drawMap={{this.drawMap}} @hideMap={{this.isOver}} />
 
             <div class="uno-overlay uno-top-left arcade-scores">
               {{#each this.scores key="id" as |s|}}
@@ -790,6 +825,14 @@ export default class SnakePage extends Component {
               <div class="math-tabs" role="group" aria-label="Speed">
                 {{#each this.speeds as |s|}}
                   <button type="button" class="qr-tab {{if (eq this.settings.speed s.id) 'active'}}" aria-pressed={{if (eq this.settings.speed s.id) "true" "false"}} {{on "click" (fn this.setRule "speed" s.id)}}>{{s.label}}</button>
+                {{/each}}
+              </div>
+            </div>
+            <div class="lobby-rule">
+              <span class="lobby-rule-text"><span class="qr-label">Computer players</span><span class="tool-hint">Easy ones wander and slip up now and then; hard ones chase every apple and boost more.</span></span>
+              <div class="math-tabs" role="group" aria-label="Computer difficulty">
+                {{#each this.botLevels as |l|}}
+                  <button type="button" class="qr-tab {{if (eq this.settings.botLevel l.id) 'active'}}" aria-pressed={{if (eq this.settings.botLevel l.id) "true" "false"}} {{on "click" (fn this.setRule "botLevel" l.id)}}>{{l.label}}</button>
                 {{/each}}
               </div>
             </div>

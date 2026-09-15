@@ -13,6 +13,8 @@ import { SNAKE_COLORS } from '../utils/snake';
 const SEGMENT_R = 0.4;
 const BODY_Y = 0.36;
 const RIDER_SCALE = 0.72;
+// How far (in squares) the drawn snake trails the real one, to smooth out uneven ticks.
+const GLIDE_BUFFER = 0.4;
 const DIR_YAW = { up: Math.PI, down: 0, left: -Math.PI / 2, right: Math.PI / 2 };
 
 // The inverted-hull ink outline, for instanced meshes.
@@ -161,6 +163,7 @@ export function createSnakeScene(canvas) {
     const positions = snake.body.map(([x, y]) => cellToWorld(world.size, world.size, x, y));
     return {
       id: snake.id,
+      name: snake.name,
       color,
       stripe: lighten(color, 0.35),
       group,
@@ -178,7 +181,6 @@ export function createSnakeScene(canvas) {
       // How many squares behind the real snake the drawn one is (it glides to catch up).
       lag: 0,
       moveMs: stepMs * 3,
-      lastMoveAt: performance.now(),
       yaw: DIR_YAW[snake.dir],
       dir: snake.dir,
       alive: true,
@@ -241,15 +243,9 @@ export function createSnakeScene(canvas) {
       // The new head square goes on the front of the trail; every segment is now one square further along it.
       const jump = Math.abs(old[0][0] - next[0][0]) + Math.abs(old[0][1] - next[0][1]) > 1.5;
       visual.trail = [[...next[0]], ...visual.trail].slice(0, next.length + 4);
-      visual.lag = Math.min(visual.lag + 1, 2.5);
+      visual.lag = Math.min(visual.lag + 1, 3);
       if (jump) visual.lag = 0;
-      // Time the glide off how long the last square actually took to arrive, not the
-      // theoretical rate: turns land a little early or late (coyote time, early turns),
-      // and matching the real cadence is what keeps the body from stuttering.
-      const elapsed = now - visual.lastMoveAt;
-      const expected = stepMs / speedOf(state, snake);
-      visual.moveMs = jump || !(elapsed > 0) ? expected : Math.min(Math.max(elapsed, expected * 0.4), expected * 3);
-      visual.lastMoveAt = now;
+      visual.moveMs = stepMs / speedOf(state, snake);
     }
     next.forEach((p, i) => (visual.trail[i] = [...p]));    visual.to = next;
     // A turn waiting for the next square: the head looks that way straight away.
@@ -438,8 +434,13 @@ export function createSnakeScene(canvas) {
     visual.deadFade += (fadeTarget - visual.deadFade) * Math.min(1, dt * 4);
     visual.material.opacity = visual.deadFade;
     visual.material.depthWrite = visual.deadFade > 0.95;
-    // Glide towards the real snake at its own speed, hurrying when a burst of moves has left it behind.
-    if (visual.alive) visual.lag = Math.max(0, visual.lag - ((dt * 1000) / visual.moveMs) * (1.2 + Math.max(0, visual.lag - 0.8) * 2.5));
+    // Glide at the snake's steady speed, kept a little behind the real one: squares arrive on an
+    // uneven timer, and that small buffer soaks it up so the body never stops and starts.
+    // Further behind than the buffer it speeds up gently; closer, it eases off.
+    if (visual.alive) {
+      const pace = Math.max(0.25, Math.min(2.5, 1 + (visual.lag - GLIDE_BUFFER) * 1.4));
+      visual.lag = Math.max(0, visual.lag - ((dt * 1000) / visual.moveMs) * pace);
+    }
     else visual.lag = Math.max(0, visual.lag - dt * 8);
     const points = visual.to.map((_, i) => trailAt(visual, i + visual.lag));
     const color = new Color();
@@ -666,6 +667,16 @@ export function createSnakeScene(canvas) {
         celebrate(state);
       }
       if (state.status !== 'over') overShown = false;
+    },
+    // Every other living snake's head on screen (-1..1 each way), for the off-screen arrows.
+    markers() {
+      const out = [];
+      for (const v of snakes.values()) {
+        if (v.id === myId || !v.alive) continue;
+        const point = v.head.position.clone().setY(0.9).project(camera);
+        out.push({ id: v.id, name: v.name, color: v.color, x: point.x, y: point.y, behind: point.z > 1 });
+      }
+      return out;
     },
     // Your own turn, shown the moment you press it (before the game has taken the step).
     previewTurn(id, dir) {

@@ -74,6 +74,7 @@ export const GAME_CONTROLS = [
       { id: 'right', label: 'Walk right', keys: ['ArrowRight', 'KeyD'], pad: ['DPadRight'] },
       { id: 'dig', label: 'Dig the tile you’re on', keys: ['Space', 'KeyJ', 'Enter'], pad: ['A'] },
       { id: 'flag', label: 'Flag / unflag the tile you’re on', keys: ['KeyF', 'KeyK'], pad: ['X'] },
+      { id: 'run', label: 'Run (hold, with the Running rule on)', keys: ['ShiftLeft', 'ShiftRight'], pad: ['RB'] },
       { id: 'chat', label: 'Open chat', keys: ['KeyT'], pad: ['Back'] },
     ],
   },

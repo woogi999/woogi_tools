@@ -1201,6 +1201,303 @@
   }
 }
 
+// Minesweeper stamina meter.
+.mines-stamina-bar {
+  position: relative;
+  display: inline-block;
+  width: 64px;
+  height: 8px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--text) 15%, transparent);
+  border-radius: 999px;
+
+  > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: #f2b90d;
+    border-radius: inherit;
+  }
+}
+
+.mines-stamina.is-low .mines-stamina-bar > span {
+  background: #e5484d;
+}
+
+// The defuse puzzle, in the middle of the field.
+.defuse-panel {
+  top: 50%;
+  left: 50%;
+  z-index: 8;
+  width: min(92%, 420px);
+  max-height: 88%;
+  overflow: auto;
+  padding: 14px 16px;
+  background: var(--bg);
+  border: 2px solid #141414;
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 35%);
+  transform: translate(-50%, -50%);
+  animation: defuse-in 0.18s ease-out;
+}
+
+@keyframes defuse-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%) scale(0.94);
+  }
+}
+
+.defuse-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+}
+
+.defuse-level {
+  margin-left: auto;
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+.defuse-timer {
+  height: 8px;
+  margin-top: 8px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--text) 12%, transparent);
+  border-radius: 999px;
+}
+
+.defuse-timer-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #3fae4f;
+  border-radius: inherit;
+}
+
+.defuse-timer-fill.is-low {
+  background: #e5484d;
+}
+
+.defuse-text {
+  margin: 10px 0;
+  font-weight: 600;
+}
+
+.defuse-wires {
+  display: grid;
+  gap: 6px;
+}
+
+.defuse-wire {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: 2px solid transparent;
+  border-radius: 8px;
+}
+
+.defuse-wire.is-selected,
+.defuse-wire:hover {
+  border-color: var(--text);
+}
+
+.defuse-wire-number {
+  width: 1.2em;
+  font-weight: 700;
+}
+
+.defuse-wire-line {
+  flex: 1;
+  height: 10px;
+  background: var(--wire);
+  border: 1.5px solid #141414;
+  border-radius: 999px;
+}
+
+.defuse-wire.is-cut .defuse-wire-line {
+  background: linear-gradient(90deg, var(--wire) 45%, transparent 45% 55%, var(--wire) 55%);
+  border-color: transparent;
+}
+
+.defuse-code,
+.defuse-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.defuse-slot,
+.defuse-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2em;
+  height: 2.4em;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: #141414;
+  color: #ff5050;
+  border-radius: 6px;
+}
+
+.defuse-slot.is-done,
+.defuse-arrow.is-done {
+  color: #4cd964;
+  opacity: 0.6;
+}
+
+.defuse-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+.defuse-key {
+  justify-content: center;
+  min-height: 2.4em;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.defuse-key.is-selected,
+.defuse-dir:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+
+.defuse-dpad {
+  display: grid;
+  grid-template-areas: '. up .' 'left . right' '. down .';
+  grid-template-columns: repeat(3, 3em);
+  gap: 4px;
+  justify-content: center;
+
+  .is-up {
+    grid-area: up;
+  }
+  .is-left {
+    grid-area: left;
+  }
+  .is-right {
+    grid-area: right;
+  }
+  .is-down {
+    grid-area: down;
+  }
+}
+
+.defuse-dir {
+  justify-content: center;
+  min-height: 2.6em;
+}
+
+.defuse-meter {
+  position: relative;
+  height: 28px;
+  margin-bottom: 10px;
+  background: color-mix(in oklab, var(--text) 12%, transparent);
+  border: 2px solid #141414;
+  border-radius: 6px;
+}
+
+.defuse-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: #3fae4f;
+}
+
+.defuse-needle {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 4px;
+  margin-left: -2px;
+  background: #e5484d;
+  border-radius: 2px;
+}
+
+.defuse-stop {
+  justify-content: center;
+  width: 100%;
+}
+
+// Minimap (top right, under the buttons) and arrows pointing to players off screen.
+.arcade-radar {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.arcade-minimap {
+  top: 54px;
+  right: 10px;
+  width: clamp(72px, 14%, 160px);
+  aspect-ratio: 1;
+  max-width: 100%;
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 18%);
+  opacity: 0.92;
+}
+
+.arcade-minimap.is-hidden {
+  display: none;
+}
+
+.arcade-arrows {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.arcade-arrow {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translate(-50%, -50%);
+}
+
+.arcade-arrow-head {
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 16px solid var(--arrow-color, #fff);
+  filter: drop-shadow(0 0 1px #141414) drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
+}
+
+.arcade-arrow-name {
+  padding: 0 6px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #fff;
+  background: color-mix(in oklab, var(--arrow-color, #444) 75%, #141414);
+  border-radius: 999px;
+}
+
+@media (max-width: 700px) {
+  .arcade-minimap {
+    top: 48px;
+    width: clamp(60px, 18%, 96px);
+  }
+}
+
 // Boosting: white speed lines rush in from the edges of the screen.
 .arcade-speedlines {
   position: absolute;
@@ -1227,6 +1524,40 @@
 @media (prefers-reduced-motion: reduce) {
   .arcade-stage.is-boosting .arcade-speedlines {
     opacity: 0.45;
+    animation: none;
+  }
+}
+
+// Minesweeper running is a lighter rush than a snake boost.
+.mines-stage.is-running .arcade-speedlines {
+  opacity: 0.55;
+}
+
+// Winded: the edges of the screen close in and throb with each heavy breath.
+.mines-winded {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: radial-gradient(ellipse at 50% 50%, transparent 48%, rgb(40 20 60 / 55%) 100%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.mines-stage.is-winded .mines-winded {
+  opacity: 1;
+  animation: mines-winded 1.1s ease-in-out infinite;
+}
+
+@keyframes mines-winded {
+  50% {
+    opacity: 0.6;
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mines-stage.is-winded .mines-winded {
     animation: none;
   }
 }
