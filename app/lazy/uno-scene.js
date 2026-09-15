@@ -635,7 +635,8 @@ export function createUnoScene(canvas) {
 
   const kit = new Kit();
   const scene = new Scene();
-  const camera = new PerspectiveCamera(60, 16 / 9, 0.05, 60);
+  // Near plane no closer than it needs to be (your hand sits 1.3 away), for depth precision: no flickering where surfaces meet.
+  const camera = new PerspectiveCamera(60, 16 / 9, 0.1, 60);
   camera.rotation.order = 'YXZ';
   camera.position.copy(EYE);
   const basePitch = -Math.atan2(EYE.y - LOOK_TARGET.y, EYE.z - LOOK_TARGET.z);

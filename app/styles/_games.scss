@@ -975,15 +975,6 @@
 
 // ─── Snake ───────────────────────────────────────────────────────────────
 
-.snake-shell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  max-width: 480px;
-  margin-inline: auto;
-}
-
 .snake-scores {
   display: flex;
   flex-wrap: wrap;
@@ -1028,62 +1019,409 @@
 .snake-canvas {
   display: block;
   width: 100%;
-  max-width: 480px;
-  aspect-ratio: 1;
-  border: 2px solid var(--border-color);
-  border-radius: var(--radius-card);
+  height: 100%;
   // Swipes steer the snake instead of scrolling the page.
   touch-action: none;
 }
 
-.snake-pad {
+.snake-countdown {
+  position: absolute;
+  inset: 0;
   display: grid;
-  grid-template-areas:
-    '. up .'
-    'left down right';
-  grid-template-columns: repeat(3, 64px);
-  gap: 8px;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
+  place-items: center;
+  color: #fff;
+  font-size: clamp(3rem, 16vw, 7rem);
+  font-weight: 800;
+  pointer-events: none;
+  -webkit-text-stroke: 3px #141414;
+  text-shadow: 0 6px 0 #141414;
+  animation: snake-count 0.5s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
 
-// A keyboard is the natural control on desktop, so the pad is for touch screens.
-@media (hover: hover) and (pointer: fine) {
-  .snake-pad {
+@keyframes snake-count {
+  from {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+.snake-paused,
+.snake-fallback {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: 0;
+  padding: 8px 16px;
+  background: #fff;
+  border: 3px solid #141414;
+  border-radius: var(--radius-pill);
+  color: #141414;
+  font-weight: 800;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.snake-score.is-leading {
+  font-weight: 700;
+}
+
+.snake-score.is-leading svg {
+  color: #f2b90d;
+}
+
+// ─── Arcade games (Snake, Minesweeper) on Woono's 16:9 stage ─────────────
+
+.arcade-stage {
+  background: #9adcf2;
+}
+
+.arcade-stage .uno-top-left.arcade-scores {
+  flex-direction: row;
+  flex-wrap: wrap;
+  max-width: 38%;
+}
+
+.arcade-stage .uno-top-right {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.arcade-chip {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 0.75rem;
+}
+
+.arcade-stage .snake-countdown,
+.arcade-stage .snake-paused,
+.arcade-stage .snake-fallback {
+  z-index: 6;
+}
+
+// Key reminders in the bottom-right corner (touch screens have their buttons there instead).
+.arcade-controls {
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  gap: 5px;
+  max-width: 34%;
+  margin: 0;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--bg) 85%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  font-size: 0.7rem;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.arcade-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.arcade-control-keys {
+  display: inline-flex;
+  flex: none;
+  gap: 3px;
+}
+
+.arcade-control-label {
+  color: var(--text);
+  font-weight: 700;
+}
+
+// Keyboard keys: light keycaps with a darker bottom edge, like the real thing.
+.keycap {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7em;
+  height: 1.7em;
+  padding: 0 0.45em;
+  box-sizing: border-box;
+  background: linear-gradient(#fdfdfd, #ececec);
+  border: 1px solid #b9b9b9;
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  color: #1c1c1c;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+// Controller buttons: round face buttons in their usual colours, pills for the rest.
+.pad-button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.9em;
+  height: 1.9em;
+  padding: 0 0.5em;
+  box-sizing: border-box;
+  background: #3a3a3a;
+  border: 2px solid #141414;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pad-button.is-a {
+  background: #30a46c;
+}
+
+.pad-button.is-b {
+  background: #e5484d;
+}
+
+.pad-button.is-x {
+  background: #3e7be0;
+}
+
+.pad-button.is-y {
+  background: #f2b90d;
+  color: #141414;
+}
+@media (pointer: coarse) {
+  .arcade-controls {
     display: none;
   }
 }
 
-.snake-pad-btn {
+// Boosting: white speed lines rush in from the edges of the screen.
+.arcade-speedlines {
+  position: absolute;
+  inset: -10%;
+  z-index: 4;
+  background: repeating-conic-gradient(from 0deg at 50% 55%, rgb(255 255 255 / 0%) 0deg 6deg, rgb(255 255 255 / 70%) 6.5deg 7.2deg, rgb(255 255 255 / 0%) 7.7deg 13deg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  mask-image: radial-gradient(ellipse at 50% 55%, transparent 42%, #000 85%);
+}
+
+.arcade-stage.is-boosting .arcade-speedlines {
+  opacity: 1;
+  animation: arcade-speed 0.16s steps(2) infinite;
+}
+
+@keyframes arcade-speed {
+  50% {
+    transform: rotate(3deg) scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arcade-stage.is-boosting .arcade-speedlines {
+    opacity: 0.45;
+    animation: none;
+  }
+}
+
+// Touch screens: a joystick in the bottom-left corner of the stage, big buttons in the bottom-right.
+.snake-touch {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 5;
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  pointer-events: none;
+}
+
+.snake-touch > * {
+  pointer-events: auto;
+}
+
+// On touch, the joystick has the bottom-left corner, so the chat sits higher up
+// and the status moves down between the controls.
+@media (pointer: coarse) {
+  .arcade-stage .game-chat.uno-chat {
+    top: 30%;
+    bottom: auto;
+  }
+
+  .arcade-stage .game-chat.uno-chat.is-open {
+    max-height: calc(70% - 20px);
+  }
+
+  .arcade-stage .uno-status {
+    top: auto;
+    bottom: 14px;
+    max-width: min(40%, 320px);
+  }
+}
+
+// Upright phones: the controls take the whole bottom row, so the status sits above them.
+@media (orientation: portrait) and (pointer: coarse) {
+  .arcade-stage .uno-status {
+    bottom: 140px;
+    max-width: 80%;
+  }
+
+  .arcade-stage .uno-top-left.arcade-scores {
+    max-width: 70%;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .snake-touch {
+    display: none;
+  }
+}
+
+.joystick {
+  position: relative;
+  flex: none;
+  width: 112px;
+  height: 112px;
+  background: radial-gradient(circle, color-mix(in oklab, var(--text) 6%, transparent) 0 40%, color-mix(in oklab, var(--text) 12%, transparent) 70%);
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  touch-action: none;
+}
+
+.joystick.is-active {
+  border-color: var(--text-faint);
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin: -24px 0 0 -24px;
+  background: var(--text);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
+  transition: transform 0.12s ease-out;
+  pointer-events: none;
+}
+
+.joystick.is-active .joystick-knob {
+  transition: none;
+}
+
+.snake-boost {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 56px;
-  background: var(--bg-elevated-2);
+  gap: 2px;
+  width: 84px;
+  height: 84px;
+  background: #f2b90d;
+  border: 3px solid #141414;
+  border-radius: 50%;
+  box-shadow: 0 5px 0 #141414;
+  color: #141414;
+  font-size: 0.8rem;
+  font-weight: 800;
+  touch-action: none;
+}
+
+.snake-boost:active:not(:disabled),
+.snake-boost.is-boosting {
+  box-shadow: 0 1px 0 #141414;
+  transform: translateY(4px);
+}
+
+.snake-boost:disabled {
+  opacity: 0.45;
+}
+
+// ─── Minesweeper ─────────────────────────────────────────────────────────
+
+.mines-hud {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mines-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--bg-elevated);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-card);
-  color: var(--text);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
 }
 
-.snake-pad-btn:active {
-  background: var(--border-color);
+.arcade-chip strong,
+.mines-chip strong {
+  font-family: var(--font-mono);
 }
 
-.snake-pad-btn.is-up {
-  grid-area: up;
+.arcade-chip.is-low {
+  border-color: #e5484d;
+  color: #e5484d;
+  animation: mines-pulse 1s ease-in-out infinite;
 }
 
-.snake-pad-btn.is-left {
-  grid-area: left;
+@keyframes mines-pulse {
+  50% {
+    transform: scale(1.06);
+  }
 }
 
-.snake-pad-btn.is-down {
-  grid-area: down;
+@media (prefers-reduced-motion: reduce) {
+  .arcade-chip.is-low {
+    animation: none;
+  }
 }
 
-.snake-pad-btn.is-right {
-  grid-area: right;
+.mines-scores .snake-score {
+  flex-wrap: wrap;
+}
+
+.mines-detail {
+  flex-basis: 100%;
+  color: var(--text-dim);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.mines-stunned {
+  top: 22%;
+  background: #fff3b0;
+}
+
+.mines-buttons {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.snake-boost.mines-flag-btn {
+  width: 66px;
+  height: 66px;
+  background: #ff6b81;
+}
+
+.snake-boost.mines-dig-btn {
+  background: #8fd16a;
 }
 
 // ─── Uno ─────────────────────────────────────────────────────────────────
@@ -1267,6 +1605,13 @@
   position: absolute;
   left: 14px;
   bottom: 14px;
+  max-width: calc(100% - 28px);
+  max-height: calc(100% - 28px);
+  box-sizing: border-box;
+}
+
+.game-chat.uno-chat .game-chat-list {
+  min-height: 0;
 }
 
 .uno-hud {
@@ -1836,13 +2181,6 @@
   }
 }
 
-.tool-body.is-fullscreen .snake-shell {
-  max-width: min(100%, calc(100dvh - 180px));
-}
-
-.tool-body.is-fullscreen .snake-canvas {
-  max-width: none;
-}
 
 .avatar-switches {
   display: flex;
@@ -1939,13 +2277,6 @@ main:has(> .tool-slot .container.is-game) {
   }
 }
 
-.container.is-game .snake-shell {
-  max-width: min(100%, calc(100dvh - 190px));
-}
-
-.container.is-game .snake-canvas {
-  max-width: none;
-}
 
 // The table: as big as the screen allows, still 16:9, no frame.
 .container.is-game .uno-shell {

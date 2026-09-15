@@ -36,7 +36,13 @@ const LINES = {
   snakeHello: ['Sssslithering into action.', 'Pathfinding algorithm: engaged.', 'I am a snake now. Hiss.exe.'],
   snakeEat: ['Apple acquired. Nutritional value: 1 byte.', 'Crunch. Growing my dataset.', 'Delicious. Tastes like fibre optics.'],
   snakeDie: ['Crashed. Blue screen of death.', 'I hit a wall. Story of my life.', 'Segmentation fault. Literally.', 'Oof. Rebooting in the afterlife.'],
-  snakeWin: ['Last snake standing! Survival of the fittest code.', 'I win! Longest uptime in the room.'],
+  snakeWin: ['High score! Survival of the fittest code.', 'I win! Longest uptime in the room.'],
+  snakeBoost: ['Overclocking!', 'Nitro engaged. Tail optional.', 'Zoom zoom, segment gone.'],
+
+  minesHello: ['Mine detector calibrated.', 'Deploying to the field. Please don’t explode.', 'I can count to eight. Let’s go.'],
+  minesBoom: ['That was a mine. Noted.', 'Kaboom. Recalculating.', 'My sensors lied to me.', 'Ow. Ow ow ow.'],
+  minesFlag: ['Flagged. Obviously.', 'That one’s a mine, trust me.', 'Logic says: flag.'],
+  minesWin: ['Top score! Minesweeping is my firmware.', 'Field cleared, points counted, I win.'],
 };
 
 const pick = (list) => list[Math.floor(Math.random() * list.length)];

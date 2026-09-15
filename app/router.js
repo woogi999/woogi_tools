@@ -52,6 +52,7 @@ Router.map(function () {
   this.route('gitignore-generator');
   this.route('chess');
   this.route('snake');
+  this.route('minesweeper');
   this.route('woono');
   this.route('avatar-editor');
   this.route('uno');

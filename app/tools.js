@@ -537,11 +537,28 @@ export const TOOLS = [
     route: 'snake',
     icon: 'worm',
     category: 'Fun',
-    description: "Eat apples, get long, don’t bite yourself. Solo, or a four-snake brawl with friends.",
-    keywords: ['snake', 'arcade', 'retro game', 'nokia snake', 'multiplayer', 'p2p', 'game'],
+    description: "Ride your avatar on a snake across tropical islands. Eat apples, boost, and beat the high score.",
+    keywords: ['snake', 'arcade', 'retro game', 'nokia snake', 'multiplayer', 'p2p', 'game', '3d', 'avatar', 'boost', 'island'],
     madeWith:
-      "The board is a <canvas> redrawn every tick. The rules are plain JavaScript: heads move first, then collisions are settled against where every snake ends up, so head-on crashes are fair. The computer snake finds the nearest apple with a breadth-first search, refuses to enter a pocket smaller than its own body (checked with a flood fill), avoids squares another head could reach next, and occasionally wanders so it can be beaten. Online, the host runs the game and streams each tick to everyone over PeerJS connections; guests only send their turns.",
-    credits: [{ name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' }],
+      "The islands are a small three.js scene loaded only when you open Snake: toon-shaded sand and grass on a sea whose waves are moved in a vertex shader, with palms, rocks and ponds as obstacles. Each snake body is one instanced mesh (plus an instanced ink outline), and every segment glides between squares instead of jumping, while your avatar rides on the head and reacts to apples, boosts and crashes. The rules are plain JavaScript run in half-steps, so a boosting snake moves twice as often as the rest: heads move first, then collisions are settled against where every snake ends up, so head-on crashes are fair. The highest score wins, so the last snake alive has to overtake the leader to win. The computer snake finds the nearest apple with a breadth-first search, refuses to enter a pocket smaller than its own body (checked with a flood fill), avoids squares another head could reach next, and occasionally wanders so it can be beaten. Online, the host runs the game and streams each step to everyone over PeerJS connections; guests only send their turns and boosts.",
+    credits: [
+      { name: 'three.js', author: 'three.js authors', license: 'MIT', url: 'https://threejs.org' },
+      { name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' },
+    ],
+  },
+  {
+    label: 'Minesweeper',
+    route: 'minesweeper',
+    icon: 'bomb',
+    category: 'Fun',
+    description: "Drop onto a 3D minefield with friends. Walk around, dig and flag, and score the most without blowing up.",
+    keywords: ['minesweeper', 'mines', 'puzzle', 'logic', 'multiplayer', 'p2p', 'game', '3d', 'avatar', 'flags'],
+    madeWith:
+      "The field is a three.js scene on the same toon-shaded island as Snake: every tile is one instance of a single instanced mesh, pressed down and recoloured as it's dug, with numbers drawn once on a canvas and reused. Your avatar drops in from the sky and walks the field; you dig or flag the tile under your feet. The host runs the rules: mines are only laid after the first dig (never next to it), empty tiles flood-fill outwards, and each player is sent the board without the mines, so no one can peek. Scores count every tile you uncover, take ten off for a mine (and stun you), and settle flags at the end. Computer players walk the same field and use the classic single-number deductions, guessing the least risky tile when logic runs out. Online, guests move locally and send their position; the host sends the board and everyone's position ten times a second over PeerJS.",
+    credits: [
+      { name: 'three.js', author: 'three.js authors', license: 'MIT', url: 'https://threejs.org' },
+      { name: 'PeerJS', author: 'PeerJS contributors', license: 'MIT', url: 'https://peerjs.com' },
+    ],
   },
   {
     label: 'Woono',

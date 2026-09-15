@@ -85,7 +85,7 @@ export default class GameChat extends Component {
           <ol class="game-chat-list" aria-live="polite" {{stickToBottom this.messages.length}}>
             {{#each this.messages key="id" as |m|}}
               {{#if m.system}}
-                <li class="game-chat-system {{if m.debug 'is-debug'}}">{{m.text}}</li>
+                <li class="game-chat-system {{if m.debug 'is-debug'}}">{{#if m.debug}}<Icon @name="terminal" @size={{11}} /> {{/if}}{{m.text}}</li>
               {{else}}
                 <li class="game-chat-msg {{if m.mine 'is-mine'}} {{if m.bot 'is-bot'}}">
                   <span class="game-chat-name">{{#if m.bot}}<Icon @name="bot" @size={{11}} /> {{/if}}{{if m.mine "You" m.name}}</span>

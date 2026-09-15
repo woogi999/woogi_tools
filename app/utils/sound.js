@@ -81,6 +81,22 @@ const SOUNDS = {
   'snake.win': S(one('jingles/snake-win.ogg'), 0.45, 0),
   'snake.lose': S(one('jingles/snake-lose.ogg'), 0.45, 0),
   'snake.pause': S(one('snake/pause.ogg'), 0.45, 0),
+  'snake.boost': S(takes('cards', 'card-shove', 4), 0.55, 0.1, 1.3),
+  'snake.whoosh': S(CARD_FAN, 0.75, 0.06, 0.65),
+  'snake.boostEnd': S(CARD_SLIDE, 0.3, 0.08, 0.8),
+  'snake.thud': S(one('cards/land.ogg'), 0.6, 0.1, 0.9),
+
+  // Minesweeper: digs, flags and bangs.
+  'mines.dig': S(takes('snake', 'eat', 3), 0.5, 0.12, 0.8),
+  'mines.clear': S(one('cards/card-shuffle.ogg'), 0.45, 0.05, 1.3),
+  'mines.flag': S(takes('cards', 'card-place', 4), 0.6, 0.08),
+  'mines.boom': S(one('cards/slam.ogg'), 0.9, 0.05, 0.7),
+  'mines.land': S(one('cards/land.ogg'), 0.6, 0.1),
+  'mines.step': S(CARD_SLIDE, 0.12, 0.15, 1.6),
+  'mines.stun': S(one('snake/die.ogg'), 0.45, 0.05, 1.2),
+  'mines.start': S(one('jingles/start.ogg'), 0.4, 0),
+  'mines.win': S(one('jingles/snake-win.ogg'), 0.45, 0),
+  'mines.lose': S(one('jingles/snake-lose.ogg'), 0.45, 0),
 
   // Woono: real cards, punchy.
   // The deal: a short riffle (cut off after 0.9 s), then one flick per card as each flies out.
@@ -127,7 +143,8 @@ export const SOUND_GROUPS = [
   { id: 'cards', label: 'Home page cards', hint: 'Card slides and flicks on the home page.', icon: 'sticky-note', sample: 'cards.place' },
   { id: 'alerts', label: 'Alerts & chat', hint: 'Chat messages, people joining, your turn, ready checks and timer ticks.', icon: 'bell-ring', sample: 'ui.chat' },
   { id: 'chess', label: 'Chess', hint: 'Piece moves, captures and checks.', icon: 'crown', sample: 'chess.move' },
-  { id: 'snake', label: 'Snake', hint: 'Eating, turning and crashing.', icon: 'dices', sample: 'snake.eat' },
+  { id: 'snake', label: 'Snake', hint: 'Eating, turning, boosting and crashing.', icon: 'dices', sample: 'snake.eat' },
+  { id: 'mines', label: 'Minesweeper', hint: 'Digging, flagging and explosions.', icon: 'bomb', sample: 'mines.flag' },
   { id: 'woono', label: 'Woono', hint: 'Dealing, playing, drawing and every card effect.', icon: 'file-stack', sample: 'uno.play' },
   { id: 'music', label: 'Jingles', hint: 'Short music stings: wins, losses, reverses, skips and hits.', icon: 'music', sample: 'uno.reverse' },
 ];
@@ -143,6 +160,7 @@ function groupOf(name, sound) {
   if (name.startsWith('cards.')) return 'cards';
   if (name.startsWith('chess.')) return 'chess';
   if (name.startsWith('snake.')) return 'snake';
+  if (name.startsWith('mines.')) return 'mines';
   return 'woono';
 }
 

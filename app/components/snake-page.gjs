@@ -7,6 +7,7 @@ import { registerDestructor } from '@ember/destroyable';
 import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
+import Joystick from './joystick';
 import GameLobby, { ReadyButton } from './game-lobby';
 import GameChat from './game-chat';
 import { askConfirm } from '../utils/confirm';
@@ -17,14 +18,22 @@ import { roomCodeFromUrl } from '../utils/file-share';
 import { botNames, newBotSeed } from '../utils/bot-names';
 import { BotChatter } from '../utils/bot-chat';
 import { robotAvatar } from '../utils/avatar';
-import { MAX_SNAKES, createGame, step, queueTurn, removeSnake } from '../utils/snake';
+import { MAX_SNAKES, SNAKE_COLORS, MAPS, MIN_BOOST_LENGTH, COUNTDOWN_TICKS, SUBSTEPS, createGame, step, queueTurn, removeSnake, boost, leader } from '../utils/snake';
 import { sfx, preloadSounds } from '../utils/sound';
+import { controlHints } from '../utils/keybinds';
+import { padState } from '../utils/gamepad';
 import HoldConfirm from './hold-confirm';
 
+// Milliseconds per square for an ordinary snake at its starting length; the game ticks SUBSTEPS times as often.
 const SPEEDS = [
-  { id: 'slow', label: 'Slow', ms: 160 },
-  { id: 'normal', label: 'Normal', ms: 120 },
-  { id: 'fast', label: 'Fast', ms: 80 },
+  { id: 'slow', label: 'Slow', ms: 210 },
+  { id: 'normal', label: 'Normal', ms: 160 },
+  { id: 'fast', label: 'Fast', ms: 115 },
+];
+const LENGTH_OPTIONS = [
+  { id: 'faster', label: 'Faster' },
+  { id: 'off', label: 'No change' },
+  { id: 'slower', label: 'Slower' },
 ];
 const SIZES = [
   { id: 16, label: 'Small' },
@@ -37,14 +46,14 @@ const APPLES = [
   { id: 5, label: '5' },
 ];
 const WALLS = [
-  { id: false, label: 'Solid walls' },
+  { id: false, label: 'Fenced in' },
   { id: true, label: 'Wrap around' },
 ];
-const DEFAULTS = { speed: 'normal', size: 20, apples: 1, wrap: false, bots: 1 };
-// Everyone else's snake; your own is always drawn in the text colour.
-const PALETTE = ['#ff5c72', '#3e7be0', '#30a46c', '#b388eb'];
+const DEFAULTS = { speed: 'normal', size: 20, apples: 3, wrap: false, bots: 1, map: 'meadow', lengthSpeed: 'faster' };
 const SWIPE_PX = 18;
+const STICK_DEAD = 0.35;
 const BEST_KEY = 'woogi-snake-best';
+const COUNT_EVERY = Math.ceil(COUNTDOWN_TICKS / 3);
 
 const eq = (a, b) => a === b;
 
@@ -61,18 +70,24 @@ export default class SnakePage extends Component {
   sizes = SIZES;
   appleCounts = APPLES;
   walls = WALLS;
+  maps = MAPS;
+  lengthOptions = LENGTH_OPTIONS;
 
   // 'lobby' | 'playing'
   @tracked mode = 'lobby';
-  // A fresh copy after every tick, so the template re-renders scores and status.
+  // A fresh copy after every step, so the template re-renders scores and status.
   @tracked game = null;
   @tracked paused = false;
   @tracked best = readBest();
+  @tracked sceneFailed = false;
 
   // The live, mutable game on this device (the host's, online).
   state = null;
   timer = null;
   canvas = null;
+  scene = null;
+  // Everyone's avatar for this game, by snake id.
+  avatars = new Map();
 
   room = new GameRoom('snake', {
     maxPlayers: MAX_SNAKES,
@@ -91,7 +106,7 @@ export default class SnakePage extends Component {
     const stopInput = listenForActions('snake', {
       // Minimised to a pill: the snake keeps going, but the keys belong to the page again.
       active: () => this.mode === 'playing' && onScreen(this.canvas),
-      onAction: (action) => this.onAction(action),
+      onAction: (action, info) => this.onAction(action, info),
     });
     registerDestructor(this, () => {
       stopInput();
@@ -109,8 +124,27 @@ export default class SnakePage extends Component {
     return this.room.selfId;
   }
 
+  // One tick: an ordinary snake moves every SUBSTEPS of them, faster ones sooner.
   get tickMs() {
-    return (SPEEDS.find((s) => s.id === this.settings.speed) ?? SPEEDS[1]).ms;
+    return (SPEEDS.find((s) => s.id === this.settings.speed) ?? SPEEDS[1]).ms / SUBSTEPS;
+  }
+
+  // The key reminders in the corner: keyboard keys, or controller buttons once a controller's in use (touch screens hide it).
+  get controls() {
+    return controlHints('snake', [
+      { label: 'Steer', actions: ['up', 'left', 'down', 'right'] },
+      { label: 'Boost', actions: ['boost'] },
+      { label: 'Pause', actions: ['pause'] },
+      { label: 'Chat', actions: ['chat'] },
+    ]);
+  }
+
+  get padActive() {
+    return padState.active;
+  }
+
+  get iAmBoosting() {
+    return Boolean(this.me?.alive && this.me.boost > 0);
   }
 
   get isHostSide() {
@@ -134,27 +168,61 @@ export default class SnakePage extends Component {
     return this.isHostSide && !this.game?.snakes.some((s) => !s.bot && s.id !== this.myId);
   }
 
+  get me() {
+    return this.game?.snakes.find((s) => s.id === this.myId) ?? null;
+  }
+
+  get canBoost() {
+    const me = this.me;
+    return Boolean(me?.alive && this.game.status === 'playing' && !me.boost && me.body.length >= MIN_BOOST_LENGTH);
+  }
+
   get scores() {
-    return (this.game?.snakes ?? []).map((snake) => ({
-      id: snake.id,
-      name: snake.id === this.myId ? 'You' : snake.name,
-      score: snake.score,
-      alive: snake.alive,
-      mine: snake.id === this.myId,
-      swatch: htmlSafe(`background: ${snake.id === this.myId ? 'var(--text)' : PALETTE[snake.color % PALETTE.length]}`),
-    }));
+    const top = this.game ? leader(this.game) : null;
+    return [...(this.game?.snakes ?? [])]
+      .sort((a, b) => b.score - a.score)
+      .map((snake) => ({
+        id: snake.id,
+        name: snake.id === this.myId ? 'You' : snake.name,
+        score: snake.score,
+        alive: snake.alive,
+        mine: snake.id === this.myId,
+        leading: !this.isSolo && top?.id === snake.id,
+        swatch: htmlSafe(`background: ${SNAKE_COLORS[snake.color % SNAKE_COLORS.length]}`),
+      }));
+  }
+
+  get countdown() {
+    const game = this.game;
+    return game?.status === 'countdown' ? Math.ceil(game.countdown / COUNT_EVERY) : null;
+  }
+
+  // As a one-item list, so each new number is a new element and its pop animation replays.
+  get countdownDigits() {
+    return this.countdown ? [this.countdown] : [];
   }
 
   get status() {
     const game = this.game;
     if (!game) return '';
-    if (game.status === 'countdown') return 'Get ready…';
+    if (game.status === 'countdown') return this.isSolo ? 'Get ready…' : 'Get ready… Highest score wins.';
     if (this.paused) return 'Paused.';
-    if (game.status === 'playing') return this.isSolo ? 'Eat the apples. Don’t hit the walls or yourself.' : 'Last snake slithering wins.';
+    if (game.status === 'playing') {
+      if (this.isSolo) return 'Eat the apples. Don’t crash. Boost to go faster, at the cost of your tail.';
+      const alive = game.snakes.filter((s) => s.alive);
+      if (alive.length === 1) {
+        const survivor = alive[0];
+        const need = Math.max(...game.snakes.filter((s) => s !== survivor).map((s) => s.score)) + 1 - survivor.score;
+        const who = survivor.id === this.myId ? 'You’re' : `${survivor.name} is`;
+        return `${who} the last one slithering: ${need} more ${need === 1 ? 'apple' : 'apples'} to take the win.`;
+      }
+      return 'Highest score wins. Staying alive only helps if you can overtake the leader.';
+    }
     if (this.isSolo) return `Game over. You scored ${game.snakes[0].score}.`;
-    if (game.winner === null) return 'Everyone crashed. It’s a draw.';
-    if (game.winner === this.myId) return 'You win!';
-    return `${game.snakes.find((s) => s.id === game.winner)?.name ?? 'Someone'} wins.`;
+    if (game.winner === null) return 'A tie for the top score. It’s a draw.';
+    const winner = game.snakes.find((s) => s.id === game.winner);
+    if (game.winner === this.myId) return `You win with ${winner.score}!`;
+    return `${winner?.name ?? 'Someone'} wins with ${winner?.score ?? 0}.`;
   }
 
   get isOver() {
@@ -176,9 +244,10 @@ export default class SnakePage extends Component {
   chatter = new BotChatter(this.room);
 
   start = () => {
-    const players = this.seats.map((seat) => ({ id: seat.id, name: seat.name, bot: seat.kind === 'bot' }));
-    const { size, apples, wrap } = this.settings;
-    this.state = createGame(players, { size, apples, wrap });
+    const seats = this.seats;
+    const players = seats.map((seat) => ({ id: seat.id, name: seat.name, bot: seat.kind === 'bot' }));
+    const { size, apples, wrap, map, lengthSpeed } = this.settings;
+    this.state = createGame(players, { size, apples, wrap, map, lengthSpeed });
     this.mode = 'playing';
     this.paused = false;
     this.room.setLocked(true);
@@ -203,19 +272,21 @@ export default class SnakePage extends Component {
 
   tick() {
     if (this.paused || !this.state) return;
-    const before = new Map(this.state.snakes.map((s) => [s.id, { alive: s.alive, score: s.score }]));
+    const before = new Map(this.state.snakes.map((s) => [s.id, { alive: s.alive, score: s.score, boosts: s.boosts }]));
     step(this.state);
     // In debug mode, a state to go back to every second or so, and whenever a snake crashes.
     const crashed = this.state.snakes.some((s) => before.get(s.id)?.alive && !s.alive);
-    if (crashed || this.state.tick % 8 === 0) this.room.recordDebugState(crashed ? `Tick ${this.state.tick}: a crash` : `Tick ${this.state.tick}`);
-    // Computer snakes remark on crashing, and now and then on an apple.
+    if (crashed || this.state.tick % 24 === 0) this.room.recordDebugState(crashed ? `Step ${this.state.tick}: a crash` : `Step ${this.state.tick}`);
+    // Computer snakes remark on crashing, boosting, and now and then on an apple.
     for (const snake of this.state.snakes) {
       const was = before.get(snake.id);
       if (!snake.bot || !was) continue;
       if (was.alive && !snake.alive) this.chatter.say(snake.name, 'snakeDie', { chance: 0.8 });
+      else if (snake.boosts > was.boosts) this.chatter.say(snake.name, 'snakeBoost', { chance: 0.3 });
       else if (snake.score > was.score) this.chatter.say(snake.name, 'snakeEat', { chance: 0.12 });
     }
-    this.publish();
+    // Most ticks nobody reaches a new square: nothing to show or send.
+    if (this.state.changed || this.state.status === 'over') this.publish();
     if (this.state.status === 'over') {
       const winner = this.state.snakes.find((s) => s.id === this.state.winner);
       if (winner?.bot) this.chatter.say(winner.name, 'snakeWin', { urgent: true });
@@ -227,20 +298,31 @@ export default class SnakePage extends Component {
   // Shows the state here, and on the host also sends it to everyone else.
   publish() {
     const snapshot = structuredClone(this.state);
+    this.show(snapshot);
+    if (this.room.isOnline) this.room.send({ type: 'state', state: snapshot });
+  }
+
+  show(snapshot) {
     this.playSounds(this.game, snapshot);
     this.game = snapshot;
-    this.draw();
-    if (this.room.isOnline) this.room.send({ type: 'state', state: snapshot });
+    this.scene?.setGame(snapshot, { myId: this.myId, avatars: this.avatarMap(snapshot), stepMs: this.debugTickMs ?? this.tickMs });
+  }
+
+  // Avatars for the snakes in this game, from the lobby seats (and what the host sent).
+  avatarMap(snapshot) {
+    for (const seat of this.seats) if (seat.avatar && !this.avatars.has(seat.id)) this.avatars.set(seat.id, seat.avatar);
+    for (const snake of snapshot.snakes) if (!this.avatars.has(snake.id) && snake.bot) this.avatars.set(snake.id, robotAvatar(this.settings.botSeed, Number(snake.id.split('-')[1]) - 1));
+    return this.avatars;
   }
 
   // Sounds from the difference between two snapshots, so guests hear the same game as the host.
   playSounds(prev, next) {
     if (!next) return;
-    if (!prev || prev.status === 'over' || next.snakes.length !== prev.snakes.length) {
+    if (!prev || prev.status === 'over' || next.snakes.length !== prev.snakes.length || next.tick < prev.tick) {
       if (next.status === 'countdown') sfx('ui.click');
       return;
     }
-    if (next.status === 'countdown' && Math.ceil(prev.countdown / 3) !== Math.ceil(next.countdown / 3)) sfx('ui.click');
+    if (next.status === 'countdown' && Math.ceil(prev.countdown / COUNT_EVERY) !== Math.ceil(next.countdown / COUNT_EVERY)) sfx('ui.click');
     if (prev.status === 'countdown' && next.status === 'playing') sfx('snake.start');
     const before = new Map(prev.snakes.map((s) => [s.id, s]));
     for (const snake of next.snakes) {
@@ -248,6 +330,11 @@ export default class SnakePage extends Component {
       if (!was) continue;
       const mine = snake.id === this.myId;
       if (mine && snake.score > was.score) sfx('snake.eat');
+      if (mine && snake.boosts > was.boosts) {
+        sfx('snake.boost');
+        sfx('snake.whoosh');
+      }
+      if (mine && was.boost > 0 && !snake.boost && snake.alive) sfx('snake.boostEnd');
       if (was.alive && !snake.alive) sfx(mine ? 'snake.die' : 'snake.crash');
     }
     if (next.status === 'over' && prev.status !== 'over') {
@@ -267,94 +354,77 @@ export default class SnakePage extends Component {
     }
   }
 
-  // ─── Drawing ─────────────────────────────────────────────────────────
+  // ─── The 3D island ───────────────────────────────────────────────────
 
-  setupCanvas = modifier((canvas) => {
+  setupScene = modifier((canvas) => {
     this.canvas = canvas;
-    const resize = () => {
-      const size = canvas.clientWidth;
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.round(size * ratio);
-      canvas.height = Math.round(size * ratio);
-      this.draw();
-    };
-    const observer = new ResizeObserver(resize);
-    observer.observe(canvas);
+    let cancelled = false;
+    let scene = null;
+    import('../lazy/snake-scene')
+      .then(({ createSnakeScene }) => {
+        if (cancelled) return;
+        scene = createSnakeScene(canvas);
+        this.scene = scene;
+        if (this.game) scene.setGame(this.game, { myId: this.myId, avatars: this.avatarMap(this.game), stepMs: this.tickMs });
+      })
+      .catch((error) => {
+        console.warn('3D snake island unavailable:', error);
+        this.sceneFailed = true;
+      });
     return () => {
-      observer.disconnect();
+      cancelled = true;
+      scene?.dispose();
+      this.scene = null;
       this.canvas = null;
     };
   });
-
-  draw() {
-    const canvas = this.canvas;
-    const game = this.game;
-    if (!canvas || !game) return;
-    const ctx = canvas.getContext('2d');
-    const styles = getComputedStyle(canvas);
-    const cell = canvas.width / game.size;
-    const colors = {
-      bg: styles.getPropertyValue('--bg-elevated').trim() || '#121212',
-      grid: styles.getPropertyValue('--border-color').trim() || '#333',
-      me: styles.getPropertyValue('--text').trim() || '#fff',
-      apple: '#f5c518',
-    };
-
-    ctx.fillStyle = colors.bg;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = colors.grid;
-    const dot = Math.max(1, cell * 0.08);
-    for (let y = 0; y < game.size; y++) for (let x = 0; x < game.size; x++) ctx.fillRect((x + 0.5) * cell - dot / 2, (y + 0.5) * cell - dot / 2, dot, dot);
-
-    ctx.fillStyle = colors.apple;
-    for (const [x, y] of game.apples) {
-      ctx.beginPath();
-      ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, cell * 0.36, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    for (const snake of game.snakes) {
-      const color = snake.id === this.myId ? colors.me : PALETTE[snake.color % PALETTE.length];
-      ctx.globalAlpha = snake.alive ? 1 : 0.3;
-      snake.body.forEach(([x, y], i) => {
-        const inset = i === 0 ? cell * 0.04 : cell * 0.12;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.roundRect(x * cell + inset, y * cell + inset, cell - inset * 2, cell - inset * 2, cell * 0.28);
-        ctx.fill();
-      });
-      // Eyes, so it's clear which end is the head.
-      const [hx, hy] = snake.body[0];
-      ctx.fillStyle = colors.bg;
-      const r = cell * 0.09;
-      const offsets = { up: [[-0.18, -0.15], [0.18, -0.15]], down: [[-0.18, 0.15], [0.18, 0.15]], left: [[-0.15, -0.18], [-0.15, 0.18]], right: [[0.15, -0.18], [0.15, 0.18]] }[snake.dir];
-      for (const [ox, oy] of offsets) {
-        ctx.beginPath();
-        ctx.arc((hx + 0.5 + ox) * cell, (hy + 0.5 + oy) * cell, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    if (game.status === 'countdown') {
-      ctx.fillStyle = colors.me;
-      ctx.font = `700 ${canvas.width * 0.15}px Moderustic, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(String(Math.ceil(game.countdown / 3)), canvas.width / 2, canvas.height / 2);
-    }
-  }
 
   // ─── Input ───────────────────────────────────────────────────────────
 
   turn = (dir) => {
     if (!this.game || this.game.status === 'over') return;
-    const me = this.game.snakes.find((s) => s.id === this.myId);
-    if (me?.alive && this.game.status === 'playing' && this.lastDir !== dir) sfx('snake.turn');
+    if (this.me?.alive && this.game.status === 'playing' && this.lastDir !== dir) sfx('snake.turn');
     this.lastDir = dir;
+    this.scene?.previewTurn(this.myId, dir);
     if (this.isHostSide) queueTurn(this.state, this.myId, dir);
     else this.room.send({ type: 'turn', dir });
   };
+
+  boostNow = () => {
+    if (!this.canBoost) return;
+    if (this.isHostSide) {
+      if (boost(this.state, this.myId)) this.publish();
+    } else this.room.send({ type: 'boost' });
+  };
+
+  // Touch joystick: steers towards whichever way it's pushed furthest.
+  stickDir = null;
+
+  stickMoved = (x, y) => {
+    if (Math.hypot(x, y) < STICK_DEAD) return;
+    const dir = Math.abs(x) > Math.abs(y) ? (x > 0 ? 'right' : 'left') : y > 0 ? 'down' : 'up';
+    if (dir === this.stickDir) return;
+    this.stickDir = dir;
+    this.turn(dir);
+  };
+
+  stickReleased = () => (this.stickDir = null);
+
+  boostButton = modifier((button) => {
+    const press = (event) => {
+      event.preventDefault();
+      this.boostNow();
+    };
+    const click = (event) => {
+      if (event.detail === 0) this.boostNow();
+    };
+    button.addEventListener('pointerdown', press);
+    button.addEventListener('click', click);
+    return () => {
+      button.removeEventListener('pointerdown', press);
+      button.removeEventListener('click', click);
+    };
+  });
 
   // ─── Debug mode (see utils/debug-commands.js) ──────────────────────
 
@@ -372,7 +442,7 @@ export default class SnakePage extends Component {
     const DIR_OF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
     return {
       players: () => (this.state?.snakes ?? this.seats).map((s) => ({ id: s.id, name: s.name })),
-      describe: () => (this.state ? `Snake: tick ${this.state.tick}, ${this.state.status}${this.paused ? ' (paused)' : ''}. ${this.state.snakes.map((s) => `${s.name} ${s.alive ? `length ${s.body.length}` : 'crashed'}, ${s.score} pts`).join('; ')}.` : 'Snake: in the lobby.'),
+      describe: () => (this.state ? `Snake: step ${this.state.tick}, ${this.state.status}${this.paused ? ' (paused)' : ''}, map ${this.state.map}. ${this.state.snakes.map((s) => `${s.name} ${s.alive ? `length ${s.body.length}` : 'crashed'}, ${s.score} pts`).join('; ')}.` : 'Snake: in the lobby.'),
       snapshot: () => (this.state ? structuredClone(this.state) : null),
       restore: (snap) => {
         this.state = snap;
@@ -446,6 +516,15 @@ export default class SnakePage extends Component {
             changed(ctx, `${ctx.fromName} set the apples to ${state.appleCount}. New ones appear as the snakes move.`);
           },
         },
+        boost: {
+          usage: '/boost <player>',
+          help: 'Makes a snake boost (it still costs a segment).',
+          run: ([ref], ctx) => {
+            const snake = snakeAt(ctx, ref);
+            if (!boost(this.state, snake.id)) throw new CommandError(`${snake.name} can’t boost right now.`);
+            changed(ctx, `${ctx.fromName} boosted ${snake.name}.`);
+          },
+        },
         teleport: {
           usage: '/teleport <player> <x> <y> [up|down|left|right]',
           help: 'Moves a snake’s head to a square (0 to size−1), body trailing behind.',
@@ -463,16 +542,16 @@ export default class SnakePage extends Component {
           },
         },
         speed: {
-          usage: '/speed <milliseconds per step>',
-          help: 'Changes the game speed (40 to 1000; normal is 120).',
+          usage: '/speed <milliseconds per tick>',
+          help: 'Changes the game speed (10 to 500; normal is 30).',
           run: ([n], ctx) => {
             need();
-            this.debugTickMs = Math.max(40, Math.min(1000, Math.round(Number(n) || 120)));
+            this.debugTickMs = Math.max(10, Math.min(500, Math.round(Number(n) || 30)));
             if (this.timer) {
               this.stopTimer();
               this.timer = setInterval(() => this.tick(), this.debugTickMs);
             }
-            ctx.announce(`${ctx.fromName} set the speed to ${this.debugTickMs}ms a step.`);
+            ctx.announce(`${ctx.fromName} set the speed to ${this.debugTickMs}ms a tick.`);
           },
         },
         wrap: {
@@ -481,7 +560,7 @@ export default class SnakePage extends Component {
           run: ([word], ctx) => {
             const state = need();
             state.wrap = /^(on|true|yes|1)$/i.test(word ?? '');
-            changed(ctx, `${ctx.fromName} ${state.wrap ? 'turned on wrap-around edges' : 'put the walls back'}.`);
+            changed(ctx, `${ctx.fromName} ${state.wrap ? 'turned on wrap-around edges' : 'put the fence back'}.`);
           },
         },
         pause: {
@@ -495,11 +574,11 @@ export default class SnakePage extends Component {
         },
         step: {
           usage: '/step [count]',
-          help: 'While paused: moves the game on a few steps.',
+          help: 'While paused: moves the game on a few half-steps.',
           run: ([n], ctx) => {
             const state = need();
             if (!this.paused) throw new CommandError('Pause first with /pause.');
-            const count = Math.max(1, Math.min(100, Number(n) || 1));
+            const count = Math.max(1, Math.min(200, Number(n) || 2));
             for (let i = 0; i < count && state.status !== 'over'; i++) step(state);
             changed(ctx, `${ctx.fromName} stepped the game on ${count}.`);
           },
@@ -509,9 +588,11 @@ export default class SnakePage extends Component {
   }
 
   // Keyboard and controller, bound in Settings (utils/keybinds.js).
-  onAction(action) {
+  onAction(action, { repeat } = {}) {
     if (action === 'up' || action === 'down' || action === 'left' || action === 'right') this.turn(action);
-    else if (action === 'pause') {
+    else if (action === 'boost') {
+      if (!repeat) this.boostNow();
+    } else if (action === 'pause') {
       if (!this.canPause) return false;
       this.togglePause();
     } else if (action === 'chat') openChat();
@@ -543,25 +624,6 @@ export default class SnakePage extends Component {
       element.removeEventListener('pointermove', move);
       element.removeEventListener('pointerup', up);
       element.removeEventListener('pointercancel', up);
-    };
-  });
-
-  // Steers on pointerdown rather than click: a click only fires on release,
-  // which is a noticeable lag when a snake is one square from a wall. A
-  // keyboard "click" (Enter/Space on a focused button) still steers too.
-  padButton = modifier((button, [dir]) => {
-    const press = (event) => {
-      event.preventDefault();
-      this.turn(dir);
-    };
-    const click = (event) => {
-      if (event.detail === 0) this.turn(dir);
-    };
-    button.addEventListener('pointerdown', press);
-    button.addEventListener('click', click);
-    return () => {
-      button.removeEventListener('pointerdown', press);
-      button.removeEventListener('click', click);
     };
   });
 
@@ -609,6 +671,7 @@ export default class SnakePage extends Component {
     this.game = null;
     this.state = null;
     this.paused = false;
+    this.avatars = new Map();
   }
 
   leave = async () => {
@@ -621,62 +684,91 @@ export default class SnakePage extends Component {
 
   onlineMessage(message, from) {
     if (this.isHostSide) {
-      if (message.type === 'turn' && this.state) queueTurn(this.state, from, message.dir);
+      if (!this.state) return;
+      if (message.type === 'turn') queueTurn(this.state, from, message.dir);
+      else if (message.type === 'boost' && boost(this.state, from)) this.publish();
       return;
     }
     if (message.type === 'state') {
       this.mode = 'playing';
-      this.playSounds(this.game, message.state);
-      this.game = message.state;
-      this.draw();
+      this.show(message.state);
     } else if (message.type === 'lobby') {
       this.backToLobby();
     }
   }
 
   <template>
-    <ToolPage @route="snake" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="The classic, solo or in a battle of up to four snakes against the computer and your friends. Don’t crash.">
+    <ToolPage @route="snake" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Ride your snake round tropical islands, solo or against up to three others. Boost for speed, and beat the high score to win.">
       {{#if (eq this.mode "playing")}}
-        <div class="game-shell snake-shell pop-in">
-          <div class="snake-scores">
-            {{#each this.scores key="id" as |s|}}
-              <span class="snake-score {{unless s.alive 'is-dead'}}"><span class="snake-swatch" style={{s.swatch}}></span>{{s.name}} <strong>{{s.score}}</strong></span>
-            {{/each}}
-            {{#if this.isSolo}}<span class="snake-score is-best">Best <strong>{{this.best}}</strong></span>{{/if}}
-          </div>
+        <div class="game-shell uno-shell arcade-shell pop-in">
+          <div class="uno-stage arcade-stage {{if this.iAmBoosting 'is-boosting'}}">
+            <canvas class="snake-canvas" aria-label="Snake island. Steer with the arrow keys or WASD, boost with Shift, or use the joystick and Boost button on a touch screen." {{this.setupScene}} {{this.swipe}}></canvas>
+            <div class="arcade-speedlines" aria-hidden="true"></div>
 
-          <canvas class="snake-canvas" aria-label="Snake board. Use the arrow keys, WASD, swipes or the buttons below to steer." {{this.setupCanvas}} {{this.swipe}}></canvas>
+            <div class="uno-overlay uno-top-left arcade-scores">
+              {{#each this.scores key="id" as |s|}}
+                <span class="snake-score arcade-chip {{unless s.alive 'is-dead'}} {{if s.leading 'is-leading'}}">
+                  <span class="snake-swatch" style={{s.swatch}}></span>
+                  {{#if s.leading}}<Icon @name="crown" @size={{12}} />{{/if}}
+                  {{s.name}}
+                  <strong>{{s.score}}</strong>
+                </span>
+              {{/each}}
+              {{#if this.isSolo}}<span class="snake-score arcade-chip is-best">Best <strong>{{this.best}}</strong></span>{{/if}}
+            </div>
 
-          <p class="game-status {{if this.isOver 'is-over'}}" role="status">{{this.status}}</p>
+            <p class="uno-overlay uno-status {{if this.isOver 'is-over'}}" role="status">{{this.status}}</p>
 
-          <div class="snake-pad" aria-label="Steering" data-sound="off">
-            <button type="button" class="snake-pad-btn is-up" aria-label="Up" {{this.padButton "up"}}><Icon @name="arrow-up" @size={{20}} /></button>
-            <button type="button" class="snake-pad-btn is-left" aria-label="Left" {{this.padButton "left"}}><Icon @name="arrow-left" @size={{20}} /></button>
-            <button type="button" class="snake-pad-btn is-down" aria-label="Down" {{this.padButton "down"}}><Icon @name="arrow-down" @size={{20}} /></button>
-            <button type="button" class="snake-pad-btn is-right" aria-label="Right" {{this.padButton "right"}}><Icon @name="arrow-right" @size={{20}} /></button>
-          </div>
-
-          <GameChat @room={{this.room}} @floating={{true}} />
-
-          <div class="game-actions">
-            {{#if this.isHostSide}}
-              {{#if this.isOver}}
-                {{#unless this.room.allReady}}
-                  <span class="tool-hint">{{this.room.readyCount}}/{{this.room.members.length}} ready</span>
-                  <button type="button" class="btn" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{13}} /> Ready check</button>
-                {{/unless}}
-                <button type="button" class="btn active" disabled={{if this.room.allReady false true}} {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
-              {{else if this.canPause}}
-                <button type="button" class="btn" {{on "click" this.togglePause}}><Icon @name={{if this.paused "play" "pause"}} @size={{13}} /> {{if this.paused "Resume" "Pause"}}</button>
+            <div class="uno-overlay uno-top-right">
+              {{#if this.isHostSide}}
+                {{#if this.isOver}}
+                  {{#unless this.room.allReady}}
+                    <span class="arcade-chip">{{this.room.readyCount}}/{{this.room.members.length}} ready</span>
+                    <button type="button" class="btn" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{13}} /> Ready check</button>
+                  {{/unless}}
+                  <button type="button" class="btn active" disabled={{if this.room.allReady false true}} {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
+                {{else if this.canPause}}
+                  <button type="button" class="btn" {{on "click" this.togglePause}}><Icon @name={{if this.paused "play" "pause"}} @size={{13}} /> {{if this.paused "Resume" "Pause"}}</button>
+                {{/if}}
+                <button type="button" class="btn" {{on "click" this.askLobby}}><Icon @name="users" @size={{13}} /> Lobby</button>
+              {{else}}
+                {{#if this.isOver}}
+                  <ReadyButton @room={{this.room}} @label="Play again?" @readyLabel="Ready for another" />
+                  {{#if this.room.iAmReady}}<span class="arcade-chip">Waiting for the host…</span>{{/if}}
+                {{/if}}
+                <button type="button" class="btn" {{on "click" this.leave}}><Icon @name="log-out" @size={{13}} /> Leave</button>
               {{/if}}
-              <button type="button" class="btn" {{on "click" this.askLobby}}><Icon @name="users" @size={{13}} /> Back to lobby</button>
-            {{else}}
-              {{#if this.isOver}}
-                <ReadyButton @room={{this.room}} @label="Play again?" @readyLabel="Ready for another" />
-                {{#if this.room.iAmReady}}<span class="tool-hint">Waiting for the host…</span>{{/if}}
-              {{/if}}
-              <button type="button" class="btn" {{on "click" this.leave}}><Icon @name="log-out" @size={{13}} /> Leave room</button>
+            </div>
+
+            {{#if this.countdown}}
+              {{#each this.countdownDigits key="@identity" as |n|}}<span class="snake-countdown" aria-hidden="true">{{n}}</span>{{/each}}
             {{/if}}
+            {{#if this.sceneFailed}}
+              <p class="snake-fallback">The 3D island couldn’t start on this device (WebGL is needed).</p>
+            {{/if}}
+            {{#if this.paused}}<span class="snake-paused">Paused</span>{{/if}}
+
+            <div class="snake-touch">
+              <Joystick @class="snake-joystick" @label="Steer" @onMove={{this.stickMoved}} @onEnd={{this.stickReleased}} />
+              <button type="button" class="snake-boost {{if this.me.boost 'is-boosting'}}" disabled={{if this.canBoost false true}} data-sound="off" {{this.boostButton}}>
+                <Icon @name="zap" @size={{26}} />
+                <span>Boost</span>
+              </button>
+            </div>
+
+            <div class="uno-overlay arcade-controls {{if this.padActive 'is-pad'}}" aria-label="Controls">
+              {{#each this.controls as |c|}}
+                {{#if this.padActive}}
+                  {{#if c.pad.length}}
+                    <div class="arcade-control"><span class="arcade-control-keys">{{#each c.pad as |b|}}<span class="pad-button is-{{b.id}}">{{b.label}}</span>{{/each}}</span><span class="arcade-control-label">{{c.label}}</span></div>
+                  {{/if}}
+                {{else if c.keys.length}}
+                  <div class="arcade-control"><span class="arcade-control-keys">{{#each c.keys as |k|}}<kbd class="keycap">{{k}}</kbd>{{/each}}</span><span class="arcade-control-label">{{c.label}}</span></div>
+                {{/if}}
+              {{/each}}
+            </div>
+
+            <GameChat @room={{this.room}} @floating={{true}} @class="uno-overlay uno-chat arcade-chat" />
           </div>
           {{#if this.confirmingLobby}}
             <HoldConfirm @title="Back to the lobby?" @message={{this.lobbyWarning}} @confirmLabel="Hold to end game" @onConfirm={{this.toLobby}} @onCancel={{this.cancelLobby}} />
@@ -686,10 +778,26 @@ export default class SnakePage extends Component {
         <GameLobby @room={{this.room}} @seats={{this.seats}} @maxSeats={{4}} @onAddBot={{this.addBot}} @onRemoveBot={{this.removeBot}} @onStart={{this.start}}>
           <:rules>
             <div class="lobby-rule">
+              <span class="lobby-rule-text"><span class="qr-label">Island</span></span>
+              <div class="math-tabs" role="group" aria-label="Map">
+                {{#each this.maps as |m|}}
+                  <button type="button" class="qr-tab {{if (eq this.settings.map m.id) 'active'}}" title={{m.hint}} aria-pressed={{if (eq this.settings.map m.id) "true" "false"}} {{on "click" (fn this.setRule "map" m.id)}}>{{m.label}}</button>
+                {{/each}}
+              </div>
+            </div>
+            <div class="lobby-rule">
               <span class="lobby-rule-text"><span class="qr-label">Speed</span></span>
               <div class="math-tabs" role="group" aria-label="Speed">
                 {{#each this.speeds as |s|}}
                   <button type="button" class="qr-tab {{if (eq this.settings.speed s.id) 'active'}}" aria-pressed={{if (eq this.settings.speed s.id) "true" "false"}} {{on "click" (fn this.setRule "speed" s.id)}}>{{s.label}}</button>
+                {{/each}}
+              </div>
+            </div>
+            <div class="lobby-rule">
+              <span class="lobby-rule-text"><span class="qr-label">Longer is:</span><span class="tool-hint">Faster or slower with every segment a snake grows (up to half as fast again, or 40% slower).</span></span>
+              <div class="math-tabs" role="group" aria-label="Longer is">
+                {{#each this.lengthOptions as |s|}}
+                  <button type="button" class="qr-tab {{if (eq this.settings.lengthSpeed s.id) 'active'}}" aria-pressed={{if (eq this.settings.lengthSpeed s.id) "true" "false"}} {{on "click" (fn this.setRule "lengthSpeed" s.id)}}>{{s.label}}</button>
                 {{/each}}
               </div>
             </div>
@@ -717,7 +825,7 @@ export default class SnakePage extends Component {
                 {{/each}}
               </div>
             </div>
-            <p class="tool-hint">Steer with the arrow keys, WASD, swipes, or the on-screen buttons. On your own it’s classic snake; add computer players or friends for a battle.</p>
+            <p class="tool-hint">Steer with the arrow keys or WASD and boost with Shift (or the joystick and Boost button on a touch screen). Boosting doubles your speed for a moment but costs a segment of your tail. With more than one snake, the highest score wins: outliving everyone isn’t enough, you have to overtake the leader.</p>
           </:rules>
         </GameLobby>
       {{/if}}
