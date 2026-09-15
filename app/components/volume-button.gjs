@@ -3,6 +3,7 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { modifier } from 'ember-modifier';
 import { LinkTo } from '@ember/routing';
+import { openSettingsTab } from './settings-page';
 import Icon from './icon';
 import { soundPrefs, sfx } from '../utils/sound';
 
@@ -33,7 +34,7 @@ export default class VolumeButton extends Component {
   // To the mixer in Settings, scrolled into view once the page has rendered.
   openMixer = () => {
     this.open = false;
-    setTimeout(() => document.getElementById('sound')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 120);
+    openSettingsTab('sound');
   };
 
   // Closes when you click anywhere else or press Escape.

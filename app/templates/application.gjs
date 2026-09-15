@@ -12,6 +12,7 @@ import Icon from '../components/icon';
 import VolumeButton from '../components/volume-button';
 import ConfirmHost from '../components/confirm-host';
 import { installUiSounds } from '../utils/ui-sounds';
+import { installGamepad } from '../utils/gamepad';
 
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
@@ -21,6 +22,7 @@ export default class Application extends Component {
   constructor(owner, args) {
     super(owner, args);
     installUiSounds();
+    installGamepad();
   }
 
   toggleNav = () => (this.navOpen = !this.navOpen);

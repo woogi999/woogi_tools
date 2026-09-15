@@ -78,14 +78,14 @@ export default class GameChat extends Component {
             {{#if this.unread}}<span class="game-chat-unread">{{this.unread}}</span>{{/if}}
           </button>
         {{else}}
-          <h3 class="lobby-panel-title"><Icon @name="message-circle" @size={{14}} /> Chat</h3>
+          <h3 class="lobby-panel-title"><Icon @name="message-circle" @size={{14}} /> Chat{{#if this.room.debugOn}} <span class="lobby-tag is-debug"><Icon @name="terminal" @size={{10}} /> Debug on</span>{{/if}}</h3>
         {{/if}}
 
         {{#if this.isOpen}}
           <ol class="game-chat-list" aria-live="polite" {{stickToBottom this.messages.length}}>
             {{#each this.messages key="id" as |m|}}
               {{#if m.system}}
-                <li class="game-chat-system">{{m.text}}</li>
+                <li class="game-chat-system {{if m.debug 'is-debug'}}">{{m.text}}</li>
               {{else}}
                 <li class="game-chat-msg {{if m.mine 'is-mine'}} {{if m.bot 'is-bot'}}">
                   <span class="game-chat-name">{{#if m.bot}}<Icon @name="bot" @size={{11}} /> {{/if}}{{if m.mine "You" m.name}}</span>
@@ -97,7 +97,7 @@ export default class GameChat extends Component {
             {{/each}}
           </ol>
           <form class="game-chat-form" {{on "submit" this.send}}>
-            <input type="text" placeholder={{if this.room.isOnline "Message the room" "Say something to the table"}} aria-label="Chat message" maxlength={{this.maxLength}} value={{this.draft}} {{on "input" this.setDraft}} {{on "keydown" this.stopKeys}} />
+            <input type="text" placeholder={{if this.room.iHaveDebug "Message, or a /command" (if this.room.isOnline "Message the room" "Say something to the table")}} aria-label="Chat message" maxlength={{this.maxLength}} value={{this.draft}} {{on "input" this.setDraft}} {{on "keydown" this.stopKeys}} />
             <button type="submit" class="btn" aria-label="Send" disabled={{if this.draft false true}}><Icon @name="send" @size={{13}} /></button>
           </form>
         {{/if}}

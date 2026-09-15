@@ -19,6 +19,10 @@ import { think } from '../utils/uno-bot';
 import { sfx, preloadSounds } from '../utils/sound';
 import HoldConfirm from './hold-confirm';
 import { askConfirm } from '../utils/confirm';
+import { listenForActions, onScreen, openChat } from '../utils/game-input';
+import { padStick } from '../utils/gamepad';
+import { unoDebugTools } from '../utils/uno-debug';
+import { bindingText, GAME_CONTROLS } from '../utils/keybinds';
 
 const JUMP_IN_DELAY_MS = 650;
 // Computer players are people too: how long they take to notice someone forgot to say Woono (or that they did).
@@ -130,6 +134,7 @@ export default class UnoPage extends Component {
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
     preloadSounds('uno');
+    this.room.setDebugTools(unoDebugTools(this));
     this.gyroAvailable = typeof window.DeviceOrientationEvent !== 'undefined' && coarsePointer();
     registerDestructor(this, () => {
       this.stopBots();
@@ -201,16 +206,41 @@ export default class UnoPage extends Component {
     this.room.setLocked(true);
     // A rematch needs everyone to press Ready again.
     this.room.resetReady();
-    this.refresh();
+    this.room.debug.clearHistory();
+    this.recordedVersion = null;
+    this.refresh({ debugLabel: 'New game' });
   };
+
+  // Debug mode: what /undo goes back to.
+  recordedVersion = null;
+  botsPaused = false;
+
+  restoreState(snap) {
+    this.stopBots();
+    const current = this.state;
+    // Newer event ids and versions, so every screen treats the rewound game as the latest news.
+    snap.seq = Math.max(snap.seq, current?.seq ?? 0) + 1;
+    snap.version = Math.max(snap.version, current?.version ?? 0) + 1;
+    snap.turnId = Math.max(snap.turnId, current?.turnId ?? 0) + 1;
+    this.state = snap;
+    this.settledEvent = snap.events.at(-1)?.id ?? null;
+    this.busyUntil = 0;
+    this.timerTurn = null;
+    this.recordedVersion = snap.version;
+    this.refresh();
+  }
 
   get myIndex() {
     return this.state ? this.state.players.findIndex((p) => p.id === this.room.selfId) : -1;
   }
 
   // Rebuilds what everyone sees, then gets the computer players thinking.
-  refresh() {
+  refresh({ debugLabel } = {}) {
     const state = this.state;
+    if (state.version !== this.recordedVersion) {
+      this.recordedVersion = state.version;
+      this.room.recordDebugState(debugLabel ?? state.log.at(-1)?.text ?? 'A move');
+    }
     // Nobody moves until the table has finished animating what just happened.
     const fresh = state.events.filter((e) => this.settledEvent === null || e.id > this.settledEvent);
     this.settledEvent = state.events.at(-1)?.id ?? this.settledEvent;
@@ -258,7 +288,7 @@ export default class UnoPage extends Component {
     clearTimeout(this.botTimer);
     this.botAbort?.abort();
     this.botAbort = null;
-    if (!state || state.winner !== null) return;
+    if (!state || state.winner !== null || this.botsPaused) return;
     this.scheduleReactions();
 
     const jump = botJumpIn(state);
@@ -617,8 +647,21 @@ export default class UnoPage extends Component {
       });
     // Tell other players where you're looking, now and then.
     const lookTimer = setInterval(() => this.sendLook(), LOOK_SEND_MS);
+    this.canvasEl = canvas;
+    const stopInput = listenForActions('woono', {
+      active: () => this.mode === 'playing' && onScreen(canvas),
+      onAction: (action) => this.onAction(action),
+    });
+    // A controller's right stick looks around.
+    let stickFrame = requestAnimationFrame(function steer() {
+      const { x, y } = padStick('right');
+      if ((x || y) && !this.lookLocked && !this.gyroOn) this.scene?.dragLook(-x * 0.02, -y * 0.015);
+      stickFrame = requestAnimationFrame(steer.bind(this));
+    }.bind(this));
     return () => {
       cancelled = true;
+      stopInput();
+      cancelAnimationFrame(stickFrame);
       clearInterval(lookTimer);
       scene?.dispose();
       this.scene = null;
@@ -760,6 +803,124 @@ export default class UnoPage extends Component {
   }
 
   toggleHelp = () => (this.helpOpen = !this.helpOpen);
+
+  // ─── Keyboard & controller (bound in Settings) ──────────────────────
+
+  canvasEl = null;
+
+  get keyHelp() {
+    return (GAME_CONTROLS.find((g) => g.game === 'woono')?.actions ?? []).map((a) => ({ id: a.id, label: a.label, text: bindingText('woono', a.id) }));
+  }
+  // Which colour or arrow the keyboard is on while picking.
+  pickCursor = 0;
+
+  onAction(action) {
+    const view = this.view;
+    if (!view) return false;
+    const colorIds = { red: 'red', yellow: 'yellow', green: 'green', blue: 'blue' };
+    if (colorIds[action]) {
+      if (!this.choosingColor) return false;
+      this.chooseColor(action);
+      return true;
+    }
+    switch (action) {
+      case 'prev':
+      case 'next':
+        return this.stepCursor(action === 'next' ? 1 : -1);
+      case 'play':
+        return this.confirmCursor();
+      case 'draw':
+        if (!this.canDraw) return false;
+        this.drawCard();
+        return true;
+      case 'keep':
+        if (this.locked || !view.canKeep) return false;
+        this.keepCard();
+        return true;
+      case 'pass':
+        if (!this.canPass) return false;
+        this.passTurn();
+        return true;
+      case 'uno':
+        if (!view.canCallUno) return false;
+        this.sayUno();
+        return true;
+      case 'callout': {
+        const target = this.exposedPlayers[0];
+        if (!target) return false;
+        this.callOut(target.index);
+        return true;
+      }
+      case 'challenge':
+        if (this.locked || !view.canChallenge) return false;
+        this.challengeCard();
+        return true;
+      case 'autolook':
+        this.toggleLookLock();
+        return true;
+      case 'chat':
+        openChat();
+        return true;
+      case 'help':
+        this.toggleHelp();
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // Left/right: through your hand, or through the colours, arrows or swap choices while picking.
+  stepCursor(step) {
+    if (this.view.choosingSwap) {
+      const buttons = [...document.querySelectorAll('.uno-swap-choices button:not([disabled])')];
+      if (!buttons.length) return false;
+      const at = buttons.indexOf(document.activeElement);
+      buttons[(at + step + buttons.length) % buttons.length].focus({ focusVisible: true });
+      return true;
+    }
+    if (this.choosingColor) {
+      this.pickCursor = (this.pickCursor + step + COLORS.length) % COLORS.length;
+      this.scene?.setPickHover({ type: 'color', color: COLORS[this.pickCursor] });
+      return true;
+    }
+    if (this.choosingTargetNow) {
+      const targets = this.scene?.getTargetIndices() ?? [];
+      if (!targets.length) return false;
+      this.pickCursor = (this.pickCursor + step + targets.length) % targets.length;
+      this.scene.setPickHover({ type: 'target', index: targets[this.pickCursor] });
+      return true;
+    }
+    const ids = this.scene?.getHandIds() ?? this.handItems.map((item) => item.key);
+    if (!ids.length) return false;
+    const at = ids.indexOf(this.selectedId);
+    // The first press lifts a card you can play, if there is one.
+    const firstPlayable = ids.findIndex((id) => this.view.playable.includes(id));
+    const next = at === -1 ? (firstPlayable >= 0 ? firstPlayable : step > 0 ? 0 : ids.length - 1) : (at + step + ids.length) % ids.length;
+    this.select(ids[next]);
+    return true;
+  }
+
+  confirmCursor() {
+    if (this.view.choosingSwap) {
+      const focused = document.activeElement;
+      if (!focused?.closest?.('.uno-swap-choices')) return this.stepCursor(1);
+      focused.click();
+      return true;
+    }
+    if (this.choosingColor) {
+      this.chooseColor(COLORS[this.pickCursor % COLORS.length]);
+      return true;
+    }
+    if (this.choosingTargetNow) {
+      const targets = this.scene?.getTargetIndices() ?? [];
+      if (!targets.length) return false;
+      this.chooseTarget(targets[this.pickCursor % targets.length]);
+      return true;
+    }
+    if (this.selectedId === null) return this.stepCursor(1);
+    this.playSelected();
+    return true;
+  }
 
   sendLook() {
     if (!this.scene || !this.room.isOnline || !this.view) return;
@@ -1088,6 +1249,15 @@ export default class UnoPage extends Component {
                     <li><strong>Move to the edges</strong> to look around, or turn on <strong>auto look</strong> <Icon @name="locate-fixed" @size={{12}} /> to let the view follow the game</li>
                   </ul>
                 {{/if}}
+                <details class="uno-help-keys">
+                  <summary>Keyboard & controller</summary>
+                  <ul>
+                    {{#each this.keyHelp key="id" as |k|}}
+                      <li><strong>{{k.label}}</strong> <span class="uno-help-bind">{{k.text}}</span></li>
+                    {{/each}}
+                  </ul>
+                  <p class="tool-hint">Change them any time in Settings → Controls.</p>
+                </details>
                 <p class="tool-hint">Press <strong>Woono!</strong> with two cards left and it’s said as you play. Forgot? Press it before someone calls you out, or draw {{this.view.rules.unoPenalty}}.</p>
               </div>
             {{/if}}

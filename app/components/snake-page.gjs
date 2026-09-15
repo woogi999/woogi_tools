@@ -10,6 +10,8 @@ import Icon from './icon';
 import GameLobby, { ReadyButton } from './game-lobby';
 import GameChat from './game-chat';
 import { askConfirm } from '../utils/confirm';
+import { listenForActions, onScreen, openChat } from '../utils/game-input';
+import { CommandError } from '../utils/debug-commands';
 import GameRoom from '../utils/game-room';
 import { roomCodeFromUrl } from '../utils/file-share';
 import { botNames, newBotSeed } from '../utils/bot-names';
@@ -41,7 +43,6 @@ const WALLS = [
 const DEFAULTS = { speed: 'normal', size: 20, apples: 1, wrap: false, bots: 1 };
 // Everyone else's snake; your own is always drawn in the text colour.
 const PALETTE = ['#ff5c72', '#3e7be0', '#30a46c', '#b388eb'];
-const KEYS = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right', W: 'up', S: 'down', A: 'left', D: 'right' };
 const SWIPE_PX = 18;
 const BEST_KEY = 'woogi-snake-best';
 
@@ -86,10 +87,14 @@ export default class SnakePage extends Component {
     preloadSounds('snake');
     const code = roomCodeFromUrl();
     if (code) this.room.join(code);
-    const onKey = (event) => this.onKey(event);
-    window.addEventListener('keydown', onKey);
+    this.room.setDebugTools(this.debugTools());
+    const stopInput = listenForActions('snake', {
+      // Minimised to a pill: the snake keeps going, but the keys belong to the page again.
+      active: () => this.mode === 'playing' && onScreen(this.canvas),
+      onAction: (action) => this.onAction(action),
+    });
     registerDestructor(this, () => {
-      window.removeEventListener('keydown', onKey);
+      stopInput();
       this.stopTimer();
       this.chatter.dispose();
       this.room.close();
@@ -181,10 +186,15 @@ export default class SnakePage extends Component {
     this.room.resetReady();
     const bots = this.state.snakes.filter((s) => s.bot);
     if (bots.length) this.chatter.say(bots[Math.floor(Math.random() * bots.length)].name, 'snakeHello', { urgent: true });
+    this.debugTickMs = null;
+    this.room.debug.clearHistory();
+    this.room.recordDebugState('New game');
     this.publish();
     this.stopTimer();
     this.timer = setInterval(() => this.tick(), this.tickMs);
   };
+
+  debugTickMs = null;
 
   stopTimer() {
     clearInterval(this.timer);
@@ -195,6 +205,9 @@ export default class SnakePage extends Component {
     if (this.paused || !this.state) return;
     const before = new Map(this.state.snakes.map((s) => [s.id, { alive: s.alive, score: s.score }]));
     step(this.state);
+    // In debug mode, a state to go back to every second or so, and whenever a snake crashes.
+    const crashed = this.state.snakes.some((s) => before.get(s.id)?.alive && !s.alive);
+    if (crashed || this.state.tick % 8 === 0) this.room.recordDebugState(crashed ? `Tick ${this.state.tick}: a crash` : `Tick ${this.state.tick}`);
     // Computer snakes remark on crashing, and now and then on an apple.
     for (const snake of this.state.snakes) {
       const was = before.get(snake.id);
@@ -343,18 +356,167 @@ export default class SnakePage extends Component {
     else this.room.send({ type: 'turn', dir });
   };
 
-  onKey(event) {
-    if (this.mode !== 'playing' || event.target.closest?.('input, textarea')) return;
-    // Minimised to a pill: the snake keeps going, but the arrow keys belong to the page again.
-    if (!this.canvas?.isConnected || this.canvas.offsetParent === null) return;
-    const dir = KEYS[event.key];
-    if (dir) {
-      event.preventDefault();
-      this.turn(dir);
-    } else if (event.key === ' ' && this.canPause) {
-      event.preventDefault();
+  // ─── Debug mode (see utils/debug-commands.js) ──────────────────────
+
+  debugTools() {
+    const need = () => {
+      if (!this.state) throw new CommandError('No game is running. Start one first.');
+      return this.state;
+    };
+    const snakeAt = (ctx, ref) => need().snakes[ctx.player(ref)];
+    const changed = (ctx, label) => {
+      this.publish();
+      this.room.recordDebugState(label);
+      ctx.announce(label);
+    };
+    const DIR_OF = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+    return {
+      players: () => (this.state?.snakes ?? this.seats).map((s) => ({ id: s.id, name: s.name })),
+      describe: () => (this.state ? `Snake: tick ${this.state.tick}, ${this.state.status}${this.paused ? ' (paused)' : ''}. ${this.state.snakes.map((s) => `${s.name} ${s.alive ? `length ${s.body.length}` : 'crashed'}, ${s.score} pts`).join('; ')}.` : 'Snake: in the lobby.'),
+      snapshot: () => (this.state ? structuredClone(this.state) : null),
+      restore: (snap) => {
+        this.state = snap;
+        this.publish();
+        if (snap.status !== 'over' && !this.timer) this.timer = setInterval(() => this.tick(), this.debugTickMs ?? this.tickMs);
+      },
+      commands: {
+        grow: {
+          usage: '/grow <player> [length]',
+          help: 'Makes a snake longer (3 by default).',
+          run: ([ref, n], ctx) => {
+            const snake = snakeAt(ctx, ref);
+            const count = Math.max(1, Math.min(200, Number(n) || 3));
+            const tail = snake.body.at(-1);
+            for (let i = 0; i < count; i++) snake.body.push([...tail]);
+            changed(ctx, `${ctx.fromName} grew ${snake.name} by ${count}.`);
+          },
+        },
+        shrink: {
+          usage: '/shrink <player> [length]',
+          help: 'Makes a snake shorter (never below 1).',
+          run: ([ref, n], ctx) => {
+            const snake = snakeAt(ctx, ref);
+            const count = Math.max(1, Number(n) || 3);
+            snake.body = snake.body.slice(0, Math.max(1, snake.body.length - count));
+            changed(ctx, `${ctx.fromName} shrank ${snake.name}.`);
+          },
+        },
+        kill: {
+          usage: '/kill <player>',
+          help: 'Crashes a snake.',
+          run: ([ref], ctx) => {
+            const snake = snakeAt(ctx, ref);
+            removeSnake(this.state, snake.id);
+            changed(ctx, `${ctx.fromName} crashed ${snake.name}.`);
+          },
+        },
+        revive: {
+          usage: '/revive <player>',
+          help: 'Brings a crashed snake back where it was, and carries on a finished game.',
+          run: ([ref], ctx) => {
+            const state = need();
+            const snake = snakeAt(ctx, ref);
+            snake.alive = true;
+            snake.queue = [];
+            if (state.status === 'over') {
+              state.status = 'playing';
+              state.winner = null;
+              this.stopTimer();
+              this.timer = setInterval(() => this.tick(), this.debugTickMs ?? this.tickMs);
+            }
+            changed(ctx, `${ctx.fromName} revived ${snake.name}.`);
+          },
+        },
+        score: {
+          usage: '/score <player> <points>',
+          help: 'Sets a snake’s score.',
+          run: ([ref, n], ctx) => {
+            const snake = snakeAt(ctx, ref);
+            snake.score = Math.max(0, Math.round(Number(n) || 0));
+            changed(ctx, `${ctx.fromName} set ${snake.name}’s score to ${snake.score}.`);
+          },
+        },
+        apples: {
+          usage: '/apples <count>',
+          help: 'How many apples stay on the board.',
+          run: ([n], ctx) => {
+            const state = need();
+            state.appleCount = Math.max(0, Math.min(50, Math.round(Number(n) || 0)));
+            state.apples = state.apples.slice(0, state.appleCount);
+            changed(ctx, `${ctx.fromName} set the apples to ${state.appleCount}. New ones appear as the snakes move.`);
+          },
+        },
+        teleport: {
+          usage: '/teleport <player> <x> <y> [up|down|left|right]',
+          help: 'Moves a snake’s head to a square (0 to size−1), body trailing behind.',
+          run: ([ref, x, y, dir], ctx) => {
+            const state = need();
+            const snake = snakeAt(ctx, ref);
+            const hx = Math.max(0, Math.min(state.size - 1, Math.round(Number(x))));
+            const hy = Math.max(0, Math.min(state.size - 1, Math.round(Number(y))));
+            if (!Number.isFinite(hx) || !Number.isFinite(hy)) throw new CommandError('Give x and y numbers.');
+            if (dir && DIR_OF[dir]) snake.dir = dir;
+            const [dx, dy] = DIR_OF[snake.dir];
+            snake.body = snake.body.map((_, i) => [Math.max(0, Math.min(state.size - 1, hx - dx * i)), Math.max(0, Math.min(state.size - 1, hy - dy * i))]);
+            snake.queue = [];
+            changed(ctx, `${ctx.fromName} teleported ${snake.name} to ${hx}, ${hy}.`);
+          },
+        },
+        speed: {
+          usage: '/speed <milliseconds per step>',
+          help: 'Changes the game speed (40 to 1000; normal is 120).',
+          run: ([n], ctx) => {
+            need();
+            this.debugTickMs = Math.max(40, Math.min(1000, Math.round(Number(n) || 120)));
+            if (this.timer) {
+              this.stopTimer();
+              this.timer = setInterval(() => this.tick(), this.debugTickMs);
+            }
+            ctx.announce(`${ctx.fromName} set the speed to ${this.debugTickMs}ms a step.`);
+          },
+        },
+        wrap: {
+          usage: '/wrap <on|off>',
+          help: 'Solid walls, or wrap round the edges.',
+          run: ([word], ctx) => {
+            const state = need();
+            state.wrap = /^(on|true|yes|1)$/i.test(word ?? '');
+            changed(ctx, `${ctx.fromName} ${state.wrap ? 'turned on wrap-around edges' : 'put the walls back'}.`);
+          },
+        },
+        pause: {
+          usage: '/pause',
+          help: 'Pauses or resumes the game for everyone.',
+          run: (args, ctx) => {
+            need();
+            this.paused = !this.paused;
+            ctx.announce(`${ctx.fromName} ${this.paused ? 'paused' : 'resumed'} the game.`);
+          },
+        },
+        step: {
+          usage: '/step [count]',
+          help: 'While paused: moves the game on a few steps.',
+          run: ([n], ctx) => {
+            const state = need();
+            if (!this.paused) throw new CommandError('Pause first with /pause.');
+            const count = Math.max(1, Math.min(100, Number(n) || 1));
+            for (let i = 0; i < count && state.status !== 'over'; i++) step(state);
+            changed(ctx, `${ctx.fromName} stepped the game on ${count}.`);
+          },
+        },
+      },
+    };
+  }
+
+  // Keyboard and controller, bound in Settings (utils/keybinds.js).
+  onAction(action) {
+    if (action === 'up' || action === 'down' || action === 'left' || action === 'right') this.turn(action);
+    else if (action === 'pause') {
+      if (!this.canPause) return false;
       this.togglePause();
-    }
+    } else if (action === 'chat') openChat();
+    else return false;
+    return true;
   }
 
   swipe = modifier((element) => {

@@ -7,6 +7,7 @@ import { createInvite, answerInvite, LanConnection } from './lan-link';
 import { peerOptions } from './ice';
 import { sfx } from './sound';
 import { normalisePose } from './pose';
+import { DebugConsole } from './debug-commands';
 
 // Peer ids are namespaced per game, so a Chess code can't collide with a Snake
 // code (or a File Share code) that happens to be the same six characters.
@@ -70,6 +71,9 @@ export default class GameRoom {
   @tracked readyIds = {};
   // When the host last called a ready check (this device's clock), so guests can be nudged.
   @tracked readyCheckAt = 0;
+  // Debug mode (see utils/debug-commands.js): whether it's on, and who besides the host can use it.
+  @tracked debugOn = false;
+  @tracked debugOps = [];
 
   chatSeq = 0;
   chatTimes = new Map(); // guest id -> recent message times, for the rate limit
@@ -92,6 +96,7 @@ export default class GameRoom {
     this.onMessage = onMessage;
     this.onGuestLeft = onGuestLeft;
     this.onClosed = onClosed;
+    this.debug = new DebugConsole(this);
   }
 
   // ─── Who's here ──────────────────────────────────────────────────────
@@ -237,7 +242,7 @@ export default class GameRoom {
   broadcastLobby() {
     if (this.status !== 'open') return;
     const members = this.members.map(({ id, name, avatar, pose, isHost }) => ({ id, name: id === HOST_ID ? this.wireProfile().name : name, avatar, pose, isHost }));
-    for (const conn of this.conns.values()) this.post(conn, { t: 'lobby', members, settings: this.settings, locked: this.locked, ready: this.readyIds });
+    for (const conn of this.conns.values()) this.post(conn, { t: 'lobby', members, settings: this.settings, locked: this.locked, ready: this.readyIds, debug: { on: this.debug.enabled, ops: [...this.debug.ops] } });
   }
 
   // ─── Hosting ─────────────────────────────────────────────────────────
@@ -414,6 +419,8 @@ export default class GameRoom {
         this.readyIds = next;
         this.broadcastLobby();
         if (message.ready) sfx('ui.select');
+      } else if (message?.t === 'command') {
+        if (typeof message.text === 'string') this.debug.run(message.text.slice(0, 400), conn.peer);
       } else if (message?.t === 'chat') {
         const guest = this.guests.find((g) => g.id === conn.peer);
         if (guest && this.allowChat(conn.peer)) this.postChat({ from: conn.peer, name: guest.name, text: message.text });
@@ -432,6 +439,7 @@ export default class GameRoom {
     this.conns.delete(id);
     const guest = this.guests.find((g) => g.id === id);
     this.guests = this.guests.filter((g) => g.id !== id);
+    if (this.debug.ops.delete(id)) this.syncDebug(false);
     if (this.readyIds[id]) {
       const next = { ...this.readyIds };
       delete next[id];
@@ -478,6 +486,8 @@ export default class GameRoom {
       this.roster = Array.isArray(message.members) ? message.members.map((m) => ({ ...m, ...cleanProfile(m) })) : [];
       this.settings = message.settings;
       this.locked = message.locked;
+      this.debugOn = Boolean(message.debug?.on);
+      this.debugOps = Array.isArray(message.debug?.ops) ? message.debug.ops.map(String) : [];
       this.readyIds = message.ready && typeof message.ready === 'object' ? Object.fromEntries(Object.keys(message.ready).map((id) => [id, true])) : {};
     } else if (message?.t === 'ready-check') {
       this.readyCheckAt = Date.now();
@@ -509,6 +519,13 @@ export default class GameRoom {
   // it and passes it to everyone. Every copy is filtered again on arrival, so a
   // modified client can't slip anything past the other players.
   sendChat(text) {
+    // Commands (/debug, /help…) run on the host and never show up as a message.
+    if (/^\s*\//.test(String(text ?? ''))) {
+      if (this.isBusy) return;
+      if (this.role === 'guest') this.post(this.hostConn, { t: 'command', text: String(text).slice(0, 400) });
+      else this.debug.run(String(text), this.selfId);
+      return;
+    }
     const clean = censor(text);
     if (!clean || this.isBusy) return;
     if (this.role === 'guest') this.post(this.hostConn, { t: 'chat', text: clean });
@@ -520,8 +537,8 @@ export default class GameRoom {
     if (this.isHost) this.postChat({ from: `bot:${name}`, name, text, bot: true });
   }
 
-  postChat({ from = null, name = '', text, system = false, bot = false }) {
-    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, from, name, text, system, bot });
+  postChat({ from = null, name = '', text, system = false, bot = false, debug = false }) {
+    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, from, name, text, system, bot, debug });
     if (!message.text) return;
     this.addChat(message);
     for (const conn of this.conns.values()) this.post(conn, { t: 'chat-msg', message });
@@ -529,6 +546,7 @@ export default class GameRoom {
 
   addChat(message) {
     this.chat = [...this.chat.slice(-(CHAT_HISTORY - 1)), message];
+    if (message.debug) return;
     if (message.system) sfx(/ left\.$/.test(message.text) ? 'ui.leave' : 'ui.join');
     else if (!message.bot && message.from !== this.selfId) sfx('ui.chat');
   }
@@ -540,6 +558,36 @@ export default class GameRoom {
     if (recent.length >= CHAT_BURST) return false;
     this.chatTimes.set(id, [...recent, now]);
     return true;
+  }
+
+  // ─── Debug mode ──────────────────────────────────────────────────────
+
+  // A game's own commands, and how to save and restore it for /undo (see utils/debug-commands.js).
+  setDebugTools(tools) {
+    this.debug.tools = tools;
+  }
+
+  // The page saves a state after each change, so /undo can go back to it.
+  recordDebugState(label) {
+    if (this.isHost) this.debug.record(label);
+  }
+
+  // Tells everyone whether debug mode is on and who has access.
+  syncDebug(broadcast = true) {
+    this.debugOn = this.debug.enabled;
+    this.debugOps = [...this.debug.ops];
+    if (broadcast) this.broadcastLobby();
+  }
+
+  get iHaveDebug() {
+    return this.debugOn && (this.isHost || this.debugOps.includes(this.selfPeerId));
+  }
+
+  // A debug reply for one person only.
+  whisper(id, text) {
+    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, text, debug: true });
+    if (id === this.selfId) this.addChat(message);
+    else this.post(this.conns.get(id), { t: 'chat-msg', message });
   }
 
   // ─── Messages ────────────────────────────────────────────────────────
@@ -613,6 +661,11 @@ export default class GameRoom {
     this.locked = false;
     this.readyIds = {};
     this.readyCheckAt = 0;
+    this.debug.enabled = false;
+    this.debug.ops.clear();
+    this.debug.clearHistory();
+    this.debugOn = false;
+    this.debugOps = [];
     this.status = 'idle';
     this.code = '';
     this.selfPeerId = null;
@@ -676,6 +729,10 @@ function readPresets(game) {
 }
 
 function cleanChat(message) {
+  // Debug replies come from the host's command console: longer, with line breaks, and not filtered.
+  if (message?.debug) {
+    return { id: String(message.id ?? Math.random()), from: null, name: '', text: String(message.text ?? '').slice(0, 4000), system: true, bot: false, debug: true };
+  }
   return {
     id: String(message?.id ?? Math.random()),
     from: message?.from ?? null,

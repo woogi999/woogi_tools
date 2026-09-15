@@ -152,6 +152,10 @@ import {
   BellRing,
   SlidersVertical,
   AudioLines,
+  Gamepad2,
+  Keyboard,
+  Terminal,
+  Bug,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -307,6 +311,10 @@ const ICONS = {
   'bell-ring': BellRing,
   'sliders-vertical': SlidersVertical,
   'audio-lines': AudioLines,
+  'gamepad-2': Gamepad2,
+  keyboard: Keyboard,
+  terminal: Terminal,
+  bug: Bug,
 };
 
 function svg(name, size = 16, fill = 'none') {
