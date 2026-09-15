@@ -39,6 +39,13 @@ export default class DefusePuzzle extends Component {
   openedAt = performance.now();
   msAtOpen = this.args.defusing.ms;
   total = this.args.defusing.total;
+  // Anything over `total` is the grace before it starts: presses are ignored until then.
+  graceMs = Math.max(0, this.msAtOpen - this.total);
+  @tracked ready = this.graceMs === 0;
+
+  get live() {
+    return this.ready && !this.finished;
+  }
 
   get isWires() {
     return this.puzzle.type === 'wires';
@@ -86,13 +93,13 @@ export default class DefusePuzzle extends Component {
   // ─── Moves ───────────────────────────────────────────────────────────
 
   cutWire = (i) => {
-    if (this.finished) return;
+    if (!this.live) return;
     this.cut = i;
     this.finish(i === this.puzzle.answer);
   };
 
   pressDigit = (d) => {
-    if (this.finished) return;
+    if (!this.live) return;
     if (d !== this.puzzle.digits[this.progress]) return this.finish(false);
     sfx('mines.flag');
     this.progress++;
@@ -101,7 +108,7 @@ export default class DefusePuzzle extends Component {
   };
 
   pressArrow = (dir) => {
-    if (this.finished) return;
+    if (!this.live) return;
     if (dir !== this.puzzle.answer[this.progress]) return this.finish(false);
     sfx('mines.flag');
     this.progress++;
@@ -109,7 +116,7 @@ export default class DefusePuzzle extends Component {
   };
 
   stopNeedle = () => {
-    if (this.finished) return;
+    if (!this.live) return;
     const [a, b] = this.puzzle.zones[this.progress];
     if (this.needle < a || this.needle > b) return this.finish(false);
     sfx('mines.flag');
@@ -139,9 +146,10 @@ export default class DefusePuzzle extends Component {
   // ─── Input, timers and the needle ────────────────────────────────────
 
   setup = modifier((root) => {
-    const started = this.openedAt;
-    const deadline = started + this.msAtOpen;
+    const started = this.openedAt + this.graceMs;
+    const deadline = this.openedAt + this.msAtOpen;
     const total = this.total;
+    const readyTimer = this.ready ? null : setTimeout(() => (this.ready = true), this.graceMs);
     const bar = root.querySelector('.defuse-timer-fill');
     const onKey = (event) => {
       if (this.finished || isTyping(event) || event.ctrlKey || event.metaKey || event.altKey) return;
@@ -167,16 +175,16 @@ export default class DefusePuzzle extends Component {
       return true;
     });
     let hideTimer = null;
-    if (this.isCode && this.puzzle.hideAfter != null) hideTimer = setTimeout(() => (this.codeHidden = true), this.puzzle.hideAfter);
+    if (this.isCode && this.puzzle.hideAfter != null) hideTimer = setTimeout(() => (this.codeHidden = true), this.graceMs + this.puzzle.hideAfter);
     let frame = requestAnimationFrame(function step(now) {
-      const left = Math.max(0, deadline - now);
+      const left = Math.max(0, Math.min(total, deadline - now));
       if (bar) {
         bar.style.width = `${(left / total) * 100}%`;
         bar.classList.toggle('is-low', left < 2500);
       }
       if (this.isTiming) {
         // Back and forth across the bar.
-        const t = (((now - started) / 1000) * this.puzzle.speed) % 2;
+        const t = ((Math.max(0, now - started) / 1000) * this.puzzle.speed) % 2;
         this.needle = t < 1 ? t : 2 - t;
         const needle = root.querySelector('.defuse-needle');
         if (needle) needle.style.left = `${this.needle * 100}%`;
@@ -187,15 +195,16 @@ export default class DefusePuzzle extends Component {
       window.removeEventListener('keydown', onKey, true);
       releasePad();
       clearTimeout(hideTimer);
+      clearTimeout(readyTimer);
       cancelAnimationFrame(frame);
     };
   });
 
   <template>
-    <div class="uno-overlay defuse-panel" role="dialog" aria-label="Defuse the mine" {{this.setup}}>
+    <div class="uno-overlay defuse-panel {{unless this.ready 'is-waiting'}}" role="dialog" aria-label="Defuse the mine" {{this.setup}}>
       <div class="defuse-head">
         <Icon @name="bomb" @size={{18}} />
-        <strong>Defuse it!</strong>
+        <strong>{{if this.ready "Defuse it!" "Get ready…"}}</strong>
         <span class="defuse-level">Mine {{inc @defusing.level}}</span>
       </div>
       <div class="defuse-timer"><span class="defuse-timer-fill"></span></div>
