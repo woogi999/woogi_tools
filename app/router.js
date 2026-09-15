@@ -57,4 +57,6 @@ Router.map(function () {
   this.route('jjs-stuff');
   this.route('settings');
   this.route('updates');
+  this.route('privacy');
+  this.route('terms');
 });

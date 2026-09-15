@@ -652,6 +652,88 @@ h3 {
   padding: 0 1.1rem;
 }
 
+.site-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 3rem 0 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-faint);
+  font-size: 0.75rem;
+}
+
+.site-footer nav,
+.legal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.site-footer a,
+.legal-nav a {
+  color: var(--text-dim);
+}
+
+.site-footer a:hover,
+.legal-nav a:hover {
+  color: var(--text);
+}
+
+.legal-page {
+  max-width: 820px;
+}
+
+.legal-nav {
+  margin-bottom: 2.5rem;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+.legal-document {
+  max-width: 680px;
+  padding-bottom: 2rem;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.legal-document h1 {
+  margin: 0 0 0.35rem;
+  color: var(--text);
+  font-size: 2rem;
+}
+
+.legal-document .legal-updated {
+  margin: 0 0 2.5rem;
+  color: var(--text-faint);
+  font-size: 0.8rem;
+}
+
+.legal-document a {
+  color: var(--text-dim);
+}
+
+.legal-document a:hover {
+  color: var(--text);
+}
+
+.legal-document h2 {
+  margin: 2rem 0 0.55rem;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.legal-document p {
+  margin: 0 0 1rem;
+}
+
+@media (max-width: 600px) {
+  .site-footer {
+    flex-direction: column;
+  }
+}
+
 // ─── Main / hero ─────────────────────────────────────────────────────────
 
 main {

@@ -330,6 +330,15 @@ export default class HomePage extends Component {
           <h3 class="credit-heading">Site built with</h3>
           <CreditList @credits={{SITE_CREDITS}} />
         </section>
+
+        <footer class="site-footer">
+          <span>Woogi Tools is a personal project maintained by one person.</span>
+          <nav aria-label="Site information">
+            <LinkTo @route="privacy">Privacy Policy</LinkTo>
+            <LinkTo @route="terms">Terms of Service</LinkTo>
+            <a href="mailto:earl@woogi.xyz">earl@woogi.xyz</a>
+          </nav>
+        </footer>
       {{/if}}
     </div>
   </template>

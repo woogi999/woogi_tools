@@ -11,6 +11,7 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
 import { generateRoomCode, buildShareUrl, roomCodeFromUrl, formatBytes } from '../utils/file-share';
+import { peerOptions } from '../utils/ice';
 
 // Files are sliced and sent one piece at a time so neither side ever has to
 // hold more than one piece of a large file in memory at once, and so the
@@ -100,38 +101,51 @@ export default class FileSharePage extends Component {
   // The person offering files: registers with the broker under the share
   // code itself, so anyone who enters that code can find and connect to them.
   hostShare() {
-    if (this.peer) return;
+    if (this.peer || this.role) return;
     this.joinError = '';
     this.role = 'host';
     const code = generateRoomCode();
-    const peer = new Peer(code);
-    this.peer = peer;
     this.shareCode = code;
     this.active = true;
     this.armSlowTimer();
-
-    peer.on('connection', (conn) => this.attachConnection(conn));
-    peer.on('error', (error) => this.handlePeerError(error));
+    this.openPeer(code, (peer) => {
+      peer.on('connection', (conn) => this.attachConnection(conn));
+    });
   }
 
   // The person receiving files: gets a random id from the broker, then opens
-  // a direct connection to the host's id (the share code they were given).
+  // a connection to the host's id (the share code they were given).
   joinShare(code) {
-    if (this.peer) return;
+    if (this.peer || this.role) return;
     this.joinError = '';
     this.role = 'join';
-    const peer = new Peer();
-    this.peer = peer;
-
-    peer.on('open', () => {
-      const conn = peer.connect(code, { reliable: true, serialization: 'binary' });
-      this.attachConnection(conn);
-    });
-    peer.on('error', (error) => this.handlePeerError(error));
-
     this.shareCode = code;
     this.active = true;
     this.armSlowTimer();
+    this.openPeer(null, (peer) => {
+      peer.on('open', () => {
+        const conn = peer.connect(code, { reliable: true, serialization: 'binary' });
+        this.attachConnection(conn);
+      });
+    });
+  }
+
+  // Files travel through Cloudflare's TURN relay (utils/ice.js), so neither side learns the other's IP address.
+  async openPeer(id, setup) {
+    const role = this.role;
+    let options;
+    try {
+      options = await peerOptions();
+    } catch (error) {
+      if (this.role === role) this.handlePeerError(error);
+      return;
+    }
+    // Cancelled (or restarted) while the credentials were loading.
+    if (this.role !== role || this.peer || this.isDestroying) return;
+    const peer = id ? new Peer(id, options) : new Peer(options);
+    this.peer = peer;
+    setup(peer);
+    peer.on('error', (error) => this.handlePeerError(error));
   }
 
   armSlowTimer() {
@@ -161,7 +175,8 @@ export default class FileSharePage extends Component {
 
   handlePeerError(error) {
     if (this.hasPeers) return; // an already-connected share can ignore late/unrelated errors
-    if (error?.type === 'unavailable-id') this.joinError = "That code just got taken by someone else. Try again.";
+    if (error?.type === 'private-connection') this.joinError = error.message;
+    else if (error?.type === 'unavailable-id') this.joinError = "That code just got taken by someone else. Try again.";
     else if (error?.type === 'peer-unavailable') this.joinError = "That code doesn't look right. Check it and try again.";
     else this.joinError = "Couldn't reach the connection service. Check your connection and try again.";
     this.startOver();

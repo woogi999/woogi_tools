@@ -75,26 +75,51 @@ const KING = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -
 const ROOK_RAYS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const BISHOP_RAYS = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
 
-// Every square a piece could reach on an empty board (plus pawn captures and
-// castling), minus squares its own side occupies. Like chess.com, premoves
-// ignore blockers: whether the move is legal is only checked when it's played.
-export function premoveTargets(board, square) {
+// Exactly the squares `square`'s piece could legally move to after any one
+// reply by the side to move: the premoves that might actually get played.
+// `fen` is the real position, with the opponent to move.
+export function reachableAfterReply(ChessClass, fen, square) {
+  const probe = new ChessClass(fen);
+  const out = new Set();
+  for (const reply of probe.moves({ verbose: true })) {
+    probe.move(reply);
+    for (const move of probe.moves({ square, verbose: true })) out.add(move.to);
+    probe.undo();
+  }
+  return [...out];
+}
+
+// Where a piece might go once several moves have been queued, when the exact
+// answer would mean playing out every reply to every reply. Enemy pieces may
+// move out of the way, so they don't block; your own pieces stay put, so they do.
+// Moves that can never become legal are left out: onto your own pieces or the
+// enemy king, pawn pushes through your own pieces, and castling without the
+// right to (`castling` is { k, q } for the piece's side) or without the rook.
+export function premoveTargets(board, square, castling = { k: false, q: false }) {
   const piece = cell(board, square);
   if (!piece) return [];
   const [f, r] = coords(square);
+  const own = (target) => cell(board, target)?.color === piece.color;
   const out = [];
   const add = (df, dr) => {
     const target = squareAt(f + df, r + dr);
-    if (target) out.push(target);
+    if (target && !own(target)) out.push(target);
+    return target;
   };
   const rays = (dirs) => {
-    for (const [df, dr] of dirs) for (let n = 1; n < 8; n++) add(df * n, dr * n);
+    for (const [df, dr] of dirs) {
+      for (let n = 1; n < 8; n++) {
+        const target = squareAt(f + df * n, r + dr * n);
+        if (!target || own(target)) break;
+        out.push(target);
+      }
+    }
   };
   switch (piece.type) {
     case 'p': {
       const dir = piece.color === 'w' ? 1 : -1;
-      add(0, dir);
-      if (r === (piece.color === 'w' ? 1 : 6)) add(0, dir * 2);
+      const one = add(0, dir);
+      if (one && !own(one) && r === (piece.color === 'w' ? 1 : 6)) add(0, dir * 2);
       add(-1, dir);
       add(1, dir);
       break;
@@ -102,13 +127,20 @@ export function premoveTargets(board, square) {
     case 'n':
       KNIGHT.forEach(([df, dr]) => add(df, dr));
       break;
-    case 'k':
+    case 'k': {
       KING.forEach(([df, dr]) => add(df, dr));
-      if (square === (piece.color === 'w' ? 'e1' : 'e8')) {
-        add(2, 0);
-        add(-2, 0);
+      const home = piece.color === 'w' ? '1' : '8';
+      if (square === `e${home}`) {
+        const rook = (file) => {
+          const p = cell(board, `${file}${home}`);
+          return p?.type === 'r' && p.color === piece.color;
+        };
+        const clear = (files) => files.every((file) => !cell(board, `${file}${home}`));
+        if (castling.k && rook('h') && clear(['f', 'g'])) add(2, 0);
+        if (castling.q && rook('a') && clear(['b', 'c', 'd'])) add(-2, 0);
       }
       break;
+    }
     case 'b':
       rays(BISHOP_RAYS);
       break;
@@ -118,7 +150,7 @@ export function premoveTargets(board, square) {
     default:
       rays([...ROOK_RAYS, ...BISHOP_RAYS]);
   }
-  return out.filter((target) => cell(board, target)?.color !== piece.color);
+  return out.filter((target) => cell(board, target)?.type !== 'k');
 }
 
 // The board as it will look once the queued premoves are played, so the
@@ -129,9 +161,10 @@ export function applyPremoves(board, premoves) {
     const [f, r] = coords(square);
     next[7 - r][f] = piece && { ...piece, square };
   };
-  for (const { from, to, promotion } of premoves) {
+  for (const { from, to, promotion, color } of premoves) {
     const piece = cell(next, from);
-    if (!piece) continue;
+    // Skip a premove whose piece has since been captured, rather than moving whatever took it.
+    if (!piece || (color && piece.color !== color)) continue;
     set(from, null);
     const lastRank = to[1] === (piece.color === 'w' ? '8' : '1');
     set(to, piece.type === 'p' && lastRank ? { ...piece, type: promotion ?? 'q' } : piece);

@@ -37,7 +37,7 @@ import {
 import { createElement, Bot, Crown } from 'sketchyicons';
 import config from 'woogi-tools/config/environment';
 import { avatarKey } from '../utils/avatar';
-import { AvatarKit, HEAD_Y, buildAvatar, disposeAvatar, disposeGroup, withOutline } from './avatar-model';
+import { AvatarKit, HEAD_Y, buildAvatar, disposeAvatar, disposeGroup, holdCards, moodFace, reachArms, withOutline } from './avatar-model';
 
 export { createAvatarPreview } from './avatar-model';
 
@@ -59,9 +59,12 @@ const TABLE_RADIUS = 2.9;
 const SEAT_RADIUS = 3.65;
 const AVATAR_SCALE = 1.3;
 const AVATAR_Y = -0.3;
+// The cards other players hold, as a fraction of a card on the table.
+const SEAT_CARD_SCALE = 0.25;
 const DECK_POS = new Vector3(-0.75, 0.2, -0.1);
 const PILE_POS = new Vector3(0.5, 0.2, -0.1);
-const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4' };
+const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4', target2: '+2', target4: '+4', draw99: '+99' };
+const TARGETED = new Set(['target2', 'target4']);
 const CARD_W = 0.62;
 const CARD_H = 0.93;
 const COLOR_ORDER = { red: 0, yellow: 1, green: 2, blue: 3 };
@@ -177,10 +180,26 @@ function drawCard(ctx, w, h, card, backArt) {
     return;
   }
   const symbol = SYMBOLS[card.value] ?? card.value;
-  ctx.font = `800 ${(symbol.length > 1 ? 50 : 62) * unit}px Moderustic, sans-serif`;
-  ctx.fillStyle = card.color ? (card.color === 'yellow' ? '#B58600' : UNO_COLORS[card.color]) : '#141414';
+  const ink = card.color ? (card.color === 'yellow' ? '#B58600' : UNO_COLORS[card.color]) : '#141414';
+  if (TARGETED.has(card.value)) {
+    // Targeted draw cards carry crosshairs behind the number.
+    ctx.save();
+    ctx.strokeStyle = ink;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = 4 * unit;
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 34 * unit, 0, Math.PI * 2);
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+      ctx.moveTo(w / 2 + dx * 26 * unit, h / 2 + dy * 26 * unit);
+      ctx.lineTo(w / 2 + dx * 44 * unit, h / 2 + dy * 44 * unit);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.font = `800 ${(symbol.length > 2 ? 40 : symbol.length > 1 ? 50 : 62) * unit}px Moderustic, sans-serif`;
+  ctx.fillStyle = ink;
   ctx.fillText(symbol, w / 2, h / 2 + 3 * unit);
-  ctx.font = `800 ${26 * unit}px Moderustic, sans-serif`;
+  ctx.font = `800 ${(symbol.length > 2 ? 20 : 26) * unit}px Moderustic, sans-serif`;
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
   ctx.lineWidth = 3 * unit;
@@ -208,7 +227,11 @@ class Tweens {
 
   tick(now) {
     if (!this.list.length) return;
-    this.list = this.list.filter((tween) => {
+    // A `done` often starts a follow-up tween (a delayed pop-up, a shockwave),
+    // which lands in the fresh list rather than being lost when this one is replaced.
+    const running = this.list;
+    this.list = [];
+    const alive = running.filter((tween) => {
       if (now < tween.start) return true;
       const t = Math.min(1, (now - tween.start) / tween.duration);
       tween.update(t);
@@ -216,6 +239,7 @@ class Tweens {
       tween.done?.();
       return false;
     });
+    this.list = alive.concat(this.list);
   }
 }
 
@@ -410,7 +434,7 @@ function loadIcons(onReady) {
   }
 }
 
-function drawNameTag(ctx, w, h, { name, count, turn, uno, winner, bot }) {
+function drawNameTag(ctx, w, h, { name, count, turn, uno, exposed, winner, bot }) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
   const fill = winner ? '#F2B90D' : turn ? '#FFF3B0' : '#FFFFFF';
@@ -433,11 +457,11 @@ function drawNameTag(ctx, w, h, { name, count, turn, uno, winner, bot }) {
   ctx.textAlign = 'left';
   ctx.fillText(name, start + iconSpace, middle + 2);
   ctx.textAlign = 'center';
-  // The card count hangs underneath, red when they're down to one.
-  const badge = uno ? `${count} · WOONO!` : `${count} ${count === 1 ? 'card' : 'cards'}`;
+  // The card count hangs underneath: red once they've said Woono, orange while they can still be called out.
+  const badge = exposed ? `${count} · no Woono!` : uno ? `${count} · WOONO!` : `${count} ${count === 1 ? 'card' : 'cards'}`;
   ctx.font = '800 26px Moderustic, sans-serif';
   const bw = ctx.measureText(badge).width + 34;
-  pill(ctx, (w - bw) / 2, h * 0.64, bw, h * 0.32, uno ? UNO_COLORS.red : INK, null);
+  pill(ctx, (w - bw) / 2, h * 0.64, bw, h * 0.32, exposed ? '#E8740C' : uno ? UNO_COLORS.red : INK, null);
   ctx.fillStyle = '#fff';
   ctx.fillText(badge, w / 2, h * 0.64 + (h * 0.32) / 2 + 1);
 }
@@ -484,6 +508,12 @@ const LOOK_STALE_MS = 4000;
 const HAND_DEPTH = 1.3;
 const HAND_CARD_SCALE = 0.5;
 const FAN_RADIUS = 1.7;
+// How much the fan drops and tilts towards its ends. A full arc sends the
+// outer cards of a big hand off the bottom of the screen, so it's kept shallow.
+const FAN_CURVE = 0.28;
+const FAN_TILT = 0.45;
+// How high above your hand a card you've just drawn waits.
+const CENTRE_Y = 0.78;
 
 const sortHand = (hand) => [...hand].sort((a, b) => (COLOR_ORDER[a.color] ?? 9) - (COLOR_ORDER[b.color] ?? 9) || VALUE_ORDER.indexOf(a.value) - VALUE_ORDER.indexOf(b.value));
 
@@ -578,6 +608,109 @@ export function createUnoScene(canvas) {
   pile.position.copy(PILE_POS);
   scene.add(pile);
 
+  // ─── Picking a wild's colour, or a target, right on the table ─────
+
+  // Four coloured pads floating over the pile, facing you.
+  const colorWheel = new Group();
+  colorWheel.position.set(PILE_POS.x, 0.75, PILE_POS.z);
+  colorWheel.visible = false;
+  scene.add(colorWheel);
+  const colorPads = Object.keys(UNO_COLORS).map((color, i) => {
+    const start = Math.PI / 4 + (i * Math.PI) / 2 + 0.06;
+    const pad = new Mesh(new RingGeometry(0.2, 0.6, 20, 1, start, Math.PI / 2 - 0.12), new MeshBasicMaterial({ color: UNO_COLORS[color], side: DoubleSide, depthTest: false, depthWrite: false, transparent: true }));
+    const rim = new Mesh(new RingGeometry(0.18, 0.64, 20, 1, start - 0.03, Math.PI / 2 - 0.06), new MeshBasicMaterial({ color: INK, side: DoubleSide, depthTest: false, depthWrite: false, transparent: true }));
+    rim.position.z = -0.002;
+    rim.renderOrder = 41;
+    rim.raycast = () => {};
+    pad.add(rim);
+    pad.renderOrder = 42;
+    pad.userData = { color, angle: start + Math.PI / 4 - 0.06 };
+    colorWheel.add(pad);
+    return pad;
+  });
+  const pickLabel = new Label(360, 110, 0.3);
+  pickLabel.sprite.visible = false;
+  scene.add(pickLabel.sprite);
+
+  // An arrow from the pile towards each player (you too), for aiming a targeted card.
+  const targetArrows = new Group();
+  targetArrows.visible = false;
+  scene.add(targetArrows);
+  const arrowShaft = new BoxGeometry(0.16, 0.07, 0.5);
+  const arrowHead = new ConeGeometry(0.24, 0.36, 3);
+  let arrowsKey = '';
+  let pickHover = null; // { type: 'color', color } | { type: 'target', index }
+
+  function buildArrows() {
+    for (const arrow of [...targetArrows.children]) {
+      arrow.userData.material.dispose();
+      arrow.removeFromParent();
+    }
+    for (let index = 0; index < playerCount; index++) {
+      const k = relative(index);
+      const { x, z } = k === 0 ? { x: 0, z: SEAT_RADIUS } : seatPosition(k, playerCount);
+      const material = new MeshToonMaterial({ color: new Color(UNO_COLORS.red), gradientMap: kit.gradient });
+      const arrow = new Group();
+      const shaft = withOutline(new Mesh(arrowShaft, material), kit, true);
+      shaft.position.z = 0.25;
+      const head = withOutline(new Mesh(arrowHead, material), kit, true);
+      head.rotation.set(Math.PI / 2, 0, 0);
+      head.scale.set(1, 1, 0.35);
+      head.position.z = 0.66;
+      arrow.add(shaft, head);
+      // Aimed at their chest (at you, down towards your hand), so the far ones tilt up and stay easy to see.
+      const start = new Vector3(PILE_POS.x, 0.55, PILE_POS.z);
+      const direction = new Vector3(x, k === 0 ? 0.1 : 1.1, z).sub(start).normalize();
+      arrow.rotation.order = 'YXZ';
+      arrow.rotation.y = Math.atan2(direction.x, direction.z);
+      arrow.rotation.x = -Math.asin(direction.y);
+      arrow.userData = { index, material, direction, size: k === 0 ? 1 : 1.35, base: start.addScaledVector(direction, 0.95) };
+      arrow.position.copy(arrow.userData.base);
+      targetArrows.add(arrow);
+    }
+  }
+
+  // Shows the colour wheel or the arrows when it's your pick.
+  function syncPicker(next) {
+    const choice = next.choice?.player === next.you && next.winner === null ? next.choice : null;
+    colorWheel.visible = choice?.needs === 'color';
+    if (choice?.needs === 'target' && arrowsKey !== `${playerCount}:${me}`) {
+      arrowsKey = `${playerCount}:${me}`;
+      buildArrows();
+    }
+    targetArrows.visible = choice?.needs === 'target';
+    const text = choice ? (choice.needs === 'color' ? 'Pick a colour' : 'Who draws?') : '';
+    pickLabel.draw(text, (ctx, w, h) => text && drawBanner(ctx, w, h, text, '#ffffff', INK));
+    pickLabel.sprite.position.set(PILE_POS.x, choice?.needs === 'color' ? 1.55 : 1.05, PILE_POS.z);
+    pickLabel.sprite.visible = Boolean(choice);
+    if (!choice) pickHover = null;
+  }
+
+  function animatePicker(now, dt) {
+    const ease = 1 - Math.exp(-dt * 14);
+    if (colorWheel.visible) {
+      colorWheel.quaternion.copy(camera.quaternion);
+      colorWheel.position.y = 0.75 + Math.sin(now / 500) * 0.03;
+      for (const pad of colorPads) {
+        const hovered = pickHover?.type === 'color' && pickHover.color === pad.userData.color;
+        const push = hovered ? 0.08 : 0;
+        pad.position.x += (Math.cos(pad.userData.angle) * push - pad.position.x) * ease;
+        pad.position.y += (Math.sin(pad.userData.angle) * push - pad.position.y) * ease;
+        pad.scale.setScalar(pad.scale.x + ((hovered ? 1.1 : 1) - pad.scale.x) * ease);
+      }
+    }
+    if (targetArrows.visible) {
+      for (const arrow of targetArrows.children) {
+        const { index, base, direction, material, size } = arrow.userData;
+        const hovered = pickHover?.type === 'target' && pickHover.index === index;
+        const nudge = Math.sin(now / 220 + index) * 0.06 + (hovered ? 0.2 : 0);
+        arrow.position.copy(base).addScaledVector(direction, nudge);
+        arrow.scale.setScalar(arrow.scale.x + (size * (hovered ? 1.25 : 1) - arrow.scale.x) * ease);
+        material.color.set(hovered ? '#FFD84D' : UNO_COLORS.red);
+      }
+    }
+  }
+
   const cardGeometry = new PlaneGeometry(CARD_W, CARD_H);
   const cards = new MeshPool(() => new Mesh(cardGeometry, new MeshBasicMaterial({ side: DoubleSide })));
   const takeCard = (card) => {
@@ -610,6 +743,26 @@ export function createUnoScene(canvas) {
   camera.add(hand);
   const handCards = new Map(); // card id -> mesh
   const glowGeometry = new PlaneGeometry(CARD_W * 1.12, CARD_H * 1.08);
+
+  // A card you just drew, face up above your hand until you play or keep it.
+  const myCentre = new Mesh(new PlaneGeometry(CARD_W, CARD_H), new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+  myCentre.renderOrder = 70;
+  myCentre.visible = false;
+  myCentre.position.set(0, CENTRE_Y, 0.05);
+  myCentre.scale.setScalar(HAND_CARD_SCALE * 1.35);
+  const myCentreGlow = new Mesh(glowGeometry, new MeshBasicMaterial({ color: '#FFD84D', transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  myCentreGlow.position.z = -0.002;
+  myCentreGlow.renderOrder = 69.5;
+  myCentreGlow.raycast = () => {};
+  myCentre.add(myCentreGlow);
+  hand.add(myCentre);
+  // Someone else's drawn card, face down in front of them.
+  const theirCentre = new Mesh(new PlaneGeometry(CARD_W, CARD_H), new MeshBasicMaterial({ map: kit.cardFace(null), side: DoubleSide }));
+  theirCentre.visible = false;
+  theirCentre.scale.setScalar(0.7);
+  scene.add(theirCentre);
+  let centreWanted = null; // 'mine' | 'theirs' | null
+  let centreRevealAt = 0;
 
   const tweens = new Tweens();
   const seats = new Map(); // seat index -> { group, avatar, fan, count, key, phase, blinkAt, yaw, pitch, tag }
@@ -651,7 +804,15 @@ export function createUnoScene(canvas) {
     const k = relative(index);
     if (k === 0) return hand.getWorldPosition(new Vector3());
     const { x, z } = seatPosition(k, playerCount);
-    return new Vector3(x * 0.84, 0.95, z * 0.84);
+    // Where their cards are held, at the chest.
+    return new Vector3(x * 0.9, AVATAR_Y + 0.5 * AVATAR_SCALE, z * 0.9);
+  };
+  // Where a card someone just drew waits while they decide: over your hand for you, in front of their seat for others.
+  const centrePoint = (index) => {
+    const k = relative(index);
+    if (k === 0) return hand.localToWorld(new Vector3(0, CENTRE_Y, 0.05));
+    const { x, z } = seatPosition(k, playerCount);
+    return new Vector3(x * 0.6, 0.85, z * 0.6);
   };
   const headPoint = (index, lift = 0) => {
     const k = relative(index);
@@ -667,19 +828,23 @@ export function createUnoScene(canvas) {
     seat.fan = null;
   }
 
-  function buildFan(count, height) {
+  // The backs of someone's cards, fanned out from where their hands grip them.
+  function buildFan(count, hold) {
     const fan = new Group();
     const shown = Math.min(count, 10);
+    const spread = Math.min(1.0, 0.16 * (shown - 1));
+    const height = CARD_H * SEAT_CARD_SCALE;
     for (let i = 0; i < shown; i++) {
       const card = takeCard(null);
-      card.scale.setScalar(0.42);
-      const spread = shown > 1 ? (i / (shown - 1) - 0.5) * 1.1 : 0;
-      card.position.set(spread * 0.42, Math.cos(spread) * 0.07, i * 0.004);
-      card.rotation.z = -spread * 0.7;
+      card.scale.setScalar(SEAT_CARD_SCALE);
+      const turn = shown > 1 ? -(i / (shown - 1) - 0.5) * spread : 0;
+      // Each card turns about a point near its bottom edge, like a hand of cards pinched at the base.
+      card.position.set(-Math.sin(turn) * height * 0.38, Math.cos(turn) * height * 0.38, i * 0.004);
+      card.rotation.z = turn;
       fan.add(card);
     }
-    fan.position.set(0, height + 0.08, 0.42);
-    fan.rotation.x = -0.35;
+    fan.position.set(0, hold.y, hold.z);
+    fan.rotation.x = -0.3;
     return fan;
   }
 
@@ -711,6 +876,7 @@ export function createUnoScene(canvas) {
         const avatar = buildAvatar(player.avatar, kit);
         avatar.position.y = AVATAR_Y;
         avatar.scale.setScalar(AVATAR_SCALE);
+        holdCards(avatar);
         group.add(avatar);
         scene.add(group);
         const tag = new Label(360, 150, 0.42);
@@ -726,7 +892,7 @@ export function createUnoScene(canvas) {
       const count = Math.min(player.count, 10);
       if (seat.count !== count) {
         releaseFan(seat);
-        seat.fan = buildFan(player.count, seat.avatar.userData.handHeight);
+        seat.fan = buildFan(player.count, seat.avatar.userData.hold);
         seat.avatar.add(seat.fan);
         seat.count = count;
       }
@@ -738,7 +904,7 @@ export function createUnoScene(canvas) {
     const seat = seats.get(index);
     if (!seat) return;
     seat.player = player;
-    const state = { name: player.name, count: player.count, bot: player.kind === 'bot', uno: player.count === 1, turn: winner === null && turn === index, winner: winner === index };
+    const state = { name: player.name, count: player.count, bot: player.kind === 'bot', uno: player.said && player.count === 1, exposed: player.exposed, turn: winner === null && turn === index, winner: winner === index };
     seat.tag.draw(JSON.stringify(state), (ctx, w, h) => drawNameTag(ctx, w, h, state));
   }
 
@@ -789,25 +955,135 @@ export function createUnoScene(canvas) {
   }
 
   // A word or symbol that pops up over someone (or in front of you) and floats away.
-  function popup(index, text, fill, { color = '#fff', lift = 0, big = false } = {}) {
+  function popup(index, text, fill, { color = '#fff', lift = 0, big = false, scale = 1, delay = 0, duration = 1500 } = {}) {
     const mesh = popups.acquire();
     mesh.material.map = kit.texture(`popup:${text}:${fill}:${color}`, 360, 140, (ctx, w, h) => drawBanner(ctx, w, h, text, fill, color));
     mesh.material.needsUpdate = true;
     mesh.renderOrder = 16;
-    const base = headPoint(index, lift);
-    mesh.position.copy(base);
+    mesh.scale.setScalar(0.001);
+    let base = null;
     scene.add(mesh);
-    const size = big ? 1.5 : 1;
+    const size = (big ? 1.5 : 1) * scale;
     tweens.add(
-      1500,
+      duration,
       (t) => {
+        // Placed when it appears, so one in front of you follows where you're looking by then.
+        base ??= headPoint(index, lift);
         mesh.quaternion.copy(camera.quaternion);
         const pop = t < 0.15 ? easeOut(t / 0.15) * 1.15 : t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1 + Math.max(0, 0.3 - t);
         mesh.scale.setScalar(Math.max(0.001, pop * size));
-        mesh.position.y = base.y + t * 0.35;
+        mesh.position.set(base.x, base.y + t * 0.35, base.z);
       },
-      { done: () => popups.release(mesh) },
+      { delay, done: () => popups.release(mesh) },
     );
+  }
+
+  // ─── Emotes ─────────────────────────────────────────────────────────
+
+  // How long each reaction lasts, and whether the arms let go of the cards for it.
+  const EMOTES = {
+    stunned: { ms: 1800 },
+    angry: { ms: 1500 },
+    annoyed: { ms: 1500 },
+    shocked: { ms: 1300 },
+    smug: { ms: 1300 },
+    cheer: { ms: 1100, arms: true },
+    joy: { ms: 4200, arms: true },
+    clap: { ms: 3800, arms: true },
+    sad: { ms: 3800 },
+  };
+
+  // Someone reacts to what just happened (your own seat has no avatar to show it).
+  function emote(index, kind, delay = 0) {
+    const spec = EMOTES[kind];
+    if (!spec || index === null || index === undefined || !playerCount) return;
+    const seat = seats.get(index);
+    if (!seat || calm) return;
+    endEmote(seat);
+    seat.emote = { kind, start: performance.now() + delay, ms: spec.ms, arms: Boolean(spec.arms) };
+  }
+
+  function endEmote(seat) {
+    if (!seat.emote) return;
+    if (seat.emote.arms) {
+      holdCards(seat.avatar);
+      if (seat.fan) seat.fan.visible = true;
+    }
+    seat.avatar.position.x = 0;
+    if (seat.emote.kind === 'joy') seat.avatar.position.y = AVATAR_Y;
+    seat.avatar.rotation.z = 0;
+    seat.avatar.userData.body.scale.x = 1;
+    seat.emote = null;
+  }
+
+  // One frame of a reaction, layered over the idle animation. t runs 0 → 1.
+  function playEmote(seat, now) {
+    const e = seat.emote;
+    if (!e || now < e.start) return;
+    const t = (now - e.start) / e.ms;
+    if (t >= 1) {
+      endEmote(seat);
+      return;
+    }
+    const { head, face, body } = seat.avatar.userData;
+    const fade = 1 - t;
+    const s = (now - e.start) / 1000;
+    face.material = moodFace(seat.avatar, kit, e.kind);
+    if (e.arms && seat.fan) seat.fan.visible = false;
+    switch (e.kind) {
+      case 'stunned':
+        head.rotation.z += Math.sin(s * 14) * 0.22 * fade;
+        head.rotation.x += Math.cos(s * 14) * 0.12 * fade;
+        seat.avatar.rotation.z = Math.sin(s * 7) * 0.06 * fade;
+        break;
+      case 'angry':
+        seat.avatar.position.x = Math.sin(s * 55) * 0.04 * fade;
+        head.rotation.x += 0.15;
+        break;
+      case 'annoyed':
+        head.rotation.y += Math.sin(s * 12) * 0.3 * fade;
+        head.rotation.z += 0.12;
+        break;
+      case 'shocked':
+        seat.avatar.userData.body.scale.x = 1 + Math.sin(Math.min(1, t * 4) * Math.PI) * 0.06;
+        head.rotation.x -= 0.2 * fade;
+        break;
+      case 'smug':
+        head.rotation.z += -0.2 * Math.min(1, t * 5);
+        head.rotation.x -= 0.12;
+        break;
+      case 'sad':
+        head.rotation.x += 0.45 * Math.min(1, t * 3);
+        body.scale.y *= 0.95;
+        break;
+      case 'cheer': {
+        const pump = Math.abs(Math.sin(s * 9));
+        reachArms(seat.avatar, [
+          [-0.2, 0.46, 0.3],
+          [0.3, 0.95 + pump * 0.08, 0.08],
+        ]);
+        break;
+      }
+      case 'joy': {
+        const wave = Math.sin(s * 10) * 0.08;
+        reachArms(seat.avatar, [
+          [-0.34 + wave, 1.0, 0.05],
+          [0.34 - wave, 1.0, 0.05],
+        ]);
+        seat.avatar.position.y = AVATAR_Y + Math.abs(Math.sin(s * 6)) * 0.22;
+        break;
+      }
+      case 'clap': {
+        const apart = 0.03 + Math.abs(Math.sin(s * 8)) * 0.1;
+        reachArms(seat.avatar, [
+          [-apart, 0.66, 0.32],
+          [apart, 0.66, 0.32],
+        ]);
+        break;
+      }
+      default:
+        break;
+    }
   }
 
   // A flat ring that spreads out across the table and fades.
@@ -879,63 +1155,112 @@ export function createUnoScene(canvas) {
   // Cards that left your hand this update, remembered for a moment so a played one flies from where it was.
   const leftHand = new Map();
 
-  function playEvent(event, fresh) {
+  // The events of one update, animated. Cards drawn because of a card that was just played wait for it to land.
+  function playEvents(events, fresh) {
+    const played = events.some((e) => e.type === 'play');
+    const drewToCentre = events.some((e) => e.type === 'draw' && e.reason === 'centre');
+    for (const event of events) playEvent(event, fresh, { afterPlay: played ? 450 : 0, afterCentre: drewToCentre ? 450 : 0 });
+  }
+
+  function playEvent(event, fresh, { afterPlay = 0, afterCentre = 0 } = {}) {
     switch (event.type) {
       case 'play': {
         const card = event.card;
         const color = UNO_COLORS[event.color] ?? '#ffffff';
         const mine = relative(event.player) === 0;
-        const from = mine && leftHand.has(card.id) ? leftHand.get(card.id) : handPoint(event.player);
+        const from = event.fromCentre ? centrePoint(event.player) : mine && leftHand.has(card.id) ? leftHand.get(card.id) : handPoint(event.player);
         const to = PILE_POS.clone().add(new Vector3(0, 0.05, 0));
-        const special = ['draw2', 'wild4', 'wild', 'skip', 'reverse'].includes(card.value);
+        const special = card.value in SYMBOLS;
         flyCard(card, from, to, {
           startRotation: mine ? 0.2 : -0.4,
           done: () => {
             setTopCard(card);
             shockwave(PILE_POS, color, { size: special ? 2.4 : 1.4 });
             burst(to, card.color ? [color, '#ffffff'] : Object.values(UNO_COLORS), special ? 60 : 24, { speed: special ? 2.4 : 1.4, up: 1.6, life: 0.8 });
-            if (!card.color) {
-              // A wild paints the table in the chosen colour for a moment.
-              feltFlash = 1;
-              flashColor.set(color);
-              shockwave(PILE_POS, color, { size: 4.5, duration: 900, delay: 90 });
-            }
-            if (card.value === 'wild4') addShake(0.09);
-            else if (card.value === 'draw2') addShake(0.05);
           },
         });
         if (seats.has(event.player)) hop(event.player);
-        if (card.value === 'draw2' || card.value === 'wild4') tweens.add(1, () => {}, { delay: 380, done: () => popup(event.player, SYMBOLS[card.value], card.value === 'wild4' ? '#ffffff' : color, { lift: 0.5, color: card.value === 'wild4' ? INK : '#fff' }) });
         break;
       }
-      case 'draw':
-        for (let i = 0; i < Math.min(event.count, 6); i++) flyCard(null, DECK_POS.clone().add(new Vector3(0, 0.2, 0)), handPoint(event.player), { faceUp: false, delay: i * 90 });
-        if (event.count >= 2 && fresh) popup(event.player, `+${event.count}`, UNO_COLORS.red, { big: event.count >= 4 });
+      case 'color':
+        // The wild's colour is picked: the table flashes it.
+        feltFlash = 1;
+        flashColor.set(UNO_COLORS[event.color] ?? '#ffffff');
+        shockwave(PILE_POS, UNO_COLORS[event.color] ?? '#ffffff', { size: 4.5, duration: 900 });
+        break;
+      case 'draw': {
+        const deckTop = DECK_POS.clone().add(new Vector3(0, 0.2, 0));
+        if (event.reason === 'centre') {
+          // One card up into the middle, where its player decides what to do with it.
+          flyCard(null, deckTop, centrePoint(event.player), { faceUp: false });
+          centreRevealAt = performance.now() + 420;
+          break;
+        }
+        const delay = event.reason === 'hit' ? afterPlay : 0;
+        for (let i = 0; i < Math.min(event.count, 6); i++) flyCard(null, deckTop, handPoint(event.player), { faceUp: false, delay: delay + i * 90 });
+        if (event.count >= 2 && fresh) popup(event.player, `+${event.count}`, event.count >= 99 ? INK : UNO_COLORS.red, { big: event.count >= 4, delay });
+        if (event.reason === 'hit') {
+          // The draw lands only once it's taken (or can't be answered): the hit, the shake, the reaction.
+          emote(event.player, event.count >= 10 ? 'stunned' : event.count >= 4 ? 'angry' : 'annoyed', delay);
+          if (relative(event.player) === 0) addShake(Math.min(0.12, 0.03 * Math.log2(event.count + 1)));
+          else {
+            const { x, z } = seatPosition(relative(event.player), playerCount);
+            shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, { size: event.count >= 4 ? 1.6 : 1.1, delay });
+          }
+        }
+        if (event.reason === 'callout') emote(event.player, 'shocked');
+        break;
+      }
+      case 'keep':
+        // The drawn card goes from the middle into their hand (yours glides in on its own).
+        if (relative(event.player) !== 0) flyCard(null, centrePoint(event.player), handPoint(event.player), { faceUp: false, delay: afterCentre });
         break;
       case 'uno': {
         popup(event.player, 'Woono!', '#F2B90D', { color: INK, big: true });
         hop(event.player);
+        emote(event.player, 'cheer');
         const at = relative(event.player) === 0 ? handPoint(event.player) : headPoint(event.player, -0.6);
         burst(at, ['#F2B90D', '#ffffff', UNO_COLORS.red], 50, { speed: 1.8, up: 2, life: 0.9, gravity: 3 });
         break;
       }
+      case 'callout':
+        popup(event.target, 'Caught!', '#E8740C', { big: true });
+        emote(event.player, 'smug');
+        break;
       case 'skip': {
-        popup(event.player, '⊘ Skip', '#ffffff', { color: UNO_COLORS.red });
+        popup(event.player, '⊘ Skip', '#ffffff', { color: UNO_COLORS.red, delay: afterPlay });
+        emote(event.player, 'annoyed', afterPlay);
         const k = relative(event.player);
         if (k !== 0) {
           const { x, z } = seatPosition(k, playerCount);
-          shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, { size: 1.2 });
+          shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, { size: 1.2, delay: afterPlay });
         }
         break;
       }
+      case 'block':
+        popup(event.player, '⊘ Blocked!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        emote(event.player, 'smug', afterPlay);
+        emote(event.from, 'shocked', afterPlay + 200);
+        shockwave(PILE_POS, '#ffffff', { size: 3, duration: 700, delay: afterPlay });
+        break;
+      case 'reflect':
+        arrowBoost = 1;
+        popup(event.player, '⇄ Sent back!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        emote(event.player, 'smug', afterPlay);
+        emote(event.target, 'shocked', afterPlay + 250);
+        if (event.kind === 'draw') for (let i = 0; i < 3; i++) flyCard(null, handPoint(event.player), handPoint(event.target), { faceUp: false, delay: afterPlay + i * 80 });
+        break;
       case 'reverse':
         arrowBoost = 1;
         shockwave(new Vector3(0, 0, 0), '#ffffff', { size: 3.2, duration: 700 });
         break;
-      case 'swap':
+      case 'swap': {
         for (const [a, b] of [[event.a, event.b], [event.b, event.a]]) for (let i = 0; i < 4; i++) flyCard(null, handPoint(a), handPoint(b), { faceUp: false, delay: i * 70 });
         popup(event.a, '⇄ Swap', '#ffffff', { color: INK });
+        emote(event.a, 'smug', 500);
+        emote(event.b, 'angry', 500);
         break;
+      }
       case 'rotate':
         arrowBoost = 1;
         for (let p = 0; p < playerCount; p++) flyCard(null, handPoint(p), handPoint((p + event.direction + playerCount) % playerCount), { faceUp: false });
@@ -953,15 +1278,25 @@ export function createUnoScene(canvas) {
             if (relative(loser) === 0) addShake(0.06);
           },
         });
+        emote(loser, event.success ? 'shocked' : 'angry', 700);
+        emote(event.success ? event.player : event.offender, 'smug', 700);
         break;
       }
       case 'timeout':
         popup(event.player, 'Time’s up!', UNO_COLORS.red);
         break;
       case 'win':
-        hop(event.player, 4);
         popup(event.player, relative(event.player) === 0 ? 'You win!' : 'Winner!', '#F2B90D', { color: INK, big: true });
-        if (fresh) confetti();
+        if (fresh) {
+          confetti();
+          // The winner celebrates; everyone else claps, or sulks if they were close.
+          emote(event.player, 'joy', 300);
+          for (let p = 0; p < playerCount; p++) {
+            if (p === event.player) continue;
+            const count = p === me ? view?.hand.length : seats.get(p)?.player?.count;
+            emote(p, count <= 2 ? 'sad' : 'clap', 700 + p * 120);
+          }
+        } else hop(event.player, 4);
         break;
       default:
         break;
@@ -990,6 +1325,8 @@ export function createUnoScene(canvas) {
 
   const handAim = new Vector3();
   let handHalfWidth = 1.2;
+  // How far a touch swipe has dragged the lifted card up, in hand units.
+  let swipeLift = 0;
 
   // Hand cards carry a glow behind them; it goes before the card returns to the shared pool.
   function releaseHandCard(mesh) {
@@ -999,7 +1336,8 @@ export function createUnoScene(canvas) {
     cards.release(mesh);
   }
 
-  function syncHand(next) {
+  // `kept`: a card you just kept glides down from where it waited above the hand, after `keptDelay` ms.
+  function syncHand(next, { kept = false, keptDelay = 0 } = {}) {
     const sorted = sortHand(next.hand);
     const ids = new Set(sorted.map((c) => c.id));
     leftHand.clear();
@@ -1025,10 +1363,17 @@ export function createUnoScene(canvas) {
         glowMesh.raycast = () => {};
         mesh.add(glowMesh);
         mesh.userData.glow = glowMesh;
-        // New cards slide in from off to the side, where the deck is.
-        mesh.position.set(-handHalfWidth * 1.3, 0.4, 0);
-        mesh.rotation.set(0, 0, 0.6);
-        mesh.scale.setScalar(HAND_CARD_SCALE * 0.6);
+        if (kept) {
+          mesh.position.set(0, CENTRE_Y, 0.05);
+          mesh.rotation.set(0, 0, 0);
+          mesh.scale.setScalar(HAND_CARD_SCALE * 1.35);
+          mesh.userData.holdUntil = performance.now() + keptDelay;
+        } else {
+          // New cards slide in from off to the side, where the deck is.
+          mesh.position.set(-handHalfWidth * 1.3, 0.4, 0);
+          mesh.rotation.set(0, 0, 0.6);
+          mesh.scale.setScalar(HAND_CARD_SCALE * 0.6);
+        }
         hand.add(mesh);
         handCards.set(card.id, mesh);
       }
@@ -1036,7 +1381,7 @@ export function createUnoScene(canvas) {
       mesh.userData.card = card;
       mesh.userData.angle = angle;
       mesh.userData.order = i;
-      mesh.userData.home = new Vector3(Math.sin(angle) * FAN_RADIUS, Math.cos(angle) * FAN_RADIUS - FAN_RADIUS, i * 0.004);
+      mesh.userData.home = new Vector3(Math.sin(angle) * FAN_RADIUS, (Math.cos(angle) - 1) * FAN_RADIUS * FAN_CURVE, i * 0.004);
     });
     refreshHandLook(next);
   }
@@ -1057,16 +1402,35 @@ export function createUnoScene(canvas) {
     for (const mesh of handCards.values()) {
       const { home, angle, order, playable } = mesh.userData;
       const focused = mesh.userData.cardId === (selectedId ?? hoverId);
+      mesh.renderOrder = focused ? 60 : 20 + order;
+      // A kept card stays hidden until the drawn card has flown up to where it waits.
+      mesh.visible = !(mesh.userData.holdUntil > now);
+      if (!mesh.visible) continue;
       const lift = focused ? 0.3 : playable ? 0.06 : 0;
-      handAim.set(home.x - Math.sin(angle) * (focused ? -0.02 : 0), home.y + lift, home.z + (focused ? 0.12 : 0));
+      handAim.set(home.x - Math.sin(angle) * (focused ? -0.02 : 0), home.y + lift + (focused ? swipeLift : 0), home.z + (focused ? 0.12 : 0));
       mesh.position.lerp(handAim, ease);
-      mesh.rotation.z += (-angle * (focused ? 0.4 : 1) - mesh.rotation.z) * ease;
+      mesh.rotation.z += (-angle * FAN_TILT * (focused ? 0.4 : 1) - mesh.rotation.z) * ease;
       const scale = HAND_CARD_SCALE * (focused ? 1.18 : 1);
       mesh.scale.setScalar(mesh.scale.x + (scale - mesh.scale.x) * ease);
       mesh.renderOrder = focused ? 60 : 20 + order;
       mesh.userData.glow.renderOrder = mesh.renderOrder - 0.5;
       // Playable cards glow: on your turn, or out of turn when they're a jump-in.
       mesh.userData.glow.material.opacity = playable ? pulse + handFlash * 0.5 : myTurn ? handFlash * 0.4 : 0;
+    }
+
+    // The card you drew, waiting above your hand; theirs, face down in front of them.
+    const reveal = now >= centreRevealAt;
+    myCentre.visible = centreWanted === 'mine' && reveal;
+    theirCentre.visible = centreWanted === 'theirs' && reveal;
+    if (myCentre.visible) {
+      const focused = hoverId === myCentre.userData.cardId || selectedId === myCentre.userData.cardId;
+      myCentre.scale.setScalar(myCentre.scale.x + (HAND_CARD_SCALE * (focused ? 1.5 : 1.35) - myCentre.scale.x) * ease);
+      myCentre.position.y = CENTRE_Y + Math.sin(now / 400) * 0.02;
+      myCentreGlow.material.opacity = myCentre.userData.playable ? pulse + 0.15 : 0;
+    }
+    if (theirCentre.visible) {
+      theirCentre.position.y = 0.85 + Math.sin(now / 400) * 0.03;
+      theirCentre.quaternion.copy(camera.quaternion);
     }
   }
 
@@ -1096,17 +1460,23 @@ export function createUnoScene(canvas) {
       syncHand(next);
       setTopCard(next.top);
       lastEventId = next.events[next.events.length - 1]?.id ?? null;
+      centreRevealAt = 0;
+      syncCentre(next);
+      syncPicker(next);
+      for (const seat of seats.values()) endEmote(seat);
       updateBillboards();
       return;
     }
-    syncHand(next);
     const fresh = next.events.filter((e) => lastEventId === null || e.id > lastEventId);
     lastEventId = next.events[next.events.length - 1]?.id ?? lastEventId;
+    const kept = fresh.some((e) => e.type === 'keep' && e.player === me);
+    const drewToCentre = fresh.some((e) => e.type === 'draw' && e.reason === 'centre');
+    syncHand(next, { kept, keptDelay: drewToCentre ? 450 : 0 });
     let playedTop = false;
-    fresh.forEach((event) => {
-      if (event.type === 'play' && event.card.id === next.top.id) playedTop = true;
-      playEvent(event, true);
-    });
+    for (const event of fresh) if (event.type === 'play' && event.card.id === next.top.id) playedTop = true;
+    playEvents(fresh, true);
+    syncCentre(next);
+    syncPicker(next);
     if (!playedTop) setTopCard(next.top);
     leftHand.clear();
 
@@ -1119,18 +1489,34 @@ export function createUnoScene(canvas) {
     updateBillboards();
   }
 
-  function canDraw() {
-    return Boolean(view) && view.turn === view.you && view.winner === null && view.swapPending === null && view.drawnCardId === null;
+  function syncCentre(next) {
+    if (next.drawn && next.winner === null) {
+      centreWanted = 'mine';
+      myCentre.material.map = kit.cardFace(next.drawn);
+      myCentre.material.needsUpdate = true;
+      myCentre.userData.cardId = next.drawn.id;
+      myCentre.userData.playable = next.playable.includes(next.drawn.id);
+    } else if (next.drawnPending && next.winner === null && next.turn !== next.you) {
+      centreWanted = 'theirs';
+      theirCentre.position.copy(centrePoint(next.turn));
+    } else {
+      centreWanted = null;
+    }
   }
+
+  const canDraw = () => Boolean(view?.canDraw);
 
   function updateBillboards() {
     if (!view) return;
     const ready = canDraw();
-    const text = view.pendingDraw ? `Draw ${view.pendingDraw}` : 'Draw';
+    const pending = view.pending;
+    const text = pending ? (pending.kind === 'draw' ? `Take ${pending.amount}` : 'Take the skip') : view.drewThisTurn ? 'Draw again' : 'Draw';
     drawLabel.draw(`${ready}:${text}`, (ctx, w, h) => ready && drawBanner(ctx, w, h, text, '#FFD84D', INK));
     drawLabel.sprite.visible = ready;
-    const stacked = view.pendingDraw > 0 && view.winner === null;
-    stackLabel.draw(`${view.pendingDraw}`, (ctx, w, h) => stacked && drawBanner(ctx, w, h, `+${view.pendingDraw} stacked`, UNO_COLORS.red));
+    const stacked = Boolean(pending) && view.winner === null;
+    // Just the amount: who it's aimed at is on the turn marker and in the log.
+    const label = pending ? (pending.kind === 'draw' ? `+${pending.amount}` : '⊘ Skip') : '';
+    stackLabel.draw(label, (ctx, w, h) => stacked && drawBanner(ctx, w, h, label, UNO_COLORS.red));
     stackLabel.sprite.visible = stacked;
   }
 
@@ -1205,6 +1591,15 @@ export function createUnoScene(canvas) {
   function pick(x, y) {
     ndc.set(x, -y);
     raycaster.setFromCamera(ndc, camera);
+    if (colorWheel.visible) {
+      const hit = raycaster.intersectObjects(colorPads, false)[0];
+      if (hit) return { type: 'color', color: hit.object.userData.color, playable: true };
+    }
+    if (targetArrows.visible) {
+      const hit = raycaster.intersectObjects(targetArrows.children, true)[0];
+      if (hit) return { type: 'target', index: hit.object.parent.userData.index, playable: true };
+    }
+    if (myCentre.visible && raycaster.intersectObject(myCentre, false).length) return { type: 'drawn', id: myCentre.userData.cardId, playable: Boolean(myCentre.userData.playable) };
     const handHits = raycaster.intersectObjects([...handCards.values()], false);
     if (handHits.length) {
       // Cards overlap: the one drawn on top wins, not the nearest.
@@ -1217,18 +1612,25 @@ export function createUnoScene(canvas) {
 
   function setHover(x, y) {
     const hit = pick(x, y);
-    hoverId = hit?.type === 'card' ? hit.id : null;
+    hoverId = hit?.type === 'card' || hit?.type === 'drawn' ? hit.id : null;
+    pickHover = hit?.type === 'color' || hit?.type === 'target' ? hit : null;
     hoverDeck = hit?.type === 'deck';
     return hit;
   }
 
   function clearHover() {
+    pickHover = null;
     hoverId = null;
     hoverDeck = false;
   }
 
   function setSelected(id) {
     selectedId = id;
+  }
+
+  // A swipe in progress pulls the lifted card up after the finger (0 to 1 of the way to playing it).
+  function setSwipe(amount) {
+    swipeLift = MathUtils.clamp(amount, 0, 1) * 0.35;
   }
 
   // ─── Sizing ─────────────────────────────────────────────────────────
@@ -1248,7 +1650,7 @@ export function createUnoScene(canvas) {
     // The hand sits along the bottom of the view, and shrinks on narrow screens.
     const fit = MathUtils.clamp(handHalfWidth / 1.25, 0.55, 1);
     hand.scale.setScalar(fit);
-    hand.position.set(0, -halfHeight + 0.3 * fit, -HAND_DEPTH);
+    hand.position.set(0, -halfHeight + 0.34 * fit, -HAND_DEPTH);
     if (view) syncHand(view);
   }
 
@@ -1297,13 +1699,12 @@ export function createUnoScene(canvas) {
     camera.rotation.set(basePitch + look.pitch, look.yaw, 0);
 
     updateHand(dt, now);
+    animatePicker(now, dt);
 
     for (const [index, seat] of seats) {
       const t = now / 1000 + seat.phase;
-      const { body, head, face, faceOpen, faceClosed, arms, antenna, robot } = seat.avatar.userData;
+      const { body, head, face, faceOpen, faceClosed, antenna, robot } = seat.avatar.userData;
       body.scale.y = 1 + Math.sin(t * 2) * (robot ? 0.01 : 0.02);
-      arms[0].rotation.x = -1.0 + Math.sin(t * 1.7) * 0.05;
-      arms[1].rotation.x = -1.0 + Math.sin(t * 1.7 + 1) * 0.05;
       if (antenna) antenna.position.x = Math.sin(t * 3) * 0.02;
 
       const their = looks.get(index);
@@ -1315,6 +1716,7 @@ export function createUnoScene(canvas) {
 
       if (now > seat.blinkAt + 140) seat.blinkAt = now + 2000 + Math.random() * 3000;
       face.material = now > seat.blinkAt ? faceClosed : faceOpen;
+      playEmote(seat, now);
       // Name tags bob gently, more when it's that player's turn.
       seat.tag.sprite.position.y = seat.tag.homeY + Math.sin(t * (turn === index ? 5 : 1.5)) * (turn === index ? 0.05 : 0.015);
     }
@@ -1354,6 +1756,7 @@ export function createUnoScene(canvas) {
     setHover,
     clearHover,
     setSelected,
+    setSwipe,
     resize,
     dispose() {
       running = false;
@@ -1369,6 +1772,8 @@ export function createUnoScene(canvas) {
       particles.dispose();
       drawLabel.dispose();
       stackLabel.dispose();
+      pickLabel.dispose();
+      for (const arrow of targetArrows.children) arrow.userData.material.dispose();
       disposeGroup(scene);
       scene.traverse((obj) => obj.isMesh && obj.geometry.dispose());
       for (const geometry of [cardGeometry, popupGeometry, confettiGeometry, ringGeometry, glowGeometry]) geometry.dispose();

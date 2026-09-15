@@ -164,6 +164,8 @@ export const HATS = [
   { id: 'clips', label: 'Hair clips' },
   { id: 'headphones', label: 'Headphones' },
   { id: 'goggles', label: 'Goggles' },
+  { id: 'traffic-cone', label: 'Traffic cone' },
+  { id: 'pail', label: 'Bucket' },
 ];
 export const EYEWEAR = [
   { id: 'none', label: 'None' },
@@ -434,6 +436,8 @@ export function hairline(style, az) {
   const t = Math.min(1, Math.abs(az) / Math.PI);
   const backStart = style.backStart ?? 0.5;
   let reach = t < backStart ? lerp(style.front, style.side, smooth(t / backStart)) : lerp(style.side, style.back, smooth((t - backStart) / (1 - backStart)));
+  // The face is flatter than a sphere, so the front sits a little higher to keep the eyes clear.
+  reach -= 0.06 * Math.max(0, 1 - t * 2);
   const frontness = Math.max(0, 1 - t * 2.4);
   if (style.jag) reach += style.jag * frontness * Math.abs(tri((az / Math.PI) * style.strands));
   if (style.part) reach += style.part * Math.sin(az) * frontness;
@@ -456,7 +460,7 @@ export function maxHairline(style) {
 
 // How far the hair stands off the head.
 export const hairGrow = (style, frac = 0) => ((style.volume ?? 1) - 1) * 0.45 + (style.puff ?? 0) * Math.max(0, Math.cos(frac * Math.PI)) ** 2;
-export const hairTop = (style) => (style.none ? HEAD.y : HEAD.y + hairGrow(style, 0) + (style.lift ?? 0) * 0.5);
+export const hairTop = (style) => (style.none ? HEAD.y : HEAD.y + Math.max(hairGrow(style, 0), ...(style.layers ?? []).map((layer) => hairGrow(layer, 0))) + (style.lift ?? 0) * 0.5);
 
 // A point on the hair surface, `frac` down from the crown at azimuth `az`,
 // pushed `out` further from the head. Returns [x, y, z] from the head's centre.

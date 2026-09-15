@@ -9,6 +9,24 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.4.0',
+    date: '2026-09-15',
+    title: 'Avatars remade, with clothes',
+    changes: [
+      { type: 'improved', text: 'Avatars have a new chibi build: a wide, soft-cornered head instead of a round one, and a short straight body with stubby arms and legs.' },
+      { type: 'new', text: 'Clothes: T-shirts, tank tops, long sleeves, turtlenecks, hoodies, jackets, sailor tops, dresses and overalls, with stripes, spots, checks or a print, plus trousers, shorts or skirts and three kinds of shoes, all in any colour.' },
+      { type: 'new', text: 'New sketchbook-style eyes (empty, tired, lashes, bright, gentle, glossy, serene, shocked), and fewer anime ones.' },
+      { type: 'new', text: 'Move your features like a Mii: eye height, spacing, size and tilt, eyebrow and nose height, mouth height and size.' },
+      { type: 'improved', text: 'Hairstyles rebuilt: the bowl cut, wolf cut and mullet have their real shapes, the mohawk is a crest over shaved sides, and long hair hangs down your back. New pixie, fluffy, side part and wavy styles.' },
+      { type: 'new', text: 'More accessories: bucket hats, berets, straw, top, witch, party and frog hats, bunny and bear ears, a leaf, hair clips, goggles, bow ties, bell collars, necklaces, bandanas, face and fox masks, backpacks, wings, capes and tails, plus a cartilage piercing.' },
+      { type: 'improved', text: 'Glasses are big and round now, with new cat-eye, heart, star and swirly frames.' },
+      { type: 'improved', text: 'Rosy cheeks are one of the marks, next to new eye bags, tears, whiskers and a star sticker.' },
+      { type: 'new', text: 'Customise your games avatar and name from Settings, without opening a game.' },
+      { type: 'improved', text: 'Lobby portraits are rendered from the 3D model, so they show everything you wear.' },
+      { type: 'removed', text: 'Robot avatars are only for computer players now. Saved robot looks are no longer listed.' },
+    ],
+  },
+  {
     version: '1.3.0',
     date: '2026-09-15',
     title: 'Game layout, nearby play and new avatars',
