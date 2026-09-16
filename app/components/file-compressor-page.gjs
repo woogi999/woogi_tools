@@ -7,6 +7,7 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
 import { FORMATS, compressBytes, decompressBytes } from '../utils/codec';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 const EXT = { gzip: 'gz', deflate: 'zz', 'deflate-raw': 'raw', brotli: 'br', zstd: 'zst' };
 const eq = (a, b) => a === b;
@@ -140,9 +141,11 @@ export default class FileCompressorPage extends Component {
     this.busy = false;
   };
 
+  pasteFiles = (files) => this.addFiles(files);
+
   <template>
     <ToolPage @route="file-compressor" @subtitle="Shrink any file with gzip, deflate, brotli or zstd, or unpack one. Right here in your browser.">
-      <div class="fs">
+      <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
           <div class="tool-controls">
             <div class="mode-toggle" role="group" aria-label="Mode">

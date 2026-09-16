@@ -7,6 +7,8 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
 import { parsePageRanges } from '../utils/page-ranges';
+import { acceptPastedFiles } from '../utils/paste-files';
+import PrintButton from './print-button';
 
 const eq = (a, b) => a === b;
 // The pre-bundled build inlines its font data, which Vite's dev optimizer can't parse from the raw package.
@@ -196,9 +198,11 @@ export default class PdfToolsPage extends Component {
     return { blob: new Blob([zip], { type: 'application/zip' }), name: `${base}-split.zip` };
   }
 
+  pasteFiles = (files) => this.addFiles(files);
+
   <template>
     <ToolPage @route="pdf-tools" @subtitle="Merge PDFs, pick just the pages you need, or split one into several files. Your files never leave your device.">
-      <div class="fs">
+      <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
           <div class="math-tabs" role="group" aria-label="Mode">
             <button type="button" class="qr-tab {{if this.isMerge 'active'}}" {{on "click" (fn this.setMode "merge")}}>Merge</button>
@@ -260,6 +264,7 @@ export default class PdfToolsPage extends Component {
               <button type="button" class="btn active" disabled={{if this.canRun false true}} {{on "click" this.run}}>{{if this.busy "Working…" (if this.isMerge "Merge PDFs" "Split PDF")}}</button>
               {{#if this.result}}
                 <a class="btn fs-save" href={{this.result.url}} download={{this.result.name}}><Icon @name="download" @size={{13}} /> Save {{this.result.name}} ({{formatBytes this.result.size}})</a>
+                <PrintButton @url={{this.result.url}} @name={{this.result.name}} />
               {{/if}}
             </div>
           </div>

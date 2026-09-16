@@ -2272,3 +2272,326 @@
   border-radius: var(--radius-control);
   border: 1px solid var(--border-color);
 }
+
+// ─── New tools: stitcher, watermarker, recorder, trimmer, ciphers ──────
+
+.fc-folder {
+  align-self: flex-start;
+}
+
+// The checkered board behind a preview, so see-through bits are obvious.
+.stitch-preview {
+  display: flex;
+  justify-content: center;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background-color: var(--bg-elevated-2);
+  background-image:
+    linear-gradient(45deg, rgb(128 128 128 / 18%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(128 128 128 / 18%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(128 128 128 / 18%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(128 128 128 / 18%) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  overflow: auto;
+}
+
+.stitch-canvas {
+  max-width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.stitch-index {
+  flex-shrink: 0;
+  min-width: 22px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+// Cipher picker: a wrapping row of small tabs.
+.cipher-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cipher-output {
+  margin: 0;
+  padding: 10px 12px;
+  min-height: 64px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated-2);
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+// Screen recorder.
+.rec-stage {
+  position: relative;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: #101010;
+  overflow: hidden;
+}
+
+.rec-preview,
+.rec-result {
+  display: block;
+  width: 100%;
+  max-height: 58vh;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #101010;
+}
+
+.rec-result {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  aspect-ratio: auto;
+}
+
+.rec-dot {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e5484d;
+  box-shadow: 0 0 0 3px rgb(229 72 77 / 25%);
+  animation: rec-blink 1.2s ease-in-out infinite;
+}
+
+.rec-dot.is-paused {
+  background: #f2b90d;
+  animation: none;
+}
+
+@keyframes rec-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.rec-clock {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-dot {
+    animation: none;
+  }
+}
+
+// Trimmer.
+.trim-player {
+  width: 100%;
+  max-height: 52vh;
+  border-radius: var(--radius-control);
+  background: #101010;
+}
+
+.trim-track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.trim-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--text);
+  opacity: 0.55;
+}
+
+// Small inline players in the audio/video lists.
+.media-preview {
+  max-width: 220px;
+  height: 34px;
+}
+
+video.media-preview {
+  height: auto;
+  max-height: 80px;
+}
+
+// ─── Writing, braille, subtitles, metadata, archives ───────────────────
+
+.stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.stat-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  font-size: 0.9em;
+}
+
+.issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issue {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-left: 3px solid #e5484d;
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated-2);
+}
+
+// Style notes aren't mistakes, so they're marked more gently.
+.issue.is-style {
+  border-left-color: #f2b90d;
+}
+
+.issue-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.issue-message {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.issue-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+// Braille: six dots in two columns of three, drawn in the reading order.
+.cipher-output.is-braille {
+  font-size: 1.6em;
+  line-height: 1.5;
+}
+
+.braille-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated-2);
+}
+
+.braille-cell {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(3, 10px);
+  grid-template-columns: repeat(2, 10px);
+  gap: 3px;
+}
+
+.braille-gap {
+  width: 12px;
+}
+
+.braille-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: transparent;
+}
+
+.braille-dot.is-on {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+// Subtitles.
+.cue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.cue {
+  display: flex;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated-2);
+}
+
+.cue-time {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cue-text {
+  word-break: break-word;
+}
+
+// What was hiding inside a file.
+.meta-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 4px 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.meta-field {
+  display: flex;
+  gap: 6px;
+  justify-content: space-between;
+  border-bottom: 1px dashed var(--border-color);
+  font-size: 0.92em;
+}
+
+.meta-value {
+  text-align: right;
+  word-break: break-word;
+}
+
+.fs-row.is-stacked {
+  align-items: flex-start;
+}

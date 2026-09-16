@@ -6,6 +6,7 @@ import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 const MODELS = [
   { id: 'small', label: 'Fast (smaller download)' },
@@ -101,9 +102,12 @@ export default class BackgroundRemoverPage extends Component {
     }
   };
 
+  // Ctrl+V: paste screenshots or copied image files straight in.
+  pasteFiles = (files) => this.addFiles(files);
+
   <template>
     <ToolPage @route="background-remover" @subtitle="Drop in a photo and the background disappears. It all happens on your device, so your pics stay yours.">
-      <div class="fs">
+      <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
           <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>
             <Icon @name="eraser" @size={{22}} />

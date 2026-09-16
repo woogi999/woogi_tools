@@ -6,6 +6,8 @@ import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
+import { acceptPastedFiles } from '../utils/paste-files';
+import PrintButton from './print-button';
 
 const FORMATS = [
   { id: 'same', label: 'Same as original' },
@@ -177,9 +179,11 @@ export default class ImageResizerPage extends Component {
     this.busy = false;
   };
 
+  pasteFiles = (files) => this.addFiles(files);
+
   <template>
     <ToolPage @route="image-resizer" @subtitle="Drop in your images, pick a size and quality, and download them smaller. Works on lots at once.">
-      <div class="fs">
+      <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
           <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>
             <Icon @name="image" @size={{22}} />
@@ -236,7 +240,7 @@ export default class ImageResizerPage extends Component {
                     {{#if item.error}}<span class="tool-error">{{item.error}}</span>{{/if}}
                   </div>
                   <div class="fs-row-status">
-                    {{#if item.url}}<a class="btn fs-save" href={{item.url}} download={{item.name}}><Icon @name="download" @size={{13}} /> Save</a>{{/if}}
+                    {{#if item.url}}<a class="btn fs-save" href={{item.url}} download={{item.name}}><Icon @name="download" @size={{13}} /> Save</a><PrintButton @url={{item.url}} @name={{item.name}} />{{/if}}
                   </div>
                   <button type="button" class="fs-remove" aria-label="Remove {{item.file.name}}" {{on "click" (fn this.remove item.id)}}><Icon @name="x" @size={{13}} /></button>
                 </li>

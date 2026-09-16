@@ -7,6 +7,7 @@ import Icon from './icon';
 import CopyButton from './copy-button';
 import { ALGORITHMS } from '../utils/hash';
 import { formatBytes } from '../utils/file-share';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 const eq = (a, b) => a === b;
 
@@ -88,9 +89,11 @@ export default class HashGeneratorPage extends Component {
   setExpected = (e) => (this.expected = e.target.value);
   toggleUppercase = () => (this.uppercase = !this.uppercase);
 
+  pasteFiles = (files) => this.pickFile(files[0]);
+
   <template>
     <ToolPage @route="hash-generator" @subtitle="Hash text or a file with MD5, SHA-1, SHA-2 or CRC-32, then compare it to a checksum to make sure nothing’s been tampered with.">
-      <div class="math-grid text-tool pop-in">
+      <div class="math-grid text-tool pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
           <div class="math-tabs" role="group" aria-label="Input">
             <button type="button" class="qr-tab {{if (eq this.source 'text') 'active'}}" {{on "click" (fn this.setSource "text")}}>Text</button>

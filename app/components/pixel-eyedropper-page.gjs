@@ -9,6 +9,7 @@ import Icon from './icon';
 import ColourField from './colour-field';
 import CopyButton from './copy-button';
 import { toHex, parseHex, rgbToHsl } from '../utils/color';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 const HISTORY_LIMIT = 16;
 
@@ -126,9 +127,11 @@ export default class PixelEyedropperPage extends Component {
 
   useHistory = (hex) => this.setHex(hex);
 
+  pasteFiles = (files) => this.openFile(files[0]);
+
   <template>
     <ToolPage @route="pixel-eyedropper" @subtitle="Upload an image and click anywhere to grab that exact colour. Colour thief mode: on.">
-      <div class="math-grid pop-in">
+      <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
           <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOver}} {{on "drop" this.drop}}>
             {{#unless this.bitmap}}

@@ -28,6 +28,29 @@ import { CommandError } from '../utils/debug-commands';
 import { MAX_PLAYERS, FIELDS, PLAYER_COLORS, HIDDEN, EXPLODED, DROP_MS, BLAST_RADIUS, BLAST_RADIUS_RANGE, MINE_PERCENT_RANGE, BOT_LEVELS, createGame, dig, toggleFlag, removePlayer, walk, tick, viewOf, botStep, tileAt, themeOf } from '../utils/minesweeper';
 import { sfx, preloadSounds } from '../utils/sound';
 
+// Views go over the wire packed small: PeerJS refuses a JSON message over ~16 KB and errors the
+// connection, which drops the player. A big field (with every mine added once the game's over)
+// went past that. Cells become one character each; flags and mines only list the tiles that have them.
+function packView(view) {
+  const flags = [];
+  view.flags.forEach((owner, i) => owner && flags.push(i, owner));
+  const mines = [];
+  view.mines?.forEach((mine, i) => mine && mines.push(i));
+  return { ...view, cells: view.cells.map((c) => String.fromCharCode(c + 49)).join(''), flags, mines: view.mines ? mines : null };
+}
+
+function unpackView(packed) {
+  const count = packed.width * packed.height;
+  const flags = Array(count).fill(null);
+  for (let i = 0; i + 1 < packed.flags.length; i += 2) flags[packed.flags[i]] = packed.flags[i + 1];
+  let mines = null;
+  if (packed.mines) {
+    mines = Array(count).fill(false);
+    for (const i of packed.mines) mines[i] = true;
+  }
+  return { ...packed, cells: Array.from(packed.cells, (ch) => ch.charCodeAt(0) - 49), flags, mines };
+}
+
 // Minimap number colours (the same as on the tiles).
 const MAP_NUMBER_COLORS = ['', '#2f6fe0', '#2e9e4f', '#e5484d', '#3a3fa8', '#9b2c2c', '#15999a', '#141414', '#7a7a7a'];
 
@@ -243,8 +266,14 @@ export default class MinesweeperPage extends Component {
     return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   }
 
-  get lowTime() {
-    return (this.view?.timeLeft ?? Infinity) <= 30000 && this.view?.status === 'playing';
+  // The clock grows and beats harder as the time goes: a minute left, then half a minute, then the last ten seconds.
+  get timeClass() {
+    if (this.view?.status !== 'playing') return '';
+    const left = this.view?.timeLeft ?? Infinity;
+    if (left <= 10000) return 'is-warn is-low is-final';
+    if (left <= 30000) return 'is-warn is-low';
+    if (left <= 60000) return 'is-warn';
+    return '';
   }
 
   get minesLeft() {
@@ -354,7 +383,7 @@ export default class MinesweeperPage extends Component {
   publish(send) {
     const view = viewOf(this.state);
     this.show(view);
-    if (send && this.room.isOnline) this.room.send({ type: 'view', view });
+    if (send && this.room.isOnline) this.room.send({ type: 'view', view: packView(view) });
   }
 
   show(view) {
@@ -935,7 +964,7 @@ export default class MinesweeperPage extends Component {
       return;
     }
     if (message.type === 'view') {
-      const view = message.view;
+      const view = unpackView(message.view);
       const fresh = !this.latest || (view.status === 'drop' && this.latest.status !== 'drop');
       if (fresh || !this.me) {
         const mine = view.players.find((p) => p.id === this.myId);
@@ -960,7 +989,7 @@ export default class MinesweeperPage extends Component {
 
             <div class="uno-overlay uno-top-left arcade-scores">
               <div class="mines-hud">
-                <span class="arcade-chip {{if this.lowTime 'is-low'}}"><Icon @name="timer" @size={{14}} /> <strong>{{this.clock}}</strong></span>
+                <span class="arcade-chip mines-clock {{this.timeClass}}"><Icon @name="timer" @size={{14}} /> <strong>{{this.clock}}</strong></span>
                 <span class="arcade-chip"><Icon @name="bomb" @size={{14}} /> <strong>{{this.minesLeft}}</strong></span>
                 <span class="arcade-chip"><Icon @name="shovel" @size={{14}} /> <strong>{{this.tilesLeft}}</strong></span>
                 {{#if this.staminaOn}}
