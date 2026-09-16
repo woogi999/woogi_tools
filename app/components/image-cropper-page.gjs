@@ -7,6 +7,8 @@ import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { CROP_PRESETS } from '../utils/social-presets';
+import { acceptPastedFiles } from '../utils/paste-files';
+import PrintButton from './print-button';
 
 const GROUPS = groupByPlatform(CROP_PRESETS);
 const eq = (a, b) => a === b;
@@ -201,9 +203,11 @@ export default class ImageCropperPage extends Component {
     }, 'image/png');
   };
 
+  pasteFiles = (files) => this.openFile(files[0]);
+
   <template>
     <ToolPage @route="image-cropper" @subtitle="Drag, zoom and crop to an exact size, with presets for socials and a live preview so nothing gets cut off.">
-      <div class="math-grid pop-in">
+      <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
           <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOverFile}} {{on "drop" this.dropFile}}>
             {{#unless this.bitmap}}
@@ -255,7 +259,7 @@ export default class ImageCropperPage extends Component {
             <p class="tool-hint">Drag to reposition, and use the zoom slider to get in closer.</p>
             <div class="settings-actions">
               <button type="button" class="btn active" {{on "click" this.crop}}>Crop</button>
-              {{#if this.resultUrl}}<a class="btn fs-save" href={{this.resultUrl}} download="{{this.fileName}}-{{this.targetW}}x{{this.targetH}}.png"><Icon @name="download" @size={{13}} /> Save</a>{{/if}}
+              {{#if this.resultUrl}}<a class="btn fs-save" href={{this.resultUrl}} download="{{this.fileName}}-{{this.targetW}}x{{this.targetH}}.png"><Icon @name="download" @size={{13}} /> Save</a><PrintButton @url={{this.resultUrl}} @name="{{this.fileName}}.png" />{{/if}}
             </div>
           {{else}}
             <p class="tool-hint">Upload an image to start cropping.</p>

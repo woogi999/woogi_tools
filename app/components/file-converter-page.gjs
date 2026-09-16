@@ -8,6 +8,9 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import { detectFormat, targetGroups, defaultTarget, canConvert, routeDescription, convertFile, CATEGORY_ORDER, categoryLabel, formatsIn } from '../utils/converters/index';
 import { formatBytes } from '../utils/file-share';
+import { collectDrop, groupByFolder, zipFolder } from '../utils/folder-zip';
+import { acceptPastedFiles } from '../utils/paste-files';
+import PrintButton from './print-button';
 
 const ICON_BY_CATEGORY = { image: 'image', raw: 'image', audio: 'music', video: 'video', document: 'file-text', data: 'braces', archive: 'file-archive', font: 'type' };
 const eq = (a, b) => a === b;
@@ -27,6 +30,7 @@ let nextId = 1;
 export default class FileConverterPage extends Component {
   @tracked items = [];
   @tracked dragging = false;
+  @tracked zipStatus = '';
 
   supported = SUPPORTED;
 
@@ -76,15 +80,43 @@ export default class FileConverterPage extends Component {
     event.target.value = '';
   };
 
+  // A picked folder comes through as its files, each with the path it came from.
+  selectFolder = (event) => {
+    const { loose, folders } = groupByFolder(event.target.files);
+    this.addFiles(loose);
+    this.addFolders(folders);
+    event.target.value = '';
+  };
+
+  // Folders can't be converted as they are, so each one is zipped first and the zip joins the list.
+  async addFolders(folders) {
+    for (const folder of folders) {
+      if (!folder.files.length) continue;
+      try {
+        const file = await zipFolder(folder, {
+          onProgress: (p) => (this.zipStatus = `Zipping ${folder.name}… ${Math.round(p * 100)}%`),
+        });
+        this.addFiles([file]);
+      } catch {
+        this.zipStatus = `${folder.name} couldn’t be zipped.`;
+        setTimeout(() => (this.zipStatus = ''), 4000);
+        continue;
+      }
+      this.zipStatus = '';
+    }
+  }
+
   dragOver = (event) => {
     event.preventDefault();
     this.dragging = event.type === 'dragover';
   };
 
-  dropFiles = (event) => {
+  dropFiles = async (event) => {
     event.preventDefault();
     this.dragging = false;
-    this.addFiles(event.dataTransfer.files);
+    const { loose, folders } = await collectDrop(event.dataTransfer);
+    this.addFiles(loose);
+    this.addFolders(folders);
   };
 
   setTarget = (id, event) => this.update(id, { target: event.target.value });
@@ -124,16 +156,23 @@ export default class FileConverterPage extends Component {
 
   convertAll = () => this.readyItems.forEach((item) => this.convert(item.id));
 
+  pasteFiles = (files) => this.addFiles(files);
+
   <template>
     <ToolPage @route="file-converter" @subtitle="Images, RAW photos, audio, video, documents, data, archives, fonts… pick a format and convert. It all runs on your device.">
-      <div class="fs">
+      <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
           <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.dropFiles}}>
             <Icon @name="file-symlink" @size={{22}} />
-            <span>{{if this.dragging "Drop files here" "Drop any files, or click to browse"}}</span>
+            <span>{{if this.dragging "Drop them here" "Drop any files or folders, or click to browse"}}</span>
             <input type="file" multiple class="sr-only" {{on "change" this.selectFiles}} />
           </label>
-          <p class="tool-hint">Big engines (images, audio/video, documents) download the first time you need them, then stay cached for the visit.</p>
+          <label class="btn fc-folder">
+            <Icon @name="folder" @size={{14}} /> Add a folder
+            <input type="file" webkitdirectory directory multiple class="sr-only" {{on "change" this.selectFolder}} />
+          </label>
+          {{#if this.zipStatus}}<p class="tool-hint">{{this.zipStatus}}</p>{{/if}}
+          <p class="tool-hint">Drop a folder and it's zipped for you, ready to convert or save. Big engines (images, audio/video, documents) download the first time you need them, then stay cached for the visit.</p>
         </div>
 
         {{#if this.items.length}}
@@ -195,6 +234,7 @@ const ConvertRow = <template>
         <div class="fs-progress"><div class="fs-progress-bar" style={{progressWidth @item.progress}}></div></div>
       {{else if (eq @item.status "done")}}
         <a class="btn fs-save" href={{@item.resultUrl}} download={{@item.resultName}}><Icon @name="download" @size={{13}} /> Save</a>
+        <PrintButton @url={{@item.resultUrl}} @name={{@item.resultName}} />
         <button type="button" class="btn" {{on "click" @onReset}}>Again</button>
       {{else}}
         <select class="select" aria-label="Convert {{@item.file.name}} to" {{on "change" @onSetTarget}}>

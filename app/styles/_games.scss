@@ -1738,9 +1738,35 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .arcade-chip.is-low {
+  .arcade-chip.is-low,
+  .mines-clock.is-final {
     animation: none;
   }
+}
+
+.mines-clock {
+  transform-origin: left center;
+  transition:
+    transform 0.25s ease,
+    font-size 0.25s ease;
+}
+
+// The clock grows as the time runs out: a minute left, then thirty seconds, then the last ten.
+.mines-clock.is-warn {
+  border-color: #f2b90d;
+  color: #f2b90d;
+  font-size: 1.15em;
+}
+
+.mines-clock.is-warn.is-low {
+  border-color: #e5484d;
+  color: #e5484d;
+  font-size: 1.45em;
+}
+
+.mines-clock.is-final {
+  font-size: 1.85em;
+  animation: mines-pulse 0.5s ease-in-out infinite;
 }
 
 .mines-scores .snake-score {
@@ -2934,6 +2960,12 @@ main:has(> .tool-slot .container.is-game) {
   font-family: var(--font-mono);
   font-size: 0.72rem;
   resize: vertical;
+}
+
+.nearby-live {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .nearby-scan {

@@ -12,6 +12,7 @@ import Icon from './icon';
 import CopyButton from './copy-button';
 import { generateRoomCode, buildShareUrl, roomCodeFromUrl, formatBytes } from '../utils/file-share';
 import { directPeerOptions } from '../utils/ice';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 // Files are sliced and sent one piece at a time so neither side ever has to
 // hold more than one piece of a large file in memory at once, and so the
@@ -354,9 +355,11 @@ export default class FileSharePage extends Component {
     }
   }
 
+  pasteFiles = (files) => this.addFiles(files);
+
   <template>
     <ToolPage @route="file-share" @subtitle="Drop a file, share the code, and it goes straight from your browser to theirs over an encrypted link. Nothing sits on a server.">
-      <div class="fs">
+      <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <p class="fs-warning" role="note"><Icon @name="triangle-alert" @size={{15}} /> <span><strong>Only share with people you trust.</strong> Files go directly between your devices for speed, so the other person's browser can see your IP address (roughly where you are and which network you're on).</span></p>
         {{#unless this.active}}
           <div class="fs-frame pop-in">

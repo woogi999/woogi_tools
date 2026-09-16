@@ -11,6 +11,7 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import ColourField from './colour-field';
 import { wifiPayload, vcardPayload, utf8Binary, looksLikeUrl, isValidUrl } from '../utils/qr';
+import { printFile } from '../utils/print';
 
 const eq = (a, b) => a === b;
 const not = (a) => !a;
@@ -305,6 +306,9 @@ export default class QrCodePage extends Component {
 
   downloadSvg = async () => saveBlob(await this.svgBlob(), 'qr-code.svg');
 
+  // Straight to a printer, handy for a QR you're sticking on something.
+  printQr = async () => printFile(await this.pngBlob(), { name: 'qr-code.png' });
+
   copyPng = async () => {
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': this.pngBlob() })]);
@@ -591,6 +595,7 @@ export default class QrCodePage extends Component {
                 <div class="qr-grid-3 qr-exports">
                   <button type="button" class="qr-export is-primary" disabled={{this.noQr}} {{on "click" this.downloadPng}}><Icon @name="download" @size={{16}} /> PNG</button>
                   <button type="button" class="qr-export" disabled={{this.noQr}} {{on "click" this.downloadSvg}}><Icon @name="download" @size={{16}} /> SVG</button>
+                  <button type="button" class="qr-export" disabled={{this.noQr}} {{on "click" this.printQr}}><Icon @name="printer" @size={{16}} /> Print</button>
                   <button type="button" class="qr-export" disabled={{this.noQr}} {{on "click" this.copyPng}}>
                     <Icon @name={{if this.copied "check" "copy"}} @size={{16}} /> {{if this.copied "Copied!" "Copy"}}
                   </button>

@@ -6,6 +6,7 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
 import { buildIco } from '../utils/ico';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 const PNG_SIZES = [16, 32, 48, 180, 192, 512];
 const ICO_SIZES = [16, 32, 48];
@@ -97,9 +98,11 @@ export default class FaviconGeneratorPage extends Component {
     this.openFile(e.dataTransfer.files?.[0]);
   };
 
+  pasteFiles = (files) => this.openFile(files[0]);
+
   <template>
     <ToolPage @route="favicon-generator" @subtitle="Drop in an image and get every favicon size a website needs, the .ico file and the HTML to link them.">
-      <div class="math-grid pop-in">
+      <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
           <label class="qr-drop" {{on "dragover" this.dragOver}} {{on "drop" this.drop}}>
             <Icon @name="app-window" @size={{22}} />

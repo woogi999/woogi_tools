@@ -7,6 +7,7 @@ import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { SLICE_PRESETS } from '../utils/social-presets';
+import { acceptPastedFiles } from '../utils/paste-files';
 
 const GROUPS = groupByPlatform(SLICE_PRESETS);
 const eq = (a, b) => a === b;
@@ -162,9 +163,11 @@ export default class ImageSlicerPage extends Component {
     this.zipUrl = URL.createObjectURL(new Blob([zipSync(entries, { level: 6 })], { type: 'application/zip' }));
   };
 
+  pasteFiles = (files) => this.openFile(files[0]);
+
   <template>
     <ToolPage @route="image-slicer" @subtitle="Slice a photo into a swipeable Instagram carousel or a profile grid, and preview it before you post.">
-      <div class="math-grid pop-in">
+      <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
           <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOverFile}} {{on "drop" this.dropFile}}>
             {{#unless this.bitmap}}

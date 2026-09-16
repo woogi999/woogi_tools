@@ -137,8 +137,17 @@ export function createMinesScene(canvas) {
     if (v.mines) v.mines.forEach((mine, i) => mine && !field.mines.has(i) && showMine(i, false));
   }
 
-  function showMine(i, exploded, defused = false) {
-    if (field.mines.has(i)) return;
+  // `armed` is a mine someone's defusing right now: it pops into sight so everyone can see what they're up to.
+  function showMine(i, exploded, defused = false, armed = false) {
+    const have = field.mines.get(i);
+    if (have) {
+      have.position.y = exploded ? OPEN_Y + 0.35 : HIDDEN_Y + 0.35;
+      if (exploded || defused) {
+        have.userData.armed = false;
+        have.scale.setScalar(1);
+      }
+      return;
+    }
     const mine = new Group();
     const ball = new Mesh(kit.geometry('mine-ball', () => new SphereGeometry(0.22, 14, 10)), kit.toon('#2b2b2b'));
     mine.add(withInk(ball));
@@ -165,6 +174,7 @@ export function createMinesScene(canvas) {
     const y = Math.floor(i / field.width);
     mine.position.set(worldX(x + 0.5), exploded ? OPEN_Y + 0.35 : HIDDEN_Y + 0.35, worldZ(y + 0.5));
     mine.scale.setScalar(0.001);
+    mine.userData.armed = armed;
     field.group.add(mine);
     field.mines.set(i, mine);
     tweens.add(calm ? 1 : 380, (t) => mine.scale.setScalar(Math.max(0.001, easeOut(t))), { delay: exploded ? 0 : Math.random() * 600 });
@@ -338,6 +348,8 @@ export function createMinesScene(canvas) {
         }
         if (!calm && (event.by === myId || Math.hypot(event.x + 0.5 - (me?.x ?? 0), event.y + 0.5 - (me?.y ?? 0)) < 5)) shake = event.by === myId ? 0.6 : 0.3;
       } else if (event.kind === 'defusing') {
+        // The mine pops up out of the tile, so everyone can see what's stopped them.
+        showMine(event.y * field.width + event.x, false, false, true);
         if (person?.avatar) startEmote(person, 'shocked');
         shockwaves.add(worldX(event.x + 0.5), HIDDEN_Y + 0.22, worldZ(event.y + 0.5), '#ff5050', { size: 1.4, duration: 400 });
       } else if (event.kind === 'defused') {
@@ -368,6 +380,25 @@ export function createMinesScene(canvas) {
   }
 
   // ─── Frame ─────────────────────────────────────────────────────────
+
+  // A mine being defused ticks away, swelling and shrinking. Once whoever's on it is done
+  // (defused, blown up, or it was only practice) it settles, or goes again if it was never a mine.
+  function pulseMines(now, v) {
+    const busy = new Set();
+    for (const p of v?.players ?? []) if (p.defusing) busy.add(p.defusing.y * field.width + p.defusing.x);
+    for (const [i, mine] of field.mines) {
+      if (!mine.userData.armed) continue;
+      if (busy.has(i)) {
+        mine.scale.setScalar(1 + Math.sin(now / 130) * 0.12);
+      } else if (v && v.cells[i] === HIDDEN && !v.mines?.[i]) {
+        mine.removeFromParent();
+        field.mines.delete(i);
+      } else {
+        mine.userData.armed = false;
+        mine.scale.setScalar(1);
+      }
+    }
+  }
 
   function drawTiles(now) {
     if (!field.animating.size) return;
@@ -513,6 +544,7 @@ export function createMinesScene(canvas) {
     if (!field) return;
     field.sea.update(now / 1000);
     drawTiles(now);
+    pulseMines(now, view);
     drawPeople(now, dt);
     for (const flag of field.flags.values()) flag.userData.cloth.rotation.y = Math.sin(now / 260 + flag.userData.phase) * 0.35;
     particles.tick(dt, camera, stage.renderer);
