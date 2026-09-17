@@ -4,6 +4,7 @@ import { on } from '@ember/modifier';
 import { pageTitle } from 'ember-page-title';
 import { LinkTo } from '@ember/routing';
 import { service } from '@ember/service';
+import { modifier } from 'ember-modifier';
 import SidebarNav from '../components/sidebar-nav';
 import CommandPalette from '../components/command-palette';
 import PipLayer from '../components/pip-layer';
@@ -14,10 +15,16 @@ import ConfirmHost from '../components/confirm-host';
 import { installUiSounds } from '../utils/ui-sounds';
 import { installGamepad } from '../utils/gamepad';
 
+// Below this scroll position the homepage's own big search box is still on
+// screen, so the sidebar's copy of the search and the logo would be redundant.
+const TOP_THRESHOLD = 24;
+
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
   @service offline;
+  @service router;
   @tracked navOpen = false;
+  @tracked atTop = true;
 
   constructor(owner, args) {
     super(owner, args);
@@ -27,6 +34,24 @@ export default class Application extends Component {
 
   toggleNav = () => (this.navOpen = !this.navOpen);
   closeNav = () => (this.navOpen = false);
+
+  // Tracks the page's scroll position so the sidebar can hide its copies of
+  // the homepage's own search box and logo while they're still in view, and
+  // bring them back once you scroll past (or leave the homepage).
+  watchScroll = modifier(() => {
+    const update = () => (this.atTop = window.scrollY < TOP_THRESHOLD);
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  });
+
+  get isHome() {
+    return this.router.currentRouteName === 'index';
+  }
+
+  get collapseBrand() {
+    return this.isHome && this.atTop;
+  }
 
   <template>
     {{pageTitle "Woogi Tools"}}
@@ -64,9 +89,11 @@ export default class Application extends Component {
         ></button>
       {{/if}}
 
-      <aside class="sidebar {{if this.navOpen 'is-open'}}">
+      <aside class="sidebar {{if this.navOpen 'is-open'}}" {{this.watchScroll}}>
         <LinkTo @route="index" class="sidebar-brand">
-          <span class="brand-logo-wrap">
+          <span
+            class="brand-logo-wrap {{if this.collapseBrand 'is-collapsed'}}"
+          >
             <img
               src="/icon_expanded.png"
               alt="Woogi Tools"
@@ -81,7 +108,10 @@ export default class Application extends Component {
           </span>
         </LinkTo>
 
-        <SidebarNav @onNavigate={{this.closeNav}} />
+        <SidebarNav
+          @onNavigate={{this.closeNav}}
+          @collapsed={{this.collapseBrand}}
+        />
       </aside>
 
       <div class="content-col">
