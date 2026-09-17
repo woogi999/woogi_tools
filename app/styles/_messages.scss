@@ -1,0 +1,1054 @@
+// Messages. The tool takes the whole page the way the games do (@game on
+// ToolPage), so the shell is sized to the window rather than to its contents:
+// conversations, the conversation and the chat's details, each scrolling on
+// its own, with nothing but the slim title bar above it.
+//
+// Every member gets a hue from their device id (--who-hue, set inline), which
+// colours their avatar and the name above their messages.
+
+.msgr {
+  --msgr-bar: 53px;
+
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  height: calc(100dvh - var(--msgr-bar));
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border-color);
+}
+
+.msgr:has(.msgr-people) {
+  grid-template-columns: 300px minmax(0, 1fr) 300px;
+}
+
+// In picture-in-picture and fullscreen the tool gets whatever box it is given.
+.pip-window .msgr,
+.tool-body.is-fullscreen .msgr {
+  height: 100%;
+  border-top: none;
+}
+
+// ─── The chat list and the details panel ────────────────────────────────
+
+.msgr-rail,
+.msgr-people {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+}
+
+.msgr-people {
+  border-right: none;
+  border-left: 1px solid var(--border-color);
+}
+
+.msgr-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px;
+  flex-shrink: 0;
+}
+
+.msgr-rail-title {
+  margin: 0;
+  flex: 1;
+  font-size: 1.05rem;
+}
+
+.msgr-side-title {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.msgr-side-hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+
+.msgr-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.msgr-icon-btn:hover:not(:disabled),
+.msgr-icon-btn.is-on {
+  background: var(--bg-elevated-2);
+}
+
+.msgr-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.msgr-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.msgr-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 8px;
+  padding: 0 12px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  color: var(--text-dim);
+}
+
+.msgr-search input,
+.msgr-search input[type="search"] {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.msgr-search input:focus {
+  outline: none;
+}
+
+.msgr-pane {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 10px;
+  flex-shrink: 0;
+}
+
+.msgr-input,
+.msgr-input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+
+.msgr-chats {
+  list-style: none;
+  margin: 0;
+  padding: 0 6px 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.msgr-chat,
+.msgr-me-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-card);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.msgr-chat:hover,
+.msgr-me-btn:hover {
+  background: var(--bg-elevated-2);
+}
+
+.msgr-chat.is-active {
+  background: var(--bg-elevated-2);
+}
+
+.msgr-chat.is-unread .msgr-chat-name,
+.msgr-chat.is-unread .msgr-chat-last {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.msgr-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-pill);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: oklch(0.28 0.06 var(--who-hue, 250));
+  background: oklch(0.86 0.09 var(--who-hue, 250));
+}
+
+.msgr-chat-body,
+.msgr-me-body,
+.msgr-member-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.msgr-chat-top,
+.msgr-chat-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.msgr-chat-name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.msgr-chat-stamp {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.msgr-chat-last {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.msgr-badge {
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--card-red);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.msgr-empty-rail {
+  padding: 12px 10px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.msgr-me {
+  border-top: 1px solid var(--border-color);
+  padding: 6px;
+  flex-shrink: 0;
+}
+
+.msgr-people-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px 16px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.msgr-people-body .btn {
+  align-self: flex-start;
+}
+
+// ─── The conversation ───────────────────────────────────────────────────
+
+.msgr-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.msgr-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.msgr-head .msgr-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 0.7rem;
+}
+
+.msgr-head-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.msgr-title-input,
+.msgr-title-input[type="text"] {
+  width: auto;
+  max-width: 100%;
+  field-sizing: content;
+  padding: 1px 5px;
+  margin-left: -5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.msgr-title-input:hover,
+.msgr-title-input:focus,
+.msgr-title-input[type="text"]:hover,
+.msgr-title-input[type="text"]:focus {
+  border-color: var(--border-color);
+  background: var(--bg-elevated-2);
+}
+
+.msgr-head-sub {
+  padding-left: 1px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.msgr-head-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.msgr-only-narrow {
+  display: none;
+}
+
+.msgr-list {
+  list-style: none;
+  margin: 0;
+  padding: 16px 18px 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.msgr-day {
+  align-self: center;
+  margin: 14px 0 8px;
+  padding: 2px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.msgr-system {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.msgr-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 100%;
+  margin-top: 10px;
+}
+
+.msgr-row.is-grouped {
+  margin-top: 2px;
+}
+
+.msgr-row.is-mine {
+  flex-direction: row-reverse;
+}
+
+.msgr-row-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 0.62rem;
+}
+
+.msgr-row.is-grouped .msgr-row-avatar {
+  background: none;
+}
+
+.msgr-bubble-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(70%, 620px);
+}
+
+.msgr-row.is-mine .msgr-bubble-wrap {
+  align-items: flex-end;
+}
+
+.msgr-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: oklch(0.55 0.1 var(--who-hue, 250));
+}
+
+.msgr-row.is-mine .msgr-who {
+  color: var(--text-dim);
+}
+
+.msgr-when {
+  font-weight: 400;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+}
+
+.msgr-quote {
+  max-width: 100%;
+  padding: 3px 8px;
+  border-left: 2px solid var(--border-color);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.msgr-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: 20px;
+  background: var(--bg-elevated-2);
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+// A run of messages from one person keeps the corner nearest the previous
+// one tight, the way Messenger draws it.
+.msgr-row.is-grouped:not(.is-mine) .msgr-bubble {
+  border-top-left-radius: 6px;
+}
+
+.msgr-row.is-grouped.is-mine .msgr-bubble {
+  border-top-right-radius: 6px;
+}
+
+.msgr-row.is-mine .msgr-bubble {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.msgr-bubble.is-unsent,
+.msgr-row.is-mine .msgr-bubble.is-unsent {
+  background: none;
+  border: 1px dashed var(--border-color);
+  color: var(--text-dim);
+}
+
+.msgr-gone {
+  font-style: italic;
+  font-size: 0.82rem;
+}
+
+.msgr-edited {
+  font-size: 0.68rem;
+  opacity: 0.6;
+}
+
+.msgr-image {
+  display: block;
+  max-width: 100%;
+  max-height: 340px;
+  border-radius: 12px;
+}
+
+.msgr-edit {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+// ─── A file in the conversation ─────────────────────────────────────────
+
+.msgr-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: min(260px, 60vw);
+}
+
+.msgr-file-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: color-mix(in oklab, currentcolor 12%, transparent);
+}
+
+.msgr-file-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.msgr-file-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.msgr-file-size {
+  font-size: 0.72rem;
+  opacity: 0.75;
+}
+
+.msgr-file-size.is-bad {
+  opacity: 1;
+  color: var(--card-red);
+}
+
+.msgr-row.is-mine .msgr-file-size.is-bad {
+  color: #ffb3bd;
+}
+
+.msgr-file-bar,
+.msgr-sending .msgr-file-bar {
+  display: block;
+  height: 4px;
+  margin: 3px 0;
+  border-radius: 2px;
+  background: color-mix(in oklab, currentcolor 20%, transparent);
+  overflow: hidden;
+}
+
+.msgr-file-fill {
+  display: block;
+  height: 100%;
+  background: currentcolor;
+}
+
+.msgr-file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, currentcolor 12%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.msgr-file-btn:hover {
+  background: color-mix(in oklab, currentcolor 24%, transparent);
+}
+
+// ─── Reactions and the hover actions ────────────────────────────────────
+
+.msgr-reacts {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.msgr-react {
+  padding: 1px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.msgr-react.is-mine {
+  border-color: var(--text);
+}
+
+.msgr-tools {
+  position: absolute;
+  top: -12px;
+  display: none;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  z-index: 2;
+}
+
+.msgr-row .msgr-tools {
+  right: 6px;
+}
+
+.msgr-row.is-mine .msgr-tools {
+  right: auto;
+  left: 6px;
+}
+
+.msgr-row:hover .msgr-tools,
+.msgr-row:focus-within .msgr-tools {
+  display: flex;
+}
+
+.msgr-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.msgr-tool:hover {
+  background: var(--bg-elevated-2);
+  color: var(--text);
+}
+
+.msgr-react-picker {
+  position: absolute;
+  top: -44px;
+  right: 0;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  z-index: 3;
+}
+
+.msgr-react-pick {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.msgr-react-pick:hover {
+  background: var(--bg-elevated-2);
+}
+
+.msgr-empty,
+.msgr-blank {
+  margin: auto;
+  padding: 20px;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.msgr-blank h3 {
+  margin: 0;
+  color: var(--text);
+}
+
+.msgr-empty p,
+.msgr-blank p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// ─── Writing ────────────────────────────────────────────────────────────
+
+.msgr-foot {
+  flex-shrink: 0;
+  padding: 8px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.msgr-typing {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+}
+
+.msgr-replying,
+.msgr-attached,
+.msgr-sending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated-2);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.msgr-sending {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.msgr-replying span,
+.msgr-attached span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.msgr-attached img {
+  max-height: 60px;
+  border-radius: 8px;
+}
+
+.msgr-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.msgr-draft {
+  flex: 1;
+  min-width: 0;
+  max-height: 150px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 20px;
+  background: var(--bg-elevated-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  resize: none;
+  field-sizing: content;
+}
+
+.msgr-draft:focus {
+  // A plain outline would draw a square around the rounded box, so the focus
+  // ring is a shadow, which follows the radius.
+  outline: none;
+  box-shadow: 0 0 0 1px var(--text-faint);
+}
+
+.msgr-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--text);
+  color: var(--bg);
+  cursor: pointer;
+}
+
+.msgr-send:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.msgr-status {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+// ─── Calls ──────────────────────────────────────────────────────────────
+
+.msgr-ring {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-elevated-2);
+  font-size: 0.85rem;
+}
+
+.msgr-call {
+  flex-shrink: 0;
+  max-height: 46%;
+  overflow-y: auto;
+  padding: 10px 14px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-elevated-2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.msgr-call-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.msgr-call-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.msgr-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.msgr-tile {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.msgr-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.msgr-tile.is-self .msgr-video {
+  transform: scaleX(-1);
+}
+
+.msgr-tile-avatar {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  font-size: 0.9rem;
+}
+
+.msgr-tile-name {
+  position: absolute;
+  bottom: 5px;
+  left: 7px;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--bg) 70%, transparent);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.msgr-tile.is-waiting {
+  flex-direction: column;
+  font-size: 0.78rem;
+}
+
+.msgr-tile.is-waiting .msgr-tile-name {
+  position: static;
+  background: none;
+}
+
+.msgr-call-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.msgr-call-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.msgr-call-btn:hover {
+  background: var(--bg-elevated-2);
+}
+
+.msgr-call-btn.is-off {
+  color: var(--text-dim);
+  border-style: dashed;
+}
+
+.msgr-call-btn.is-live {
+  border-color: var(--text);
+  font-weight: 600;
+}
+
+.msgr-call-btn.is-end {
+  border-color: var(--card-red);
+  color: var(--card-red);
+}
+
+// ─── Who is in it, and the transfers ────────────────────────────────────
+
+.msgr-member-list,
+.msgr-transfers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.msgr-member-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+}
+
+.msgr-member-list .msgr-avatar {
+  width: 34px;
+  height: 34px;
+  font-size: 0.7rem;
+}
+
+.msgr-transfers li {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 0;
+}
+
+.msgr-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-pill);
+  background: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.msgr-dot.is-on {
+  background: #3ba55d;
+}
+
+.msgr-invite-row {
+  display: flex;
+  gap: 6px;
+}
+
+// ─── Narrow screens ─────────────────────────────────────────────────────
+
+@media (width <= 980px) {
+  .msgr,
+  .msgr:has(.msgr-people) {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .msgr-only-narrow {
+    display: inline-flex;
+  }
+
+  .msgr-rail,
+  .msgr-people {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(88%, 330px);
+    z-index: 4;
+    transform: translateX(-102%);
+    transition: transform 0.18s ease;
+    box-shadow: 0 0 40px rgb(0 0 0 / 25%);
+  }
+
+  .msgr-rail.is-open {
+    transform: none;
+  }
+
+  .msgr-people {
+    inset: 0 0 0 auto;
+    transform: none;
+  }
+
+  .msgr-bubble-wrap {
+    max-width: 84%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msgr-rail,
+  .msgr-people {
+    transition: none;
+  }
+}

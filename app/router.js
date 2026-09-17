@@ -91,6 +91,8 @@ Router.map(function () {
   this.route('speed-test');
   this.route('typing-speed-test');
   this.route('github-repo-checker');
+  this.route('ip-lookup');
+  this.route('messages');
   this.route('jjs-stuff');
   this.route('settings');
   this.route('updates');

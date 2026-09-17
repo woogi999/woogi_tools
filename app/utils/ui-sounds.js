@@ -11,7 +11,7 @@ import { sfx } from './sound';
 const PRESSABLE =
   'button, a[href], [role="button"], [role="tab"], [role="radio"], summary, select, label.btn, label.qr-switch, .home-chip';
 const SEARCH =
-  '.home-search-input, .sidebar-search input, input[type="search"], .command-palette input';
+  '.home-search-input, .sidebar-search input, input[type="search"], .command-palette input, .ipl-search input';
 
 let installed = false;
 
