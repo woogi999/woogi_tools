@@ -87,7 +87,7 @@ export default class DataTransfer extends Component {
   async openPeer(id) {
     const { default: Peer } = await import('peerjs');
     if (this.isDestroying) return null;
-    const options = await directOrRelayedPeerOptions();
+    const options = directOrRelayedPeerOptions();
     if (this.isDestroying) return null;
     const peer = id ? new Peer(id, options) : new Peer(options);
     this.peer = peer;

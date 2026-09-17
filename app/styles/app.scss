@@ -519,6 +519,22 @@ h3 {
   color: var(--text-faint);
   background: var(--bg-elevated-2);
   border-radius: var(--radius-control);
+  max-height: 40px;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height 0.22s ease,
+    opacity 0.16s ease,
+    margin 0.22s ease,
+    padding 0.22s ease;
+}
+
+.sidebar-search.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0 0.6rem;
+  padding: 0 0.55rem;
+  pointer-events: none;
 }
 
 .sidebar-search input[type="text"] {

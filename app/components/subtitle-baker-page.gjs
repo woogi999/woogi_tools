@@ -18,6 +18,11 @@ import {
 import { toSrt, parseSubtitles, clock } from '../utils/subtitles';
 import { takeHandoff } from '../utils/handoff';
 import { keepState } from '../utils/tool-state';
+import {
+  SUBTITLE_FONTS,
+  fontFamilyOf,
+  loadPreviewFont,
+} from '../utils/subtitle-fonts';
 
 // Burns subtitles into the picture itself, so they show up in any player and
 // can't be switched off. Auto Subtitle can send its lines straight here.
@@ -33,6 +38,8 @@ const BACKDROPS = [
   { id: 'none', label: 'Plain' },
 ];
 const eq = (a, b) => a === b;
+const CUSTOM_FONT = 'custom';
+const fontStyle = (family) => htmlSafe(`font-family:"${family}",sans-serif`);
 const progressWidth = (p) => htmlSafe(`width:${Math.round((p ?? 0) * 100)}%`);
 const isVideo = (file) =>
   file.type.startsWith('video/') ||
@@ -64,6 +71,8 @@ export default class SubtitleBakerPage extends Component {
   @tracked cues = [];
   @tracked subsName = '';
   @tracked fontSize = 5;
+  @tracked fontId = 'liberation';
+  @tracked customFont = null; // { name, family, data }
   @tracked colour = '#FFFFFF';
   @tracked outlineColour = '#000000';
   @tracked backdrop = 'outline';
@@ -79,12 +88,14 @@ export default class SubtitleBakerPage extends Component {
   @tracked resultSize = 0;
 
   positions = POSITIONS;
+  fonts = SUBTITLE_FONTS;
   backdrops = BACKDROPS;
 
   constructor(owner, args) {
     super(owner, args);
     keepState(this, 'subtitle-baker', [
       'fontSize',
+      'fontId',
       'colour',
       'outlineColour',
       'backdrop',
@@ -93,6 +104,10 @@ export default class SubtitleBakerPage extends Component {
       'bold',
     ]);
     registerDestructor(this, () => this.clearUrls());
+    queueMicrotask(() => {
+      for (const font of SUBTITLE_FONTS)
+        loadPreviewFont(font.family, `/fonts/${font.file}`);
+    });
     const parcel = takeHandoff('subtitle-baker');
     if (parcel) {
       queueMicrotask(() => {
@@ -138,8 +153,19 @@ export default class SubtitleBakerPage extends Component {
         ? 'background:rgba(0,0,0,0.65);padding:0.1em 0.3em;'
         : '';
     return htmlSafe(
-      `${place};font-size:${this.fontSize * 1.6}cqh;color:${this.colour};font-weight:${this.bold ? 700 : 400};${shadow}${box}`,
+      `${place};font-size:${this.fontSize * 1.6}cqh;font-family:"${this.font.family}","Liberation Sans",Arial,sans-serif;color:${this.colour};font-weight:${this.bold ? 700 : 400};${shadow}${box}`,
     );
+  }
+
+  get font() {
+    if (this.fontId === CUSTOM_FONT && this.customFont) return this.customFont;
+    return (
+      SUBTITLE_FONTS.find((f) => f.id === this.fontId) ?? SUBTITLE_FONTS[0]
+    );
+  }
+
+  get isCustomFont() {
+    return this.fontId === CUSTOM_FONT;
   }
 
   get previewLine() {
@@ -207,25 +233,61 @@ export default class SubtitleBakerPage extends Component {
   setOutline = (value) => this.pick('outlineColour', value);
   toggleBold = (event) => this.pick('bold', event.target.checked);
 
+  pickFont = (id) => {
+    this.pick('fontId', id);
+    const font = SUBTITLE_FONTS.find((f) => f.id === id);
+    if (font) loadPreviewFont(font.family, `/fonts/${font.file}`);
+  };
+
+  // Your own .ttf or .otf: the family name is read out of the file so libass
+  // can be told what to look for.
+  selectFont = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const data = new Uint8Array(await file.arrayBuffer());
+      const family = fontFamilyOf(data);
+      if (!family)
+        throw new Error(
+          'That file doesn’t look like a TrueType or OpenType font',
+        );
+      this.customFont = {
+        id: CUSTOM_FONT,
+        label: family,
+        family,
+        file: file.name,
+        data,
+      };
+      this.pick('fontId', CUSTOM_FONT);
+      loadPreviewFont(family, URL.createObjectURL(file));
+    } catch (error) {
+      this.error = error?.message ?? 'That font couldn’t be read';
+    }
+  };
+
   bake = async () => {
     if (!this.ready) return;
     this.busy = true;
     this.error = null;
     this.progress = 0;
     try {
-      // The font is packed with the site so libass never has to go looking.
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a font packed with the site, not app data
-      const font = await fetch('/fonts/LiberationSans-Bold.ttf').then((r) =>
-        r.ok
-          ? r.arrayBuffer()
-          : Promise.reject(new Error('The subtitle font couldn’t be loaded')),
-      );
+      // The font file goes in beside the video so libass never has to go looking.
+      const font = this.font;
+      let fontData = font.data;
+      if (!fontData) {
+        // eslint-disable-next-line warp-drive/no-external-request-patterns -- a font packed with the site, not app data
+        const response = await fetch(`/fonts/${font.file}`);
+        if (!response.ok)
+          throw new Error('The subtitle font couldn’t be loaded');
+        fontData = new Uint8Array(await response.arrayBuffer());
+      }
       const align = POSITIONS.find((p) => p.id === this.position)?.align ?? 2;
       // ASS sizes are in a 384-high playfield; the margin is a share of the real height.
       const size = Math.round((this.fontSize / 100) * 384 * 1.4);
       const marginV = Math.round((this.margin / 100) * 384);
       const style = [
-        'FontName=Liberation Sans',
+        `FontName=${font.family}`,
         `FontSize=${size}`,
         `Bold=${this.bold ? -1 : 0}`,
         `PrimaryColour=${assColour(this.colour)}`,
@@ -249,7 +311,10 @@ export default class SubtitleBakerPage extends Component {
             name: 'subs.srt',
             data: new TextEncoder().encode(toSrt(this.cues)),
           },
-          { name: 'LiberationSans-Bold.ttf', data: new Uint8Array(font) },
+          {
+            name: `font.${font.file.split('.').pop() || 'ttf'}`,
+            data: fontData,
+          },
         ],
         build: (input) => [
           '-i',
@@ -349,6 +414,32 @@ export default class SubtitleBakerPage extends Component {
             </span>
           </div>
 
+          <div class="math-field">
+            <span class="qr-label is-muted">Font</span>
+            <div class="cipher-picks" role="group" aria-label="Font">
+              {{#each this.fonts as |f|}}
+                <button
+                  type="button"
+                  class="qr-tab sb-font-tab
+                    {{if (eq this.fontId f.id) 'active'}}"
+                  style={{fontStyle f.family}}
+                  {{on "click" (fn this.pickFont f.id)}}
+                >{{f.label}}</button>
+              {{/each}}
+              <label
+                class="qr-tab sb-font-tab {{if this.isCustomFont 'active'}}"
+              >
+                {{#if this.customFont}}{{this.customFont.label}}{{else}}Your own
+                  font…{{/if}}
+                <input
+                  type="file"
+                  accept=".ttf,.otf,font/ttf,font/otf"
+                  class="sr-only"
+                  {{on "change" this.selectFont}}
+                />
+              </label>
+            </div>
+          </div>
           <div class="math-row">
             <label class="math-field"><span class="qr-label is-muted">Size:
                 {{this.fontSize}}% of the height</span><input

@@ -18,6 +18,7 @@ import {
 } from '../utils/file-share';
 import { directOrRelayedPeerOptions } from '../utils/ice';
 import { acceptPastedFiles } from '../utils/paste-files';
+import { holdAwake, releaseAwake } from '../utils/keep-awake';
 
 // Files are sliced and sent one piece at a time so neither side ever has to
 // hold more than one piece of a large file in memory at once, and so the
@@ -27,6 +28,10 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 // Stop feeding the data channel once this much is queued, so a fast sender
 // can't balloon memory on a slow connection.
 const BUFFERED_AMOUNT_LIMIT = 16 * 1024 * 1024;
+
+// How much of each queued file is read into memory before anyone has joined,
+// so the first pieces are already in hand the moment a connection opens.
+const WARM_BYTES = 32 * 1024 * 1024;
 
 // After this long with nobody connected, explain what might be blocking it.
 const SLOW_CONNECT_MS = 20000;
@@ -89,6 +94,8 @@ export default class FileSharePage extends Component {
   chunkBuffers = new Map();
   writers = new Map();
   bytesReceived = new Map();
+  // Pieces read ahead of time, keyed by transfer id.
+  warm = new Map();
 
   qrInstance = new QRCodeStyling({
     type: 'svg',
@@ -106,7 +113,8 @@ export default class FileSharePage extends Component {
       this.joinShare(codeFromLink);
     }
     registerDestructor(this, () => {
-      this.peer?.destroy?.();
+      releaseAwake('file-share');
+      this.peer?.destroy();
       clearTimeout(this.slowTimer);
       for (const writer of this.writers.values())
         writer.abort().catch(() => {});
@@ -141,6 +149,9 @@ export default class FileSharePage extends Component {
     const code = generateRoomCode();
     this.shareCode = code;
     this.active = true;
+    // A share must survive the tab going into the background: no sleeping,
+    // no throttling, no being thrown away by the browser.
+    holdAwake('file-share', 'File Share is still sending. Leave anyway?');
     this.armSlowTimer();
     this.openPeer(code, (peer) => {
       peer.on('connection', (conn) => this.attachConnection(conn));
@@ -155,6 +166,7 @@ export default class FileSharePage extends Component {
     this.role = 'join';
     this.shareCode = code;
     this.active = true;
+    holdAwake('file-share', 'File Share is still receiving. Leave anyway?');
     this.armSlowTimer();
     this.openPeer(null, (peer) => {
       peer.on('open', () => {
@@ -169,12 +181,9 @@ export default class FileSharePage extends Component {
 
   // Files go straight between the two browsers where they can (fast, but each
   // side can see the other's IP address), and through a relay where they can't.
-  async openPeer(id, setup) {
+  openPeer(id, setup) {
     if (this.peer || this.isDestroying) return;
-    // Reserve the slot straight away so a double click can't open two peers.
-    this.peer = 'opening';
-    const options = await directOrRelayedPeerOptions();
-    if (this.peer !== 'opening' || this.isDestroying) return;
+    const options = directOrRelayedPeerOptions();
     const peer = id ? new Peer(id, options) : new Peer(options);
     this.peer = peer;
     setup(peer);
@@ -233,7 +242,9 @@ export default class FileSharePage extends Component {
   setJoinInput = (event) => (this.joinInput = event.target.value);
 
   startOver = () => {
-    this.peer?.destroy?.();
+    releaseAwake('file-share');
+    this.warm.clear();
+    this.peer?.destroy();
     clearTimeout(this.slowTimer);
     this.slowToConnect = false;
     this.peer = null;
@@ -380,6 +391,29 @@ export default class FileSharePage extends Component {
       ),
     ];
     if (this.hasPeers) this.flushQueue();
+    else this.warmUp();
+  }
+
+  // Reads the first pieces of every waiting file while nobody is here yet,
+  // so sending begins the instant someone joins rather than after the first
+  // disk read. Files are only read, never sent, until there is a peer.
+  async warmUp() {
+    let budget =
+      WARM_BYTES -
+      [...this.warm.values()].reduce(
+        (n, list) => n + list.reduce((m, c) => m + c.byteLength, 0),
+        0,
+      );
+    for (const transfer of this.outgoing) {
+      if (transfer.status !== 'pending' || this.warm.has(transfer.id)) continue;
+      const pieces = [];
+      this.warm.set(transfer.id, pieces);
+      for (const { blob } of chunksOf(transfer.file)) {
+        if (budget <= 0 || this.hasPeers) break;
+        pieces.push(await blob.arrayBuffer());
+        budget -= blob.size;
+      }
+    }
   }
 
   selectFiles = (event) => {
@@ -412,11 +446,21 @@ export default class FileSharePage extends Component {
   async broadcast(message) {
     await Promise.all(
       [...this.connections.values()].map(async (conn) => {
-        while (
-          conn.dataChannel &&
-          conn.dataChannel.bufferedAmount > BUFFERED_AMOUNT_LIMIT
-        )
-          await sleep(30);
+        const channel = conn.dataChannel;
+        // Wait on the channel's own "buffer has drained" event rather than a
+        // timer: timers are slowed to a crawl in a background tab, the event
+        // isn't. The timeout is only a safety net.
+        while (channel && channel.bufferedAmount > BUFFERED_AMOUNT_LIMIT) {
+          channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LIMIT / 2;
+          await Promise.race([
+            new Promise((resolve) =>
+              channel.addEventListener('bufferedamountlow', resolve, {
+                once: true,
+              }),
+            ),
+            sleep(1000),
+          ]);
+        }
         conn.send(message);
       }),
     );
@@ -431,8 +475,11 @@ export default class FileSharePage extends Component {
         this.updateOutgoing(pending.id, { status: 'sending' });
         try {
           let sentBytes = 0;
+          const warmed = this.warm.get(pending.id) ?? [];
+          this.warm.delete(pending.id);
           for (const { index, total, blob } of chunksOf(pending.file)) {
-            const data = await blob.arrayBuffer();
+            const data = warmed[index] ?? (await blob.arrayBuffer());
+            warmed[index] = null;
             await this.broadcast({
               kind: 'chunk',
               meta: {
@@ -478,7 +525,8 @@ export default class FileSharePage extends Component {
             Files go directly between your devices for speed, so the other
             person's browser can see your IP address (roughly where you are and
             which network you're on). When a direct link isn't possible, the
-            files are relayed through Cloudflare instead.</span></p>
+            files go through a public relay (the Open Relay Project) instead,
+            which is slower.</span></p>
         {{#unless this.active}}
           <div class="fs-frame pop-in">
             <div class="fs-start">
