@@ -7,15 +7,10 @@ import { modifier } from 'ember-modifier';
 import Icon from './icon';
 import { searchTools, groupTools } from '../tools';
 
-// Below this scroll position the homepage's own big search box is still on
-// screen, so the sidebar's copy of it would be redundant.
-const TOP_THRESHOLD = 24;
-
 export default class SidebarNav extends Component {
   @service router;
   @service toolVisibility;
   @tracked query = '';
-  @tracked atTop = true;
 
   // Re-runs when the route or the filtered list changes; reads the rendered active link's position.
   placeHand = modifier((nav, [, groups]) => {
@@ -31,21 +26,11 @@ export default class SidebarNav extends Component {
     return () => cancelAnimationFrame(frame);
   });
 
-  // Tracks the page's scroll position so the search can hide itself while
-  // the homepage's own search is in view, and come back once you scroll past it.
-  watchScroll = modifier(() => {
-    const update = () => (this.atTop = window.scrollY < TOP_THRESHOLD);
-    update();
-    window.addEventListener('scroll', update, { passive: true });
-    return () => window.removeEventListener('scroll', update);
-  });
-
-  get isHome() {
-    return this.router.currentRouteName === 'index';
-  }
-
+  // `@collapsed` comes from the app shell, which tracks whether we're on the
+  // homepage scrolled to the top (where its own search box makes this one
+  // redundant). Typing into this box keeps it visible regardless.
   get hideSearch() {
-    return this.isHome && this.atTop && !this.query;
+    return this.args.collapsed && !this.query;
   }
 
   get groups() {
@@ -62,10 +47,7 @@ export default class SidebarNav extends Component {
   noop = () => {};
 
   <template>
-    <div
-      class="sidebar-search {{if this.hideSearch 'is-collapsed'}}"
-      {{this.watchScroll}}
-    >
+    <div class="sidebar-search {{if this.hideSearch 'is-collapsed'}}">
       <Icon @name="search" @size={{13}} />
       <input
         type="text"

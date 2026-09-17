@@ -308,6 +308,20 @@ h3 {
   width: 100%;
   max-width: 148px;
   display: block;
+  max-height: 76px;
+  opacity: 1;
+  overflow: hidden;
+  transition:
+    max-height 0.22s ease,
+    opacity 0.16s ease,
+    margin 0.22s ease;
+}
+
+.brand-logo-wrap.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  pointer-events: none;
 }
 
 .brand-logo {
