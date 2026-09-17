@@ -835,9 +835,11 @@ export function createMinesScene(canvas) {
           { speed: 0.4, up: 0.3, life: 0.6, size: 0.26, gravity: -0.3 },
         );
       }
-      // Seeing stars while stunned.
-      person.stars.visible = p.stun > 0 || p.dead;
-      if (p.stun > 0 || p.dead) {
+      // Seeing stars while stunned. Being down (waiting to respawn, or to
+      // spend a life) looks the same as being out, just not for good.
+      const out = p.dead || p.downMs > 0;
+      person.stars.visible = p.stun > 0 || out;
+      if (p.stun > 0 || out) {
         avatar.userData.head.getWorldPosition(tmp);
         person.stars.position.set(tmp.x, tmp.y + 0.3, tmp.z);
         person.stars.userData.update(now);
@@ -880,11 +882,10 @@ export function createMinesScene(canvas) {
           avatar.rotation.x = -Math.sin(t * Math.PI) * 0.8;
         }
       }
-      if ((p.stun > 0 || p.dead) && !person.emote)
-        startEmote(person, 'stunned');
+      if ((p.stun > 0 || out) && !person.emote) startEmote(person, 'stunned');
       avatar.position.y += playEmote(person, kit, now);
       // Knocked out: flat on its back where the mine went off, limbs splayed.
-      if (p.dead && !person.action) {
+      if (out && !person.action) {
         person.down = Math.min(1, (person.down ?? 0) + dt * 4);
         avatar.rotation.x = (-Math.PI / 2) * person.down;
         avatar.position.y = 0.12 * person.down;
@@ -892,7 +893,7 @@ export function createMinesScene(canvas) {
           [-0.55, 0.75, 0.05],
           [0.55, 0.75, 0.05],
         ]);
-      } else if (!p.dead) person.down = 0;
+      } else if (!out) person.down = 0;
     }
   }
 

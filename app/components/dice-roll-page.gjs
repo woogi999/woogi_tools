@@ -3,12 +3,15 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { registerDestructor } from '@ember/destroyable';
+import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import { keepState } from '../utils/tool-state';
 import { randomInt } from '../utils/random';
 
 // Rolls any dice you like, from a coin-flat d2 up to a d120, one or a handful
-// at a time, with the total and the run of rolls kept for the table.
+// at a time, with the total and the run of rolls kept for the table. The dice
+// are real 3D ones that tumble across the table (lazy/dice-scene.js); without
+// WebGL, flat faces shuffle through numbers instead.
 
 const PRESETS = [2, 4, 6, 8, 10, 12, 20, 100, 120];
 const MAX_SIDES = 120;
@@ -65,9 +68,11 @@ export default class DiceRollPage extends Component {
   @tracked results = [];
   @tracked rolling = false;
   @tracked history = [];
+  @tracked sceneFailed = false;
 
   presets = PRESETS;
   timer = null;
+  scene = null;
 
   constructor(owner, args) {
     super(owner, args);
@@ -104,7 +109,7 @@ export default class DiceRollPage extends Component {
 
   setSides = (value) => {
     this.sides = Math.min(MAX_SIDES, Math.max(2, Math.floor(+value) || 2));
-    this.results = [];
+    this.clearTable();
   };
   typeSides = (event) => this.setSides(event.target.value);
   setCount = (event) => {
@@ -112,8 +117,13 @@ export default class DiceRollPage extends Component {
       MAX_DICE,
       Math.max(1, Math.floor(+event.target.value) || 1),
     );
-    this.results = [];
+    this.clearTable();
   };
+
+  clearTable() {
+    this.results = [];
+    this.scene?.clear();
+  }
   setModifier = (event) =>
     (this.modifier = Math.floor(+event.target.value) || 0);
 
@@ -136,6 +146,14 @@ export default class DiceRollPage extends Component {
         ...this.history,
       ].slice(0, 12);
     };
+    if (this.scene) {
+      this.rolling = true;
+      this.results = [];
+      this.scene.roll(final, this.sides).then(() => {
+        if (!this.isDestroying && this.rolling) settle();
+      });
+      return;
+    }
     if (reducedMotion()) return settle();
     // The faces tumble through random values before landing on the real ones.
     this.rolling = true;
@@ -147,6 +165,27 @@ export default class DiceRollPage extends Component {
   };
 
   clearHistory = () => (this.history = []);
+
+  setupScene = modifier((canvas) => {
+    let cancelled = false;
+    let scene = null;
+    import('../lazy/dice-scene')
+      .then(({ createDiceScene }) => {
+        if (cancelled) return;
+        scene = createDiceScene(canvas);
+        this.scene = scene;
+        if (this.results.length) scene.roll(this.results, this.sides);
+      })
+      .catch((error) => {
+        console.warn('3D dice unavailable:', error);
+        this.sceneFailed = true;
+      });
+    return () => {
+      cancelled = true;
+      scene?.dispose();
+      this.scene = null;
+    };
+  });
 
   <template>
     <ToolPage
@@ -205,26 +244,38 @@ export default class DiceRollPage extends Component {
 
         <section class="math-card">
           <h3 class="qr-heading">The table</h3>
-          <div
-            class="dice-tray {{if this.rolling 'is-rolling'}}"
-            aria-live="polite"
-          >
-            {{#each this.faces as |face|}}
-              <div class="die {{if face.small 'is-wide'}}">
-                {{#if face.pips}}
-                  <svg viewBox="0 0 100 100" aria-label={{face.value}}>
-                    {{#each face.pips as |pip|}}
-                      <circle cx={{pip.cx}} cy={{pip.cy}} r="9"></circle>
-                    {{/each}}
-                  </svg>
-                {{else}}
-                  <span class="die-number">{{face.value}}</span>
-                {{/if}}
-              </div>
-            {{else}}
-              <p class="fs-empty">Roll to see the dice land here.</p>
-            {{/each}}
-          </div>
+          {{#if this.sceneFailed}}
+            <div
+              class="dice-tray {{if this.rolling 'is-rolling'}}"
+              aria-live="polite"
+            >
+              {{#each this.faces as |face|}}
+                <div class="die {{if face.small 'is-wide'}}">
+                  {{#if face.pips}}
+                    <svg viewBox="0 0 100 100" aria-label={{face.value}}>
+                      {{#each face.pips as |pip|}}
+                        <circle cx={{pip.cx}} cy={{pip.cy}} r="9"></circle>
+                      {{/each}}
+                    </svg>
+                  {{else}}
+                    <span class="die-number">{{face.value}}</span>
+                  {{/if}}
+                </div>
+              {{else}}
+                <p class="fs-empty">Roll to see the dice land here.</p>
+              {{/each}}
+            </div>
+          {{else}}
+            <div class="dice-table" aria-live="polite">
+              <canvas class="dice-canvas" {{this.setupScene}}></canvas>
+              {{#unless this.results.length}}
+                {{#unless this.rolling}}
+                  <p class="fs-empty dice-table-empty">Roll to see the dice land
+                    here.</p>
+                {{/unless}}
+              {{/unless}}
+            </div>
+          {{/if}}
           {{#if this.results.length}}
             <div class="math-result">
               <span class="math-big">{{this.total}}</span>

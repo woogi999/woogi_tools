@@ -213,6 +213,15 @@ export default class ChessPage extends Component {
   addBot = () => this.setRule('noBot', false);
   removeBot = () => this.setRule('noBot', true);
 
+  // Chess has one computer seat, so its difficulty is simply the room's
+  // `level` rule: picked on the seat itself in the lobby and remembered with
+  // the other rules.
+  get botLevelMap() {
+    return { bot: this.settings.level };
+  }
+
+  setBotLevel = (id, level) => this.setRule('level', level);
+
   // The computer opponent's pun name and robot look, the same for everyone in the room.
   get botName() {
     return botNames(this.settings.botSeed, 1)[0];
@@ -1893,27 +1902,6 @@ export default class ChessPage extends Component {
                 {{/each}}
               </div>
             </div>
-            {{#if this.vsBotInLobby}}
-              <div class="lobby-rule">
-                <span class="lobby-rule-text"><span class="qr-label">Computer
-                    level</span></span>
-                <div class="math-tabs" role="group" aria-label="Computer level">
-                  {{#each this.levels as |l|}}
-                    <button
-                      type="button"
-                      class="qr-tab
-                        {{if (eq this.settings.level l.id) 'active'}}"
-                      aria-pressed={{if
-                        (eq this.settings.level l.id)
-                        "true"
-                        "false"
-                      }}
-                      {{on "click" (fn this.setRule "level" l.id)}}
-                    >{{l.label}}</button>
-                  {{/each}}
-                </div>
-              </div>
-            {{/if}}
             <div class="lobby-rule">
               <span class="lobby-rule-text"><span class="qr-label">Starting
                   position</span>{{#if

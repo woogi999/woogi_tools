@@ -82,6 +82,7 @@ const DEFAULTS = {
   map: 'meadow',
   lengthSpeed: 'faster',
   botLevel: 'normal',
+  botLevels: {},
 };
 const SWIPE_PX = 18;
 const STICK_DEAD = 0.35;
@@ -326,7 +327,7 @@ export default class SnakePage extends Component {
     if (this.paused) return 'Paused.';
     if (game.status === 'playing') {
       if (this.isSolo)
-        return 'Eat the apples. Don’t crash. Boost to go faster, at the cost of your tail.';
+        return 'Eat the apples. Don’t crash. Boost to go faster, at the cost of your tail (and a point).';
       const alive = game.snakes.filter((s) => s.alive);
       if (alive.length === 1) {
         const survivor = alive[0];
@@ -1399,31 +1400,6 @@ export default class SnakePage extends Component {
               </div>
             </div>
             <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">Computer
-                  players</span><span class="tool-hint">Easy ones wander and
-                  slip up now and then; hard ones chase every apple and boost
-                  more.</span></span>
-              <div
-                class="math-tabs"
-                role="group"
-                aria-label="Computer difficulty"
-              >
-                {{#each this.botLevels as |l|}}
-                  <button
-                    type="button"
-                    class="qr-tab
-                      {{if (eq this.settings.botLevel l.id) 'active'}}"
-                    aria-pressed={{if
-                      (eq this.settings.botLevel l.id)
-                      "true"
-                      "false"
-                    }}
-                    {{on "click" (fn this.setRule "botLevel" l.id)}}
-                  >{{l.label}}</button>
-                {{/each}}
-              </div>
-            </div>
-            <div class="lobby-rule">
               <span class="lobby-rule-text"><span class="qr-label">Longer is:</span><span
                   class="tool-hint"
                 >Faster or slower with every segment a snake grows (up to half
@@ -1505,8 +1481,9 @@ export default class SnakePage extends Component {
             <p class="tool-hint">Steer with the arrow keys or WASD and boost
               with Shift (or the joystick and Boost button on a touch screen).
               Boosting doubles your speed for a moment but costs a segment of
-              your tail. With more than one snake, the highest score wins:
-              outliving everyone isn’t enough, you have to overtake the leader.</p>
+              your tail, and the point that came with it. With more than one
+              snake, the highest score wins: outliving everyone isn’t enough,
+              you have to overtake the leader.</p>
           </:rules>
         </GameLobby>
       {{/if}}

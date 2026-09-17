@@ -184,7 +184,6 @@ import {
   Barcode,
   Shapes,
   Coins,
-  Dice6,
   Gauge,
   Radio,
   Globe,
@@ -194,6 +193,7 @@ import {
   Frame,
   Antenna,
   FolderGit2,
+  LoaderPinwheel,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -205,7 +205,6 @@ const ICONS = {
   barcode: Barcode,
   shapes: Shapes,
   coins: Coins,
-  'dice-6': Dice6,
   gauge: Gauge,
   radio: Radio,
   globe: Globe,
@@ -326,6 +325,7 @@ const ICONS = {
   scaling: Scaling,
   timer: Timer,
   dices: Dices,
+  'loader-pinwheel': LoaderPinwheel,
   'arrow-right-left': ArrowRightLeft,
   package: Package,
   pipette: Pipette,

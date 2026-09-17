@@ -101,7 +101,7 @@ const SWITCH_RULES = [
   {
     key: 'defense',
     label: 'Block & reflect',
-    hint: 'A draw card or Skip coming at you? Play any Skip to cancel it, or any Reverse to send it back to whoever played it.',
+    hint: 'A draw card coming at you? Play any Skip to cancel it, or any Reverse to send it back to whoever played it. A Skip coming at you? A Skip passes it on to the next player; a Reverse sends it back.',
   },
   {
     key: 'sevens',
@@ -934,7 +934,10 @@ export default class UnoPage extends Component {
       if (pending.target === view.you) {
         const answers = [
           view.rules.stacking !== 'off' && pending.kind === 'draw' && 'stack',
-          defense && 'block it with a Skip',
+          defense &&
+            (pending.kind === 'skip'
+              ? 'pass it on with a Skip'
+              : 'block it with a Skip'),
           defense && 'send it back with a Reverse',
         ].filter(Boolean);
         const options = view.playable.length ? `${answers.join(', ')}, ` : '';

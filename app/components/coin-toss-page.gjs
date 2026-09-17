@@ -3,12 +3,15 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { htmlSafe } from '@ember/template';
 import { registerDestructor } from '@ember/destroyable';
+import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import { keepState } from '../utils/tool-state';
 import { randomInt } from '../utils/random';
 
-// Heads or tails, with a coin that actually flips. The tally keeps count so
-// you can see fairness for yourself over a long run.
+// Heads or tails, with a coin that actually flips: a solid 3D one that goes up
+// in the air and lands (lazy/dice-scene.js), or a flat spinning disc without
+// WebGL. The tally keeps count so you can see fairness for yourself over a
+// long run.
 
 const FLIP_MS = 1400;
 const reducedMotion = () =>
@@ -24,8 +27,10 @@ export default class CoinTossPage extends Component {
   @tracked history = [];
   @tracked headsLabel = 'Heads';
   @tracked tailsLabel = 'Tails';
+  @tracked sceneFailed = false;
 
   timer = null;
+  scene = null;
 
   constructor(owner, args) {
     super(owner, args);
@@ -66,22 +71,28 @@ export default class CoinTossPage extends Component {
   toss = () => {
     if (this.flipping) return;
     const heads = randomInt(2) === 0;
+    const land = () => {
+      this.flipping = false;
+      this.result = heads ? 'heads' : 'tails';
+      if (heads) this.heads++;
+      else this.tails++;
+      this.history = [this.result, ...this.history].slice(0, 20);
+    };
+    if (this.scene) {
+      this.flipping = true;
+      this.result = null;
+      this.scene.toss(heads).then(() => {
+        if (!this.isDestroying && this.flipping) land();
+      });
+      return;
+    }
     // At least four full flips, landing on an even half-turn for heads and odd for tails.
     const current = this.turns % 2;
     const wanted = heads ? 0 : 1;
     this.turns += 8 + ((wanted - current + 2) % 2);
     this.flipping = true;
     this.result = null;
-    this.timer = setTimeout(
-      () => {
-        this.flipping = false;
-        this.result = heads ? 'heads' : 'tails';
-        if (heads) this.heads++;
-        else this.tails++;
-        this.history = [this.result, ...this.history].slice(0, 20);
-      },
-      reducedMotion() ? 50 : FLIP_MS,
-    );
+    this.timer = setTimeout(land, reducedMotion() ? 50 : FLIP_MS);
   };
 
   resetTally = () => {
@@ -90,8 +101,35 @@ export default class CoinTossPage extends Component {
     this.result = null;
   };
 
-  setHeads = (event) => (this.headsLabel = event.target.value || 'Heads');
-  setTails = (event) => (this.tailsLabel = event.target.value || 'Tails');
+  setHeads = (event) => {
+    this.headsLabel = event.target.value || 'Heads';
+    this.scene?.setLabels(this.headsLabel, this.tailsLabel);
+  };
+  setTails = (event) => {
+    this.tailsLabel = event.target.value || 'Tails';
+    this.scene?.setLabels(this.headsLabel, this.tailsLabel);
+  };
+
+  setupScene = modifier((canvas) => {
+    let cancelled = false;
+    let scene = null;
+    import('../lazy/dice-scene')
+      .then(({ createCoinScene }) => {
+        if (cancelled) return;
+        scene = createCoinScene(canvas);
+        scene.setLabels(this.headsLabel, this.tailsLabel);
+        this.scene = scene;
+      })
+      .catch((error) => {
+        console.warn('3D coin unavailable:', error);
+        this.sceneFailed = true;
+      });
+    return () => {
+      cancelled = true;
+      scene?.dispose();
+      this.scene = null;
+    };
+  });
 
   <template>
     <ToolPage
@@ -100,14 +138,18 @@ export default class CoinTossPage extends Component {
     >
       <div class="math-grid pop-in">
         <section class="math-card coin-stage">
-          <div class="coin-scene">
-            <div class="coin" style={{this.coinStyle}}>
-              <div class="coin-face coin-heads"><span
-                >{{this.headsLabel}}</span></div>
-              <div class="coin-face coin-tails"><span
-                >{{this.tailsLabel}}</span></div>
+          {{#if this.sceneFailed}}
+            <div class="coin-scene">
+              <div class="coin" style={{this.coinStyle}}>
+                <div class="coin-face coin-heads"><span
+                  >{{this.headsLabel}}</span></div>
+                <div class="coin-face coin-tails"><span
+                  >{{this.tailsLabel}}</span></div>
+              </div>
             </div>
-          </div>
+          {{else}}
+            <canvas class="coin-canvas" {{this.setupScene}}></canvas>
+          {{/if}}
           <div class="math-result coin-result" aria-live="polite">
             {{#if this.result}}
               <span class="math-big">{{this.resultLabel}}</span>
