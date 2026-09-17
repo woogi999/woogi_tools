@@ -2967,6 +2967,34 @@ video.media-preview {
   fill: var(--bg);
 }
 
+.dice-table {
+  position: relative;
+  width: 100%;
+  height: clamp(180px, 34vw, 280px);
+}
+
+.dice-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.dice-table-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  pointer-events: none;
+}
+
+.coin-canvas {
+  display: block;
+  width: min(100%, 320px);
+  height: 240px;
+}
+
 .dice-tray.is-rolling .die {
   animation: die-tumble 0.35s ease-in-out infinite alternate;
 }

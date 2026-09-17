@@ -349,6 +349,8 @@ export function boost(state, id) {
   )
     return false;
   snake.body.pop();
+  // The score follows the length: a segment given up is a point given up.
+  snake.score = Math.max(0, snake.score - 1);
   snake.boost = BOOST_TICKS;
   snake.boosts++;
   return true;

@@ -15,16 +15,12 @@ import ConfirmHost from '../components/confirm-host';
 import { installUiSounds } from '../utils/ui-sounds';
 import { installGamepad } from '../utils/gamepad';
 
-// Below this scroll position the homepage's own big search box is still on
-// screen, so the sidebar's copy of the search and the logo would be redundant.
-const TOP_THRESHOLD = 24;
-
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
   @service offline;
   @service router;
   @tracked navOpen = false;
-  @tracked atTop = true;
+  @tracked homeSearchVisible = true;
 
   constructor(owner, args) {
     super(owner, args);
@@ -35,14 +31,27 @@ export default class Application extends Component {
   toggleNav = () => (this.navOpen = !this.navOpen);
   closeNav = () => (this.navOpen = false);
 
-  // Tracks the page's scroll position so the sidebar can hide its copies of
-  // the homepage's own search box and logo while they're still in view, and
-  // bring them back once you scroll past (or leave the homepage).
-  watchScroll = modifier(() => {
-    const update = () => (this.atTop = window.scrollY < TOP_THRESHOLD);
+  // Tracks whether the homepage's own logo and search box are actually on
+  // screen, so the sidebar's copies (redundant with them) can hide while
+  // they're visible and come back the moment they scroll out of view (or
+  // you leave the homepage, where there's nothing to check).
+  // Re-runs (and re-checks straight away) whenever the route changes, since
+  // navigating to or away from the homepage is otherwise silent.
+  // eslint-disable-next-line no-unused-vars
+  watchScroll = modifier((element, [route]) => {
+    const update = () => {
+      const home = document.querySelector('.home-search');
+      this.homeSearchVisible = home
+        ? home.getBoundingClientRect().bottom > 0
+        : false;
+    };
     update();
     window.addEventListener('scroll', update, { passive: true });
-    return () => window.removeEventListener('scroll', update);
+    window.addEventListener('resize', update, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
   });
 
   get isHome() {
@@ -50,7 +59,7 @@ export default class Application extends Component {
   }
 
   get collapseBrand() {
-    return this.isHome && this.atTop;
+    return this.isHome && this.homeSearchVisible;
   }
 
   <template>
@@ -89,7 +98,10 @@ export default class Application extends Component {
         ></button>
       {{/if}}
 
-      <aside class="sidebar {{if this.navOpen 'is-open'}}" {{this.watchScroll}}>
+      <aside
+        class="sidebar {{if this.navOpen 'is-open'}}"
+        {{this.watchScroll this.router.currentRouteName}}
+      >
         <LinkTo @route="index" class="sidebar-brand">
           <span
             class="brand-logo-wrap {{if this.collapseBrand 'is-collapsed'}}"

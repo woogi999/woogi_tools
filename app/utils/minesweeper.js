@@ -654,6 +654,7 @@ export function walk(state, player, dx, dy, dt, speed = WALK_SPEED) {
     state.status === 'playing' &&
     player.stun <= 0 &&
     !player.dead &&
+    !(player.downMs > 0) &&
     !player.defusing;
   if (!player.moving) return;
   const scale = Math.min(1, length) / length;

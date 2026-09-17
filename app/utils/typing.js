@@ -56,8 +56,11 @@ export function randomQuote() {
 }
 
 // Typing tests count a "word" as five characters, spaces included, so
-// scores don't depend on how long the words happened to be.
-export function score({ typed, target, seconds }) {
+// scores don't depend on how long the words happened to be. Accuracy is
+// judged against every keystroke actually typed, including ones later
+// deleted and fixed with backspace, so retyping a mistake correctly
+// doesn't erase the fact that it happened.
+export function score({ typed, target, seconds, keystrokes, mistakes }) {
   const minutes = Math.max(seconds, 0.001) / 60;
   const length = Math.min(typed.length, target.length);
   let correct = 0;
@@ -65,7 +68,11 @@ export function score({ typed, target, seconds }) {
   const errors = typed.length - correct;
   const raw = typed.length / 5 / minutes;
   const wpm = Math.max(0, correct / 5 / minutes);
-  const accuracy = typed.length ? correct / typed.length : 1;
+  const accuracy = keystrokes
+    ? Math.max(0, keystrokes - mistakes) / keystrokes
+    : typed.length
+      ? correct / typed.length
+      : 1;
   return {
     wpm: Math.round(wpm),
     raw: Math.round(raw),

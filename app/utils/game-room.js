@@ -975,8 +975,16 @@ function pickKnown(defaults, saved) {
     if (key === 'botSeed' || !(key in defaults)) continue;
     const expected = defaults[key];
     if (expected !== null && typeof expected === 'object') {
-      if (value && typeof value === 'object' && !Array.isArray(value))
-        out[key] = { ...expected, ...pickKnown(expected, value) };
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      // An empty default is a free-form map (a seat id to its difficulty, say),
+      // so any string-keyed entry of a simple value is kept.
+      if (Object.keys(expected).length === 0)
+        out[key] = Object.fromEntries(
+          Object.entries(value).filter(([, v]) =>
+            ['string', 'number', 'boolean'].includes(typeof v),
+          ),
+        );
+      else out[key] = { ...expected, ...pickKnown(expected, value) };
     } else if (typeof value === typeof expected) {
       out[key] = value;
     }

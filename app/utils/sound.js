@@ -165,7 +165,7 @@ export const SOUND_GROUPS = [
   {
     id: 'typing',
     label: 'Typing',
-    hint: 'Keyboard thocks in search boxes.',
+    hint: 'Keyboard thocks in search boxes and the typing test.',
     icon: 'type',
     sample: 'ui.type',
   },

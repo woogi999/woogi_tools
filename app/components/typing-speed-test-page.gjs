@@ -7,6 +7,7 @@ import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { keepState } from '../utils/tool-state';
+import { sfx } from '../utils/sound';
 import {
   MODES,
   WORD_COUNTS,
@@ -38,6 +39,11 @@ export default class TypingSpeedTestPage extends Component {
   samples = [];
   ticker = null;
   input = null;
+  // Every character actually typed and how many of those were wrong,
+  // counted as they happen so backspacing over a mistake and retyping it
+  // correctly doesn't erase the fact that it happened.
+  keystrokes = 0;
+  mistakes = 0;
 
   constructor(owner, args) {
     super(owner, args);
@@ -88,6 +94,8 @@ export default class TypingSpeedTestPage extends Component {
       typed: this.typed,
       target: this.target,
       seconds: this.seconds,
+      keystrokes: this.keystrokes,
+      mistakes: this.mistakes,
     });
   }
 
@@ -168,6 +176,8 @@ export default class TypingSpeedTestPage extends Component {
     clearInterval(this.ticker);
     this.ticker = null;
     this.samples = [];
+    this.keystrokes = 0;
+    this.mistakes = 0;
     this.typed = '';
     this.startedAt = null;
     this.now = 0;
@@ -199,6 +209,21 @@ export default class TypingSpeedTestPage extends Component {
     if (this.result) return;
     const value = event.target.value;
     if (this.startedAt === null && value.length) this.start();
+    // A key thock for every keystroke, a duller one for a wrong letter.
+    // Everything typed past the old length counts toward accuracy, even a
+    // pasted or autocompleted run of several characters at once.
+    if (value.length < this.typed.length) sfx('ui.type');
+    else if (value.length > this.typed.length) {
+      let anyWrong = false;
+      for (let at = this.typed.length; at < value.length; at++) {
+        this.keystrokes++;
+        if (this.target[at] !== value[at]) {
+          this.mistakes++;
+          anyWrong = true;
+        }
+      }
+      sfx(anyWrong ? 'ui.tick' : 'ui.type');
+    }
     this.typed = value;
     if (!this.isTime && value.length >= this.target.length) this.finish();
   };
@@ -235,7 +260,13 @@ export default class TypingSpeedTestPage extends Component {
     // inflating WPM when it was divided by the shorter nominal duration
     // instead.
     const seconds = this.seconds;
-    const result = score({ typed: this.typed, target: this.target, seconds });
+    const result = score({
+      typed: this.typed,
+      target: this.target,
+      seconds,
+      keystrokes: this.keystrokes,
+      mistakes: this.mistakes,
+    });
     this.result = { ...result, seconds: Math.round(seconds * 10) / 10 };
     this.samples = [...this.samples, result.wpm];
     this.history = [

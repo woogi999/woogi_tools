@@ -45,7 +45,7 @@ const SEGMENT_R = 0.4;
 const BODY_Y = 0.36;
 const RIDER_SCALE = 0.72;
 // How far (in squares) the drawn snake trails the real one, to smooth out uneven ticks.
-const GLIDE_BUFFER = 0.4;
+const GLIDE_BUFFER = 1;
 const DIR_YAW = {
   up: Math.PI,
   down: 0,
@@ -603,13 +603,16 @@ export function createSnakeScene(canvas) {
     visual.deadFade += (fadeTarget - visual.deadFade) * Math.min(1, dt * 4);
     visual.material.opacity = visual.deadFade;
     visual.material.depthWrite = visual.deadFade > 0.95;
-    // Glide at the snake's steady speed, kept a little behind the real one: squares arrive on an
-    // uneven timer, and that small buffer soaks it up so the body never stops and starts.
-    // Further behind than the buffer it speeds up gently; closer, it eases off.
+    // Glide at the snake's own speed, exactly: one square per moveMs, so the
+    // motion is linear rather than easing in and out between squares. The
+    // drawn snake stays about a square behind the real one, which soaks up an
+    // uneven timer; only a tiny nudge keeps that gap from drifting over time,
+    // and a big gap (the tab was hidden) is simply snapped shut.
     if (visual.alive) {
+      if (visual.lag >= GLIDE_BUFFER + 2) visual.lag = GLIDE_BUFFER + 1;
       const pace = Math.max(
-        0.25,
-        Math.min(2.5, 1 + (visual.lag - GLIDE_BUFFER) * 1.4),
+        0.95,
+        Math.min(1.05, 1 + (visual.lag - GLIDE_BUFFER) * 0.1),
       );
       visual.lag = Math.max(
         0,

@@ -526,7 +526,7 @@ export const TOOLS = [
       'ttf to woff',
     ],
     madeWith:
-      "Every conversion runs on your device; nothing is uploaded. Each engine declares what it can read and write, and a small breadth-first search chains them when no single one covers a pair (DOCX to PDF goes through plain text, for example). Everyday images use the browser's own <canvas> encoders, with a hand-written BMP writer. Everything else is ImageMagick for over a hundred image and camera RAW formats, FFmpeg for audio and video, Pandoc for documents, PDF.js to render or read PDFs, jsPDF to write them, 7-Zip for archives, and imagetracerjs to trace pictures into SVG. The heavy engines are WebAssembly builds fetched only the first time you need them. Structured data goes through yaml, smol-toml and Papa Parse, and WOFF fonts are packed and unpacked by hand with fflate; WOFF2 uses Google's encoder compiled to WebAssembly.",
+      "Every conversion runs on your device; nothing is uploaded. Each engine declares what it can read and write, and a small breadth-first search chains them when no single one covers a pair (DOCX to PDF goes through plain text, for example). Everyday images use the browser's own <canvas> encoders, with a hand-written BMP writer. Everything else is ImageMagick for over a hundred image and camera RAW formats, FFmpeg for audio and video, Pandoc for documents, PDF.js to render or read PDFs (a PDF going to Word or Markdown is first rebuilt as structured HTML from where its text sits and what fonts it uses, so headings, paragraphs, lists and bold or italic runs survive), jsPDF to write them, 7-Zip for archives, and imagetracerjs to trace pictures into SVG. The heavy engines are WebAssembly builds fetched only the first time you need them. Structured data goes through yaml, smol-toml and Papa Parse, and WOFF fonts are packed and unpacked by hand with fflate; WOFF2 uses Google's encoder compiled to WebAssembly.",
     credits: [
       {
         name: 'ImageMagick (magick-wasm)',
@@ -1261,7 +1261,7 @@ export const TOOLS = [
   {
     label: 'Spin the Wheel',
     route: 'spin-the-wheel',
-    icon: 'dices',
+    icon: 'loader-pinwheel',
     category: 'Everyday',
     description:
       'Can’t decide? Spin a wheel, draw a name, or make random teams.',
@@ -2068,7 +2068,7 @@ export const TOOLS = [
   {
     label: 'Dice Roll',
     route: 'dice-roll',
-    icon: 'dice-6',
+    icon: 'dices',
     category: 'Everyday',
     description:
       'Roll a d6, a d20 or anything up to a d120, one or a handful at a time.',
@@ -2086,8 +2086,15 @@ export const TOOLS = [
       'dnd',
     ],
     madeWith:
-      'Every roll comes from crypto.getRandomValues with rejection sampling, so no face is favoured. The pips on a d6 are drawn as SVG; bigger dice show the number.',
-    credits: [],
+      'Every roll comes from crypto.getRandomValues with rejection sampling, so no face is favoured. The dice are real solids drawn with three.js: the Platonic shapes for d4, d6, d8, d12 and d20, a pentagonal trapezohedron for the d10, and the nearest of those for anything else. Each face gets its own canvas texture (pips on a d6, corner numbers on a d4), the dice tumble in with a couple of bounces, and the last stretch of the roll eases each one onto the face it rolled. Without WebGL, flat faces shuffle through numbers instead.',
+    credits: [
+      {
+        name: 'three.js',
+        author: 'three.js authors',
+        license: 'MIT',
+        url: 'https://threejs.org',
+      },
+    ],
   },
   {
     label: 'Coin Toss',
@@ -2107,8 +2114,15 @@ export const TOOLS = [
       '50/50',
     ],
     madeWith:
-      'One bit from crypto.getRandomValues decides the side; the coin is two CSS faces on a 3D rotateX transform that always lands on the side that won.',
-    credits: [],
+      'One bit from crypto.getRandomValues decides the side. The coin is a three.js cylinder with a canvas label on each cap; it goes up in an arc, spins a whole number of half turns so it always comes down on the side that won, and wobbles a little on the way. Without WebGL it falls back to two CSS faces on a rotateX transform.',
+    credits: [
+      {
+        name: 'three.js',
+        author: 'three.js authors',
+        license: 'MIT',
+        url: 'https://threejs.org',
+      },
+    ],
   },
   {
     label: 'Geometry Calculator',

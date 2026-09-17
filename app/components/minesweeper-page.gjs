@@ -123,6 +123,7 @@ const DEFAULTS = {
   sprint: false,
   minePercent: null,
   botLevel: 'normal',
+  botLevels: {},
   run: 'off',
   defuse: false,
 };
@@ -667,7 +668,12 @@ export default class MinesweeperPage extends Component {
       } else if ((event.kind === 'flag' || event.kind === 'unflag') && nearby)
         sfx('mines.flag');
       else if (event.kind === 'start') sfx('mines.start');
-      else if (event.kind === 'defusing' && event.by === this.myId)
+      else if (event.kind === 'respawn' && event.by === this.myId && this.me) {
+        // Back at the spawn point: your own avatar follows, rather than
+        // carrying on from where the mine got you.
+        Object.assign(this.me, { x: event.x, y: event.y, moving: false });
+        sfx('mines.start');
+      } else if (event.kind === 'defusing' && event.by === this.myId)
         sfx('mines.stun');
       else if (event.kind === 'defused' && nearby) sfx('mines.clear');
       else if (event.kind === 'sprint') {
@@ -763,6 +769,7 @@ export default class MinesweeperPage extends Component {
         ...this.me,
         stun: mine?.stun ?? 0,
         dead: mine?.dead,
+        downMs: mine?.downMs ?? 0,
         defusing: mine?.defusing,
       };
       const speed = body.defusing ? 0 : runStep(view, body, wantsRun, dt);
@@ -1448,6 +1455,7 @@ export default class MinesweeperPage extends Component {
           ![message.x, message.y, message.face].every(Number.isFinite) ||
           player.stun > 0 ||
           player.dead ||
+          player.downMs > 0 ||
           player.defusing ||
           state.status !== 'playing'
         )
@@ -1960,31 +1968,6 @@ export default class MinesweeperPage extends Component {
                 <span class="qr-switch-track" aria-hidden="true"></span>
               </span>
             </label>
-            <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">Computer
-                  players</span><span class="tool-hint">Easy ones dawdle and dig
-                  blind now and then; hard ones walk fast and barely stop to
-                  think.</span></span>
-              <div
-                class="math-tabs"
-                role="group"
-                aria-label="Computer difficulty"
-              >
-                {{#each this.botLevels as |l|}}
-                  <button
-                    type="button"
-                    class="qr-tab
-                      {{if (eq this.settings.botLevel l.id) 'active'}}"
-                    aria-pressed={{if
-                      (eq this.settings.botLevel l.id)
-                      "true"
-                      "false"
-                    }}
-                    {{on "click" (fn this.setRule "botLevel" l.id)}}
-                  >{{l.label}}</button>
-                {{/each}}
-              </div>
-            </div>
             <label class="lobby-rule is-switch">
               <span class="lobby-rule-text"><span class="qr-label">Bombs only
                   stun</span><span class="tool-hint">Off: digging a mine knocks

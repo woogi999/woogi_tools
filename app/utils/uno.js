@@ -669,6 +669,29 @@ function resolvePlay(
   const rules = state.rules;
   if (answering) {
     if (rules.defense && card.value === 'skip') {
+      if (answering.kind === 'skip') {
+        // A Skip on a Skip doesn't just cancel it: it passes the skip along
+        // to the next player, who can answer it in turn.
+        const victim = nextIndex(state, 1, index);
+        state.pending = {
+          kind: 'skip',
+          amount: 0,
+          value: 0,
+          from: index,
+          target: victim,
+          resume: nextIndex(state, 1, victim),
+          offender: null,
+          hadMatch: false,
+        };
+        note(
+          state,
+          `${player.name} passed the skip on to ${name(state, victim)}.`,
+        );
+        emit(state, { type: 'block', player: index, from: answering.from });
+        setTurn(state, victim);
+        autoResolve(state);
+        return true;
+      }
       state.pending = null;
       note(state, `${player.name} blocked it.`);
       emit(state, { type: 'block', player: index, from: answering.from });
