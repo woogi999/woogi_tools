@@ -8,6 +8,7 @@ import AvatarPortrait from './avatar-portrait';
 import AvatarPicker from './avatar-picker';
 import GameChat from './game-chat';
 import NearbyPanel from './nearby-panel';
+import GameSettings from './game-settings';
 import GameRoom from '../utils/game-room';
 import { askConfirm } from '../utils/confirm';
 
@@ -16,11 +17,19 @@ import { askConfirm } from '../utils/confirm';
 // join through a room code or invite link and see the same seats and rules.
 //
 // Args:
+//   @game         the game's id ('snake', 'mines', 'chess', 'woono'), which
+//                 puts that game's settings button in the lobby header
 //   @room         the page's GameRoom
 //   @seats        [{ id, name, avatar, kind: 'human' | 'bot', isHost, isYou }]
 //   @maxSeats     seat limit, for the counter and the Add button
 //   @onAddBot     when given, the host can add computer players
 //   @onRemoveBot  (seatId) removes one
+//   @levelEditor  this game has custom levels, so the lobby links to the editor
+//   @spectatable  the game can show a spectator its game, so the lobby offers
+//                 watching instead of playing
+//   @botLevels        { [seatId]: level } — with @botLevelOptions and
+//   @botLevelOptions  [{ id, label }]       @onSetBotLevel, each computer
+//   @onSetBotLevel    (seatId, level)       player gets its own difficulty
 //   @onStart      host only
 //   @startLabel   defaults to "Start game"
 //   @blocker      why the game can't start yet, or null
@@ -55,8 +64,73 @@ export default class GameLobby extends Component {
     return this.args.seats.length;
   }
 
+  // Each computer player carries its own difficulty, so a lobby can mix an easy
+  // one in for a newcomer with a hard one for everybody else. The host picks
+  // them; a guest just sees what was picked.
+  levelOf(seat) {
+    return (
+      this.args.botLevels?.[seat.id] ??
+      this.args.botLevelOptions?.[0]?.id ??
+      null
+    );
+  }
+
+  showBotLevels = (seat) =>
+    Boolean(
+      seat.kind === 'bot' &&
+      this.canEdit &&
+      this.args.onSetBotLevel &&
+      this.args.botLevelOptions?.length,
+    );
+
+  isBotLevel = (seat, level) => this.levelOf(seat) === level;
+
+  // What a guest sees in place of the buttons.
+  botLevelLabel = (seat) => {
+    if (
+      seat.kind !== 'bot' ||
+      this.canEdit ||
+      !this.args.botLevelOptions?.length
+    )
+      return null;
+    return (
+      this.args.botLevelOptions.find((l) => l.id === this.levelOf(seat))
+        ?.label ?? null
+    );
+  };
+
+  // ─── Spectators ────────────────────────────────────────────────────
+  // Watching instead of playing. Anyone can choose it for themselves before the
+  // game starts; the host can also move a guest either way.
+
+  get spectators() {
+    return this.room.spectators;
+  }
+
+  get iAmSpectating() {
+    return this.room.iAmSpectating;
+  }
+
+  // The host can't watch their own game alone, and nobody can leave the game
+  // with nobody in it.
+  get canSpectate() {
+    // Only games that can actually show a spectator something offer it.
+    if (!this.args.spectatable) return false;
+    // Anyone can watch, the host included: sitting out to watch the computer
+    // players go at each other is a reasonable thing to want. The only rule is
+    // that somebody has to be left on the field, and a computer player counts,
+    // so a lone host can drop out as long as they have added one.
+    if (this.iAmSpectating) return true;
+    return this.seatCount > 1;
+  }
+
+  toggleSpectating = () => this.room.setSpectating(!this.iAmSpectating);
+  unspectate = (id) => this.room.setSpectatingFor(id, false);
+
   get canAddBot() {
-    return this.args.onAddBot && this.canEdit && this.seatCount < this.args.maxSeats;
+    return (
+      this.args.onAddBot && this.canEdit && this.seatCount < this.args.maxSeats
+    );
   }
 
   get statusLabel() {
@@ -90,7 +164,17 @@ export default class GameLobby extends Component {
   };
   deletePreset = async (id) => {
     const preset = this.room.presets.find((p) => p.id === id);
-    if (!(await askConfirm({ title: `Delete “${preset?.name ?? 'these rules'}”?`, message: 'The saved rule set will be removed. The rules you’re using now stay as they are.', confirmLabel: 'Hold to delete', cancelLabel: 'Cancel', holdMs: 1500 }))) return;
+    if (
+      !(await askConfirm({
+        title: `Delete “${preset?.name ?? 'these rules'}”?`,
+        message:
+          'The saved rule set will be removed. The rules you’re using now stay as they are.',
+        confirmLabel: 'Hold to delete',
+        cancelLabel: 'Cancel',
+        holdMs: 1500,
+      }))
+    )
+      return;
     this.room.deletePreset(id);
   };
   resetRules = () => this.room.resetSettings();
@@ -110,13 +194,22 @@ export default class GameLobby extends Component {
 
   // Joined someone's room online: nothing nearby to set up.
   get hideNearby() {
-    return (this.room.status === 'joined' || this.room.status === 'joining' || this.room.status === 'opening') && !this.room.lan;
+    return (
+      (this.room.status === 'joined' ||
+        this.room.status === 'joining' ||
+        this.room.status === 'opening') &&
+      !this.room.lan
+    );
   }
 
   join = (event) => {
     event.preventDefault();
-    if (this.room.needsPassword && !this.joinInput) this.joinInput = this.room.needsPassword;
-    this.room.join(this.joinInput || this.room.needsPassword, this.joinPassword);
+    if (this.room.needsPassword && !this.joinInput)
+      this.joinInput = this.room.needsPassword;
+    this.room.join(
+      this.joinInput || this.room.needsPassword,
+      this.joinPassword,
+    );
   };
 
   browse = async () => {
@@ -150,8 +243,20 @@ export default class GameLobby extends Component {
     if (hosting || joined) {
       const ok = await askConfirm(
         hosting
-          ? { title: 'Close the room?', message: 'Everyone in it will be disconnected.', confirmLabel: 'Hold to close', cancelLabel: 'Keep it open', holdMs: 1500 }
-          : { title: 'Leave the room?', message: 'You’ll need the code or link to join again.', confirmLabel: 'Hold to leave', cancelLabel: 'Stay', holdMs: 1500 },
+          ? {
+              title: 'Close the room?',
+              message: 'Everyone in it will be disconnected.',
+              confirmLabel: 'Hold to close',
+              cancelLabel: 'Keep it open',
+              holdMs: 1500,
+            }
+          : {
+              title: 'Leave the room?',
+              message: 'You’ll need the code or link to join again.',
+              confirmLabel: 'Hold to leave',
+              cancelLabel: 'Stay',
+              holdMs: 1500,
+            },
       );
       if (!ok) return;
     }
@@ -163,7 +268,9 @@ export default class GameLobby extends Component {
   }
 
   get startDisabled() {
-    return Boolean(this.args.blocker) || this.room.isBusy || !this.room.allReady;
+    return (
+      Boolean(this.args.blocker) || this.room.isBusy || !this.room.allReady
+    );
   }
 
   readyCheck = () => this.room.callReadyCheck();
@@ -172,57 +279,193 @@ export default class GameLobby extends Component {
     <div class="game-lobby pop-in">
       <header class="lobby-head">
         <h2 class="lobby-heading">Lobby</h2>
-        <span class="lobby-count"><Icon @name="users" @size={{13}} /> {{this.seatCount}}/{{@maxSeats}}</span>
+        <span class="lobby-count"><Icon @name="users" @size={{13}} />
+          {{this.seatCount}}/{{@maxSeats}}</span>
+        {{#if @onLevelEditor}}
+          <button
+            type="button"
+            class="qr-icon-btn lobby-editor-btn"
+            title="Level Editor: draw your own map for this game"
+            aria-label="Level Editor"
+            {{on "click" @onLevelEditor}}
+          ><Icon @name="grid-3x3" @size={{15}} /></button>
+        {{/if}}
+        {{#if @game}}
+          <GameSettings @game={{@game}} @compact={{true}} />
+        {{/if}}
       </header>
 
       <div class="lobby-grid">
         <section class="lobby-panel lobby-players" aria-label="Players">
-          <h3 class="lobby-panel-title"><Icon @name="users" @size={{14}} /> Players</h3>
+          <h3 class="lobby-panel-title"><Icon @name="users" @size={{14}} />
+            Players</h3>
           <ul class="lobby-seats">
             {{#each @seats key="id" as |seat|}}
               <li class="lobby-seat {{if seat.isYou 'is-you'}} pop-in">
                 {{#if seat.avatar}}
-                  <AvatarPortrait @avatar={{seat.avatar}} @pose={{seat.pose}} @size={{40}} />
+                  <AvatarPortrait
+                    @avatar={{seat.avatar}}
+                    @pose={{seat.pose}}
+                    @size={{40}}
+                  />
                 {{else}}
-                  <span class="lobby-seat-bot"><Icon @name="bot" @size={{20}} /></span>
+                  <span class="lobby-seat-bot"><Icon
+                      @name="bot"
+                      @size={{20}}
+                    /></span>
                 {{/if}}
                 <span class="lobby-seat-text">
                   <span class="lobby-seat-name">{{seat.name}}</span>
                   <span class="lobby-seat-tags">
                     {{#if seat.isYou}}<span class="lobby-tag">You</span>{{/if}}
-                    {{#if seat.isHost}}<span class="lobby-tag is-host"><Icon @name="crown" @size={{10}} /> Host</span>{{/if}}
-                    {{#if (isBot seat)}}<span class="lobby-tag">Computer</span>{{/if}}
+                    {{#if seat.isHost}}<span class="lobby-tag is-host"><Icon
+                          @name="crown"
+                          @size={{10}}
+                        />
+                        Host</span>{{/if}}
+                    {{#if (isBot seat)}}<span
+                        class="lobby-tag"
+                      >Computer</span>{{/if}}
                     {{#if this.room.isOnline}}
                       {{#unless (isBot seat)}}
                         {{#unless seat.isHost}}
-                          <span class="lobby-tag lobby-ready-tag {{if seat.ready 'is-ready'}}"><Icon @name={{if seat.ready "check" "clock"}} @size={{10}} /> {{if seat.ready "Ready" "Not ready"}}</span>
+                          <span
+                            class="lobby-tag lobby-ready-tag
+                              {{if seat.ready 'is-ready'}}"
+                          ><Icon
+                              @name={{if seat.ready "check" "clock"}}
+                              @size={{10}}
+                            />
+                            {{if seat.ready "Ready" "Not ready"}}</span>
                         {{/unless}}
                       {{/unless}}
                     {{/if}}
                   </span>
+                  {{#if (this.showBotLevels seat)}}
+                    <span
+                      class="lobby-seat-levels"
+                      role="group"
+                      aria-label="{{seat.name}} difficulty"
+                    >
+                      {{#each @botLevelOptions key="id" as |l|}}
+                        <button
+                          type="button"
+                          class="lobby-level
+                            {{if (this.isBotLevel seat l.id) 'active'}}"
+                          aria-pressed={{if
+                            (this.isBotLevel seat l.id)
+                            "true"
+                            "false"
+                          }}
+                          title="{{seat.name}}: {{l.label}}"
+                          {{on "click" (fn @onSetBotLevel seat.id l.id)}}
+                        >{{l.label}}</button>
+                      {{/each}}
+                    </span>
+                  {{else if (this.botLevelLabel seat)}}
+                    <span class="lobby-seat-tags"><span
+                        class="lobby-tag"
+                      >{{this.botLevelLabel seat}}</span></span>
+                  {{/if}}
                 </span>
                 {{#if this.canEdit}}
                   {{#if (isBot seat)}}
                     {{#if @onRemoveBot}}
-                      <button type="button" class="qr-icon-btn" aria-label="Remove {{seat.name}}" {{on "click" (fn @onRemoveBot seat.id)}}><Icon @name="x" @size={{14}} /></button>
+                      <button
+                        type="button"
+                        class="qr-icon-btn"
+                        aria-label="Remove {{seat.name}}"
+                        {{on "click" (fn @onRemoveBot seat.id)}}
+                      ><Icon @name="x" @size={{14}} /></button>
                     {{/if}}
                   {{else}}
                     {{#unless seat.isYou}}
-                      <button type="button" class="qr-icon-btn" aria-label="Remove {{seat.name}} from the room" title="Remove from room" {{on "click" (fn this.kick seat.id)}}><Icon @name="log-out" @size={{14}} /></button>
+                      <button
+                        type="button"
+                        class="qr-icon-btn"
+                        aria-label="Remove {{seat.name}} from the room"
+                        title="Remove from room"
+                        {{on "click" (fn this.kick seat.id)}}
+                      ><Icon @name="log-out" @size={{14}} /></button>
                     {{/unless}}
                   {{/if}}
                 {{/if}}
               </li>
             {{/each}}
           </ul>
+          {{#if this.canSpectate}}
+            <button
+              type="button"
+              class="lobby-add {{if this.iAmSpectating 'active'}}"
+              aria-pressed={{if this.iAmSpectating "true" "false"}}
+              {{on "click" this.toggleSpectating}}
+            ><Icon @name="eye" @size={{14}} />
+              {{if
+                this.iAmSpectating
+                "Join the game"
+                "Watch instead of playing"
+              }}</button>
+          {{/if}}
+
+          {{#if this.spectators.length}}
+            <h3 class="lobby-panel-title lobby-spectator-title"><Icon
+                @name="eye"
+                @size={{14}}
+              />
+              Watching ({{this.spectators.length}})</h3>
+            <ul class="lobby-seats lobby-spectators">
+              {{#each this.spectators key="id" as |seat|}}
+                <li class="lobby-seat is-spectator pop-in">
+                  {{#if seat.avatar}}
+                    <AvatarPortrait
+                      @avatar={{seat.avatar}}
+                      @pose={{seat.pose}}
+                      @size={{28}}
+                    />
+                  {{else}}
+                    <span class="lobby-seat-bot"><Icon
+                        @name="eye"
+                        @size={{14}}
+                      /></span>
+                  {{/if}}
+                  <span class="lobby-seat-text">
+                    <span class="lobby-seat-name">{{seat.name}}</span>
+                    {{#if seat.isYou}}<span class="lobby-seat-tags"><span
+                          class="lobby-tag"
+                        >You</span></span>{{/if}}
+                  </span>
+                  {{#if this.canEdit}}
+                    {{#unless seat.isYou}}
+                      <button
+                        type="button"
+                        class="qr-icon-btn"
+                        aria-label="Put {{seat.name}} back in the game"
+                        title="Back in the game"
+                        {{on "click" (fn this.unspectate seat.id)}}
+                      ><Icon @name="users" @size={{14}} /></button>
+                    {{/unless}}
+                  {{/if}}
+                </li>
+              {{/each}}
+            </ul>
+          {{/if}}
+
           {{#if this.canAddBot}}
-            <button type="button" class="lobby-add" {{on "click" @onAddBot}}><Icon @name="plus" @size={{14}} /> Add computer player</button>
+            <button
+              type="button"
+              class="lobby-add"
+              {{on "click" @onAddBot}}
+            ><Icon @name="plus" @size={{14}} /> Add computer player</button>
           {{/if}}
 
           <div class="lobby-invite">
             {{#if (eq this.room.status "open")}}
               {{#if this.room.lan}}
-                <p class="fs-status is-connected"><Icon @name="radio-tower" @size={{14}} /> Nearby game open. No internet needed.</p>
+                <p class="fs-status is-connected"><Icon
+                    @name="radio-tower"
+                    @size={{14}}
+                  />
+                  Nearby game open. No internet needed.</p>
               {{else}}
                 <div class="fs-code-block">
                   <span class="qr-label is-muted">Room code</span>
@@ -240,50 +483,132 @@ export default class GameLobby extends Component {
                 </div>
                 <AccessControls @room={{this.room}} />
                 <p class="fs-status is-connected">
-                  <Icon @name={{if this.room.listed "users" "lock"}} @size={{14}} />
+                  <Icon
+                    @name={{if this.room.listed "users" "lock"}}
+                    @size={{14}}
+                  />
                   {{#if this.room.listed}}
-                    {{if this.room.listing "Public: listed for anyone browsing rooms." "Public: getting listed…"}}
+                    {{if
+                      this.room.listing
+                      "Public: listed for anyone browsing rooms."
+                      "Public: getting listed…"
+                    }}
                   {{else}}
                     Private: only people with the code or link can join.
                   {{/if}}
                   {{#if this.room.password}} Password needed.{{/if}}
                 </p>
               {{/if}}
-              <button type="button" class="fs-reset" {{on "click" this.leaveRoom}}><Icon @name="x" @size={{13}} /> Close room</button>
+              <button
+                type="button"
+                class="fs-reset"
+                {{on "click" this.leaveRoom}}
+              ><Icon @name="x" @size={{13}} /> Close room</button>
             {{else if this.onlineBusy}}
-              <p class="fs-status"><Icon @name="radio-tower" @size={{14}} /> {{this.statusLabel}}</p>
+              <p class="fs-status"><Icon @name="radio-tower" @size={{14}} />
+                {{this.statusLabel}}</p>
               {{#if this.room.slow}}
-                <p class="tool-hint">Still looking. Keep this tab open. If it never connects, one of the networks (often mobile data, work or school Wi-Fi) is blocking direct browser-to-browser connections; try both devices on the same Wi-Fi, or play nearby below.</p>
+                <p class="tool-hint">Still looking. Keep this tab open. If it
+                  never connects, one of the networks (often mobile data, work
+                  or school Wi-Fi) is blocking direct browser-to-browser
+                  connections; try both devices on the same Wi-Fi, or play
+                  nearby below.</p>
               {{/if}}
-              <button type="button" class="fs-reset" {{on "click" this.leaveRoom}}><Icon @name="x" @size={{13}} /> Cancel</button>
+              <button
+                type="button"
+                class="fs-reset"
+                {{on "click" this.leaveRoom}}
+              ><Icon @name="x" @size={{13}} /> Cancel</button>
             {{else if (eq this.room.status "joined")}}
-              <p class="fs-status is-connected"><Icon @name="radio-tower" @size={{14}} /> Connected to the host.</p>
-              <button type="button" class="fs-reset" {{on "click" this.leaveRoom}}><Icon @name="log-out" @size={{13}} /> Leave room</button>
+              <p class="fs-status is-connected"><Icon
+                  @name="radio-tower"
+                  @size={{14}}
+                />
+                Connected to the host.</p>
+              <button
+                type="button"
+                class="fs-reset"
+                {{on "click" this.leaveRoom}}
+              ><Icon @name="log-out" @size={{13}} /> Leave room</button>
             {{else if (eq this.room.status "idle")}}
               <span class="qr-label is-muted">Play with friends online</span>
               <AccessControls @room={{this.room}} />
-              <button type="button" class="btn lobby-open-btn" {{on "click" this.host}}><Icon @name={{if this.room.listed "radio-tower" "lock"}} @size={{13}} /> {{if this.room.listed "Open public room" "Open private room"}}</button>
+              <button
+                type="button"
+                class="btn lobby-open-btn"
+                {{on "click" this.host}}
+              ><Icon
+                  @name={{if this.room.listed "radio-tower" "lock"}}
+                  @size={{13}}
+                />
+                {{if
+                  this.room.listed
+                  "Open public room"
+                  "Open private room"
+                }}</button>
               <form class="fs-join" {{on "submit" this.join}}>
-                <input type="text" class="fs-code-input" placeholder="Room code" aria-label="Room code" maxlength="8" value={{this.joinInput}} {{on "input" this.setJoinInput}} />
+                <input
+                  type="text"
+                  class="fs-code-input"
+                  placeholder="Room code"
+                  aria-label="Room code"
+                  maxlength="8"
+                  value={{this.joinInput}}
+                  {{on "input" this.setJoinInput}}
+                />
                 {{#if this.showJoinPassword}}
-                  <input type="password" class="fs-code-input lobby-password" placeholder="Password" aria-label="Room password" maxlength="32" value={{this.joinPassword}} {{on "input" this.setJoinPassword}} />
+                  <input
+                    type="password"
+                    class="fs-code-input lobby-password"
+                    placeholder="Password"
+                    aria-label="Room password"
+                    maxlength="32"
+                    value={{this.joinPassword}}
+                    {{on "input" this.setJoinPassword}}
+                  />
                 {{/if}}
                 <button type="submit" class="btn">Join</button>
               </form>
               <div class="lobby-browse">
-                <button type="button" class="btn" disabled={{this.browsing}} {{on "click" this.browse}}><Icon @name="search" @size={{13}} /> {{if this.browsing "Looking for rooms…" "Browse public rooms"}}</button>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={{this.browsing}}
+                  {{on "click" this.browse}}
+                ><Icon @name="search" @size={{13}} />
+                  {{if
+                    this.browsing
+                    "Looking for rooms…"
+                    "Browse public rooms"
+                  }}</button>
                 {{#if this.rooms}}
                   {{#if this.rooms.length}}
                     <ul class="lobby-rooms">
                       {{#each this.rooms key="code" as |r|}}
                         <li class="lobby-room">
-                          <span class="lobby-room-text"><strong>{{r.host}}’s room</strong> <span class="lobby-tag">{{r.players}}/{{r.max}}</span>{{#if r.password}} <Icon @name="lock" @size={{12}} />{{/if}}{{#if r.locked}} <span class="lobby-tag">Playing</span>{{/if}}</span>
-                          <button type="button" class="btn" disabled={{if r.locked true (full r)}} {{on "click" (fn this.joinListed r)}}>Join</button>
+                          <span class="lobby-room-text"><strong>{{r.host}}’s
+                              room</strong>
+                            <span
+                              class="lobby-tag"
+                            >{{r.players}}/{{r.max}}</span>{{#if r.password}}
+                              <Icon @name="lock" @size={{12}} />{{/if}}{{#if
+                              r.locked
+                            }}
+                              <span
+                                class="lobby-tag"
+                              >Playing</span>{{/if}}</span>
+                          <button
+                            type="button"
+                            class="btn"
+                            disabled={{if r.locked true (full r)}}
+                            {{on "click" (fn this.joinListed r)}}
+                          >Join</button>
                         </li>
                       {{/each}}
                     </ul>
                   {{else}}
-                    <p class="tool-hint">No public rooms right now. Open one and your friends will see it here.</p>
+                    <p class="tool-hint">No public rooms right now. Open one and
+                      your friends will see it here.</p>
                   {{/if}}
                 {{/if}}
               </div>
@@ -292,7 +617,8 @@ export default class GameLobby extends Component {
 
           {{#unless this.hideNearby}}
             <details class="lobby-nearby" open={{this.room.lan}}>
-              <summary><Icon @name="wifi" @size={{14}} /> Play nearby without internet (Wi-Fi or hotspot)</summary>
+              <summary><Icon @name="wifi" @size={{14}} />
+                Play nearby without internet (Wi-Fi or hotspot)</summary>
               <NearbyPanel @room={{this.room}} />
             </details>
           {{/unless}}
@@ -300,15 +626,24 @@ export default class GameLobby extends Component {
 
         <section class="lobby-panel lobby-rules" aria-label="Rules">
           <h3 class="lobby-panel-title">
-            <Icon @name="sliders-horizontal" @size={{14}} /> Rules
+            <Icon @name="sliders-horizontal" @size={{14}} />
+            Rules
             {{#unless this.canEdit}}<span class="lobby-tag">Set by the host</span>{{/unless}}
           </h3>
           {{#if this.canEdit}}
             <div class="lobby-presets">
-              <p class="tool-hint lobby-presets-note"><Icon @name="save" @size={{12}} /> Your rules are remembered for next time.</p>
+              <p class="tool-hint lobby-presets-note"><Icon
+                  @name="save"
+                  @size={{12}}
+                />
+                Your rules are remembered for next time.</p>
               <div class="lobby-presets-row">
                 {{#if this.room.presets.length}}
-                  <select class="lobby-preset-select" aria-label="Load saved rules" {{on "change" this.applyPreset}}>
+                  <select
+                    class="lobby-preset-select"
+                    aria-label="Load saved rules"
+                    {{on "change" this.applyPreset}}
+                  >
                     <option value="">Load saved rules…</option>
                     {{#each this.room.presets key="id" as |p|}}
                       <option value={{p.id}}>{{p.name}}</option>
@@ -316,21 +651,45 @@ export default class GameLobby extends Component {
                   </select>
                 {{/if}}
                 <form class="lobby-preset-save" {{on "submit" this.savePreset}}>
-                  <input type="text" maxlength="32" placeholder="Name these rules" aria-label="Name for these rules" value={{this.presetName}} {{on "input" this.setPresetName}} />
-                  <button type="submit" class="btn"><Icon @name="save" @size={{13}} /> Save</button>
+                  <input
+                    type="text"
+                    maxlength="32"
+                    placeholder="Name these rules"
+                    aria-label="Name for these rules"
+                    value={{this.presetName}}
+                    {{on "input" this.setPresetName}}
+                  />
+                  <button type="submit" class="btn"><Icon
+                      @name="save"
+                      @size={{13}}
+                    />
+                    Save</button>
                 </form>
-                <button type="button" class="btn" title="Back to the default rules" {{on "click" this.resetRules}}><Icon @name="rotate-ccw" @size={{13}} /> Defaults</button>
+                <button
+                  type="button"
+                  class="btn"
+                  title="Back to the default rules"
+                  {{on "click" this.resetRules}}
+                ><Icon @name="rotate-ccw" @size={{13}} /> Defaults</button>
               </div>
               {{#if this.room.presets.length}}
                 <ul class="lobby-preset-chips" aria-label="Saved rules">
                   {{#each this.room.presets key="id" as |p|}}
-                    <li class="lobby-tag lobby-preset-chip">{{p.name}}<button type="button" class="lobby-preset-remove" aria-label="Delete saved rules {{p.name}}" {{on "click" (fn this.deletePreset p.id)}}><Icon @name="x" @size={{10}} /></button></li>
+                    <li class="lobby-tag lobby-preset-chip">{{p.name}}<button
+                        type="button"
+                        class="lobby-preset-remove"
+                        aria-label="Delete saved rules {{p.name}}"
+                        {{on "click" (fn this.deletePreset p.id)}}
+                      ><Icon @name="x" @size={{10}} /></button></li>
                   {{/each}}
                 </ul>
               {{/if}}
             </div>
           {{/if}}
-          <fieldset class="lobby-rules-body" disabled={{if this.canEdit false true}}>
+          <fieldset
+            class="lobby-rules-body"
+            disabled={{if this.canEdit false true}}
+          >
             {{yield this.canEdit to="rules"}}
           </fieldset>
         </section>
@@ -338,19 +697,38 @@ export default class GameLobby extends Component {
 
       <div class="lobby-grid">
         <section class="lobby-panel lobby-profile" aria-label="Your profile">
-          <h3 class="lobby-panel-title"><Icon @name="user-round" @size={{14}} /> You</h3>
+          <h3 class="lobby-panel-title"><Icon @name="user-round" @size={{14}} />
+            You</h3>
           <div class="lobby-profile-row">
-            <AvatarPortrait @avatar={{this.room.profile.avatar}} @pose={{this.room.profile.pose}} @size={{52}} />
+            <AvatarPortrait
+              @avatar={{this.room.profile.avatar}}
+              @pose={{this.room.profile.pose}}
+              @size={{52}}
+            />
             <label class="lobby-name">
               <span class="qr-label is-muted">Name</span>
-              <input type="text" maxlength="20" value={{this.room.profile.name}} {{on "input" this.setName}} />
+              <input
+                type="text"
+                maxlength="20"
+                value={{this.room.profile.name}}
+                {{on "input" this.setName}}
+              />
             </label>
-            <button type="button" class="btn lobby-avatar-toggle {{if this.pickingAvatar 'active'}}" aria-expanded={{if this.pickingAvatar "true" "false"}} {{on "click" this.toggleAvatarPicker}}>
-              <Icon @name="shirt" @size={{13}} /> {{if this.pickingAvatar "Done" "Change avatar"}}
+            <button
+              type="button"
+              class="btn lobby-avatar-toggle {{if this.pickingAvatar 'active'}}"
+              aria-expanded={{if this.pickingAvatar "true" "false"}}
+              {{on "click" this.toggleAvatarPicker}}
+            >
+              <Icon @name="shirt" @size={{13}} />
+              {{if this.pickingAvatar "Done" "Change avatar"}}
             </button>
           </div>
           {{#if this.pickingAvatar}}
-            <AvatarPicker @profile={{this.room.profile}} @onPick={{this.pickAvatar}} />
+            <AvatarPicker
+              @profile={{this.room.profile}}
+              @onPick={{this.pickAvatar}}
+            />
           {{/if}}
           {{yield to="profile"}}
         </section>
@@ -370,16 +748,35 @@ export default class GameLobby extends Component {
             <p class="tool-hint">Waiting for everyone to press Ready ({{this.room.readyCount}}/{{this.room.members.length}}).</p>
           {{/if}}
         {{else if this.room.iAmReady}}
-          <p class="tool-hint">You’re ready. Waiting for the host to start the game…</p>
+          <p class="tool-hint">You’re ready. Waiting for the host to start the
+            game…</p>
         {{else}}
-          <p class="tool-hint {{if this.room.readyCheckAt 'lobby-ready-nudge'}}">{{if this.room.readyCheckAt "The host is asking if you’re ready!" "Press Ready when you’re set to play."}}</p>
+          <p
+            class="tool-hint {{if this.room.readyCheckAt 'lobby-ready-nudge'}}"
+          >{{if
+              this.room.readyCheckAt
+              "The host is asking if you’re ready!"
+              "Press Ready when you’re set to play."
+            }}</p>
         {{/if}}
         {{#if this.canEdit}}
           {{#if this.hasGuests}}
-            <button type="button" class="btn" disabled={{this.room.allReady}} title="Ask everyone to press Ready" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{14}} /> Ready check</button>
+            <button
+              type="button"
+              class="btn"
+              disabled={{this.room.allReady}}
+              title="Ask everyone to press Ready"
+              {{on "click" this.readyCheck}}
+            ><Icon @name="bell-ring" @size={{14}} /> Ready check</button>
           {{/if}}
-          <button type="button" class="btn active lobby-start" disabled={{this.startDisabled}} {{on "click" @onStart}}>
-            <Icon @name="play" @size={{14}} /> {{if @startLabel @startLabel "Start game"}}
+          <button
+            type="button"
+            class="btn active lobby-start"
+            disabled={{this.startDisabled}}
+            {{on "click" @onStart}}
+          >
+            <Icon @name="play" @size={{14}} />
+            {{if @startLabel @startLabel "Start game"}}
           </button>
         {{else if this.room.isOnline}}
           <ReadyButton @room={{this.room}} />
@@ -398,9 +795,20 @@ export class ReadyButton extends Component {
   toggle = () => this.args.room.setReady(!this.ready);
 
   <template>
-    <button type="button" class="btn lobby-ready-btn {{if this.ready 'is-ready' 'active'}} {{if @class @class}}" aria-pressed={{if this.ready "true" "false"}} {{on "click" this.toggle}}>
+    <button
+      type="button"
+      class="btn lobby-ready-btn
+        {{if this.ready 'is-ready' 'active'}}
+        {{if @class @class}}"
+      aria-pressed={{if this.ready "true" "false"}}
+      {{on "click" this.toggle}}
+    >
       <Icon @name={{if this.ready "circle-check-big" "check"}} @size={{14}} />
-      {{if this.ready (if @readyLabel @readyLabel "Ready!") (if @label @label "Ready")}}
+      {{if
+        this.ready
+        (if @readyLabel @readyLabel "Ready!")
+        (if @label @label "Ready")
+      }}
     </button>
   </template>
 }
@@ -412,15 +820,35 @@ class AccessControls extends Component {
   }
 
   setListed = (listed) => this.room.setAccess({ listed });
-  setPassword = (event) => this.room.setAccess({ password: event.target.value });
+  setPassword = (event) =>
+    this.room.setAccess({ password: event.target.value });
 
   <template>
     <div class="lobby-access">
       <div class="math-tabs" role="group" aria-label="Who can find the room">
-        <button type="button" class="qr-tab {{if this.room.listed 'active'}}" aria-pressed={{if this.room.listed "true" "false"}} {{on "click" (fn this.setListed true)}}>Public</button>
-        <button type="button" class="qr-tab {{unless this.room.listed 'active'}}" aria-pressed={{if this.room.listed "false" "true"}} {{on "click" (fn this.setListed false)}}>Private</button>
+        <button
+          type="button"
+          class="qr-tab {{if this.room.listed 'active'}}"
+          aria-pressed={{if this.room.listed "true" "false"}}
+          {{on "click" (fn this.setListed true)}}
+        >Public</button>
+        <button
+          type="button"
+          class="qr-tab {{unless this.room.listed 'active'}}"
+          aria-pressed={{if this.room.listed "false" "true"}}
+          {{on "click" (fn this.setListed false)}}
+        >Private</button>
       </div>
-      <input type="password" class="fs-code-input lobby-password" placeholder="Password (optional)" aria-label="Room password" maxlength="32" autocomplete="new-password" value={{this.room.password}} {{on "input" this.setPassword}} />
+      <input
+        type="password"
+        class="fs-code-input lobby-password"
+        placeholder="Password (optional)"
+        aria-label="Room password"
+        maxlength="32"
+        autocomplete="new-password"
+        value={{this.room.password}}
+        {{on "input" this.setPassword}}
+      />
     </div>
   </template>
 }

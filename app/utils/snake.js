@@ -44,13 +44,41 @@ const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' };
 // Maps: where the obstacles are. Kinds are 'rock', 'palm' and 'water'.
 export const MAPS = [
   { id: 'meadow', label: 'Meadow', hint: 'An open grassy island.' },
-  { id: 'palms', label: 'Palm Beach', hint: 'Sand, with palm trees and rocks in the way.' },
-  { id: 'lagoon', label: 'Lagoon', hint: 'A pond in the middle to slither around.' },
-  { id: 'reef', label: 'Reef', hint: 'Channels of sea split the island, with gaps to cross.' },
+  {
+    id: 'palms',
+    label: 'Palm Beach',
+    hint: 'Sand, with palm trees and rocks in the way.',
+  },
+  {
+    id: 'lagoon',
+    label: 'Lagoon',
+    hint: 'Open sea in the middle, with a rocky shore around it.',
+  },
+  {
+    id: 'reef',
+    label: 'Reef',
+    hint: 'Channels cut right through the island, with gaps to cross.',
+  },
+  {
+    id: 'atoll',
+    label: 'Atoll',
+    hint: 'A ring of land around a lagoon. Nowhere to hide in the middle.',
+  },
+  {
+    id: 'coves',
+    label: 'Coves',
+    hint: 'A rounded island with bays bitten out of its corners.',
+  },
+  {
+    id: 'custom',
+    label: 'Your level',
+    hint: 'One you drew yourself in the Level Editor.',
+  },
 ];
 
 const key = (state, x, y) => y * state.size + x;
-const inBounds = (state, x, y) => x >= 0 && y >= 0 && x < state.size && y < state.size;
+const inBounds = (state, x, y) =>
+  x >= 0 && y >= 0 && x < state.size && y < state.size;
 
 // A tiny seeded random, so a map looks the same every game on every device.
 function seeded(seed) {
@@ -61,6 +89,55 @@ function seeded(seed) {
     s ^= s << 5;
     return ((s >>> 0) % 10000) / 10000;
   };
+}
+
+// The shape of the board, for the maps that are not a plain rectangle. A false
+// square is cut out: the island's sand or the open sea shows through and
+// nothing can enter it, the same as a level drawn that way in the editor.
+// Returns null for the maps that use the whole rectangle.
+function mapMask(map, size) {
+  const mid = (size - 1) / 2;
+  const cut = (test) => {
+    const mask = Array(size * size).fill(true);
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) if (test(x, y)) mask[y * size + x] = false;
+    return mask;
+  };
+  if (map === 'lagoon') {
+    const r = size * 0.19;
+    return cut((x, y) => Math.hypot((x - mid) / 1.25, y - mid) < r);
+  }
+  if (map === 'atoll') {
+    // A ring: everything inside the inner radius is water. The band left over
+    // is kept wide enough (about a fifth of the board) to turn around in.
+    const outer = size * 0.5;
+    const inner = size * 0.3;
+    return cut((x, y) => {
+      const d = Math.hypot(x - mid, y - mid);
+      return d < inner || d > outer;
+    });
+  }
+  if (map === 'coves') {
+    // A superellipse, so the corners come off and the board reads as the
+    // island's own shape rather than a square drawn on top of it.
+    const half = size / 2;
+    return cut((x, y) => {
+      const u = Math.abs((x + 0.5 - half) / half);
+      const v = Math.abs((y + 0.5 - half) / half);
+      return Math.pow(u, 3.2) + Math.pow(v, 3.2) > 1;
+    });
+  }
+  if (map === 'reef') {
+    const gap = Math.max(2, Math.round(size / 8));
+    const a = Math.round(size / 3);
+    const b = size - 1 - a;
+    return cut((x, y) => {
+      if (x !== a && x !== b) return false;
+      // The crossings: near the middle and at both ends.
+      return !(Math.abs(y - mid) < gap / 2 + 0.5 || y < 2 || y > size - 3);
+    });
+  }
+  return null;
 }
 
 function mapObstacles(map, size) {
@@ -79,23 +156,41 @@ function mapObstacles(map, size) {
       cells.push([x, y, rand() < 0.55 ? 'palm' : 'rock']);
     }
   } else if (map === 'lagoon') {
-    const r = size * 0.17;
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-      const d = Math.hypot((x - mid) / 1.25, y - mid);
-      if (d < r) cells.push([x, y, 'water']);
-      else if (d < r + 0.9 && (x + y) % 5 === 0) cells.push([x, y, 'rock']);
+    // The lagoon itself is cut out of the board (see mapMask); what is left to
+    // lay here is the rocky shore around it.
+    const r = size * 0.19;
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const d = Math.hypot((x - mid) / 1.25, y - mid);
+        if (d >= r && d < r + 1.1 && (x + y) % 4 === 0)
+          cells.push([x, y, 'rock']);
+      }
+  } else if (map === 'atoll') {
+    // Palms on the seaward edge of the ring, so the outside is the risky lane.
+    const rand = seeded(size * 17 + 5);
+    const outer = size * 0.5;
+    for (let y = 0; y < size; y++)
+      for (let x = 0; x < size; x++) {
+        const d = Math.hypot(x - mid, y - mid);
+        if (d > outer - 1.4 && d <= outer && rand() < 0.25)
+          cells.push([x, y, 'palm']);
+      }
+  } else if (map === 'coves') {
+    const rand = seeded(size * 23 + 11);
+    for (let i = 0; i < Math.round(size * 0.7); i++) {
+      const x = 2 + Math.floor(rand() * (size - 4));
+      const y = 2 + Math.floor(rand() * (size - 4));
+      cells.push([x, y, rand() < 0.4 ? 'palm' : 'rock']);
     }
   } else if (map === 'reef') {
-    const gap = Math.max(2, Math.round(size / 8));
+    // The channels are cut out of the board; the reef is what stands in them.
     const a = Math.round(size / 3);
     const b = size - 1 - a;
-    for (let i = 0; i < size; i++) {
-      const open = Math.abs(i - mid) < gap / 2 + 0.5 || i < 2 || i > size - 3;
-      if (!open) {
-        cells.push([a, i, 'water'], [b, i, 'water']);
-      }
-    }
-    for (let i = a + 2; i < b - 1; i++) if (Math.abs(i - mid) > gap) cells.push([i, Math.round(mid), 'water']);
+    const rand = seeded(size * 29 + 3);
+    for (const lane of [a, b])
+      for (let i = 0; i < size; i++)
+        if (rand() < 0.18)
+          cells.push([lane + (rand() < 0.5 ? -1 : 1), i, 'rock']);
   }
   return cells;
 }
@@ -123,23 +218,58 @@ function startsFor(count, size) {
 
 // players: [{ id, name, bot }], up to four. One player is classic snake; more is a battle.
 // options: { size, apples, wrap, map, lengthSpeed ('faster' | 'off' | 'slower') }
-export function createGame(players, { size = 20, apples = 1, wrap = false, map = 'meadow', lengthSpeed = 'faster', botLevel = 'normal' } = {}) {
+export function createGame(
+  players,
+  {
+    size = 20,
+    apples = 1,
+    wrap = false,
+    map = 'meadow',
+    lengthSpeed = 'faster',
+    botLevel = 'normal',
+    // A level from the Level Editor: [x, y, kind] triples that replace the
+    // built-in map's obstacles entirely.
+    custom = null,
+    // Which squares are part of the board, for a level that was drawn as some
+    // shape other than a rectangle. false means the island shows through there
+    // and nothing can enter it.
+    mask = null,
+    land = null,
+    water = null,
+  } = {},
+) {
   const starts = startsFor(players.length, size);
   // No obstacle on or just ahead of a starting snake.
   const clear = new Set();
   for (const { x, y, dir } of starts.slice(0, players.length)) {
     const [dx, dy] = DIRS[dir];
-    for (let n = -START_LENGTH; n <= 6; n++) for (let s = -1; s <= 1; s++) clear.add(`${x + dx * n + dy * s},${y + dy * n + dx * s}`);
+    for (let n = -START_LENGTH; n <= 6; n++)
+      for (let s = -1; s <= 1; s++)
+        clear.add(`${x + dx * n + dy * s},${y + dy * n + dx * s}`);
   }
   const state = {
     size,
     wrap,
     // Older saved rules were on/off: on meant faster.
-    lengthSpeed: LENGTH_SPEEDS.includes(lengthSpeed) ? lengthSpeed : lengthSpeed === false ? 'off' : 'faster',
+    lengthSpeed: LENGTH_SPEEDS.includes(lengthSpeed)
+      ? lengthSpeed
+      : lengthSpeed === false
+        ? 'off'
+        : 'faster',
     changed: true,
     botLevel: BOT_TUNING[botLevel] ? botLevel : 'normal',
     map: MAPS.some((m) => m.id === map) ? map : 'meadow',
     obstacles: [],
+    // A drawn level brings its own shape; otherwise the map decides it.
+    // Where there is island at all (the board plus its beaches). Only the
+    // scene reads it: the rules only care about the mask.
+    land: Array.isArray(land) && land.length === size * size ? [...land] : null,
+    water:
+      Array.isArray(water) && water.length === size * size ? [...water] : null,
+    mask:
+      Array.isArray(mask) && mask.length === size * size
+        ? [...mask]
+        : mapMask(MAPS.some((m) => m.id === map) ? map : 'meadow', size),
     appleCount: Math.max(apples, players.length === 1 ? 1 : 0),
     tick: 0,
     status: 'countdown', // 'countdown' | 'playing' | 'over'
@@ -152,6 +282,9 @@ export function createGame(players, { size = 20, apples = 1, wrap = false, map =
         id: player.id,
         name: player.name,
         bot: Boolean(player.bot),
+        // Its own difficulty, set per seat in the lobby. Falls back to the
+        // room-wide one, which is what a saved room from before this had.
+        botLevel: BOT_TUNING[player.botLevel] ? player.botLevel : null,
         color: i,
         dir,
         queue: [],
@@ -161,12 +294,32 @@ export function createGame(players, { size = 20, apples = 1, wrap = false, map =
         progress: 0,
         coyote: 0,
         boosts: 0, // how many times it has boosted, so every screen can react to a new one
-        body: Array.from({ length: START_LENGTH }, (_, n) => [x - dx * n, y - dy * n]),
+        body: Array.from({ length: START_LENGTH }, (_, n) => [
+          x - dx * n,
+          y - dy * n,
+        ]),
       };
     }),
     apples: [],
   };
-  state.obstacles = mapObstacles(state.map, size).filter(([x, y]) => !clear.has(`${x},${y}`));
+  const laid =
+    Array.isArray(custom) && custom.length
+      ? custom
+      : mapObstacles(state.map, size);
+  // Anything the level put outside the field is dropped rather than trusted.
+  state.obstacles = laid
+    .filter(([x, y]) => x >= 0 && y >= 0 && x < size && y < size)
+    .filter(([x, y]) => !clear.has(`${x},${y}`))
+    // Nothing stands on a square that was cut out of the board: there is no
+    // ground there for it to stand on.
+    .filter(([x, y]) => !state.mask || state.mask[key(state, x, y)]);
+  // Whatever the level cut out, the squares a snake starts on and the lane
+  // ahead of it stay solid ground: nobody should be killed by the countdown.
+  if (state.mask)
+    for (const spot of clear) {
+      const [x, y] = spot.split(',').map(Number);
+      if (inBounds(state, x, y)) state.mask[key(state, x, y)] = true;
+    }
   for (let i = 0; i < state.appleCount; i++) spawnApple(state);
   return state;
 }
@@ -176,14 +329,25 @@ export function queueTurn(state, id, dir) {
   if (!snake?.alive || !DIRS[dir]) return;
   state.changed = true;
   const last = snake.queue[snake.queue.length - 1] ?? snake.dir;
-  if (dir === last || dir === OPPOSITE[last] || snake.queue.length >= MAX_QUEUED_TURNS) return;
+  if (
+    dir === last ||
+    dir === OPPOSITE[last] ||
+    snake.queue.length >= MAX_QUEUED_TURNS
+  )
+    return;
   snake.queue.push(dir);
 }
 
 // Sacrifice the tail for a burst of speed. Returns whether it worked.
 export function boost(state, id) {
   const snake = state.snakes.find((s) => s.id === id);
-  if (!snake?.alive || state.status !== 'playing' || snake.boost > 0 || snake.body.length < MIN_BOOST_LENGTH) return false;
+  if (
+    !snake?.alive ||
+    state.status !== 'playing' ||
+    snake.boost > 0 ||
+    snake.body.length < MIN_BOOST_LENGTH
+  )
+    return false;
   snake.body.pop();
   snake.boost = BOOST_TICKS;
   snake.boosts++;
@@ -197,17 +361,28 @@ export function removeSnake(state, id) {
   settle(state);
 }
 
+// Everything a snake cannot be in: the map's obstacles, plus any square the
+// level cut out of the board. Collision, apple spawning and the bots all read
+// this one set, so a cut-out square is as solid as a rock everywhere at once.
 function obstacleSet(state) {
-  return new Set(state.obstacles.map(([x, y]) => key(state, x, y)));
+  const set = new Set(state.obstacles.map(([x, y]) => key(state, x, y)));
+  if (state.mask)
+    for (let i = 0; i < state.mask.length; i++) if (!state.mask[i]) set.add(i);
+  return set;
 }
 
 function spawnApple(state) {
   const taken = obstacleSet(state);
-  for (const snake of state.snakes) if (snake.alive) for (const [x, y] of snake.body) taken.add(key(state, x, y));
+  for (const snake of state.snakes)
+    if (snake.alive)
+      for (const [x, y] of snake.body) taken.add(key(state, x, y));
   for (const [x, y] of state.apples) taken.add(key(state, x, y));
   const free = [];
-  for (let y = 0; y < state.size; y++) for (let x = 0; x < state.size; x++) if (!taken.has(key(state, x, y))) free.push([x, y]);
-  if (free.length) state.apples.push(free[Math.floor(Math.random() * free.length)]);
+  for (let y = 0; y < state.size; y++)
+    for (let x = 0; x < state.size; x++)
+      if (!taken.has(key(state, x, y))) free.push([x, y]);
+  if (free.length)
+    state.apples.push(free[Math.floor(Math.random() * free.length)]);
 }
 
 // The highest score wins, not the last snake alive: the survivor keeps going
@@ -230,7 +405,9 @@ function settle(state) {
     state.winner = leader(state)?.id ?? null;
   } else if (alive.length === 1) {
     const survivor = alive[0];
-    const bestOther = Math.max(...state.snakes.filter((s) => s !== survivor).map((s) => s.score));
+    const bestOther = Math.max(
+      ...state.snakes.filter((s) => s !== survivor).map((s) => s.score),
+    );
     if (survivor.score > bestOther) {
       state.status = 'over';
       state.winner = survivor.id;
@@ -242,8 +419,10 @@ function settle(state) {
 export function speedOf(state, snake) {
   let rate = 1 / SUBSTEPS;
   const grown = Math.max(0, snake.body.length - START_LENGTH) * LENGTH_STEP;
-  if (state.lengthSpeed === 'faster' || state.lengthSpeed === true) rate *= 1 + Math.min(MAX_LENGTH_FASTER, grown);
-  else if (state.lengthSpeed === 'slower') rate *= 1 - Math.min(MAX_LENGTH_SLOWER, grown);
+  if (state.lengthSpeed === 'faster' || state.lengthSpeed === true)
+    rate *= 1 + Math.min(MAX_LENGTH_FASTER, grown);
+  else if (state.lengthSpeed === 'slower')
+    rate *= 1 - Math.min(MAX_LENGTH_SLOWER, grown);
   if (snake.boost > 0) rate *= BOOST_SPEED;
   return Math.min(1, rate);
 }
@@ -264,7 +443,8 @@ export function step(state) {
   const candidates = living.filter((s) => {
     s.progress = (s.progress ?? 0) + speedOf(state, s);
     // A waiting turn moves a little early; the square after it comes that much later, so it's never faster overall.
-    const needed = !s.bot && s.queue.length && s.queue[0] !== s.dir ? EARLY_TURN : 1;
+    const needed =
+      !s.bot && s.queue.length && s.queue[0] !== s.dir ? EARLY_TURN : 1;
     return s.progress >= needed;
   });
   for (const snake of candidates) {
@@ -278,13 +458,18 @@ export function step(state) {
 
   // Coyote time: squares that are certain death (edges, obstacles, bodies that won't move out of the way).
   const solid = new Set(blocked);
-  for (const snake of living) for (let i = 0; i < snake.body.length - 1; i++) solid.add(key(state, ...snake.body[i]));
+  for (const snake of living)
+    for (let i = 0; i < snake.body.length - 1; i++)
+      solid.add(key(state, ...snake.body[i]));
   const movers = candidates.filter((snake) => {
     if (!snake.bot) {
       const [hx, hy] = snake.body[0];
       const [nx, ny] = stepFrom(state, hx, hy, DIRS[snake.dir]);
       const doomed = !inBounds(state, nx, ny) || solid.has(key(state, nx, ny));
-      const grace = Math.max(1, Math.round((COYOTE_TICKS * (1 / SUBSTEPS)) / speedOf(state, snake)));
+      const grace = Math.max(
+        1,
+        Math.round((COYOTE_TICKS * (1 / SUBSTEPS)) / speedOf(state, snake)),
+      );
       if (doomed && snake.coyote < grace) {
         snake.coyote++;
         // Held right at the edge of the square, ready to go the moment it turns.
@@ -303,7 +488,9 @@ export function step(state) {
   const moves = movers.map((snake) => {
     const [hx, hy] = snake.body[0];
     const head = stepFrom(state, hx, hy, DIRS[snake.dir]);
-    const appleIndex = state.apples.findIndex(([ax, ay]) => ax === head[0] && ay === head[1]);
+    const appleIndex = state.apples.findIndex(
+      ([ax, ay]) => ax === head[0] && ay === head[1],
+    );
     return { snake, head, eats: appleIndex !== -1, appleIndex };
   });
 
@@ -316,24 +503,37 @@ export function step(state) {
   const moved = new Set(movers);
   const bodies = new Set();
   for (const snake of living) {
-    for (let i = moved.has(snake) ? 1 : 0; i < snake.body.length; i++) bodies.add(key(state, ...snake.body[i]));
+    for (let i = moved.has(snake) ? 1 : 0; i < snake.body.length; i++)
+      bodies.add(key(state, ...snake.body[i]));
   }
   const heads = new Map();
-  for (const { head } of moves) heads.set(key(state, ...head), (heads.get(key(state, ...head)) ?? 0) + 1);
+  for (const { head } of moves)
+    heads.set(key(state, ...head), (heads.get(key(state, ...head)) ?? 0) + 1);
 
   const dead = moves.filter(({ head }) => {
     const k = key(state, ...head);
-    return !inBounds(state, ...head) || blocked.has(k) || bodies.has(k) || heads.get(k) > 1;
+    return (
+      !inBounds(state, ...head) ||
+      blocked.has(k) ||
+      bodies.has(k) ||
+      heads.get(k) > 1
+    );
   });
   for (const { snake } of dead) {
     snake.alive = false;
     snake.boost = 0;
   }
 
-  const eaten = moves.filter((m) => m.eats && m.snake.alive).map((m) => m.appleIndex);
-  for (const move of moves) if (move.eats && move.snake.alive) move.snake.score++;
+  const eaten = moves
+    .filter((m) => m.eats && m.snake.alive)
+    .map((m) => m.appleIndex);
+  for (const move of moves)
+    if (move.eats && move.snake.alive) move.snake.score++;
   state.apples = state.apples.filter((_, i) => !eaten.includes(i));
-  while (state.apples.length < state.appleCount && state.apples.length < state.size * state.size) {
+  while (
+    state.apples.length < state.appleCount &&
+    state.apples.length < state.size * state.size
+  ) {
     const before = state.apples.length;
     spawnApple(state);
     if (state.apples.length === before) break;
@@ -350,7 +550,8 @@ function blockedCells(state) {
   const cells = obstacleSet(state);
   for (const snake of state.snakes) {
     if (!snake.alive) continue;
-    for (let i = 0; i < snake.body.length - 1; i++) cells.add(key(state, ...snake.body[i]));
+    for (let i = 0; i < snake.body.length - 1; i++)
+      cells.add(key(state, ...snake.body[i]));
   }
   return cells;
 }
@@ -385,7 +586,10 @@ export const botDirection = (state, snake) => botPlan(state, snake).dir;
 // snake's head could reach next move, and boosts now and then when an apple is
 // close and it's long enough to spare a segment.
 function botPlan(state, snake) {
-  const tuning = BOT_TUNING[state.botLevel] ?? BOT_TUNING.normal;
+  const tuning =
+    BOT_TUNING[snake.botLevel] ??
+    BOT_TUNING[state.botLevel] ??
+    BOT_TUNING.normal;
   const blocked = blockedCells(state);
   const [hx, hy] = snake.body[0];
   if (Math.random() < tuning.blunder) {
@@ -396,7 +600,8 @@ function botPlan(state, snake) {
   for (const other of tuning.dodge ? state.snakes : []) {
     if (other === snake || !other.alive) continue;
     const [ox, oy] = other.body[0];
-    for (const [nx, ny] of neighbours(state, ox, oy)) danger.add(key(state, nx, ny));
+    for (const [nx, ny] of neighbours(state, ox, oy))
+      danger.add(key(state, nx, ny));
   }
 
   const options = Object.entries(DIRS)
@@ -405,15 +610,31 @@ function botPlan(state, snake) {
       const [x, y] = stepFrom(state, hx, hy, d);
       return { dir, x, y };
     })
-    .filter(({ x, y }) => inBounds(state, x, y) && !blocked.has(key(state, x, y)))
-    .map((option) => ({ ...option, room: floodSize(state, blocked, option.x, option.y, snake.body.length * 2 + 4), risky: danger.has(key(state, option.x, option.y)) }));
+    .filter(
+      ({ x, y }) => inBounds(state, x, y) && !blocked.has(key(state, x, y)),
+    )
+    .map((option) => ({
+      ...option,
+      room: floodSize(
+        state,
+        blocked,
+        option.x,
+        option.y,
+        snake.body.length * 2 + 4,
+      ),
+      risky: danger.has(key(state, option.x, option.y)),
+    }));
 
   if (!options.length) return { dir: snake.dir, boost: false };
   const safe = options.filter((o) => o.room > snake.body.length && !o.risky);
   const calm = options.filter((o) => !o.risky);
   const pool = safe.length ? safe : calm.length ? calm : options;
   // Now and then it wanders instead of beelining for food, so it can be beaten.
-  if (safe.length && Math.random() < tuning.wander) return { dir: safe[Math.floor(Math.random() * safe.length)].dir, boost: false };
+  if (safe.length && Math.random() < tuning.wander)
+    return {
+      dir: safe[Math.floor(Math.random() * safe.length)].dir,
+      boost: false,
+    };
 
   // Breadth-first from each candidate's cell to the nearest apple.
   const apples = new Set(state.apples.map(([x, y]) => key(state, x, y)));
@@ -443,13 +664,22 @@ function botPlan(state, snake) {
   for (const option of pool) {
     const d = distance(option.x, option.y);
     // Closer to food is better; plenty of room breaks ties and rescues dead ends.
-    const score = (d === Infinity ? -1000 : -d * 10) + Math.min(option.room, snake.body.length * 2) + (option.dir === snake.dir ? 1 : 0);
+    const score =
+      (d === Infinity ? -1000 : -d * 10) +
+      Math.min(option.room, snake.body.length * 2) +
+      (option.dir === snake.dir ? 1 : 0);
     if (score > bestScore) {
       bestScore = score;
       best = option;
       bestDistance = d;
     }
   }
-  const wantsBoost = safe.includes(best) && snake.body.length > 6 && bestDistance >= 2 && bestDistance <= 6 && state.snakes.length > 1 && Math.random() < tuning.boost;
+  const wantsBoost =
+    safe.includes(best) &&
+    snake.body.length > 6 &&
+    bestDistance >= 2 &&
+    bestDistance <= 6 &&
+    state.snakes.length > 1 &&
+    Math.random() < tuning.boost;
   return { dir: best.dir, boost: wantsBoost };
 }

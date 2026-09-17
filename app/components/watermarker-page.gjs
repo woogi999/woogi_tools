@@ -20,10 +20,20 @@ const FORMATS = [
   { id: 'image/webp', label: 'WebP', ext: 'webp' },
 ];
 const eq = (a, b) => a === b;
-const nameFor = (name, ext) => `${name.replace(/\.[^.]+$/, '')}-watermarked.${ext}`;
+const nameFor = (name, ext) =>
+  `${name.replace(/\.[^.]+$/, '')}-watermarked.${ext}`;
 let nextId = 1;
 
 export default class WatermarkerPage extends Component {
+  // While this is true, leaving the page floats the tool in a PiP window
+  // instead of tearing it down, so the work carries on (see services/pip.js).
+  get pipBusy() {
+    return this.busy;
+  }
+
+  get pipWarning() {
+    return 'Close the Watermarker? The images being stamped will be lost.';
+  }
   @tracked items = [];
   @tracked dragging = false;
   @tracked kind = 'text'; // 'text' | 'image'
@@ -104,7 +114,12 @@ export default class WatermarkerPage extends Component {
     for (const item of this.items) if (item.url) URL.revokeObjectURL(item.url);
     if (this.zipUrl) URL.revokeObjectURL(this.zipUrl);
     this.zipUrl = null;
-    this.items = this.items.map((i) => ({ ...i, url: null, size: null, name: null }));
+    this.items = this.items.map((i) => ({
+      ...i,
+      url: null,
+      size: null,
+      name: null,
+    }));
     this.drawPreview();
   }
 
@@ -114,7 +129,10 @@ export default class WatermarkerPage extends Component {
     for (const file of files) {
       try {
         const bitmap = await loadBitmap(file);
-        this.items = [...this.items, { id: nextId++, file, bitmap, url: null, size: null, name: null }];
+        this.items = [
+          ...this.items,
+          { id: nextId++, file, bitmap, url: null, size: null, name: null },
+        ];
       } catch {
         this.error = `${file.name} couldn’t be read as an image`;
       }
@@ -190,7 +208,17 @@ export default class WatermarkerPage extends Component {
         stamp(canvas, item.bitmap, this.options);
         const blob = await canvasBlob(canvas, this.format, this.quality / 100);
         const url = URL.createObjectURL(blob);
-        this.items = this.items.map((i) => (i.id === item.id ? { ...i, url, size: blob.size, name: nameFor(item.file.name, this.ext), blob } : i));
+        this.items = this.items.map((i) =>
+          i.id === item.id
+            ? {
+                ...i,
+                url,
+                size: blob.size,
+                name: nameFor(item.file.name, this.ext),
+                blob,
+              }
+            : i,
+        );
       } catch (error) {
         this.error = error?.message ?? 'Something went wrong stamping these';
       }
@@ -199,41 +227,95 @@ export default class WatermarkerPage extends Component {
     if (this.done.length > 1) {
       const { zipSync } = await import('fflate');
       const entries = {};
-      for (const item of this.done) entries[item.name] = new Uint8Array(await item.blob.arrayBuffer());
-      this.zipUrl = URL.createObjectURL(new Blob([zipSync(entries, { level: 0 })], { type: 'application/zip' }));
+      for (const item of this.done)
+        entries[item.name] = new Uint8Array(await item.blob.arrayBuffer());
+      this.zipUrl = URL.createObjectURL(
+        new Blob([zipSync(entries, { level: 0 })], { type: 'application/zip' }),
+      );
     }
     this.busy = false;
   };
 
   <template>
-    <ToolPage @route="watermarker" @subtitle="Stamp your name, a logo or a “DRAFT” over your pictures — one or a hundred. Position, size, see-throughness and tiling are all yours.">
+    <ToolPage
+      @route="watermarker"
+      @busy={{this.pipBusy}}
+      @closeWarning={{this.pipWarning}}
+      @subtitle="Stamp your name, a logo or a “DRAFT” over your pictures, one or a hundred. Position, size, see-throughness and tiling are all yours."
+    >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
-          <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>
+          <label
+            class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}"
+            {{on "dragover" this.dragOver}}
+            {{on "dragleave" this.dragOver}}
+            {{on "drop" this.drop}}
+          >
             <Icon @name="stamp" @size={{22}} />
-            <span>{{if this.dragging "Drop them here" "Drop your pictures, paste them, or click to browse"}}</span>
-            <input type="file" accept="image/*" multiple class="sr-only" {{on "change" this.selectFiles}} />
+            <span>{{if
+                this.dragging
+                "Drop them here"
+                "Drop your pictures, paste them, or click to browse"
+              }}</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              class="sr-only"
+              {{on "change" this.selectFiles}}
+            />
           </label>
 
           <div class="math-tabs" role="group" aria-label="What to stamp">
-            <button type="button" class="qr-tab {{if (eq this.kind 'text') 'active'}}" {{on "click" (fn this.pick "kind" "text")}}>Some words</button>
-            <button type="button" class="qr-tab {{if (eq this.kind 'image') 'active'}}" {{on "click" (fn this.pick "kind" "image")}}>A logo</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.kind 'text') 'active'}}"
+              {{on "click" (fn this.pick "kind" "text")}}
+            >Some words</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.kind 'image') 'active'}}"
+              {{on "click" (fn this.pick "kind" "image")}}
+            >A logo</button>
           </div>
 
           {{#if (eq this.kind "text")}}
-            <label class="math-field"><span class="qr-label is-muted">The words</span><input type="text" class="math-input" value={{this.text}} {{on "input" this.setText}} /></label>
-            <ColourField @label="Colour" @value={{this.colour}} @onChange={{this.setColour}} />
+            <label class="math-field"><span class="qr-label is-muted">The words</span><input
+                type="text"
+                class="math-input"
+                value={{this.text}}
+                {{on "input" this.setText}}
+              /></label>
+            <ColourField
+              @label="Colour"
+              @value={{this.colour}}
+              @onChange={{this.setColour}}
+            />
             <label class="lobby-rule is-switch">
-              <span class="lobby-rule-text"><span class="qr-label">Drop shadow</span><span class="tool-hint">Keeps it readable over a busy photo.</span></span>
+              <span class="lobby-rule-text"><span class="qr-label">Drop shadow</span><span
+                  class="tool-hint"
+                >Keeps it readable over a busy photo.</span></span>
               <span class="qr-switch">
-                <input type="checkbox" role="switch" checked={{this.shadow}} aria-checked={{if this.shadow "true" "false"}} {{on "change" this.toggleShadow}} />
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={{this.shadow}}
+                  aria-checked={{if this.shadow "true" "false"}}
+                  {{on "change" this.toggleShadow}}
+                />
                 <span class="qr-switch-track" aria-hidden="true"></span>
               </span>
             </label>
           {{else}}
             <label class="btn">
-              <Icon @name="image-plus" @size={{14}} /> {{if this.logoName this.logoName "Choose a logo"}}
-              <input type="file" accept="image/*" class="sr-only" {{on "change" this.selectLogo}} />
+              <Icon @name="image-plus" @size={{14}} />
+              {{if this.logoName this.logoName "Choose a logo"}}
+              <input
+                type="file"
+                accept="image/*"
+                class="sr-only"
+                {{on "change" this.selectLogo}}
+              />
             </label>
             <p class="tool-hint">A PNG with a see-through background works best.</p>
           {{/if}}
@@ -242,29 +324,72 @@ export default class WatermarkerPage extends Component {
             <span class="qr-label is-muted">Where it goes</span>
             <div class="cipher-picks" role="group" aria-label="Where it goes">
               {{#each this.spots as |s|}}
-                <button type="button" class="qr-tab {{if (eq this.spot s.id) 'active'}}" {{on "click" (fn this.pick "spot" s.id)}}>{{s.label}}</button>
+                <button
+                  type="button"
+                  class="qr-tab {{if (eq this.spot s.id) 'active'}}"
+                  {{on "click" (fn this.pick "spot" s.id)}}
+                >{{s.label}}</button>
               {{/each}}
             </div>
           </label>
 
           <div class="math-row">
-            <label class="math-field"><span class="qr-label is-muted">Size: {{this.scale}}% of the width</span><input type="range" min="2" max="100" value={{this.scale}} {{on "input" (fn this.number "scale")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">See-through: {{this.opacity}}%</span><input type="range" min="2" max="100" value={{this.opacity}} {{on "input" (fn this.number "opacity")}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">Size:
+                {{this.scale}}% of the width</span><input
+                type="range"
+                min="2"
+                max="100"
+                value={{this.scale}}
+                {{on "input" (fn this.number "scale")}}
+              /></label>
+            <label class="math-field"><span
+                class="qr-label is-muted"
+              >See-through: {{this.opacity}}%</span><input
+                type="range"
+                min="2"
+                max="100"
+                value={{this.opacity}}
+                {{on "input" (fn this.number "opacity")}}
+              /></label>
           </div>
           <div class="math-row">
-            <label class="math-field"><span class="qr-label is-muted">Angle: {{this.rotate}}°</span><input type="range" min="-90" max="90" value={{this.rotate}} {{on "input" (fn this.number "rotate")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Margin: {{this.margin}}%</span><input type="range" min="0" max="20" value={{this.margin}} {{on "input" (fn this.number "margin")}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">Angle:
+                {{this.rotate}}°</span><input
+                type="range"
+                min="-90"
+                max="90"
+                value={{this.rotate}}
+                {{on "input" (fn this.number "rotate")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Margin:
+                {{this.margin}}%</span><input
+                type="range"
+                min="0"
+                max="20"
+                value={{this.margin}}
+                {{on "input" (fn this.number "margin")}}
+              /></label>
             <label class="math-field">
               <span class="qr-label is-muted">Save as</span>
               <select class="select" {{on "change" this.setFormat}}>
                 {{#each this.formats as |f|}}
-                  <option value={{f.id}} selected={{eq this.format f.id}}>{{f.label}}</option>
+                  <option
+                    value={{f.id}}
+                    selected={{eq this.format f.id}}
+                  >{{f.label}}</option>
                 {{/each}}
               </select>
             </label>
           </div>
           {{#if this.usesQuality}}
-            <label class="math-field"><span class="qr-label is-muted">Quality: {{this.quality}}</span><input type="range" min="10" max="100" value={{this.quality}} {{on "input" (fn this.number "quality")}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">Quality:
+                {{this.quality}}</span><input
+                type="range"
+                min="10"
+                max="100"
+                value={{this.quality}}
+                {{on "input" (fn this.number "quality")}}
+              /></label>
           {{/if}}
           {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
         </div>
@@ -274,12 +399,29 @@ export default class WatermarkerPage extends Component {
             <div class="fc-toolbar">
               <h3 class="qr-heading">Preview</h3>
               <div class="settings-actions">
-                <button type="button" class="btn active" disabled={{this.busy}} {{on "click" this.run}}>{{if this.busy "Stamping…" "Stamp them"}}</button>
-                {{#if this.zipUrl}}<a class="btn fs-save" href={{this.zipUrl}} download="watermarked.zip"><Icon @name="download" @size={{13}} /> Save all (ZIP)</a>{{/if}}
-                <button type="button" class="btn" {{on "click" this.clear}}>Clear</button>
+                <button
+                  type="button"
+                  class="btn active"
+                  disabled={{this.busy}}
+                  {{on "click" this.run}}
+                >{{if this.busy "Stamping…" "Stamp them"}}</button>
+                {{#if this.zipUrl}}<a
+                    class="btn fs-save"
+                    href={{this.zipUrl}}
+                    download="watermarked.zip"
+                  ><Icon @name="download" @size={{13}} />
+                    Save all (ZIP)</a>{{/if}}
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.clear}}
+                >Clear</button>
               </div>
             </div>
-            <div class="stitch-preview"><canvas class="stitch-canvas" {{this.preview}}></canvas></div>
+            <div class="stitch-preview"><canvas
+                class="stitch-canvas"
+                {{this.preview}}
+              ></canvas></div>
 
             <ul class="fs-list">
               {{#each this.items key="id" as |item|}}
@@ -287,15 +429,28 @@ export default class WatermarkerPage extends Component {
                   <Icon @name="image" @size={{16}} />
                   <div class="fs-row-info">
                     <span class="fs-row-name">{{item.file.name}}</span>
-                    <span class="fs-row-size">{{formatBytes item.file.size}}{{#if item.size}} → {{formatBytes item.size}}{{/if}}</span>
+                    <span class="fs-row-size">{{formatBytes
+                        item.file.size
+                      }}{{#if item.size}}
+                        →
+                        {{formatBytes item.size}}{{/if}}</span>
                   </div>
                   <div class="fs-row-status">
                     {{#if item.url}}
-                      <a class="btn fs-save" href={{item.url}} download={{item.name}}><Icon @name="download" @size={{13}} /> Save</a>
+                      <a
+                        class="btn fs-save"
+                        href={{item.url}}
+                        download={{item.name}}
+                      ><Icon @name="download" @size={{13}} /> Save</a>
                       <PrintButton @url={{item.url}} @name={{item.name}} />
                     {{/if}}
                   </div>
-                  <button type="button" class="fs-remove" aria-label="Remove {{item.file.name}}" {{on "click" (fn this.remove item.id)}}><Icon @name="x" @size={{13}} /></button>
+                  <button
+                    type="button"
+                    class="fs-remove"
+                    aria-label="Remove {{item.file.name}}"
+                    {{on "click" (fn this.remove item.id)}}
+                  ><Icon @name="x" @size={{13}} /></button>
                 </li>
               {{/each}}
             </ul>

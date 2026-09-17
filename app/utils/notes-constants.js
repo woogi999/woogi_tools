@@ -5,15 +5,60 @@
 export const NOTE_FONTS = [
   { key: 'sans', label: 'Sans', stack: "'Moderustic', sans-serif" },
   { key: 'serif', label: 'Serif', stack: "Georgia, 'Times New Roman', serif" },
-  { key: 'mono', label: 'Mono', stack: "'Inconsolata', ui-monospace, monospace" },
-  { key: 'round', label: 'Round', stack: "'Comic Sans MS', 'Comic Sans', cursive" },
+  {
+    key: 'mono',
+    label: 'Mono',
+    stack: "'Inconsolata', ui-monospace, monospace",
+  },
+  {
+    key: 'round',
+    label: 'Round',
+    stack: "'Comic Sans MS', 'Comic Sans', cursive",
+  },
 ];
 
 // Quick preset swatches for the sticky-note colour, plus a default paper tone.
-export const NOTE_COLORS = ['#FFF3B0', '#FFD1DC', '#C7F0DB', '#CFE3FF', '#E5D4FF', '#FFDDBB'];
+export const NOTE_COLORS = [
+  '#FFF3B0',
+  '#FFD1DC',
+  '#C7F0DB',
+  '#CFE3FF',
+  '#E5D4FF',
+  '#FFDDBB',
+];
 export const DEFAULT_NOTE_COLOR = NOTE_COLORS[0];
 
 export const STICKER_EMOJIS = [
-  '😀', '😂', '😍', '🥳', '😎', '🤔', '😴', '🙌', '👍', '👏', '🔥', '✨', '💡', '⭐', '❤️', '💯',
-  '🎉', '🎈', '🍕', '☕', '🌈', '🌙', '☀️', '🐱', '🐶', '🌸', '🍀', '⚡', '📌', '✅', '❌', '🚀',
+  '😀',
+  '😂',
+  '😍',
+  '🥳',
+  '😎',
+  '🤔',
+  '😴',
+  '🙌',
+  '👍',
+  '👏',
+  '🔥',
+  '✨',
+  '💡',
+  '⭐',
+  '❤️',
+  '💯',
+  '🎉',
+  '🎈',
+  '🍕',
+  '☕',
+  '🌈',
+  '🌙',
+  '☀️',
+  '🐱',
+  '🐶',
+  '🌸',
+  '🍀',
+  '⚡',
+  '📌',
+  '✅',
+  '❌',
+  '🚀',
 ];

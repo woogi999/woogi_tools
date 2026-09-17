@@ -2,165 +2,388 @@ import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
+import { registerDestructor } from '@ember/destroyable';
+import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
-import { checkText, applyFixes, readability } from '../utils/grammar';
-import { loadModel, ask, isLoaded } from '../utils/ai-models';
+import { readability } from '../utils/grammar';
+import { keepState } from '../utils/tool-state';
+import {
+  check,
+  applyMatch,
+  applyAll,
+  segments,
+  kindOf,
+  titleOf,
+  LANGUAGES,
+} from '../utils/languagetool';
 
-// Reads your writing and says what's wrong and why. The rules run as you type;
-// the model is there when you want a second opinion on the awkward sentences.
+// The grammar checker, on LanguageTool. You write on the left with the problems
+// underlined where they are, and each one gets a card on the right saying what
+// is wrong and what to put instead: the shape languagetool.org uses, because
+// for this job it is the right one.
+//
+// LanguageTool runs on a server, so the text does leave the device. The page
+// says so plainly rather than burying it.
 
-const KIND_ICON = { spelling: 'spell-check', grammar: 'circle-alert', typo: 'circle-alert', punctuation: 'type', spacing: 'type', capitals: 'case-sensitive', style: 'sparkles' };
+const KIND_ICON = {
+  spelling: 'spell-check',
+  grammar: 'circle-alert',
+  punctuation: 'type',
+  style: 'sparkles',
+};
+const KIND_LABEL = {
+  spelling: 'Spelling',
+  grammar: 'Grammar',
+  punctuation: 'Punctuation',
+  style: 'Style',
+};
+const DEBOUNCE_MS = 900;
 const eq = (a, b) => a === b;
 
 export default class GrammarCheckerPage extends Component {
   @tracked text = '';
-  @tracked ignored = [];
-  @tracked modelText = '';
-  @tracked modelBusy = false;
-  @tracked modelStatus = '';
-  @tracked modelError = null;
+  @tracked matches = [];
+  @tracked dismissed = [];
+  @tracked language = 'auto';
+  @tracked picky = false;
+  @tracked detected = '';
+  @tracked busy = false;
+  @tracked error = '';
+  @tracked selected = null;
+  @tracked checkedText = '';
 
-  get issues() {
-    return checkText(this.text)
-      .filter((issue) => !this.ignored.includes(`${issue.at}:${issue.text}`))
-      .map((issue, i) => ({ ...issue, id: `${issue.at}:${issue.text}:${i}`, key: `${issue.at}:${issue.text}`, icon: KIND_ICON[issue.kind] ?? 'circle-alert' }));
+  languages = LANGUAGES;
+  timer = null;
+  abort = null;
+
+  constructor(owner, args) {
+    super(owner, args);
+    // Text restored from a previous visit is checked straight away, so the
+    // suggestions are there without having to touch the keyboard first.
+    keepState(this, 'grammar-checker', ['text', 'language', 'picky'], () => {
+      if (this.text.trim()) this.run();
+    });
+    registerDestructor(this, () => {
+      clearTimeout(this.timer);
+      this.abort?.abort();
+    });
+  }
+
+  // A dismissed suggestion is remembered by what it said about which words, so
+  // it stays dismissed while you carry on typing elsewhere.
+  keyFor = (match) =>
+    `${match.ruleId}:${this.checkedText.slice(match.offset, match.offset + match.length)}`;
+
+  get live() {
+    return this.matches.filter((m) => !this.dismissed.includes(this.keyFor(m)));
+  }
+
+  get cards() {
+    return this.live.map((match, i) => {
+      const kind = kindOf(match);
+      const id = `${match.offset}:${match.ruleId}:${i}`;
+      return {
+        ...match,
+        id,
+        kind,
+        kindLabel: KIND_LABEL[kind] ?? 'Suggestion',
+        icon: KIND_ICON[kind] ?? 'circle-alert',
+        title: titleOf(match),
+        word: this.checkedText.slice(match.offset, match.offset + match.length),
+        active: this.selected === id,
+      };
+    });
+  }
+
+  // Underlining only makes sense against the text that was actually checked.
+  get pieces() {
+    if (this.text !== this.checkedText) return [{ id: 't0', text: this.text }];
+    return segments(this.text, this.live).map((piece) => ({
+      ...piece,
+      kind: piece.match ? kindOf(piece.match) : '',
+    }));
   }
 
   get counts() {
-    const list = this.issues;
+    const list = this.cards;
     return {
       total: list.length,
-      mistakes: list.filter((i) => i.kind !== 'style').length,
-      style: list.filter((i) => i.kind === 'style').length,
+      mistakes: list.filter((c) => c.kind !== 'style').length,
+      style: list.filter((c) => c.kind === 'style').length,
     };
+  }
+
+  get fixable() {
+    return this.live.filter((m) => m.replacements?.length).length;
   }
 
   get stats() {
     return this.text.trim() ? readability(this.text) : null;
   }
 
-  get fixable() {
-    return this.issues.filter((i) => i.fix != null).length;
+  get statusText() {
+    if (this.busy) return 'Checking…';
+    if (this.error) return this.error;
+    if (!this.text.trim())
+      return 'Start writing and it gets checked a moment after you stop.';
+    if (this.text !== this.checkedText) return 'Waiting for you to pause…';
+    if (!this.counts.total) return 'Nothing to flag.';
+    return `${this.counts.mistakes} to fix, ${this.counts.style} style notes`;
   }
 
   setText = (event) => {
     this.text = event.target.value;
-    this.ignored = [];
+    this.schedule();
   };
 
-  fixOne = (issue) => {
-    this.text = applyFixes(this.text, [issue]);
+  setLanguage = (event) => {
+    this.language = event.target.value;
+    this.run();
   };
 
-  ignore = (issue) => (this.ignored = [...this.ignored, issue.key]);
-
-  fixAll = () => {
-    this.text = applyFixes(this.text, this.issues);
+  togglePicky = () => {
+    this.picky = !this.picky;
+    this.run();
   };
 
-  useModelText = () => {
-    if (this.modelText) this.text = this.modelText;
-  };
+  schedule() {
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => this.run(), DEBOUNCE_MS);
+  }
 
-  // The optional second opinion: a small model, downloaded once, run here.
-  polish = async () => {
-    if (this.modelBusy || !this.text.trim()) return;
-    this.modelBusy = true;
-    this.modelError = null;
-    this.modelText = '';
+  run = async () => {
+    clearTimeout(this.timer);
+    this.abort?.abort();
+    const text = this.text;
+    if (!text.trim()) {
+      this.matches = [];
+      this.checkedText = text;
+      this.error = '';
+      return;
+    }
+    this.abort = new AbortController();
+    this.busy = true;
+    this.error = '';
     try {
-      this.modelStatus = isLoaded('flan-t5') ? 'Thinking…' : 'Downloading the writing model (about 120 MB, once)…';
-      const model = await loadModel('flan-t5', { onProgress: ({ ratio }) => (this.modelStatus = `Downloading the writing model… ${Math.round((ratio ?? 0) * 100)}%`) });
-      this.modelStatus = 'Reading it through…';
-      // Sentence by sentence: the small model handles short pieces far better than a wall of text.
-      const sentences = this.text.match(/[^.!?]+[.!?]*/g) ?? [this.text];
-      const fixed = [];
-      for (const [i, sentence] of sentences.entries()) {
-        if (!sentence.trim()) continue;
-        this.modelStatus = `Reading it through… sentence ${i + 1} of ${sentences.length}`;
-        const answer = await ask(model, `Fix the grammar and spelling of this sentence. Keep the meaning and the words as close as you can: ${sentence.trim()}`, { max: 96 });
-        fixed.push(answer || sentence.trim());
-      }
-      this.modelText = fixed.join(' ');
+      const result = await check(text, {
+        language: this.language,
+        picky: this.picky,
+        signal: this.abort.signal,
+      });
+      this.matches = result.matches;
+      this.checkedText = text;
+      this.detected = result.language;
+      this.selected = null;
     } catch (error) {
-      this.modelError = error?.message ?? 'The model couldn’t be loaded';
+      if (error.name === 'AbortError') return;
+      this.error = error.message;
+      this.matches = [];
     } finally {
-      this.modelBusy = false;
-      this.modelStatus = '';
+      this.busy = false;
     }
   };
 
+  // Taking a suggestion shifts everything after it, so the text is re-checked.
+  accept = (card, replacement) => {
+    this.text = applyMatch(this.text, card, replacement);
+    this.matches = [];
+    this.checkedText = this.text;
+    this.run();
+  };
+
+  dismiss = (card) => (this.dismissed = [...this.dismissed, this.keyFor(card)]);
+
+  acceptAll = () => {
+    this.text = applyAll(this.text, this.live);
+    this.matches = [];
+    this.checkedText = this.text;
+    this.run();
+  };
+
+  select = (card) =>
+    (this.selected = this.selected === card.id ? null : card.id);
+
+  clear = () => {
+    this.text = '';
+    this.matches = [];
+    this.checkedText = '';
+    this.dismissed = [];
+    this.error = '';
+  };
+
+  // The underlines live in a layer behind the textarea, so the two have to
+  // scroll together for a problem to stay under its own words.
+  syncScroll = modifier((textarea) => {
+    const layer = textarea.previousElementSibling;
+    const onScroll = () => {
+      layer.scrollTop = textarea.scrollTop;
+      layer.scrollLeft = textarea.scrollLeft;
+    };
+    textarea.addEventListener('scroll', onScroll);
+    return () => textarea.removeEventListener('scroll', onScroll);
+  });
+
   <template>
-    <ToolPage @route="grammar-checker" @subtitle="Catches the mistakes and tells you why each one is a mistake. Runs as you type, on your device — your writing is never sent anywhere.">
-      <div class="math-grid text-tool pop-in">
-        <section class="math-card">
-          <label class="field-label" for="grammar-text">Your writing</label>
-          <textarea id="grammar-text" class="textarea text-area-tall" placeholder="Paste or write something and it'll be checked as you go." value={{this.text}} {{on "input" this.setText}}></textarea>
-
-          {{#if this.stats}}
-            <div class="stat-row">
-              <span class="stat-chip"><strong>{{this.stats.words}}</strong> words</span>
-              <span class="stat-chip"><strong>{{this.stats.sentences}}</strong> sentences</span>
-              <span class="stat-chip"><strong>{{this.stats.perSentence}}</strong> words a sentence</span>
-              <span class="stat-chip"><strong>{{this.stats.label}}</strong> · reading age {{this.stats.grade}}</span>
-            </div>
-          {{/if}}
-
-          <div class="settings-actions">
+    <ToolPage
+      @route="grammar-checker"
+      @subtitle="Checks your spelling, grammar, punctuation and style with LanguageTool, and says what is wrong with each one rather than just underlining it."
+    >
+      <div class="lt-layout pop-in">
+        <section class="lt-main">
+          <div class="lt-toolbar">
+            <select
+              class="select lt-language"
+              aria-label="Language"
+              {{on "change" this.setLanguage}}
+            >
+              {{#each this.languages key="code" as |l|}}
+                <option
+                  value={{l.code}}
+                  selected={{eq this.language l.code}}
+                >{{l.label}}</option>
+              {{/each}}
+            </select>
+            <button
+              type="button"
+              class="btn {{if this.picky 'active'}}"
+              aria-pressed={{if this.picky "true" "false"}}
+              title="Also flag wordiness, repetition and other style habits"
+              {{on "click" this.togglePicky}}
+            >
+              <Icon @name="sparkles" @size={{13}} />
+              Picky mode
+            </button>
+            <span class="lt-spacer"></span>
             {{#if this.fixable}}
-              <button type="button" class="btn active" {{on "click" this.fixAll}}><Icon @name="wand" @size={{13}} /> Fix all {{this.fixable}}</button>
+              <button
+                type="button"
+                class="btn active"
+                {{on "click" this.acceptAll}}
+              ><Icon @name="wand" @size={{13}} />
+                Accept all
+                {{this.fixable}}</button>
             {{/if}}
             <CopyButton @value={{this.text}} />
-            <button type="button" class="btn" disabled={{this.modelBusy}} {{on "click" this.polish}}><Icon @name="sparkles" @size={{13}} /> {{if this.modelBusy "Working…" "Second opinion (model)"}}</button>
+            <button
+              type="button"
+              class="btn"
+              disabled={{if this.text false true}}
+              {{on "click" this.clear}}
+            ><Icon @name="x" @size={{13}} /> Clear</button>
           </div>
-          {{#if this.modelStatus}}<p class="tool-hint">{{this.modelStatus}}</p>{{/if}}
-          {{#if this.modelError}}<p class="tool-error">{{this.modelError}}</p>{{/if}}
 
-          {{#if this.modelText}}
-            <h3 class="qr-heading">What the model suggests</h3>
-            <p class="cipher-output">{{this.modelText}}</p>
-            <div class="settings-actions">
-              <button type="button" class="btn" {{on "click" this.useModelText}}>Use this version</button>
-              <CopyButton @value={{this.modelText}} />
+          <div class="lt-editor">
+            <div class="lt-underlay" aria-hidden="true">
+              {{#each this.pieces key="id" as |piece|}}
+                {{#if piece.match}}<mark
+                    class="lt-mark is-{{piece.kind}}"
+                  >{{piece.text}}</mark>{{else}}{{piece.text}}{{/if}}
+              {{/each}}
+              <br />
             </div>
-            <p class="tool-hint">This is a small model running on your device, so treat it as a suggestion — read it before you keep it.</p>
-          {{/if}}
-        </section>
+            <textarea
+              class="lt-input"
+              aria-label="Your writing"
+              spellcheck="false"
+              placeholder="Paste or write something here. It gets checked a moment after you stop typing."
+              value={{this.text}}
+              {{on "input" this.setText}}
+              {{this.syncScroll}}
+            ></textarea>
+          </div>
 
-        <section class="math-card">
-          <div class="fc-toolbar">
-            <h3 class="qr-heading">What it found</h3>
-            {{#if this.counts.total}}
-              <span class="tool-hint">{{this.counts.mistakes}} mistakes · {{this.counts.style}} style notes</span>
+          <div class="lt-status">
+            <span
+              class="{{if this.error 'tool-error' 'tool-hint'}}"
+            >{{this.statusText}}</span>
+            {{#if this.stats}}
+              <span class="lt-stats">{{this.stats.words}}
+                words ·
+                {{this.stats.sentences}}
+                sentences ·
+                {{this.stats.label}}{{#if this.detected}}
+                  ·
+                  {{this.detected}}{{/if}}</span>
             {{/if}}
           </div>
+        </section>
 
-          {{#if this.issues.length}}
-            <ul class="issue-list">
-              {{#each this.issues key="id" as |issue|}}
-                <li class="issue {{if (eq issue.kind 'style') 'is-style'}}">
-                  <Icon @name={{issue.icon}} @size={{15}} />
-                  <div class="issue-text">
-                    <span class="issue-message">{{issue.message}}</span>
-                    {{#if issue.why}}<span class="tool-hint">{{issue.why}}</span>{{/if}}
-                  </div>
-                  <div class="issue-actions">
-                    {{#if issue.fix}}
-                      <button type="button" class="btn" {{on "click" (fn this.fixOne issue)}}>Fix</button>
+        <aside class="lt-side">
+          <div class="lt-side-head">
+            <h3 class="qr-heading">Suggestions</h3>
+            {{#if this.counts.total}}<span
+                class="lt-count"
+              >{{this.counts.total}}</span>{{/if}}
+          </div>
+
+          {{#if this.cards.length}}
+            <ul class="lt-cards">
+              {{#each this.cards key="id" as |card|}}
+                <li
+                  class="lt-card is-{{card.kind}}
+                    {{if card.active 'is-active'}}"
+                >
+                  <button
+                    type="button"
+                    class="lt-card-head"
+                    {{on "click" (fn this.select card)}}
+                  >
+                    <span class="lt-card-kind"><Icon
+                        @name={{card.icon}}
+                        @size={{13}}
+                      />
+                      {{card.kindLabel}}</span>
+                    <span class="lt-card-word">{{card.word}}</span>
+                  </button>
+                  <p class="lt-card-message">{{card.message}}</p>
+                  {{#if card.replacements.length}}
+                    <div class="lt-replacements">
+                      {{#each card.replacements key="@index" as |replacement|}}
+                        <button
+                          type="button"
+                          class="lt-replacement"
+                          {{on "click" (fn this.accept card replacement)}}
+                        >{{replacement}}</button>
+                      {{/each}}
+                    </div>
+                  {{/if}}
+                  <div class="lt-card-actions">
+                    <button
+                      type="button"
+                      class="lt-link"
+                      {{on "click" (fn this.dismiss card)}}
+                    >Dismiss</button>
+                    {{#if card.url}}
+                      <a
+                        class="lt-link"
+                        href={{card.url}}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >Why?</a>
                     {{/if}}
-                    <button type="button" class="btn" {{on "click" (fn this.ignore issue)}}>Ignore</button>
                   </div>
                 </li>
               {{/each}}
             </ul>
+          {{else if this.busy}}
+            <p class="tool-hint">Checking…</p>
           {{else if this.text}}
-            <p class="tool-hint"><Icon @name="circle-check-big" @size={{15}} /> Nothing to flag. Bear in mind these are rules, not a proofreader — they catch the usual slips, not everything.</p>
+            <p class="tool-hint"><Icon @name="circle-check-big" @size={{15}} />
+              Nothing to flag. LanguageTool is good but not infallible, so give
+              it a read yourself too.</p>
           {{else}}
-            <p class="tool-hint">Start typing on the left and anything it spots turns up here, with a note on why.</p>
+            <p class="tool-hint">Whatever it finds turns up here, with a note on
+              why and something to put instead.</p>
           {{/if}}
-        </section>
+
+          <p class="tool-hint lt-privacy">
+            <Icon @name="circle-alert" @size={{13}} />
+            Unlike the other text tools, this one sends what you write to
+            LanguageTool to be checked. Keep anything confidential out of it.
+          </p>
+        </aside>
       </div>
     </ToolPage>
   </template>

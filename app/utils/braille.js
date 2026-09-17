@@ -2,22 +2,78 @@
 // standard English braille; the Unicode block puts them at U+2800 + the dot bits.
 
 const LETTERS = {
-  a: '⠁', b: '⠃', c: '⠉', d: '⠙', e: '⠑', f: '⠋', g: '⠛', h: '⠓', i: '⠊', j: '⠚',
-  k: '⠅', l: '⠇', m: '⠍', n: '⠝', o: '⠕', p: '⠏', q: '⠟', r: '⠗', s: '⠎', t: '⠞',
-  u: '⠥', v: '⠧', w: '⠺', x: '⠭', y: '⠽', z: '⠵',
+  a: '⠁',
+  b: '⠃',
+  c: '⠉',
+  d: '⠙',
+  e: '⠑',
+  f: '⠋',
+  g: '⠛',
+  h: '⠓',
+  i: '⠊',
+  j: '⠚',
+  k: '⠅',
+  l: '⠇',
+  m: '⠍',
+  n: '⠝',
+  o: '⠕',
+  p: '⠏',
+  q: '⠟',
+  r: '⠗',
+  s: '⠎',
+  t: '⠞',
+  u: '⠥',
+  v: '⠧',
+  w: '⠺',
+  x: '⠭',
+  y: '⠽',
+  z: '⠵',
 };
 // Numbers are the first ten letters after a number sign.
-const DIGITS = { 1: 'a', 2: 'b', 3: 'c', 4: 'd', 5: 'e', 6: 'f', 7: 'g', 8: 'h', 9: 'i', 0: 'j' };
+const DIGITS = {
+  1: 'a',
+  2: 'b',
+  3: 'c',
+  4: 'd',
+  5: 'e',
+  6: 'f',
+  7: 'g',
+  8: 'h',
+  9: 'i',
+  0: 'j',
+};
 const PUNCTUATION = {
-  ',': '⠂', ';': '⠆', ':': '⠒', '.': '⠲', '?': '⠦', '!': '⠖', "'": '⠄', '-': '⠤', '/': '⠌',
-  '(': '⠐⠣', ')': '⠐⠜', '"': '⠐⠦', '*': '⠐⠔', '+': '⠐⠮', '=': '⠐⠶', '#': '⠸⠹', '&': '⠈⠯', '@': '⠈⠁',
+  ',': '⠂',
+  ';': '⠆',
+  ':': '⠒',
+  '.': '⠲',
+  '?': '⠦',
+  '!': '⠖',
+  "'": '⠄',
+  '-': '⠤',
+  '/': '⠌',
+  '(': '⠐⠣',
+  ')': '⠐⠜',
+  '"': '⠐⠦',
+  '*': '⠐⠔',
+  '+': '⠐⠮',
+  '=': '⠐⠶',
+  '#': '⠸⠹',
+  '&': '⠈⠯',
+  '@': '⠈⠁',
 };
 export const CAPITAL = '⠠';
 export const NUMBER = '⠼';
 
-const FROM_LETTER = Object.fromEntries(Object.entries(LETTERS).map(([k, v]) => [v, k]));
-const FROM_PUNCT = Object.fromEntries(Object.entries(PUNCTUATION).map(([k, v]) => [v, k]));
-const FROM_DIGIT = Object.fromEntries(Object.entries(DIGITS).map(([d, letter]) => [letter, d]));
+const FROM_LETTER = Object.fromEntries(
+  Object.entries(LETTERS).map(([k, v]) => [v, k]),
+);
+const FROM_PUNCT = Object.fromEntries(
+  Object.entries(PUNCTUATION).map(([k, v]) => [v, k]),
+);
+const FROM_DIGIT = Object.fromEntries(
+  Object.entries(DIGITS).map(([d, letter]) => [letter, d]),
+);
 
 export function toBraille(text, { capitals = true, numbers = true } = {}) {
   let out = '';
@@ -42,7 +98,7 @@ export function toBraille(text, { capitals = true, numbers = true } = {}) {
       inNumber = false;
       if (ch === ' ') out += ' ';
       else if (ch === '\n') out += '\n';
-      else out += (PUNCTUATION[ch] ?? '');
+      else out += PUNCTUATION[ch] ?? '';
     }
   }
   return out;

@@ -35,21 +35,32 @@ export function makePuzzle(seed, level = 0, forced = null) {
   const rand = seeded(seed);
   const int = (n) => Math.floor(rand() * n);
   const pick = (list) => list[int(list.length)];
-  const types = level <= 0 ? ['wires', 'code'] : level === 1 ? ['wires', 'code', 'sequence'] : PUZZLE_TYPES;
+  const types =
+    level <= 0
+      ? ['wires', 'code']
+      : level === 1
+        ? ['wires', 'code', 'sequence']
+        : PUZZLE_TYPES;
   const rolled = pick(types);
   const type = PUZZLE_TYPES.includes(forced) ? forced : rolled;
 
   if (type === 'wires') {
     const count = Math.min(6, 3 + level);
-    const palette = WIRE_COLORS.slice(0, Math.min(WIRE_COLORS.length, 3 + Math.ceil(level / 2)));
+    const palette = WIRE_COLORS.slice(
+      0,
+      Math.min(WIRE_COLORS.length, 3 + Math.ceil(level / 2)),
+    );
     const wires = Array.from({ length: count }, () => pick(palette));
-    const indexesOf = (colour) => wires.map((w, i) => (w.id === colour ? i : -1)).filter((i) => i >= 0);
+    const indexesOf = (colour) =>
+      wires.map((w, i) => (w.id === colour ? i : -1)).filter((i) => i >= 0);
     let text;
     let answer;
     if (level <= 0) {
       // One wire of a colour nobody else has.
       const i = int(count);
-      const unique = palette.find((c) => !wires.some((w, k) => k !== i && w.id === c.id)) ?? wires[i];
+      const unique =
+        palette.find((c) => !wires.some((w, k) => k !== i && w.id === c.id)) ??
+        wires[i];
       wires[i] = unique;
       text = `Cut the ${unique.id} wire.`;
       answer = i;
@@ -74,14 +85,31 @@ export function makePuzzle(seed, level = 0, forced = null) {
     const length = Math.min(6, 3 + level);
     const digits = Array.from({ length }, () => 1 + int(9));
     const hideAfter = level >= 2 ? Math.max(900, 2600 - level * 300) : null;
-    return { type, level, text: hideAfter ? 'Memorise the code, then punch it in.' : 'Punch in the code.', digits, hideAfter };
+    return {
+      type,
+      level,
+      text: hideAfter
+        ? 'Memorise the code, then punch it in.'
+        : 'Punch in the code.',
+      digits,
+      hideAfter,
+    };
   }
 
   if (type === 'sequence') {
     const length = Math.min(8, 3 + level);
     const arrows = Array.from({ length }, () => pick(ARROWS));
     const backwards = level >= 4 && rand() < 0.5;
-    return { type, level, text: backwards ? 'Enter the arrows backwards, last one first.' : 'Enter the arrows in order.', arrows, answer: backwards ? [...arrows].reverse() : arrows, backwards };
+    return {
+      type,
+      level,
+      text: backwards
+        ? 'Enter the arrows backwards, last one first.'
+        : 'Enter the arrows in order.',
+      arrows,
+      answer: backwards ? [...arrows].reverse() : arrows,
+      backwards,
+    };
   }
 
   const hits = Math.min(3, 1 + Math.floor(level / 3));
@@ -90,5 +118,14 @@ export function makePuzzle(seed, level = 0, forced = null) {
     const start = 0.05 + rand() * (0.9 - width);
     return [start, start + width];
   });
-  return { type: 'timing', level, text: hits > 1 ? `Stop the needle in the green zone ${hits} times.` : 'Stop the needle in the green zone.', zones, speed: 0.7 + level * 0.18 };
+  return {
+    type: 'timing',
+    level,
+    text:
+      hits > 1
+        ? `Stop the needle in the green zone ${hits} times.`
+        : 'Stop the needle in the green zone.',
+    zones,
+    speed: 0.7 + level * 0.18,
+  };
 }

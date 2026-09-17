@@ -85,7 +85,9 @@ export default class ImageCropperPage extends Component {
   get imageStyle() {
     if (!this.bitmap) return htmlSafe('');
     const { imgW, imgH, left, top } = this.layout();
-    return htmlSafe(`width:${imgW}px;height:${imgH}px;transform:translate(${left}px,${top}px)`);
+    return htmlSafe(
+      `width:${imgW}px;height:${imgH}px;transform:translate(${left}px,${top}px)`,
+    );
   }
 
   // Cover-fit geometry: the image always fills the viewport, panned and
@@ -102,7 +104,19 @@ export default class ImageCropperPage extends Component {
     const offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, this.offsetY));
     const left = (vw - imgW) / 2 + offsetX;
     const top = (vh - imgH) / 2 + offsetY;
-    return { vw, vh, scale, imgW, imgH, left, top, maxOffsetX, maxOffsetY, offsetX, offsetY };
+    return {
+      vw,
+      vh,
+      scale,
+      imgW,
+      imgH,
+      left,
+      top,
+      maxOffsetX,
+      maxOffsetY,
+      offsetX,
+      offsetY,
+    };
   }
 
   clampOffsets() {
@@ -127,7 +141,8 @@ export default class ImageCropperPage extends Component {
       this.offsetX = 0;
       this.offsetY = 0;
     } catch {
-      this.error = "This browser can't open that image. Try the File Converter first.";
+      this.error =
+        "This browser can't open that image. Try the File Converter first.";
     }
   };
 
@@ -167,7 +182,12 @@ export default class ImageCropperPage extends Component {
     if (!this.bitmap) return;
     e.preventDefault();
     this.dragging = true;
-    this.dragStart = { x: e.clientX, y: e.clientY, offsetX: this.offsetX, offsetY: this.offsetY };
+    this.dragStart = {
+      x: e.clientX,
+      y: e.clientY,
+      offsetX: this.offsetX,
+      offsetY: this.offsetY,
+    };
     const move = (ev) => {
       this.offsetX = this.dragStart.offsetX + (ev.clientX - this.dragStart.x);
       this.offsetY = this.dragStart.offsetY + (ev.clientY - this.dragStart.y);
@@ -196,7 +216,17 @@ export default class ImageCropperPage extends Component {
     canvas.height = this.targetH;
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(this.bitmap, srcX, srcY, srcW, srcH, 0, 0, this.targetW, this.targetH);
+    ctx.drawImage(
+      this.bitmap,
+      srcX,
+      srcY,
+      srcW,
+      srcH,
+      0,
+      0,
+      this.targetW,
+      this.targetH,
+    );
     canvas.toBlob((blob) => {
       if (this.resultUrl) URL.revokeObjectURL(this.resultUrl);
       this.resultUrl = URL.createObjectURL(blob);
@@ -206,15 +236,27 @@ export default class ImageCropperPage extends Component {
   pasteFiles = (files) => this.openFile(files[0]);
 
   <template>
-    <ToolPage @route="image-cropper" @subtitle="Drag, zoom and crop to an exact size, with presets for socials and a live preview so nothing gets cut off.">
+    <ToolPage
+      @route="image-cropper"
+      @subtitle="Drag, zoom and crop to an exact size, with presets for socials and a live preview so nothing gets cut off."
+    >
       <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
-          <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOverFile}} {{on "drop" this.dropFile}}>
+          <label
+            class="qr-drop {{if this.bitmap 'is-filled'}}"
+            {{on "dragover" this.dragOverFile}}
+            {{on "drop" this.dropFile}}
+          >
             {{#unless this.bitmap}}
               <Icon @name="crop" @size={{22}} />
               <span>Drop an image, or click to browse</span>
             {{/unless}}
-            <input type="file" accept="image/*" class="sr-only" {{on "change" this.selectFile}} />
+            <input
+              type="file"
+              accept="image/*"
+              class="sr-only"
+              {{on "change" this.selectFile}}
+            />
           </label>
           {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
 
@@ -224,7 +266,11 @@ export default class ImageCropperPage extends Component {
               {{#each this.groups as |group|}}
                 <optgroup label={{group.platform}}>
                   {{#each group.items as |p|}}
-                    <option value={{p.id}} selected={{eq p.id this.presetId}}>{{p.label}}{{#unless p.free}} ({{p.w}}×{{p.h}}){{/unless}}</option>
+                    <option
+                      value={{p.id}}
+                      selected={{eq p.id this.presetId}}
+                    >{{p.label}}{{#unless p.free}}
+                        ({{p.w}}×{{p.h}}){{/unless}}</option>
                   {{/each}}
                 </optgroup>
               {{/each}}
@@ -233,15 +279,36 @@ export default class ImageCropperPage extends Component {
 
           {{#if this.preset.free}}
             <div class="math-row">
-              <label class="math-field"><span class="qr-label is-muted">Width (px)</span><input type="number" min="1" class="math-input" value={{this.customW}} {{on "input" (fn this.setCustom "customW")}} /></label>
-              <label class="math-field"><span class="qr-label is-muted">Height (px)</span><input type="number" min="1" class="math-input" value={{this.customH}} {{on "input" (fn this.setCustom "customH")}} /></label>
+              <label class="math-field"><span class="qr-label is-muted">Width
+                  (px)</span><input
+                  type="number"
+                  min="1"
+                  class="math-input"
+                  value={{this.customW}}
+                  {{on "input" (fn this.setCustom "customW")}}
+                /></label>
+              <label class="math-field"><span class="qr-label is-muted">Height
+                  (px)</span><input
+                  type="number"
+                  min="1"
+                  class="math-input"
+                  value={{this.customH}}
+                  {{on "input" (fn this.setCustom "customH")}}
+                /></label>
             </div>
           {{/if}}
 
           {{#if this.bitmap}}
             <label class="math-field">
               <span class="qr-label is-muted">Zoom</span>
-              <input type="range" min="1" max="4" step="0.01" value={{this.zoom}} {{on "input" this.setZoom}} />
+              <input
+                type="range"
+                min="1"
+                max="4"
+                step="0.01"
+                value={{this.zoom}}
+                {{on "input" this.setZoom}}
+              />
             </label>
           {{/if}}
         </section>
@@ -254,12 +321,30 @@ export default class ImageCropperPage extends Component {
               style={{this.viewportStyle}}
               {{on "pointerdown" this.startDrag}}
             >
-              <img src={{this.imageUrl}} alt="" class="crop-image" style={{this.imageStyle}} draggable="false" />
+              <img
+                src={{this.imageUrl}}
+                alt=""
+                class="crop-image"
+                style={{this.imageStyle}}
+                draggable="false"
+              />
             </div>
-            <p class="tool-hint">Drag to reposition, and use the zoom slider to get in closer.</p>
+            <p class="tool-hint">Drag to reposition, and use the zoom slider to
+              get in closer.</p>
             <div class="settings-actions">
-              <button type="button" class="btn active" {{on "click" this.crop}}>Crop</button>
-              {{#if this.resultUrl}}<a class="btn fs-save" href={{this.resultUrl}} download="{{this.fileName}}-{{this.targetW}}x{{this.targetH}}.png"><Icon @name="download" @size={{13}} /> Save</a><PrintButton @url={{this.resultUrl}} @name="{{this.fileName}}.png" />{{/if}}
+              <button
+                type="button"
+                class="btn active"
+                {{on "click" this.crop}}
+              >Crop</button>
+              {{#if this.resultUrl}}<a
+                  class="btn fs-save"
+                  href={{this.resultUrl}}
+                  download="{{this.fileName}}-{{this.targetW}}x{{this.targetH}}.png"
+                ><Icon @name="download" @size={{13}} /> Save</a><PrintButton
+                  @url={{this.resultUrl}}
+                  @name="{{this.fileName}}.png"
+                />{{/if}}
             </div>
           {{else}}
             <p class="tool-hint">Upload an image to start cropping.</p>

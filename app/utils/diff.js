@@ -11,7 +11,8 @@ export function diff(a, b, key = (x) => x) {
 
   // Shared prefix/suffix never need the full algorithm.
   let start = 0;
-  while (start < ka.length && start < kb.length && ka[start] === kb[start]) start++;
+  while (start < ka.length && start < kb.length && ka[start] === kb[start])
+    start++;
   let endA = ka.length;
   let endB = kb.length;
   while (endA > start && endB > start && ka[endA - 1] === kb[endB - 1]) {
@@ -19,8 +20,17 @@ export function diff(a, b, key = (x) => x) {
     endB--;
   }
 
-  const middle = myers(ka.slice(start, endA), kb.slice(start, endB)).map((op) => ({ type: op.type, value: op.type === 'insert' ? b[start + op.j] : a[start + op.i] }));
-  return [...a.slice(0, start).map((value) => ({ type: 'equal', value })), ...middle, ...a.slice(endA).map((value) => ({ type: 'equal', value }))];
+  const middle = myers(ka.slice(start, endA), kb.slice(start, endB)).map(
+    (op) => ({
+      type: op.type,
+      value: op.type === 'insert' ? b[start + op.j] : a[start + op.i],
+    }),
+  );
+  return [
+    ...a.slice(0, start).map((value) => ({ type: 'equal', value })),
+    ...middle,
+    ...a.slice(endA).map((value) => ({ type: 'equal', value })),
+  ];
 }
 
 function myers(a, b) {
@@ -35,10 +45,16 @@ function myers(a, b) {
 
   for (let d = 0; d <= max; d++) {
     cells += v.length;
-    if (cells > MAX_TRACE_CELLS) throw new DiffTooLargeError('These texts are too different to compare in the browser. Try comparing by lines instead.');
+    if (cells > MAX_TRACE_CELLS)
+      throw new DiffTooLargeError(
+        'These texts are too different to compare in the browser. Try comparing by lines instead.',
+      );
     trace.push(v.slice());
     for (let k = -d; k <= d; k += 2) {
-      let x = k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1]) ? v[offset + k + 1] : v[offset + k - 1] + 1;
+      let x =
+        k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])
+          ? v[offset + k + 1]
+          : v[offset + k - 1] + 1;
       let y = x - k;
       while (x < n && y < m && a[x] === b[y]) {
         x++;
@@ -58,7 +74,10 @@ function backtrack(trace, n, m, offset) {
   for (let d = trace.length - 1; d >= 0; d--) {
     const v = trace[d];
     const k = x - y;
-    const prevK = k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1]) ? k + 1 : k - 1;
+    const prevK =
+      k === -d || (k !== d && v[offset + k - 1] < v[offset + k + 1])
+        ? k + 1
+        : k - 1;
     const prevX = v[offset + prevK];
     const prevY = prevX - prevK;
     while (x > prevX && y > prevY) {
@@ -66,7 +85,12 @@ function backtrack(trace, n, m, offset) {
       x--;
       y--;
     }
-    if (d > 0) ops.push(x === prevX ? { type: 'insert', i: x, j: y - 1 } : { type: 'delete', i: x - 1, j: y });
+    if (d > 0)
+      ops.push(
+        x === prevX
+          ? { type: 'insert', i: x, j: y - 1 }
+          : { type: 'delete', i: x - 1, j: y },
+      );
     x = prevX;
     y = prevY;
   }
@@ -81,5 +105,9 @@ export function mergeRuns(ops, join = (values) => values.join('')) {
     if (last?.type === op.type) last.values.push(op.value);
     else runs.push({ type: op.type, values: [op.value] });
   }
-  return runs.map((r) => ({ type: r.type, value: join(r.values), count: r.values.length }));
+  return runs.map((r) => ({
+    type: r.type,
+    value: join(r.values),
+    count: r.values.length,
+  }));
 }

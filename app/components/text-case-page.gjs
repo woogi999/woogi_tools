@@ -3,8 +3,29 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import ToolPage from './tool-page';
 import CopyButton from './copy-button';
+import { keepState } from '../utils/tool-state';
 
-const SMALL_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'nor', 'of', 'on', 'or', 'so', 'the', 'to', 'up', 'yet', 'via']);
+const SMALL_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'as',
+  'at',
+  'but',
+  'by',
+  'for',
+  'in',
+  'nor',
+  'of',
+  'on',
+  'or',
+  'so',
+  'the',
+  'to',
+  'up',
+  'yet',
+  'via',
+]);
 
 // Splits "someHTTPRequest_id-2 value" into ["some", "HTTP", "Request", "id", "2", "value"].
 function identifierWords(text) {
@@ -29,18 +50,80 @@ const CASES = [
     fn: perLine((line) => {
       const words = line.toLowerCase().split(/(\s+)/);
       const last = words.length - 1;
-      return words.map((w, i) => (/\s/.test(w) || (i !== 0 && i !== last && SMALL_WORDS.has(w)) ? w : w.replace(/\p{L}/u, (c) => c.toUpperCase()))).join('');
+      return words
+        .map((w, i) =>
+          /\s/.test(w) || (i !== 0 && i !== last && SMALL_WORDS.has(w))
+            ? w
+            : w.replace(/\p{L}/u, (c) => c.toUpperCase()),
+        )
+        .join('');
     }),
   },
-  { id: 'sentence', label: 'Sentence case', fn: (t) => t.toLowerCase().replace(/(^\s*|[.!?]\s+)(\p{L})/gu, (_, pre, c) => pre + c.toUpperCase()) },
-  { id: 'camel', label: 'camelCase', fn: perLine((l) => identifierWords(l).map((w, i) => (i ? cap(w) : w.toLowerCase())).join('')) },
-  { id: 'pascal', label: 'PascalCase', fn: perLine((l) => identifierWords(l).map(cap).join('')) },
-  { id: 'snake', label: 'snake_case', fn: perLine((l) => identifierWords(l).join('_').toLowerCase()) },
-  { id: 'constant', label: 'CONSTANT_CASE', fn: perLine((l) => identifierWords(l).join('_').toUpperCase()) },
-  { id: 'kebab', label: 'kebab-case', fn: perLine((l) => identifierWords(l).join('-').toLowerCase()) },
-  { id: 'dot', label: 'dot.case', fn: perLine((l) => identifierWords(l).join('.').toLowerCase()) },
-  { id: 'inverse', label: 'iNVERSE cASE', fn: (t) => [...t].map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase())).join('') },
-  { id: 'alternating', label: 'aLtErNaTiNg', fn: (t) => { let i = 0; return [...t].map((c) => (/\p{L}/u.test(c) ? (i++ % 2 ? c.toUpperCase() : c.toLowerCase()) : c)).join(''); } },
+  {
+    id: 'sentence',
+    label: 'Sentence case',
+    fn: (t) =>
+      t
+        .toLowerCase()
+        .replace(
+          /(^\s*|[.!?]\s+)(\p{L})/gu,
+          (_, pre, c) => pre + c.toUpperCase(),
+        ),
+  },
+  {
+    id: 'camel',
+    label: 'camelCase',
+    fn: perLine((l) =>
+      identifierWords(l)
+        .map((w, i) => (i ? cap(w) : w.toLowerCase()))
+        .join(''),
+    ),
+  },
+  {
+    id: 'pascal',
+    label: 'PascalCase',
+    fn: perLine((l) => identifierWords(l).map(cap).join('')),
+  },
+  {
+    id: 'snake',
+    label: 'snake_case',
+    fn: perLine((l) => identifierWords(l).join('_').toLowerCase()),
+  },
+  {
+    id: 'constant',
+    label: 'CONSTANT_CASE',
+    fn: perLine((l) => identifierWords(l).join('_').toUpperCase()),
+  },
+  {
+    id: 'kebab',
+    label: 'kebab-case',
+    fn: perLine((l) => identifierWords(l).join('-').toLowerCase()),
+  },
+  {
+    id: 'dot',
+    label: 'dot.case',
+    fn: perLine((l) => identifierWords(l).join('.').toLowerCase()),
+  },
+  {
+    id: 'inverse',
+    label: 'iNVERSE cASE',
+    fn: (t) =>
+      [...t]
+        .map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()))
+        .join(''),
+  },
+  {
+    id: 'alternating',
+    label: 'aLtErNaTiNg',
+    fn: (t) => {
+      let i = 0;
+      return [...t]
+        .map((c) =>
+          /\p{L}/u.test(c) ? (i++ % 2 ? c.toUpperCase() : c.toLowerCase()) : c,
+        )
+        .join('');
+    },
+  },
 ];
 
 export default class TextCasePage extends Component {
@@ -52,12 +135,25 @@ export default class TextCasePage extends Component {
 
   setText = (event) => (this.text = event.target.value);
 
+  constructor(owner, args) {
+    super(owner, args);
+    keepState(this, 'text-case', ['text']);
+  }
+
   <template>
-    <ToolPage @route="text-case" @subtitle="See your text in every common case at once, from Title Case to snake_case. Click to copy.">
+    <ToolPage
+      @route="text-case"
+      @subtitle="See your text in every common case at once, from Title Case to snake_case. Click to copy."
+    >
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <label class="field-label" for="tc-text">Text</label>
-          <textarea id="tc-text" class="textarea text-area-tall" value={{this.text}} {{on "input" this.setText}}></textarea>
+          <textarea
+            id="tc-text"
+            class="textarea text-area-tall"
+            value={{this.text}}
+            {{on "input" this.setText}}
+          ></textarea>
         </section>
         <section class="math-card">
           <h3 class="qr-heading">Results</h3>

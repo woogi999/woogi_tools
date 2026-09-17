@@ -25,31 +25,288 @@
 // `volume` and `puff` stand the hair off the head. `layers` are extra shells in
 // the same colour; `under` is a closely cropped shell in a darker shade.
 export const HAIR_STYLES = [
-  { id: 'messy', label: 'Messy fringe', front: 0.45, side: 0.58, back: 0.68, jag: 0.07, strands: 11, ragged: 0.03, volume: 1.12 },
-  { id: 'wolfcut', label: 'Wolf cut', front: 0.47, side: 0.72, back: 0.92, jag: 0.08, strands: 9, ragged: 0.1, raggedStrands: 16, flip: 0.1, volume: 1.12, layers: [{ front: 0.44, side: 0.53, back: 0.62, jag: 0.07, strands: 9, ragged: 0.09, raggedStrands: 14, volume: 1.22, puff: 0.03 }] },
-  { id: 'spiky', label: 'Anime spikes', front: 0.44, side: 0.56, back: 0.66, jag: 0.12, strands: 7, ragged: 0.06, volume: 1.16, crown: true },
-  { id: 'pixie', label: 'Pixie', front: 0.47, side: 0.53, back: 0.6, part: 0.14, jag: 0.09, strands: 8, ragged: 0.05, volume: 1.1 },
-  { id: 'fluffy', label: 'Fluffy', front: 0.45, side: 0.6, back: 0.66, jag: 0.04, strands: 14, volume: 1.24, puff: 0.05, bumps: 0.03 },
-  { id: 'sidepart', label: 'Side part', front: 0.4, side: 0.53, back: 0.62, part: 0.12, volume: 1.1 },
-  { id: 'undercut', label: 'Undercut', front: 0.45, side: 0.38, back: 0.42, part: 0.08, jag: 0.05, strands: 8, volume: 1.18, puff: 0.03, under: { front: 0.42, side: 0.56, back: 0.62, volume: 1.03 } },
-  { id: 'curtains', label: 'Curtains', front: 0.45, side: 0.62, back: 0.68, center: 0.16, volume: 1.12 },
-  { id: 'emo', label: 'Side fringe', front: 0.5, side: 0.64, back: 0.72, part: 0.2, jag: 0.05, strands: 12, ragged: 0.03, volume: 1.14 },
-  { id: 'mullet', label: 'Mullet', front: 0.42, side: 0.5, back: 1.02, backStart: 0.74, jag: 0.05, strands: 10, ragged: 0.05, raggedStrands: 18, flip: 0.14, volume: 1.1 },
-  { id: 'bowl', label: 'Bowl cut', front: 0.44, side: 0.455, back: 0.47, volume: 1.2, flare: 0.07 },
-  { id: 'bob', label: 'Bob', front: 0.43, side: 0.8, back: 0.8, volume: 1.14, flip: -0.05 },
-  { id: 'long', label: 'Long', front: 0.44, side: 1.02, back: 1.16, jag: 0.03, strands: 12, volume: 1.12 },
-  { id: 'wavy', label: 'Wavy', front: 0.45, side: 0.98, back: 1.1, center: 0.08, ragged: 0.04, flip: 0.08, volume: 1.14, bumps: 0.035 },
-  { id: 'hime', label: 'Hime cut', front: 0.47, side: 0.78, back: 1.18, backStart: 0.62, volume: 1.12 },
-  { id: 'ponytail', label: 'Ponytail', front: 0.42, side: 0.54, back: 0.6, jag: 0.04, strands: 9, volume: 1.08, ponytail: true },
-  { id: 'twintails', label: 'Twin tails', front: 0.43, side: 0.56, back: 0.64, jag: 0.03, strands: 9, volume: 1.1, twintails: true },
-  { id: 'braid', label: 'Braid', front: 0.4, side: 0.56, back: 0.62, center: 0.06, volume: 1.08, braid: true },
-  { id: 'buns', label: 'Space buns', front: 0.43, side: 0.55, back: 0.63, jag: 0.03, strands: 9, volume: 1.09, buns: true },
-  { id: 'bun', label: 'Bun', front: 0.38, side: 0.52, back: 0.6, volume: 1.07, bun: true },
-  { id: 'pompadour', label: 'Pompadour', front: 0.34, side: 0.48, back: 0.58, volume: 1.08, quiff: true, under: { front: 0.36, side: 0.56, back: 0.62, volume: 1.03 } },
-  { id: 'curly', label: 'Curly', front: 0.43, side: 0.64, back: 0.72, jag: 0.05, strands: 14, ragged: 0.04, volume: 1.22, bumps: 0.06 },
-  { id: 'afro', label: 'Afro', front: 0.36, side: 0.62, back: 0.72, volume: 1.5, lift: 0.07, bumps: 0.04 },
-  { id: 'buzz', label: 'Buzz cut', front: 0.41, side: 0.55, back: 0.6, volume: 1.035 },
-  { id: 'mohawk', label: 'Mohawk', front: 0.38, side: 0.62, back: 0.7, strip: 0.13, volume: 1.12, fin: true, under: { front: 0.42, side: 0.56, back: 0.62, volume: 1.025 } },
+  {
+    id: 'messy',
+    label: 'Messy fringe',
+    front: 0.45,
+    side: 0.58,
+    back: 0.68,
+    jag: 0.07,
+    strands: 11,
+    ragged: 0.03,
+    volume: 1.12,
+  },
+  {
+    id: 'wolfcut',
+    label: 'Wolf cut',
+    front: 0.47,
+    side: 0.72,
+    back: 0.92,
+    jag: 0.08,
+    strands: 9,
+    ragged: 0.1,
+    raggedStrands: 16,
+    flip: 0.1,
+    volume: 1.12,
+    layers: [
+      {
+        front: 0.44,
+        side: 0.53,
+        back: 0.62,
+        jag: 0.07,
+        strands: 9,
+        ragged: 0.09,
+        raggedStrands: 14,
+        volume: 1.22,
+        puff: 0.03,
+      },
+    ],
+  },
+  {
+    id: 'spiky',
+    label: 'Anime spikes',
+    front: 0.44,
+    side: 0.56,
+    back: 0.66,
+    jag: 0.12,
+    strands: 7,
+    ragged: 0.06,
+    volume: 1.16,
+    crown: true,
+  },
+  {
+    id: 'pixie',
+    label: 'Pixie',
+    front: 0.47,
+    side: 0.53,
+    back: 0.6,
+    part: 0.14,
+    jag: 0.09,
+    strands: 8,
+    ragged: 0.05,
+    volume: 1.1,
+  },
+  {
+    id: 'fluffy',
+    label: 'Fluffy',
+    front: 0.45,
+    side: 0.6,
+    back: 0.66,
+    jag: 0.04,
+    strands: 14,
+    volume: 1.24,
+    puff: 0.05,
+    bumps: 0.03,
+  },
+  {
+    id: 'sidepart',
+    label: 'Side part',
+    front: 0.4,
+    side: 0.53,
+    back: 0.62,
+    part: 0.12,
+    volume: 1.1,
+  },
+  {
+    id: 'undercut',
+    label: 'Undercut',
+    front: 0.45,
+    side: 0.38,
+    back: 0.42,
+    part: 0.08,
+    jag: 0.05,
+    strands: 8,
+    volume: 1.18,
+    puff: 0.03,
+    under: { front: 0.42, side: 0.56, back: 0.62, volume: 1.03 },
+  },
+  {
+    id: 'curtains',
+    label: 'Curtains',
+    front: 0.45,
+    side: 0.62,
+    back: 0.68,
+    center: 0.16,
+    volume: 1.12,
+  },
+  {
+    id: 'emo',
+    label: 'Side fringe',
+    front: 0.5,
+    side: 0.64,
+    back: 0.72,
+    part: 0.2,
+    jag: 0.05,
+    strands: 12,
+    ragged: 0.03,
+    volume: 1.14,
+  },
+  {
+    id: 'mullet',
+    label: 'Mullet',
+    front: 0.42,
+    side: 0.5,
+    back: 1.02,
+    backStart: 0.74,
+    jag: 0.05,
+    strands: 10,
+    ragged: 0.05,
+    raggedStrands: 18,
+    flip: 0.14,
+    volume: 1.1,
+  },
+  {
+    id: 'bowl',
+    label: 'Bowl cut',
+    front: 0.44,
+    side: 0.455,
+    back: 0.47,
+    volume: 1.2,
+    flare: 0.07,
+  },
+  {
+    id: 'bob',
+    label: 'Bob',
+    front: 0.43,
+    side: 0.8,
+    back: 0.8,
+    volume: 1.14,
+    flip: -0.05,
+  },
+  {
+    id: 'long',
+    label: 'Long',
+    front: 0.44,
+    side: 1.02,
+    back: 1.16,
+    jag: 0.03,
+    strands: 12,
+    volume: 1.12,
+  },
+  {
+    id: 'wavy',
+    label: 'Wavy',
+    front: 0.45,
+    side: 0.98,
+    back: 1.1,
+    center: 0.08,
+    ragged: 0.04,
+    flip: 0.08,
+    volume: 1.14,
+    bumps: 0.035,
+  },
+  {
+    id: 'hime',
+    label: 'Hime cut',
+    front: 0.47,
+    side: 0.78,
+    back: 1.18,
+    backStart: 0.62,
+    volume: 1.12,
+  },
+  {
+    id: 'ponytail',
+    label: 'Ponytail',
+    front: 0.42,
+    side: 0.54,
+    back: 0.6,
+    jag: 0.04,
+    strands: 9,
+    volume: 1.08,
+    ponytail: true,
+  },
+  {
+    id: 'twintails',
+    label: 'Twin tails',
+    front: 0.43,
+    side: 0.56,
+    back: 0.64,
+    jag: 0.03,
+    strands: 9,
+    volume: 1.1,
+    twintails: true,
+  },
+  {
+    id: 'braid',
+    label: 'Braid',
+    front: 0.4,
+    side: 0.56,
+    back: 0.62,
+    center: 0.06,
+    volume: 1.08,
+    braid: true,
+  },
+  {
+    id: 'buns',
+    label: 'Space buns',
+    front: 0.43,
+    side: 0.55,
+    back: 0.63,
+    jag: 0.03,
+    strands: 9,
+    volume: 1.09,
+    buns: true,
+  },
+  {
+    id: 'bun',
+    label: 'Bun',
+    front: 0.38,
+    side: 0.52,
+    back: 0.6,
+    volume: 1.07,
+    bun: true,
+  },
+  {
+    id: 'pompadour',
+    label: 'Pompadour',
+    front: 0.34,
+    side: 0.48,
+    back: 0.58,
+    volume: 1.08,
+    quiff: true,
+    under: { front: 0.36, side: 0.56, back: 0.62, volume: 1.03 },
+  },
+  {
+    id: 'curly',
+    label: 'Curly',
+    front: 0.43,
+    side: 0.64,
+    back: 0.72,
+    jag: 0.05,
+    strands: 14,
+    ragged: 0.04,
+    volume: 1.22,
+    bumps: 0.06,
+  },
+  {
+    id: 'afro',
+    label: 'Afro',
+    front: 0.36,
+    side: 0.62,
+    back: 0.72,
+    volume: 1.5,
+    lift: 0.07,
+    bumps: 0.04,
+  },
+  {
+    id: 'buzz',
+    label: 'Buzz cut',
+    front: 0.41,
+    side: 0.55,
+    back: 0.6,
+    volume: 1.035,
+  },
+  {
+    id: 'mohawk',
+    label: 'Mohawk',
+    front: 0.38,
+    side: 0.62,
+    back: 0.7,
+    strip: 0.13,
+    volume: 1.12,
+    fin: true,
+    under: { front: 0.42, side: 0.56, back: 0.62, volume: 1.025 },
+  },
   { id: 'none', label: 'Bald', none: true },
 ];
 
@@ -233,25 +490,120 @@ export const ROBOT_HEADS = [
 ];
 export const ROBOT_EYES = ['dots', 'big', 'happy', 'sleepy', 'blank', 'x'];
 export const ROBOT_MOUTHS = ['tiny', 'smile', 'flat', 'grin'];
-export const SKIN_TONES = ['#FFFFFF', '#FFE9D6', '#F6CFA8', '#E3B083', '#C68B5E', '#8D5A3B', '#5C3A24'];
-export const HAIR_COLORS = ['#141414', '#3B2A20', '#7A4A2A', '#E8C468', '#F2F2F2', '#9AA0AA', '#E5484D', '#3E7BE0', '#B388EB', '#FF8FAB', '#7ED6A5'];
-export const EYE_COLORS = ['#2A2A2A', '#5A3A24', '#3E7BE0', '#30A46C', '#8E5BD9', '#D93A3A', '#E3A21A', '#6FC3DF'];
-export const SHIRT_COLORS = ['#F2F2F2', '#2B2B33', '#3E7BE0', '#E5484D', '#30A46C', '#F2B90D', '#B388EB', '#FF8FAB', '#8A6A4A'];
-export const ACCENT_COLORS = ['#2B2B33', '#F2F2F2', '#E5484D', '#3E7BE0', '#F2B90D', '#30A46C', '#FF8FAB', '#8E5BD9'];
-export const PANTS_COLORS = ['#34343D', '#1B1B1B', '#4A5A7A', '#6B5A45', '#F2F2F2', '#7A2E2E', '#3E6B4A', '#C9A27A'];
-export const SHOE_COLORS = ['#2B2B33', '#F2F2F2', '#8A5A3A', '#E5484D', '#3E7BE0', '#F2B90D'];
-export const HAT_COLORS = ['#E5484D', '#2B2B33', '#F2F2F2', '#3E7BE0', '#6DBE45', '#F2B90D', '#B388EB', '#FF8FAB'];
-export const METAL_COLORS = ['#C9CED6', '#8E97A3', '#E8E1CF', '#6B7280', '#D4A373'];
-export const GLOW_COLORS = ['#5CE1E6', '#FFDE59', '#FF6B8B', '#7ED957', '#C39BFF', '#FF914D'];
+export const SKIN_TONES = [
+  '#FFFFFF',
+  '#FFE9D6',
+  '#F6CFA8',
+  '#E3B083',
+  '#C68B5E',
+  '#8D5A3B',
+  '#5C3A24',
+];
+export const HAIR_COLORS = [
+  '#141414',
+  '#3B2A20',
+  '#7A4A2A',
+  '#E8C468',
+  '#F2F2F2',
+  '#9AA0AA',
+  '#E5484D',
+  '#3E7BE0',
+  '#B388EB',
+  '#FF8FAB',
+  '#7ED6A5',
+];
+export const EYE_COLORS = [
+  '#2A2A2A',
+  '#5A3A24',
+  '#3E7BE0',
+  '#30A46C',
+  '#8E5BD9',
+  '#D93A3A',
+  '#E3A21A',
+  '#6FC3DF',
+];
+export const SHIRT_COLORS = [
+  '#F2F2F2',
+  '#2B2B33',
+  '#3E7BE0',
+  '#E5484D',
+  '#30A46C',
+  '#F2B90D',
+  '#B388EB',
+  '#FF8FAB',
+  '#8A6A4A',
+];
+export const ACCENT_COLORS = [
+  '#2B2B33',
+  '#F2F2F2',
+  '#E5484D',
+  '#3E7BE0',
+  '#F2B90D',
+  '#30A46C',
+  '#FF8FAB',
+  '#8E5BD9',
+];
+export const PANTS_COLORS = [
+  '#34343D',
+  '#1B1B1B',
+  '#4A5A7A',
+  '#6B5A45',
+  '#F2F2F2',
+  '#7A2E2E',
+  '#3E6B4A',
+  '#C9A27A',
+];
+export const SHOE_COLORS = [
+  '#2B2B33',
+  '#F2F2F2',
+  '#8A5A3A',
+  '#E5484D',
+  '#3E7BE0',
+  '#F2B90D',
+];
+export const HAT_COLORS = [
+  '#E5484D',
+  '#2B2B33',
+  '#F2F2F2',
+  '#3E7BE0',
+  '#6DBE45',
+  '#F2B90D',
+  '#B388EB',
+  '#FF8FAB',
+];
+export const METAL_COLORS = [
+  '#C9CED6',
+  '#8E97A3',
+  '#E8E1CF',
+  '#6B7280',
+  '#D4A373',
+];
+export const GLOW_COLORS = [
+  '#5CE1E6',
+  '#FFDE59',
+  '#FF6B8B',
+  '#7ED957',
+  '#C39BFF',
+  '#FF914D',
+];
 
 const HEX = /^#[0-9A-F]{6}$/i;
 const pick = (list) => list[Math.floor(Math.random() * list.length)];
-const oneOf = (list, id, fallback) => (list.some((o) => (o.id ?? o) === id) ? id : fallback);
-const hexOr = (value, fallback) => (HEX.test(value ?? '') ? value.toUpperCase() : fallback);
-const someOf = (list, values) => (Array.isArray(values) ? list.map((o) => o.id).filter((id) => values.includes(id)) : []);
-const stepOr = (value, min, max) => (Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Math.round(Number(value)))) : 0);
+const oneOf = (list, id, fallback) =>
+  list.some((o) => (o.id ?? o) === id) ? id : fallback;
+const hexOr = (value, fallback) =>
+  HEX.test(value ?? '') ? value.toUpperCase() : fallback;
+const someOf = (list, values) =>
+  Array.isArray(values)
+    ? list.map((o) => o.id).filter((id) => values.includes(id))
+    : [];
+const stepOr = (value, min, max) =>
+  Number.isFinite(Number(value))
+    ? Math.max(min, Math.min(max, Math.round(Number(value))))
+    : 0;
 
-export const hairStyle = (id) => HAIR_STYLES.find((s) => s.id === id) ?? HAIR_STYLES[0];
+export const hairStyle = (id) =>
+  HAIR_STYLES.find((s) => s.id === id) ?? HAIR_STYLES[0];
 
 // The sketchbook kid: pale skin, a black messy fringe, empty dark eyes, a white tee.
 export const DEFAULT_AVATAR = {
@@ -322,7 +674,9 @@ export function randomAvatar() {
     neck: Math.random() < 0.75 ? 'none' : pick(NECKWEAR).id,
     back: Math.random() < 0.8 ? 'none' : pick(BACKS).id,
     piercings: PIERCINGS.filter(() => Math.random() < 0.1).map((p) => p.id),
-    marks: MARKS.filter((m) => Math.random() < (m.id === 'blush' ? 0.4 : 0.08)).map((m) => m.id),
+    marks: MARKS.filter(
+      (m) => Math.random() < (m.id === 'blush' ? 0.4 : 0.08),
+    ).map((m) => m.id),
   };
 }
 
@@ -347,8 +701,24 @@ export function robotAvatar(seed, index) {
 }
 
 // Older saved avatars used other names for a few things; they map onto the new ones.
-const LEGACY_EXTRA = { glasses: { eyewear: 'round' }, bow: { hat: 'bow' }, cap: { hat: 'cap' }, halo: { hat: 'halo' }, headphones: { hat: 'headphones' }, bandage: { marks: ['plaster'] } };
-const LEGACY_EYES = { omori: 'tired', ringed: 'tired', tired: 'tired', big: 'bright', sharp: 'lashes', sparkle: 'glossy', teary: 'anime', blank: 'shocked' };
+const LEGACY_EXTRA = {
+  glasses: { eyewear: 'round' },
+  bow: { hat: 'bow' },
+  cap: { hat: 'cap' },
+  halo: { hat: 'halo' },
+  headphones: { hat: 'headphones' },
+  bandage: { marks: ['plaster'] },
+};
+const LEGACY_EYES = {
+  omori: 'tired',
+  ringed: 'tired',
+  tired: 'tired',
+  big: 'bright',
+  sharp: 'lashes',
+  sparkle: 'glossy',
+  teary: 'anime',
+  blank: 'shocked',
+};
 
 // Anything that arrives from storage or another player is untrusted: keep only known values.
 export function normaliseAvatar(avatar) {
@@ -360,18 +730,26 @@ export function normaliseAvatar(avatar) {
   const marks = Array.isArray(a.marks) ? [...a.marks] : [];
   if (a.blush === true) marks.push('blush');
   if (a.eyes === 'teary') marks.push('tears');
-  const steps = Object.fromEntries(FACE_SLIDERS.map((s) => [s.key, stepOr(a[s.key], s.min, s.max)]));
+  const steps = Object.fromEntries(
+    FACE_SLIDERS.map((s) => [s.key, stepOr(a[s.key], s.min, s.max)]),
+  );
   return {
     type,
     skin: hexOr(a.skin, d.skin),
     hair: oneOf(HAIR_STYLES, a.hair, d.hair),
     hairColor: hexOr(a.hairColor, d.hairColor),
     ahoge: Boolean(a.ahoge),
-    eyes: type === 'robot' ? oneOf(ROBOT_EYES, a.eyes, 'dots') : oneOf(EYES, eyes, d.eyes),
+    eyes:
+      type === 'robot'
+        ? oneOf(ROBOT_EYES, a.eyes, 'dots')
+        : oneOf(EYES, eyes, d.eyes),
     eyeColor: hexOr(a.eyeColor, d.eyeColor),
     brows: oneOf(BROWS, a.brows, d.brows),
     nose: oneOf(NOSES, a.nose, d.nose),
-    mouth: type === 'robot' ? oneOf(ROBOT_MOUTHS, a.mouth, 'tiny') : oneOf(MOUTHS, a.mouth, d.mouth),
+    mouth:
+      type === 'robot'
+        ? oneOf(ROBOT_MOUTHS, a.mouth, 'tiny')
+        : oneOf(MOUTHS, a.mouth, d.mouth),
     ...steps,
     top: oneOf(TOPS, a.top, d.top),
     pattern: oneOf(PATTERNS, a.pattern, d.pattern),
@@ -414,13 +792,16 @@ const clamp01 = (t) => Math.max(0, Math.min(1, t));
 const smooth = (t) => t * t * (3 - 2 * t);
 const lerp = (a, b, t) => a + (b - a) * t;
 // A sawtooth folded into a triangle, 0..1.
-const tri = (x) => 1 - Math.abs(((x % 2) + 2) % 2 - 1) * 2;
+const tri = (x) => 1 - Math.abs((((x % 2) + 2) % 2) - 1) * 2;
 
 // Where the direction (dx, dy, dz) from the head's centre meets the head's
 // surface, grown outwards by `grow` (for hair and hats).
 export function headPoint(dx, dy, dz, grow = 0) {
   const { power } = HEAD;
-  const sum = Math.abs(dx / (HEAD.x + grow)) ** power + Math.abs(dy / (HEAD.y + grow)) ** power + Math.abs(dz / (HEAD.z + grow)) ** power;
+  const sum =
+    Math.abs(dx / (HEAD.x + grow)) ** power +
+    Math.abs(dy / (HEAD.y + grow)) ** power +
+    Math.abs(dz / (HEAD.z + grow)) ** power;
   const k = sum > 0 ? sum ** (-1 / power) : 0;
   return [dx * k, dy * k, dz * k];
 }
@@ -428,39 +809,65 @@ export function headPoint(dx, dy, dz, grow = 0) {
 // A point on the head at azimuth `az` (0 = the face, positive = the avatar's left)
 // and polar angle `polar` (radians from the crown).
 export function headAt(az, polar, grow = 0) {
-  return headPoint(Math.sin(polar) * Math.sin(az), Math.cos(polar), Math.sin(polar) * Math.cos(az), grow);
+  return headPoint(
+    Math.sin(polar) * Math.sin(az),
+    Math.cos(polar),
+    Math.sin(polar) * Math.cos(az),
+    grow,
+  );
 }
 
 // How far down (as a fraction, see above) the hair reaches at azimuth `az`.
 export function hairline(style, az) {
   const t = Math.min(1, Math.abs(az) / Math.PI);
   const backStart = style.backStart ?? 0.5;
-  let reach = t < backStart ? lerp(style.front, style.side, smooth(t / backStart)) : lerp(style.side, style.back, smooth((t - backStart) / (1 - backStart)));
+  let reach =
+    t < backStart
+      ? lerp(style.front, style.side, smooth(t / backStart))
+      : lerp(style.side, style.back, smooth((t - backStart) / (1 - backStart)));
   // The face is flatter than a sphere, so the front sits a little higher to keep the eyes clear.
   reach -= 0.06 * Math.max(0, 1 - t * 2);
   const frontness = Math.max(0, 1 - t * 2.4);
-  if (style.jag) reach += style.jag * frontness * Math.abs(tri((az / Math.PI) * style.strands));
+  if (style.jag)
+    reach +=
+      style.jag * frontness * Math.abs(tri((az / Math.PI) * style.strands));
   if (style.part) reach += style.part * Math.sin(az) * frontness;
   // A middle parting: the fringe lifts in the centre and falls away to both sides.
   if (style.center) reach -= style.center * Math.max(0, 1 - Math.abs(az) * 2.2);
-  if (style.ragged) reach += style.ragged * (1 - frontness) * Math.abs(tri((az / Math.PI) * (style.raggedStrands ?? 14)));
+  if (style.ragged)
+    reach +=
+      style.ragged *
+      (1 - frontness) *
+      Math.abs(tri((az / Math.PI) * (style.raggedStrands ?? 14)));
   // A mohawk only keeps a band down the middle of the head.
   if (style.strip) {
     const across = Math.abs(Math.sin(az));
-    if (across > style.strip) reach = Math.min(reach, Math.asin(style.strip / across) / Math.PI);
+    if (across > style.strip)
+      reach = Math.min(reach, Math.asin(style.strip / across) / Math.PI);
   }
   return reach;
 }
 
 export function maxHairline(style) {
   let most = 0;
-  for (let i = 0; i <= 90; i++) most = Math.max(most, hairline(style, -Math.PI + (i / 90) * Math.PI * 2));
+  for (let i = 0; i <= 90; i++)
+    most = Math.max(most, hairline(style, -Math.PI + (i / 90) * Math.PI * 2));
   return most;
 }
 
 // How far the hair stands off the head.
-export const hairGrow = (style, frac = 0) => ((style.volume ?? 1) - 1) * 0.45 + (style.puff ?? 0) * Math.max(0, Math.cos(frac * Math.PI)) ** 2;
-export const hairTop = (style) => (style.none ? HEAD.y : HEAD.y + Math.max(hairGrow(style, 0), ...(style.layers ?? []).map((layer) => hairGrow(layer, 0))) + (style.lift ?? 0) * 0.5);
+export const hairGrow = (style, frac = 0) =>
+  ((style.volume ?? 1) - 1) * 0.45 +
+  (style.puff ?? 0) * Math.max(0, Math.cos(frac * Math.PI)) ** 2;
+export const hairTop = (style) =>
+  style.none
+    ? HEAD.y
+    : HEAD.y +
+      Math.max(
+        hairGrow(style, 0),
+        ...(style.layers ?? []).map((layer) => hairGrow(layer, 0)),
+      ) +
+      (style.lift ?? 0) * 0.5;
 
 // A point on the hair surface, `frac` down from the crown at azimuth `az`,
 // pushed `out` further from the head. Returns [x, y, z] from the head's centre.
@@ -470,14 +877,20 @@ export function hairPoint(style, az, frac, out = 0) {
   const reach = style.none ? 1 : hairline(style, az);
   let [x, y, z] = headAt(az, polar, hairGrow(style, onHead) + out);
   let k = 1;
-  if (style.bumps) k += style.bumps * Math.sin(az * 9) * Math.sin(polar * 9 + frac * 4);
+  if (style.bumps)
+    k += style.bumps * Math.sin(az * 9) * Math.sin(polar * 9 + frac * 4);
   // Towards the ends: a mushroom flare, or a flick out.
-  if (style.flare) k += style.flare * smooth(clamp01(1 - (reach - frac) / 0.14));
+  if (style.flare)
+    k += style.flare * smooth(clamp01(1 - (reach - frac) / 0.14));
   if (frac > HANG_FROM) {
     const hang = (frac - HANG_FROM) * HANG_LENGTH;
     y -= hang;
-    const along = clamp01((frac - HANG_FROM) / Math.max(0.01, reach - HANG_FROM));
-    k += (style.flip ?? 0) * smooth(clamp01((along - 0.55) / 0.45)) - 0.05 * smooth(Math.min(1, hang / 0.3));
+    const along = clamp01(
+      (frac - HANG_FROM) / Math.max(0.01, reach - HANG_FROM),
+    );
+    k +=
+      (style.flip ?? 0) * smooth(clamp01((along - 0.55) / 0.45)) -
+      0.05 * smooth(Math.min(1, hang / 0.3));
   }
   y += (style.lift ?? 0) * 0.5;
   return [x * k, y, z * k];
@@ -494,7 +907,8 @@ export const FACE_SPAN = { az: 0.85, polar: 0.78 };
 
 function shade(hex, amount) {
   const n = parseInt(hex.slice(1), 16);
-  const channel = (shift) => Math.max(0, Math.min(255, Math.round(((n >> shift) & 255) * (1 + amount))));
+  const channel = (shift) =>
+    Math.max(0, Math.min(255, Math.round(((n >> shift) & 255) * (1 + amount))));
   return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`;
 }
 
@@ -518,7 +932,8 @@ function faceLayout(a) {
 // `blink` (0–1) closes the eyes, for the idle animation.
 export function drawFace(ctx, avatarInput, size, { blink = 0 } = {}) {
   const avatar = normaliseAvatar(avatarInput);
-  if (avatar.type === 'robot') return drawRobotFace(ctx, avatar, size, { blink });
+  if (avatar.type === 'robot')
+    return drawRobotFace(ctx, avatar, size, { blink });
   const s = size / 100;
   const L = faceLayout(avatar);
   ctx.save();
@@ -564,15 +979,38 @@ export function drawFace(ctx, avatarInput, size, { blink = 0 } = {}) {
   }
   if (marks.has('blush-lines')) {
     ctx.strokeStyle = '#E86A7F';
-    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) line(50 + side * (L.eyeDX + 3 + i * 4), cheekY + 3, 50 + side * (L.eyeDX + 1 + i * 4), cheekY - 1, 1.6);
+    for (const side of [-1, 1])
+      for (let i = 0; i < 3; i++)
+        line(
+          50 + side * (L.eyeDX + 3 + i * 4),
+          cheekY + 3,
+          50 + side * (L.eyeDX + 1 + i * 4),
+          cheekY - 1,
+          1.6,
+        );
     ctx.strokeStyle = INK;
   }
   if (marks.has('freckles')) {
-    for (const side of [-1, 1]) for (const [dx, dy] of [[2, 0], [7, 3], [11, -1], [5, -3]]) dot(50 + side * (L.eyeDX + dx), cheekY + dy, 0.9, '#B07A55');
+    for (const side of [-1, 1])
+      for (const [dx, dy] of [
+        [2, 0],
+        [7, 3],
+        [11, -1],
+        [5, -3],
+      ])
+        dot(50 + side * (L.eyeDX + dx), cheekY + dy, 0.9, '#B07A55');
   }
   if (marks.has('whiskers')) {
     ctx.strokeStyle = INK;
-    for (const side of [-1, 1]) for (const dy of [-3, 1, 5]) line(50 + side * (L.eyeDX + 10), cheekY + 2 + dy * 0.6, 50 + side * (L.eyeDX + 24), cheekY + dy * 1.4, 1.4);
+    for (const side of [-1, 1])
+      for (const dy of [-3, 1, 5])
+        line(
+          50 + side * (L.eyeDX + 10),
+          cheekY + 2 + dy * 0.6,
+          50 + side * (L.eyeDX + 24),
+          cheekY + dy * 1.4,
+          1.4,
+        );
   }
 
   // Brows sit above the eyes; a fringe over the face in 3D may hide them, which is fine.
@@ -609,7 +1047,9 @@ export function drawFace(ctx, avatarInput, size, { blink = 0 } = {}) {
     dot(50 + L.eyeDX + 10, L.browY + 2, 1.4, METAL);
   }
 
-  const closed = blink > 0.5 && !['happy', 'sleepy', 'dizzy', 'serene'].includes(avatar.eyes);
+  const closed =
+    blink > 0.5 &&
+    !['happy', 'sleepy', 'dizzy', 'serene'].includes(avatar.eyes);
   for (const side of [-1, 1]) {
     if (avatar.eyewear === 'eyepatch' && side === 1) continue;
     ctx.save();
@@ -683,7 +1123,8 @@ export function drawFace(ctx, avatarInput, size, { blink = 0 } = {}) {
   ctx.translate(-50, -L.mouthY);
   drawMouth(ctx, avatar.mouth, L.mouthY);
   if (piercings.has('lip')) ring(50, L.mouthY + 4, 2.2);
-  if (piercings.has('snakebites')) for (const side of [-1, 1]) dot(50 + side * 5.5, L.mouthY + 4, 1.3, METAL);
+  if (piercings.has('snakebites'))
+    for (const side of [-1, 1]) dot(50 + side * 5.5, L.mouthY + 4, 1.3, METAL);
   ctx.restore();
 
   if (marks.has('plaster')) plaster(ctx, 50 + L.eyeDX + 8, cheekY + 3, -0.45);
@@ -692,7 +1133,14 @@ export function drawFace(ctx, avatarInput, size, { blink = 0 } = {}) {
     ctx.strokeStyle = '#B5566A';
     const x = 50 - L.eyeDX - 4;
     line(x - 4, L.eyeY - 10, x + 5, L.eyeY + 16, 1.8);
-    for (let i = 0; i < 3; i++) line(x - 2 + i * 3, L.eyeY - 4 + i * 6, x + 4 + i * 3, L.eyeY - 6 + i * 6, 1.4);
+    for (let i = 0; i < 3; i++)
+      line(
+        x - 2 + i * 3,
+        L.eyeY - 4 + i * 6,
+        x + 4 + i * 3,
+        L.eyeY - 6 + i * 6,
+        1.4,
+      );
     ctx.strokeStyle = INK;
   }
   if (marks.has('mole')) dot(60, L.mouthY, 1.1);
@@ -701,7 +1149,13 @@ export function drawFace(ctx, avatarInput, size, { blink = 0 } = {}) {
     ctx.fillStyle = '#F4F6F8';
     ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.roundRect(29, L.noseY - 2, 42, Math.max(18, L.mouthY - L.noseY + 16), [6, 6, 14, 14]);
+    ctx.roundRect(
+      29,
+      L.noseY - 2,
+      42,
+      Math.max(18, L.mouthY - L.noseY + 16),
+      [6, 6, 14, 14],
+    );
     ctx.fill();
     ctx.stroke();
     for (const dy of [5, 10]) line(33, L.noseY + dy, 67, L.noseY + dy, 1.2);
@@ -1004,7 +1458,13 @@ function drawMouth(ctx, mouth, my) {
     case 'wavy':
       path(() => {
         ctx.moveTo(42, my);
-        for (let i = 1; i <= 4; i++) ctx.quadraticCurveTo(42 + (i - 0.5) * 4, my + (i % 2 ? -2.5 : 2.5), 42 + i * 4, my);
+        for (let i = 1; i <= 4; i++)
+          ctx.quadraticCurveTo(
+            42 + (i - 0.5) * 4,
+            my + (i % 2 ? -2.5 : 2.5),
+            42 + i * 4,
+            my,
+          );
       });
       break;
     case 'pout':
@@ -1106,7 +1566,10 @@ function drawEyewear(ctx, eyewear, L) {
       temples(16);
       break;
     case 'swirl':
-      lens(() => ctx.arc(0, 0, 18, 0, Math.PI * 2), 'rgba(255, 255, 255, 0.95)');
+      lens(
+        () => ctx.arc(0, 0, 18, 0, Math.PI * 2),
+        'rgba(255, 255, 255, 0.95)',
+      );
       ctx.lineWidth = 1.6;
       for (const side of [-1, 1]) {
         ctx.beginPath();
@@ -1122,9 +1585,13 @@ function drawEyewear(ctx, eyewear, L) {
       temples(18);
       break;
     case 'shades':
-      lens(() => ctx.roundRect(-18, -12, 36, 25, [4, 4, 13, 13]), 'rgba(20, 20, 20, 0.94)');
+      lens(
+        () => ctx.roundRect(-18, -12, 36, 25, [4, 4, 13, 13]),
+        'rgba(20, 20, 20, 0.94)',
+      );
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      for (const side of [-1, 1]) ctx.fillRect(50 + side * dx - 10, y - 6, 7, 3);
+      for (const side of [-1, 1])
+        ctx.fillRect(50 + side * dx - 10, y - 6, 7, 3);
       bridge(18);
       temples(18);
       break;
@@ -1170,8 +1637,22 @@ function starPath(ctx, x, y, r, inner = 0.4) {
 function heart(ctx, x, y, r) {
   ctx.beginPath();
   ctx.moveTo(x, y + r * 0.9);
-  ctx.bezierCurveTo(x - r * 1.4, y - r * 0.1, x - r * 0.6, y - r * 1.1, x, y - r * 0.35);
-  ctx.bezierCurveTo(x + r * 0.6, y - r * 1.1, x + r * 1.4, y - r * 0.1, x, y + r * 0.9);
+  ctx.bezierCurveTo(
+    x - r * 1.4,
+    y - r * 0.1,
+    x - r * 0.6,
+    y - r * 1.1,
+    x,
+    y - r * 0.35,
+  );
+  ctx.bezierCurveTo(
+    x + r * 0.6,
+    y - r * 1.1,
+    x + r * 1.4,
+    y - r * 0.1,
+    x,
+    y + r * 0.9,
+  );
   ctx.fill();
 }
 
@@ -1244,7 +1725,13 @@ function drawRobotFace(ctx, avatar, size, { blink = 0 } = {}) {
       break;
     case 'grin':
       // A little equaliser.
-      for (let i = 0; i < 5; i++) ctx.fillRect(38 + i * 5, 72 - [4, 8, 11, 7, 4][i], 3, [4, 8, 11, 7, 4][i]);
+      for (let i = 0; i < 5; i++)
+        ctx.fillRect(
+          38 + i * 5,
+          72 - [4, 8, 11, 7, 4][i],
+          3,
+          [4, 8, 11, 7, 4][i],
+        );
       break;
     case 'flat':
       ctx.moveTo(40, 72);
@@ -1301,11 +1788,14 @@ export function drawPortrait(ctx, avatarInput, size) {
   const at = ([x, y]) => [hx + x * U, hy - y * U];
 
   // Shoulders, in the top's colour.
-  shape(() => {
-    ctx.moveTo(28, 104);
-    ctx.quadraticCurveTo(30, 80, 50, 80);
-    ctx.quadraticCurveTo(70, 80, 72, 104);
-  }, a.top === 'overalls' ? a.pants : a.shirt);
+  shape(
+    () => {
+      ctx.moveTo(28, 104);
+      ctx.quadraticCurveTo(30, 80, 50, 80);
+      ctx.quadraticCurveTo(70, 80, 72, 104);
+    },
+    a.top === 'overalls' ? a.pants : a.shirt,
+  );
 
   const style = hairStyle(a.hair);
   if (!style.none) {
@@ -1313,26 +1803,36 @@ export function drawPortrait(ctx, avatarInput, size) {
     const sideBack = (az) => maxReachBetween(style, az);
     shape(() => {
       const right = sideBack(Math.PI / 2);
-      for (let i = 0; i <= 16; i++) ctx.lineTo(...at(hairPoint(style, Math.PI / 2, (i / 16) * right)));
+      for (let i = 0; i <= 16; i++)
+        ctx.lineTo(...at(hairPoint(style, Math.PI / 2, (i / 16) * right)));
       for (let i = 0; i <= 16; i++) {
         const az = Math.PI / 2 + (i / 16) * Math.PI;
         ctx.lineTo(...at(hairPoint(style, az, hairline(style, az))));
       }
       const left = sideBack(-Math.PI / 2);
-      for (let i = 16; i >= 0; i--) ctx.lineTo(...at(hairPoint(style, -Math.PI / 2, (i / 16) * left)));
+      for (let i = 16; i >= 0; i--)
+        ctx.lineTo(...at(hairPoint(style, -Math.PI / 2, (i / 16) * left)));
       ctx.closePath();
     }, a.hairColor);
   }
 
   // Ears, then the squircle head, then the face on it.
-  for (const side of [-1, 1]) shape(() => ctx.ellipse(hx + side * HEAD.x * U, hy + 3, 5, 7, 0, 0, Math.PI * 2), a.skin);
+  for (const side of [-1, 1])
+    shape(
+      () =>
+        ctx.ellipse(hx + side * HEAD.x * U, hy + 3, 5, 7, 0, 0, Math.PI * 2),
+      a.skin,
+    );
   shape(() => {
     const e = 2 / HEAD.power;
     for (let i = 0; i < 64; i++) {
       const t = (i / 64) * Math.PI * 2;
       const c = Math.cos(t);
       const sn = Math.sin(t);
-      ctx.lineTo(hx + Math.sign(c) * Math.abs(c) ** e * HEAD.x * U, hy + Math.sign(sn) * Math.abs(sn) ** e * HEAD.y * U);
+      ctx.lineTo(
+        hx + Math.sign(c) * Math.abs(c) ** e * HEAD.x * U,
+        hy + Math.sign(sn) * Math.abs(sn) ** e * HEAD.y * U,
+      );
     }
     ctx.closePath();
   }, a.skin);
@@ -1349,13 +1849,15 @@ export function drawPortrait(ctx, avatarInput, size) {
     // The hair over the face: down each side, then the hairline across the front.
     shape(() => {
       const right = hairline(style, Math.PI / 2);
-      for (let i = 0; i <= 12; i++) ctx.lineTo(...at(hairPoint(style, Math.PI / 2, (i / 12) * right)));
+      for (let i = 0; i <= 12; i++)
+        ctx.lineTo(...at(hairPoint(style, Math.PI / 2, (i / 12) * right)));
       for (let i = 0; i <= 48; i++) {
         const az = Math.PI / 2 - (i / 48) * Math.PI;
         ctx.lineTo(...at(hairPoint(style, az, hairline(style, az))));
       }
       const left = hairline(style, -Math.PI / 2);
-      for (let i = 12; i >= 0; i--) ctx.lineTo(...at(hairPoint(style, -Math.PI / 2, (i / 12) * left)));
+      for (let i = 12; i >= 0; i--)
+        ctx.lineTo(...at(hairPoint(style, -Math.PI / 2, (i / 12) * left)));
       ctx.closePath();
     }, a.hairColor);
   }
@@ -1365,7 +1867,11 @@ export function drawPortrait(ctx, avatarInput, size) {
 // The furthest the hair reaches round the back half on one side.
 function maxReachBetween(style, az) {
   let most = hairline(style, az);
-  for (let i = 1; i <= 8; i++) most = Math.max(most, hairline(style, az + Math.sign(az) * (i / 8) * (Math.PI / 2)));
+  for (let i = 1; i <= 8; i++)
+    most = Math.max(
+      most,
+      hairline(style, az + Math.sign(az) * (i / 8) * (Math.PI / 2)),
+    );
   return Math.min(most, hairline(style, az) + 0.4);
 }
 
@@ -1378,9 +1884,18 @@ function drawRobotPortrait(ctx, a, shape, hx, hy, r) {
   ctx.lineTo(hx, hy - r - 12);
   ctx.stroke();
   shape(() => ctx.arc(hx, hy - r - 14, 5, 0, Math.PI * 2), a.hairColor);
-  for (const side of [-1, 1]) shape(() => ctx.roundRect(hx + side * (r + 3) - 5, hy - 8, 10, 16, 3), a.skin);
-  if (a.head === 'dome') shape(() => ctx.ellipse(hx, hy, r + 2, r - 2, 0, 0, Math.PI * 2), a.skin);
-  else if (a.head === 'tv') shape(() => ctx.roundRect(hx - r - 4, hy - r + 4, (r + 4) * 2, r * 2 - 6, 8), a.skin);
+  for (const side of [-1, 1])
+    shape(
+      () => ctx.roundRect(hx + side * (r + 3) - 5, hy - 8, 10, 16, 3),
+      a.skin,
+    );
+  if (a.head === 'dome')
+    shape(() => ctx.ellipse(hx, hy, r + 2, r - 2, 0, 0, Math.PI * 2), a.skin);
+  else if (a.head === 'tv')
+    shape(
+      () => ctx.roundRect(hx - r - 4, hy - r + 4, (r + 4) * 2, r * 2 - 6, 8),
+      a.skin,
+    );
   else shape(() => ctx.roundRect(hx - r, hy - r, r * 2, r * 2, 12), a.skin);
   ctx.save();
   ctx.translate(hx - r * 0.9, hy - r * 0.95);

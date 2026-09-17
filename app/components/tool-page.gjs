@@ -25,7 +25,13 @@ export default class ToolPage extends Component {
   constructor(owner, args) {
     super(owner, args);
     // Read lazily when you leave the page or close its window, never during render.
-    registerDestructor(this, this.pip.provide(args.route, () => ({ busy: Boolean(this.args.busy), warning: this.args.closeWarning ?? '' })));
+    registerDestructor(
+      this,
+      this.pip.provide(args.route, () => ({
+        busy: Boolean(this.args.busy),
+        warning: this.args.closeWarning ?? '',
+      })),
+    );
   }
 
   get tool() {
@@ -51,7 +57,12 @@ export default class ToolPage extends Component {
       else if (this.usingApi) this.isFullscreen = this.usingApi = false;
     };
     const onKey = (event) => {
-      if (event.key === 'Escape' && this.isFullscreen && !document.fullscreenElement) this.isFullscreen = false;
+      if (
+        event.key === 'Escape' &&
+        this.isFullscreen &&
+        !document.fullscreenElement
+      )
+        this.isFullscreen = false;
     };
     document.addEventListener('fullscreenchange', onChange);
     document.addEventListener('keydown', onKey);
@@ -67,7 +78,8 @@ export default class ToolPage extends Component {
     const element = this.body;
     if (!element) return;
     if (this.isFullscreen) {
-      if (document.fullscreenElement) await document.exitFullscreen?.().catch(() => {});
+      if (document.fullscreenElement)
+        await document.exitFullscreen?.().catch(() => {});
       this.isFullscreen = false;
       return;
     }
@@ -77,7 +89,7 @@ export default class ToolPage extends Component {
         await element.requestFullscreen({ navigationUI: 'hide' });
         this.isFullscreen = true;
         // Only works in real fullscreen, and only on some phones; elsewhere it's a no-op.
-        if (this.args.landscape && window.matchMedia?.('(pointer: coarse)').matches) window.screen?.orientation?.lock?.('landscape').catch(() => {});
+        if (this.args.landscape) this.lockLandscape();
         return;
       } catch {
         this.usingApi = false;
@@ -87,10 +99,29 @@ export default class ToolPage extends Component {
     this.isFullscreen = true;
   };
 
+  // Turn the phone sideways for a game laid out wide. Android honours this in
+  // real fullscreen; iOS has no orientation lock at all, so it quietly does
+  // nothing there and the game's own landscape prompt takes over.
+  lockLandscape() {
+    if (!window.matchMedia?.('(pointer: coarse)').matches) return;
+    try {
+      const lock = window.screen?.orientation?.lock;
+      if (typeof lock === 'function')
+        Promise.resolve(
+          lock.call(window.screen.orientation, 'landscape'),
+        ).catch(() => {});
+    } catch {
+      // not supported, or the browser refused
+    }
+  }
+
   <template>
     <div class="container {{if @game 'is-game'}}">
       <section class="hero pop-in">
-        <div class="hero-icon"><Icon @name={{this.tool.icon}} @size={{28}} /></div>
+        <div class="hero-icon"><Icon
+            @name={{this.tool.icon}}
+            @size={{28}}
+          /></div>
         <div class="hero-text">
           <h1 class="hero-title">
             <span>{{this.tool.label}}</span>
@@ -100,19 +131,40 @@ export default class ToolPage extends Component {
         </div>
         <div class="hero-actions">
           {{#if this.session}}
-            <button type="button" class="fullscreen-btn" aria-label="Picture-in-picture" title="Picture-in-picture: keep it running in a small window while you use the rest of the site" {{on "click" this.popOut}}>
+            <button
+              type="button"
+              class="fullscreen-btn"
+              aria-label="Picture-in-picture"
+              title="Picture-in-picture: keep it running in a small window while you use the rest of the site"
+              {{on "click" this.popOut}}
+            >
               <Icon @name="picture-in-picture" @size={{16}} />
             </button>
           {{/if}}
-          <button type="button" class="fullscreen-btn" aria-label="Full screen" title="Full screen" {{on "click" this.toggleFullscreen}}>
+          <button
+            type="button"
+            class="fullscreen-btn"
+            aria-label="Full screen"
+            title="Full screen"
+            {{on "click" this.toggleFullscreen}}
+          >
             <Icon @name="maximize" @size={{16}} />
           </button>
         </div>
       </section>
 
-      <div class="tool-body {{if this.isFullscreen 'is-fullscreen'}}" {{this.trackBody}}>
+      <div
+        class="tool-body {{if this.isFullscreen 'is-fullscreen'}}"
+        {{this.trackBody}}
+      >
         {{#if this.isFullscreen}}
-          <button type="button" class="fullscreen-exit" aria-label="Exit full screen" title="Exit full screen (Esc)" {{on "click" this.toggleFullscreen}}>
+          <button
+            type="button"
+            class="fullscreen-exit"
+            aria-label="Exit full screen"
+            title="Exit full screen (Esc)"
+            {{on "click" this.toggleFullscreen}}
+          >
             <Icon @name="minimize" @size={{16}} />
           </button>
         {{/if}}

@@ -34,10 +34,14 @@ export function flipCanvasNeutrals(canvas) {
   ctx.putImageData(image, 0, 0);
 }
 
-export const isDarkTheme = () => document.documentElement.getAttribute('data-theme') !== 'light';
+export const isDarkTheme = () =>
+  document.documentElement.getAttribute('data-theme') !== 'light';
 
 // Lowest point a sticker reaches, so the note can grow to fit it. Emoji glyphs
 // render a little taller than their font size.
 export function stickerExtent(stickers = []) {
-  return stickers.reduce((max, s) => Math.max(max, s.y + s.size * (s.type === 'emoji' ? 1.25 : 1)), 0);
+  return stickers.reduce(
+    (max, s) => Math.max(max, s.y + s.size * (s.type === 'emoji' ? 1.25 : 1)),
+    0,
+  );
 }

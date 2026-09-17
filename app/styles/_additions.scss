@@ -337,7 +337,11 @@
   max-width: 180px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-card);
-  background: repeating-conic-gradient(color-mix(in oklab, var(--text) 10%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+  background: repeating-conic-gradient(
+      color-mix(in oklab, var(--text) 10%, transparent) 0 25%,
+      transparent 0 50%
+    )
+    0 0 / 16px 16px;
 }
 
 .avatar-save.is-worn {
@@ -450,7 +454,7 @@
   font-size: 0.72rem;
 }
 
-.sound-channel input[type='range'] {
+.sound-channel input[type="range"] {
   width: 100%;
   accent-color: var(--text);
 }
@@ -470,7 +474,7 @@
     grid-template-columns: auto minmax(0, 1fr) 4.5ch;
   }
 
-  .sound-channel input[type='range'] {
+  .sound-channel input[type="range"] {
     grid-row: 2;
     grid-column: 2 / -1;
   }
@@ -478,12 +482,18 @@
 
 // ─── Settings tabs ───────────────────────────────────────────────────────
 
+// .math-tabs lays its buttons out as equal grid columns, which on a narrow
+// screen squeezed these seven tabs until each label broke onto its own line and
+// the row read as a vertical stack. A wrapping flex row instead: the tabs keep
+// their natural width and spill onto a second line when they run out of room.
 .settings-tabs {
   position: sticky;
   top: 8px;
   z-index: 5;
+  display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  gap: 1px;
   margin: 0 auto 24px;
   width: fit-content;
   max-width: 100%;
@@ -496,6 +506,21 @@
   gap: 5px;
   padding: 4px 10px;
   font-size: 0.78rem;
+  // The label is what must never wrap: that is what made them look stacked.
+  white-space: nowrap;
+}
+
+@media (max-width: 520px) {
+  .settings-tabs {
+    gap: 4px;
+  }
+
+  .settings-tabs .qr-tab {
+    height: 2.1rem;
+    padding: 3px 8px;
+    border-radius: var(--radius-control);
+    font-size: 0.72rem;
+  }
 }
 
 // ─── Debug mode in chat ──────────────────────────────────────────────────
@@ -790,7 +815,7 @@
   height: 28px;
 }
 
-.volume-panel input[type='range'] {
+.volume-panel input[type="range"] {
   width: 130px;
   accent-color: var(--text);
 }

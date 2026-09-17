@@ -8,7 +8,12 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import { acceptPastedFiles } from '../utils/paste-files';
 import { formatBytes } from '../utils/file-share';
-import { runFFmpeg, baseName, mediaInfo, formatTime } from '../utils/media-jobs';
+import {
+  runFFmpeg,
+  baseName,
+  mediaInfo,
+  formatTime,
+} from '../utils/media-jobs';
 
 // Evens out how loud things are: a pile of clips that all sit at different
 // volumes come out matching, without you riding a fader.
@@ -31,6 +36,15 @@ const eq = (a, b) => a === b;
 let nextId = 1;
 
 export default class AudioNormalizerPage extends Component {
+  // While this is true, leaving the page floats the tool in a PiP window
+  // instead of tearing it down, so the work carries on (see services/pip.js).
+  get pipBusy() {
+    return this.busy;
+  }
+
+  get pipWarning() {
+    return 'Close the Audio Normaliser? The work in progress will be cancelled.';
+  }
   @tracked items = [];
   @tracked dragging = false;
   @tracked mode = 'loudness';
@@ -55,15 +69,31 @@ export default class AudioNormalizerPage extends Component {
   }
 
   get filter() {
-    if (this.mode === 'peak') return `loudnorm=I=${this.target}:TP=${this.peak}:LRA=11:linear=true`;
+    if (this.mode === 'peak')
+      return `loudnorm=I=${this.target}:TP=${this.peak}:LRA=11:linear=true`;
     if (this.mode === 'dynamic') return 'dynaudnorm=f=250:g=15:p=0.9';
     return `loudnorm=I=${this.target}:TP=${this.peak}:LRA=7`;
   }
 
   async addFiles(list) {
-    const files = [...list].filter((f) => f.type.startsWith('audio/') || f.type.startsWith('video/') || /\.(mp3|wav|flac|ogg|opus|m4a|aac|mp4|mkv|mov|webm)$/i.test(f.name));
+    const files = [...list].filter(
+      (f) =>
+        f.type.startsWith('audio/') ||
+        f.type.startsWith('video/') ||
+        /\.(mp3|wav|flac|ogg|opus|m4a|aac|mp4|mkv|mov|webm)$/i.test(f.name),
+    );
     if (!files.length) return;
-    const added = files.map((file) => ({ id: nextId++, file, url: null, name: null, size: null, status: '', progress: 0, error: null, duration: 0 }));
+    const added = files.map((file) => ({
+      id: nextId++,
+      file,
+      url: null,
+      name: null,
+      size: null,
+      status: '',
+      progress: 0,
+      error: null,
+      duration: 0,
+    }));
     this.items = [...this.items, ...added];
     for (const item of added) {
       const info = await mediaInfo(item.file);
@@ -123,29 +153,70 @@ export default class AudioNormalizerPage extends Component {
         type: item.file.type || '',
         duration: item.duration,
         // The picture (if there is one) is copied; only the sound goes through the filter.
-        build: (input) => ['-i', input, '-af', this.filter, ...(video ? ['-c:v', 'copy'] : []), '-ar', '48000'],
+        build: (input) => [
+          '-i',
+          input,
+          '-af',
+          this.filter,
+          ...(video ? ['-c:v', 'copy'] : []),
+          '-ar',
+          '48000',
+        ],
         onStatus: (status) => this.update(id, { status }),
         onProgress: (progress) => this.update(id, { progress }),
       });
-      this.update(id, { url: URL.createObjectURL(blob), name: `${baseName(item.file.name)}-levelled.${ext}`, size: blob.size, status: '', progress: 1 });
+      this.update(id, {
+        url: URL.createObjectURL(blob),
+        name: `${baseName(item.file.name)}-levelled.${ext}`,
+        size: blob.size,
+        status: '',
+        progress: 1,
+      });
     } catch (error) {
-      this.update(id, { error: error?.message || 'Couldn’t level this one', status: '' });
+      this.update(id, {
+        error: error?.message || 'Couldn’t level this one',
+        status: '',
+      });
     }
   };
 
   <template>
-    <ToolPage @route="audio-normalizer" @subtitle="Make everything sit at the same volume — the loudness levels streaming services expect, a peak limit, or evened out as it goes.">
+    <ToolPage
+      @route="audio-normalizer"
+      @busy={{this.pipBusy}}
+      @closeWarning={{this.pipWarning}}
+      @subtitle="Make everything sit at the same volume: the loudness levels streaming services expect, a peak limit, or evened out as it goes."
+    >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
-          <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>
+          <label
+            class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}"
+            {{on "dragover" this.dragOver}}
+            {{on "dragleave" this.dragOver}}
+            {{on "drop" this.drop}}
+          >
             <Icon @name="volume-2" @size={{22}} />
-            <span>{{if this.dragging "Drop them here" "Drop audio or video, paste it, or click to browse"}}</span>
-            <input type="file" accept="audio/*,video/*" multiple class="sr-only" {{on "change" this.selectFiles}} />
+            <span>{{if
+                this.dragging
+                "Drop them here"
+                "Drop audio or video, paste it, or click to browse"
+              }}</span>
+            <input
+              type="file"
+              accept="audio/*,video/*"
+              multiple
+              class="sr-only"
+              {{on "change" this.selectFiles}}
+            />
           </label>
 
           <div class="math-tabs" role="group" aria-label="How to level it">
             {{#each this.modes as |m|}}
-              <button type="button" class="qr-tab {{if (eq this.mode m.id) 'active'}}" {{on "click" (fn this.pick "mode" m.id)}}>{{m.label}}</button>
+              <button
+                type="button"
+                class="qr-tab {{if (eq this.mode m.id) 'active'}}"
+                {{on "click" (fn this.pick "mode" m.id)}}
+              >{{m.label}}</button>
             {{/each}}
           </div>
 
@@ -155,24 +226,42 @@ export default class AudioNormalizerPage extends Component {
                 <span class="qr-label is-muted">How loud</span>
                 <select class="select" {{on "change" this.setTarget}}>
                   {{#each this.targets as |t|}}
-                    <option value={{t.id}} selected={{eq this.target t.id}}>{{t.label}}</option>
+                    <option
+                      value={{t.id}}
+                      selected={{eq this.target t.id}}
+                    >{{t.label}}</option>
                   {{/each}}
                 </select>
               </label>
               <label class="math-field">
-                <span class="qr-label is-muted">Never go above: {{this.peak}} dB</span>
-                <input type="range" min="-6" max="0" step="0.5" value={{this.peak}} {{on "input" this.setPeak}} />
+                <span class="qr-label is-muted">Never go above:
+                  {{this.peak}}
+                  dB</span>
+                <input
+                  type="range"
+                  min="-6"
+                  max="0"
+                  step="0.5"
+                  value={{this.peak}}
+                  {{on "input" this.setPeak}}
+                />
               </label>
             </div>
           {{/unless}}
 
           <p class="tool-hint">
             {{#if (eq this.mode "loudness")}}
-              Measures how loud it actually sounds to a person (EBU R128) and moves the whole thing to your target, keeping the quiet and loud bits apart as they were.
+              Measures how loud it actually sounds to a person (EBU R128) and
+              moves the whole thing to your target, keeping the quiet and loud
+              bits apart as they were.
             {{else if (eq this.mode "peak")}}
-              Same measurement, but stretched so the level barely moves — useful when a track should stay flat and simply sit at the right volume.
+              Same measurement, but stretched so the level barely moves, which
+              is useful when a track should stay flat and simply sit at the
+              right volume.
             {{else}}
-              Rides the level as it goes, lifting quiet passages and holding back loud ones. Best for a recorded talk where someone wandered away from the mic.
+              Rides the level as it goes, lifting quiet passages and holding
+              back loud ones. Best for a recorded talk where someone wandered
+              away from the mic.
             {{/if}}
           </p>
         </div>
@@ -182,8 +271,17 @@ export default class AudioNormalizerPage extends Component {
             <div class="fc-toolbar">
               <h3 class="qr-heading">Files</h3>
               <div class="settings-actions">
-                <button type="button" class="btn active" disabled={{this.busy}} {{on "click" this.runAll}}>{{if this.busy "Working…" "Level them"}}</button>
-                <button type="button" class="btn" {{on "click" this.clear}}>Clear</button>
+                <button
+                  type="button"
+                  class="btn active"
+                  disabled={{this.busy}}
+                  {{on "click" this.runAll}}
+                >{{if this.busy "Working…" "Level them"}}</button>
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.clear}}
+                >Clear</button>
               </div>
             </div>
             <ul class="fs-list">
@@ -193,22 +291,50 @@ export default class AudioNormalizerPage extends Component {
                   <div class="fs-row-info">
                     <span class="fs-row-name">{{item.file.name}}</span>
                     <span class="fs-row-size">
-                      {{formatBytes item.file.size}}{{#if item.duration}} · {{formatTime item.duration}}{{/if}}{{#if item.size}} → {{formatBytes item.size}}{{/if}}
+                      {{formatBytes item.file.size}}{{#if item.duration}}
+                        ·
+                        {{formatTime item.duration}}{{/if}}{{#if item.size}}
+                        →
+                        {{formatBytes item.size}}{{/if}}
                     </span>
-                    {{#if item.error}}<span class="tool-error">{{item.error}}</span>{{else if item.status}}<span class="fs-row-size">{{item.status}}</span>{{/if}}
+                    {{#if item.error}}<span
+                        class="tool-error"
+                      >{{item.error}}</span>{{else if item.status}}<span
+                        class="fs-row-size"
+                      >{{item.status}}</span>{{/if}}
                   </div>
                   <div class="fs-row-status">
                     {{#if item.url}}
                       {{! template-lint-disable require-media-caption }}
-                      <audio class="media-preview" controls src={{item.url}}></audio>
-                      <a class="btn fs-save" href={{item.url}} download={{item.name}}><Icon @name="download" @size={{13}} /> Save</a>
+                      <audio
+                        class="media-preview"
+                        controls
+                        src={{item.url}}
+                      ></audio>
+                      <a
+                        class="btn fs-save"
+                        href={{item.url}}
+                        download={{item.name}}
+                      ><Icon @name="download" @size={{13}} /> Save</a>
                     {{else if item.status}}
-                      <div class="fs-progress"><div class="fs-progress-bar" style={{progressWidth item.progress}}></div></div>
+                      <div class="fs-progress"><div
+                          class="fs-progress-bar"
+                          style={{progressWidth item.progress}}
+                        ></div></div>
                     {{else}}
-                      <button type="button" class="btn" {{on "click" (fn this.run item.id)}}>{{if item.error "Retry" "Level it"}}</button>
+                      <button
+                        type="button"
+                        class="btn"
+                        {{on "click" (fn this.run item.id)}}
+                      >{{if item.error "Retry" "Level it"}}</button>
                     {{/if}}
                   </div>
-                  <button type="button" class="fs-remove" aria-label="Remove {{item.file.name}}" {{on "click" (fn this.remove item.id)}}><Icon @name="x" @size={{13}} /></button>
+                  <button
+                    type="button"
+                    class="fs-remove"
+                    aria-label="Remove {{item.file.name}}"
+                    {{on "click" (fn this.remove item.id)}}
+                  ><Icon @name="x" @size={{13}} /></button>
                 </li>
               {{/each}}
             </ul>

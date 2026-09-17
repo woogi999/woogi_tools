@@ -1,9 +1,10 @@
-@use './crayon' as crayon;
-@use './tool-extras';
-@use './games';
-@use './math';
-@use './jjs';
-@use './additions';
+@use "./crayon" as crayon;
+@use "./tool-extras";
+@use "./games";
+@use "./math";
+@use "./jjs";
+@use "./additions";
+@use "./mockups";
 
 // ─── Theme tokens ────────────────────────────────────────────────────────
 // Dark is the default (matches the site's original monochrome-dark look);
@@ -26,7 +27,7 @@
   --card-red: #ff5c72;
 }
 
-:root[data-theme='light'] {
+:root[data-theme="light"] {
   --bg: var(--color-ink-50);
   --bg-elevated: var(--color-white);
   --sidebar-bg: var(--color-ink-100);
@@ -56,7 +57,13 @@ body {
   line-height: 1.5;
   min-height: 100vh;
   font-size: 13px;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+  // Safari on iOS zooms in when you tap twice quickly, which fires constantly
+  // while you play. "manipulation" drops the double-tap gesture and keeps
+  // panning and pinch-to-zoom, so the page can still be zoomed deliberately.
+  touch-action: manipulation;
 }
 
 a,
@@ -69,7 +76,7 @@ a:visited {
 h1,
 h2,
 h3 {
-  font-family: 'Moderustic', sans-serif;
+  font-family: "Moderustic", sans-serif;
 }
 
 // ─── Motion ──────────────────────────────────────────────────────────────
@@ -118,7 +125,9 @@ h3 {
   }
 
   .tool-card {
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease;
+    transition:
+      transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.15s ease;
   }
 
   .tool-card:hover {
@@ -140,13 +149,18 @@ h3 {
   .btn,
   .theme-toggle,
   .history-swatch {
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease,
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.15s ease,
       border-color 0.15s ease;
   }
 
   .nav-link {
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease,
-      border-color 0.15s ease, color 0.15s ease;
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease;
   }
 
   .nav-link:hover,
@@ -178,8 +192,11 @@ h3 {
   .qr-export,
   .qr-drop,
   .mobile-menu-btn {
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease,
-      color 0.15s ease, border-color 0.15s ease;
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease;
   }
 
   .qr-tab:hover,
@@ -207,11 +224,15 @@ h3 {
   }
 
   .qr-switch-track {
-    transition: background-color 0.2s ease, border-color 0.15s ease;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.15s ease;
   }
 
   .colour-swatch {
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s ease;
+    transition:
+      transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+      border-color 0.15s ease;
   }
 
   .colour-swatch:hover {
@@ -242,9 +263,9 @@ h3 {
 }
 
 // Settings → Motion → Reduced: the same effect as the OS setting, site-wide.
-:root[data-motion='reduce'] *,
-:root[data-motion='reduce'] *::before,
-:root[data-motion='reduce'] *::after {
+:root[data-motion="reduce"] *,
+:root[data-motion="reduce"] *::before,
+:root[data-motion="reduce"] *::after {
   animation-duration: 0.001ms !important;
   animation-delay: 0s !important;
   animation-iteration-count: 1 !important;
@@ -333,7 +354,9 @@ h3 {
   opacity: 0;
   pointer-events: none;
   transform: translateY(calc(var(--hand-y, 0px) - 50%)) rotate(-90deg);
-  transition: transform 0.4s cubic-bezier(0.3, 1.1, 0.5, 1), opacity 0.2s ease;
+  transition:
+    transform 0.4s cubic-bezier(0.3, 1.1, 0.5, 1),
+    opacity 0.2s ease;
 }
 
 .sidebar-nav.has-active .nav-hand {
@@ -498,7 +521,7 @@ h3 {
   border-radius: var(--radius-control);
 }
 
-.sidebar-search input[type='text'] {
+.sidebar-search input[type="text"] {
   padding: 0;
   border-radius: 0;
   flex: 1;
@@ -550,7 +573,7 @@ h3 {
   padding-bottom: 0.5rem;
 }
 
-.command-palette-input[type='text'] {
+.command-palette-input[type="text"] {
   flex: 1;
   padding: 0;
   border: none;
@@ -910,7 +933,14 @@ main {
   bottom: 0;
   width: 18px;
   height: 18px;
-  background: linear-gradient(135deg, transparent 50%, var(--text-faint) 50% 58%, transparent 58% 70%, var(--text-faint) 70% 78%, transparent 78%);
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--text-faint) 50% 58%,
+    transparent 58% 70%,
+    var(--text-faint) 70% 78%,
+    transparent 78%
+  );
   cursor: nwse-resize;
   touch-action: none;
 }
@@ -1004,7 +1034,7 @@ main {
 }
 
 // Flex would otherwise shrink the yielded content to fit the fixed-height
-// container instead of letting it overflow and scroll — because any child
+// container instead of letting it overflow and scroll, because any child
 // with its own `overflow` other than visible (the lobby, mostly) gets an
 // automatic min-height of 0. Keep it at its natural size so there's always
 // something to scroll to.
@@ -1109,7 +1139,7 @@ main {
 
 // Stretches the title link over the whole card; the star sits above it.
 .tool-card-link::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -1175,7 +1205,10 @@ main {
   gap: 18px;
   min-height: 62vh;
   padding-bottom: 2rem;
-  transition: min-height 0.45s cubic-bezier(0.22, 1, 0.36, 1), gap 0.45s ease, padding 0.45s ease;
+  transition:
+    min-height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    gap 0.45s ease,
+    padding 0.45s ease;
 }
 
 // While searching, the logo and bar stick to the top as the results scroll.
@@ -1217,7 +1250,9 @@ main {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-pill);
   color: var(--text-dim);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .home-search-form:hover,
@@ -1344,7 +1379,9 @@ main {
 }
 
 .card-hand-stage.is-flicking {
-  animation: hand-wobble 6s ease-in-out infinite, hand-flick 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.94) both;
+  animation:
+    hand-wobble 6s ease-in-out infinite,
+    hand-flick 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.94) both;
 }
 
 @keyframes hand-wobble {
@@ -1377,7 +1414,10 @@ main {
 
 // Beside the grid, the stage fills the window so the arm meets its bottom edge.
 .home-results.has-hand .card-hand-stage {
-  height: max(var(--space), calc(var(--card-bottom) + var(--radius) + var(--ch) * 0.4));
+  height: max(
+    var(--space),
+    calc(var(--card-bottom) + var(--radius) + var(--ch) * 0.4)
+  );
 }
 
 @media (max-width: 1100px) {
@@ -1412,7 +1452,7 @@ main {
 }
 
 // The drawings are a white hand with black lines; flip them for the light theme.
-:root[data-theme='light'] .hand-image {
+:root[data-theme="light"] .hand-image {
   filter: invert(1);
 }
 
@@ -1451,8 +1491,11 @@ main {
   contain: strict;
   transform-origin: 50% calc(100% + var(--drop));
   rotate: var(--angle);
-  transition: rotate 0.2s cubic-bezier(0.34, 1.4, 0.64, 1), translate 0.16s cubic-bezier(0.34, 1.4, 0.64, 1),
-    scale 0.16s cubic-bezier(0.34, 1.4, 0.64, 1), background-color 0.1s ease;
+  transition:
+    rotate 0.2s cubic-bezier(0.34, 1.4, 0.64, 1),
+    translate 0.16s cubic-bezier(0.34, 1.4, 0.64, 1),
+    scale 0.16s cubic-bezier(0.34, 1.4, 0.64, 1),
+    background-color 0.1s ease;
 }
 
 // Set (and re-set) by FanHand on pooled cards that were just given new content.
@@ -1492,7 +1535,6 @@ main {
   rotate: calc(var(--angle) * 0.4);
   background: var(--bg-elevated-2);
 }
-
 
 @media (prefers-reduced-motion: reduce) {
   .home-search,
@@ -1615,7 +1657,19 @@ main {
 }
 
 .home-categories {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
+}
+
+.home-count {
+  margin: 0 0 20px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.home-count strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 1.05em;
 }
 
 .home-chip {
@@ -1625,7 +1679,10 @@ main {
   background: none;
   color: var(--text-dim);
   font-size: 0.75rem;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .home-chip:hover {
@@ -1758,7 +1815,6 @@ main {
   color: var(--card-red);
 }
 
-
 // ─── Shared form controls ────────────────────────────────────────────────
 
 button {
@@ -1784,7 +1840,7 @@ button {
   border-color: var(--text-faint);
 }
 
-input[type='text'] {
+input[type="text"] {
   background: var(--bg);
   border: 1px solid var(--border-color);
   color: var(--text);
@@ -1795,7 +1851,7 @@ input[type='text'] {
   width: 100%;
 }
 
-input[type='text']:focus {
+input[type="text"]:focus {
   outline: none;
   border-color: var(--text-faint);
 }
@@ -1889,12 +1945,12 @@ input[type='text']:focus {
   font-size: 0.72rem;
 }
 
-.slider-row input[type='range'] {
+.slider-row input[type="range"] {
   width: 100%;
   accent-color: var(--accent);
 }
 
-.colour-slider[type='range'] {
+.colour-slider[type="range"] {
   appearance: none;
   height: 12px;
   border-radius: var(--radius-pill);

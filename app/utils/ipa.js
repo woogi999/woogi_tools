@@ -4,23 +4,141 @@
 
 // The words the rules would get wrong, and get used constantly.
 const WORDS = {
-  a: 'ə', the: 'ðə', to: 'tuː', of: 'ʌv', and: 'ænd', i: 'aɪ', you: 'juː', he: 'hiː', she: 'ʃiː', we: 'wiː', they: 'ðeɪ',
-  is: 'ɪz', are: 'ɑːr', was: 'wɒz', were: 'wɜːr', be: 'biː', been: 'bɪn', being: 'ˈbiːɪŋ', am: 'æm',
-  have: 'hæv', has: 'hæz', had: 'hæd', do: 'duː', does: 'dʌz', did: 'dɪd', done: 'dʌn', go: 'ɡoʊ', goes: 'ɡoʊz', gone: 'ɡɒn',
-  said: 'sɛd', says: 'sɛz', one: 'wʌn', two: 'tuː', once: 'wʌns', who: 'huː', whose: 'huːz', what: 'wɒt', where: 'wɛr',
-  there: 'ðɛr', their: 'ðɛr', here: 'hɪr', why: 'waɪ', how: 'haʊ', when: 'wɛn', which: 'wɪtʃ', would: 'wʊd', could: 'kʊd',
-  should: 'ʃʊd', many: 'ˈmɛni', any: 'ˈɛni', some: 'sʌm', come: 'kʌm', come_s: 'kʌmz', women: 'ˈwɪmɪn', woman: 'ˈwʊmən',
-  people: 'ˈpiːpəl', water: 'ˈwɔːtər', other: 'ˈʌðər', mother: 'ˈmʌðər', father: 'ˈfɑːðər', brother: 'ˈbrʌðər',
-  again: 'əˈɡɛn', against: 'əˈɡɛnst', friend: 'frɛnd', great: 'ɡreɪt', break: 'breɪk', steak: 'steɪk',
-  laugh: 'læf', enough: 'ɪˈnʌf', tough: 'tʌf', rough: 'rʌf', cough: 'kɒf', though: 'ðoʊ', through: 'θruː', thought: 'θɔːt',
-  bought: 'bɔːt', brought: 'brɔːt', caught: 'kɔːt', taught: 'tɔːt', daughter: 'ˈdɔːtər', eight: 'eɪt', height: 'haɪt',
-  island: 'ˈaɪlənd', business: 'ˈbɪznɪs', busy: 'ˈbɪzi', colonel: 'ˈkɜːrnəl', choir: 'ˈkwaɪər', science: 'ˈsaɪəns',
-  ocean: 'ˈoʊʃən', sure: 'ʃʊr', sugar: 'ˈʃʊɡər', machine: 'məˈʃiːn', chef: 'ʃɛf', chaos: 'ˈkeɪɒs', school: 'skuːl',
-  very: 'ˈvɛri', every: 'ˈɛvri', hello: 'həˈloʊ', hour: 'aʊər', honest: 'ˈɒnɪst', honour: 'ˈɒnər', honor: 'ˈɒnər',
-  know: 'noʊ', knew: 'njuː', knife: 'naɪf', write: 'raɪt', wrote: 'roʊt', wrong: 'rɒŋ', answer: 'ˈænsər',
-  because: 'bɪˈkɒz', before: 'bɪˈfɔːr', about: 'əˈbaʊt', above: 'əˈbʌv', love: 'lʌv', live: 'lɪv', give: 'ɡɪv', have_to: 'hæftə',
-  your: 'jʊr', my: 'maɪ', our: 'aʊər', her: 'hɜːr', him: 'hɪm', them: 'ðɛm', this: 'ðɪs', that: 'ðæt', these: 'ðiːz', those: 'ðoʊz',
-  word: 'wɜːrd', world: 'wɜːrld', work: 'wɜːrk', first: 'fɜːrst', girl: 'ɡɜːrl', learn: 'lɜːrn', heard: 'hɜːrd', earth: 'ɜːrθ',
+  a: 'ə',
+  the: 'ðə',
+  to: 'tuː',
+  of: 'ʌv',
+  and: 'ænd',
+  i: 'aɪ',
+  you: 'juː',
+  he: 'hiː',
+  she: 'ʃiː',
+  we: 'wiː',
+  they: 'ðeɪ',
+  is: 'ɪz',
+  are: 'ɑːr',
+  was: 'wɒz',
+  were: 'wɜːr',
+  be: 'biː',
+  been: 'bɪn',
+  being: 'ˈbiːɪŋ',
+  am: 'æm',
+  have: 'hæv',
+  has: 'hæz',
+  had: 'hæd',
+  do: 'duː',
+  does: 'dʌz',
+  did: 'dɪd',
+  done: 'dʌn',
+  go: 'ɡoʊ',
+  goes: 'ɡoʊz',
+  gone: 'ɡɒn',
+  said: 'sɛd',
+  says: 'sɛz',
+  one: 'wʌn',
+  two: 'tuː',
+  once: 'wʌns',
+  who: 'huː',
+  whose: 'huːz',
+  what: 'wɒt',
+  where: 'wɛr',
+  there: 'ðɛr',
+  their: 'ðɛr',
+  here: 'hɪr',
+  why: 'waɪ',
+  how: 'haʊ',
+  when: 'wɛn',
+  which: 'wɪtʃ',
+  would: 'wʊd',
+  could: 'kʊd',
+  should: 'ʃʊd',
+  many: 'ˈmɛni',
+  any: 'ˈɛni',
+  some: 'sʌm',
+  come: 'kʌm',
+  come_s: 'kʌmz',
+  women: 'ˈwɪmɪn',
+  woman: 'ˈwʊmən',
+  people: 'ˈpiːpəl',
+  water: 'ˈwɔːtər',
+  other: 'ˈʌðər',
+  mother: 'ˈmʌðər',
+  father: 'ˈfɑːðər',
+  brother: 'ˈbrʌðər',
+  again: 'əˈɡɛn',
+  against: 'əˈɡɛnst',
+  friend: 'frɛnd',
+  great: 'ɡreɪt',
+  break: 'breɪk',
+  steak: 'steɪk',
+  laugh: 'læf',
+  enough: 'ɪˈnʌf',
+  tough: 'tʌf',
+  rough: 'rʌf',
+  cough: 'kɒf',
+  though: 'ðoʊ',
+  through: 'θruː',
+  thought: 'θɔːt',
+  bought: 'bɔːt',
+  brought: 'brɔːt',
+  caught: 'kɔːt',
+  taught: 'tɔːt',
+  daughter: 'ˈdɔːtər',
+  eight: 'eɪt',
+  height: 'haɪt',
+  island: 'ˈaɪlənd',
+  business: 'ˈbɪznɪs',
+  busy: 'ˈbɪzi',
+  colonel: 'ˈkɜːrnəl',
+  choir: 'ˈkwaɪər',
+  science: 'ˈsaɪəns',
+  ocean: 'ˈoʊʃən',
+  sure: 'ʃʊr',
+  sugar: 'ˈʃʊɡər',
+  machine: 'məˈʃiːn',
+  chef: 'ʃɛf',
+  chaos: 'ˈkeɪɒs',
+  school: 'skuːl',
+  very: 'ˈvɛri',
+  every: 'ˈɛvri',
+  hello: 'həˈloʊ',
+  hour: 'aʊər',
+  honest: 'ˈɒnɪst',
+  honour: 'ˈɒnər',
+  honor: 'ˈɒnər',
+  know: 'noʊ',
+  knew: 'njuː',
+  knife: 'naɪf',
+  write: 'raɪt',
+  wrote: 'roʊt',
+  wrong: 'rɒŋ',
+  answer: 'ˈænsər',
+  because: 'bɪˈkɒz',
+  before: 'bɪˈfɔːr',
+  about: 'əˈbaʊt',
+  above: 'əˈbʌv',
+  love: 'lʌv',
+  live: 'lɪv',
+  give: 'ɡɪv',
+  have_to: 'hæftə',
+  your: 'jʊr',
+  my: 'maɪ',
+  our: 'aʊər',
+  her: 'hɜːr',
+  him: 'hɪm',
+  them: 'ðɛm',
+  this: 'ðɪs',
+  that: 'ðæt',
+  these: 'ðiːz',
+  those: 'ðoʊz',
+  word: 'wɜːrd',
+  world: 'wɜːrld',
+  work: 'wɜːrk',
+  first: 'fɜːrst',
+  girl: 'ɡɜːrl',
+  learn: 'lɜːrn',
+  heard: 'hɜːrd',
+  earth: 'ɜːrθ',
 };
 
 // Letter groups, longest first. Each rule is [pattern, phonemes], and the
@@ -123,7 +241,11 @@ function wordToIpa(word) {
   const known = WORDS[word];
   if (known) return known;
   // Plurals and past tenses of known words, so "friends" isn't a surprise.
-  if (word.endsWith('s') && WORDS[word.slice(0, -1)]) return WORDS[word.slice(0, -1)] + (/[sʃʒtʃdʒz]$/.test(WORDS[word.slice(0, -1)]) ? 'ɪz' : 'z');
+  if (word.endsWith('s') && WORDS[word.slice(0, -1)])
+    return (
+      WORDS[word.slice(0, -1)] +
+      (/[sʃʒtʃdʒz]$/.test(WORDS[word.slice(0, -1)]) ? 'ɪz' : 'z')
+    );
   let rest = word;
   let out = '';
   while (rest) {
@@ -139,7 +261,15 @@ function wordToIpa(word) {
 }
 
 // British English is non-rhotic: an r that isn't followed by a vowel goes quiet.
-const deRhotic = (ipa) => ipa.replaceAll('ɜːr', 'ɜː').replaceAll('ɑːr', 'ɑː').replaceAll('ɔːr', 'ɔː').replaceAll('ɪr', 'ɪə').replaceAll('ɛr', 'eə').replaceAll('ər', 'ə').replaceAll(/r(?![aeiouəɪɛæɑɔʊʌ])/g, '');
+const deRhotic = (ipa) =>
+  ipa
+    .replaceAll('ɜːr', 'ɜː')
+    .replaceAll('ɑːr', 'ɑː')
+    .replaceAll('ɔːr', 'ɔː')
+    .replaceAll('ɪr', 'ɪə')
+    .replaceAll('ɛr', 'eə')
+    .replaceAll('ər', 'ə')
+    .replaceAll(/r(?![aeiouəɪɛæɑɔʊʌ])/g, '');
 
 export const ACCENTS = [
   { id: 'us', label: 'American (rhotic)' },
@@ -157,9 +287,11 @@ export function toIpa(text, { accent = 'us', brackets = true } = {}) {
 
 // Word by word, for the table view.
 export function ipaWords(text, options) {
-  return [...new Set(text.toLowerCase().match(/[a-z']+/g) ?? [])].map((word) => ({
-    word,
-    ipa: toIpa(word, { ...options, brackets: false }),
-    known: Boolean(WORDS[word]),
-  }));
+  return [...new Set(text.toLowerCase().match(/[a-z']+/g) ?? [])].map(
+    (word) => ({
+      word,
+      ipa: toIpa(word, { ...options, brackets: false }),
+      known: Boolean(WORDS[word]),
+    }),
+  );
 }

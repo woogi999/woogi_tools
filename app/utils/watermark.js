@@ -27,8 +27,18 @@ const at = (spot, width, height, w, h, margin) => {
     bottom: ['end', 'centre'],
     'bottom-right': ['end', 'end'],
   }[spot] ?? ['end', 'end'];
-  const x = col === 'start' ? margin : col === 'end' ? width - w - margin : (width - w) / 2;
-  const y = row === 'start' ? margin : row === 'end' ? height - h - margin : (height - h) / 2;
+  const x =
+    col === 'start'
+      ? margin
+      : col === 'end'
+        ? width - w - margin
+        : (width - w) / 2;
+  const y =
+    row === 'start'
+      ? margin
+      : row === 'end'
+        ? height - h - margin
+        : (height - h) / 2;
   return [x, y];
 };
 
@@ -39,7 +49,13 @@ export function loadBitmap(file) {
 // options: { kind: 'text'|'image', text, font, colour, shadow, logo (bitmap),
 //            spot, scale (% of the picture's width), opacity (0-1), rotate (deg), margin (% of width) }
 export function stamp(canvas, source, options) {
-  const { spot = 'bottom-right', opacity = 0.6, rotate = 0, scale = 25, margin = 3 } = options;
+  const {
+    spot = 'bottom-right',
+    opacity = 0.6,
+    rotate = 0,
+    scale = 25,
+    margin = 3,
+  } = options;
   canvas.width = source.width;
   canvas.height = source.height;
   const ctx = canvas.getContext('2d');
@@ -82,7 +98,8 @@ export function stamp(canvas, source, options) {
     ctx.translate(source.width / 2, source.height / 2);
     ctx.rotate((rotate * Math.PI) / 180);
     const reach = Math.hypot(source.width, source.height) / 2;
-    for (let y = -reach; y < reach; y += stepY) for (let x = -reach; x < reach; x += stepX) draw(x, y);
+    for (let y = -reach; y < reach; y += stepY)
+      for (let x = -reach; x < reach; x += stepX) draw(x, y);
   } else {
     const [x, y] = at(spot, source.width, source.height, width, height, gap);
     if (rotate) {
@@ -97,4 +114,5 @@ export function stamp(canvas, source, options) {
   return canvas;
 }
 
-export const canvasBlob = (canvas, type = 'image/png', quality = 0.92) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+export const canvasBlob = (canvas, type = 'image/png', quality = 0.92) =>
+  new Promise((resolve) => canvas.toBlob(resolve, type, quality));

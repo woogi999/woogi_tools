@@ -4,6 +4,7 @@ import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { htmlSafe } from '@ember/template';
 import ToolPage from './tool-page';
+import { keepState } from '../utils/tool-state';
 
 const PRESETS = [
   { label: '16:9', w: 16, h: 9, note: 'HD video, most monitors' },
@@ -30,6 +31,16 @@ export default class AspectRatioPage extends Component {
   @tracked newWidth = '1280';
   @tracked newHeight = '';
 
+  constructor(owner, args) {
+    super(owner, args);
+    keepState(this, 'aspect-ratio', [
+      'width',
+      'height',
+      'newWidth',
+      'newHeight',
+    ]);
+  }
+
   get w() {
     return Math.abs(Number(this.width));
   }
@@ -39,7 +50,12 @@ export default class AspectRatioPage extends Component {
   }
 
   get valid() {
-    return this.w > 0 && this.h > 0 && Number.isFinite(this.w) && Number.isFinite(this.h);
+    return (
+      this.w > 0 &&
+      this.h > 0 &&
+      Number.isFinite(this.w) &&
+      Number.isFinite(this.h)
+    );
   }
 
   get simplified() {
@@ -59,10 +75,16 @@ export default class AspectRatioPage extends Component {
     if (!this.valid) return null;
     const ratio = this.w / this.h;
     const landscape = ratio >= 1 ? ratio : 1 / ratio;
-    const best = NAMED.map((p) => ({ p, off: Math.abs(p.w / p.h - landscape) / landscape })).sort((a, b) => a.off - b.off)[0];
+    const best = NAMED.map((p) => ({
+      p,
+      off: Math.abs(p.w / p.h - landscape) / landscape,
+    })).sort((a, b) => a.off - b.off)[0];
     if (best.off > 0.03) return null;
-    const label = ratio >= 1 ? best.p.label : best.p.label.split(':').reverse().join(':');
-    const exact = Math.abs(this.w * best.p.h - this.h * best.p.w) < 1e-9 || Math.abs(this.h * best.p.h - this.w * best.p.w) < 1e-9;
+    const label =
+      ratio >= 1 ? best.p.label : best.p.label.split(':').reverse().join(':');
+    const exact =
+      Math.abs(this.w * best.p.h - this.h * best.p.w) < 1e-9 ||
+      Math.abs(this.h * best.p.h - this.w * best.p.w) < 1e-9;
     return exact ? `Exactly ${label}` : `About ${label}`;
   }
 
@@ -78,8 +100,18 @@ export default class AspectRatioPage extends Component {
     if (!this.valid) return { width: '', height: '' };
     const nw = Number(this.newWidth);
     const nh = Number(this.newHeight);
-    if (this.newWidth !== '' && nw > 0) return { width: this.newWidth, height: round((nw * this.h) / this.w).toString(), from: 'width' };
-    if (this.newHeight !== '' && nh > 0) return { width: round((nh * this.w) / this.h).toString(), height: this.newHeight, from: 'height' };
+    if (this.newWidth !== '' && nw > 0)
+      return {
+        width: this.newWidth,
+        height: round((nw * this.h) / this.w).toString(),
+        from: 'width',
+      };
+    if (this.newHeight !== '' && nh > 0)
+      return {
+        width: round((nh * this.w) / this.h).toString(),
+        height: this.newHeight,
+        from: 'height',
+      };
     return { width: '', height: '' };
   }
 
@@ -106,39 +138,93 @@ export default class AspectRatioPage extends Component {
   swap = () => ([this.width, this.height] = [this.height, this.width]);
 
   <template>
-    <ToolPage @route="aspect-ratio" @subtitle="Turn a resolution into its aspect ratio, or resize while keeping the proportions right.">
+    <ToolPage
+      @route="aspect-ratio"
+      @subtitle="Turn a resolution into its aspect ratio, or resize while keeping the proportions right."
+    >
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Dimensions</h3>
           <div class="math-row is-aligned">
-            <label class="math-field"><span class="qr-label is-muted">Width</span><input type="number" min="0" step="any" class="math-input" value={{this.width}} {{on "input" this.setWidth}} /></label>
-            <button type="button" class="btn math-swap" aria-label="Swap width and height" {{on "click" this.swap}}>⇄</button>
-            <label class="math-field"><span class="qr-label is-muted">Height</span><input type="number" min="0" step="any" class="math-input" value={{this.height}} {{on "input" this.setHeight}} /></label>
+            <label class="math-field"><span
+                class="qr-label is-muted"
+              >Width</span><input
+                type="number"
+                min="0"
+                step="any"
+                class="math-input"
+                value={{this.width}}
+                {{on "input" this.setWidth}}
+              /></label>
+            <button
+              type="button"
+              class="btn math-swap"
+              aria-label="Swap width and height"
+              {{on "click" this.swap}}
+            >⇄</button>
+            <label class="math-field"><span
+                class="qr-label is-muted"
+              >Height</span><input
+                type="number"
+                min="0"
+                step="any"
+                class="math-input"
+                value={{this.height}}
+                {{on "input" this.setHeight}}
+              /></label>
           </div>
           <div class="ar-result">
             <div class="math-result">
               <span class="qr-label is-muted">Aspect ratio</span>
               <span class="math-big">{{this.simplified}}</span>
-              <span class="tool-hint">{{this.decimal}} : 1{{#if this.closest}} · {{this.closest}}{{/if}}</span>
+              <span class="tool-hint">{{this.decimal}}
+                : 1{{#if this.closest}} · {{this.closest}}{{/if}}</span>
             </div>
-            <div class="ar-preview" style={{this.previewStyle}} aria-hidden="true"></div>
+            <div
+              class="ar-preview"
+              style={{this.previewStyle}}
+              aria-hidden="true"
+            ></div>
           </div>
           <div class="line-actions">
             {{#each this.presets as |p|}}
-              <button type="button" class="btn" title={{p.note}} {{on "click" (fn this.usePreset p)}}>{{p.label}}</button>
+              <button
+                type="button"
+                class="btn"
+                title={{p.note}}
+                {{on "click" (fn this.usePreset p)}}
+              >{{p.label}}</button>
             {{/each}}
           </div>
         </section>
 
         <section class="math-card">
           <h3 class="qr-heading">Resize to fit</h3>
-          <p class="tool-hint">Type a new width or height; the other is worked out to keep {{this.simplified}}.</p>
+          <p class="tool-hint">Type a new width or height; the other is worked
+            out to keep
+            {{this.simplified}}.</p>
           <div class="math-row">
-            <label class="math-field"><span class="qr-label is-muted">New width</span><input type="number" min="0" step="any" class="math-input" value={{this.resized.width}} {{on "input" this.setNewWidth}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">New height</span><input type="number" min="0" step="any" class="math-input" value={{this.resized.height}} {{on "input" this.setNewHeight}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">New width</span><input
+                type="number"
+                min="0"
+                step="any"
+                class="math-input"
+                value={{this.resized.width}}
+                {{on "input" this.setNewWidth}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">New height</span><input
+                type="number"
+                min="0"
+                step="any"
+                class="math-input"
+                value={{this.resized.height}}
+                {{on "input" this.setNewHeight}}
+              /></label>
           </div>
           {{#if this.resized.width}}
-            <p class="math-callout">{{this.resized.width}} × {{this.resized.height}}</p>
+            <p class="math-callout">{{this.resized.width}}
+              ×
+              {{this.resized.height}}</p>
           {{/if}}
         </section>
       </div>

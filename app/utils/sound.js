@@ -25,10 +25,16 @@ const PREFS_KEY = 'woogi-sound';
 const MIN_GAP_MS = 35;
 const BASE = '/sounds';
 
-const takes = (folder, name, count) => Array.from({ length: count }, (_, i) => `${folder}/${name}-${i + 1}.ogg`);
+const takes = (folder, name, count) =>
+  Array.from({ length: count }, (_, i) => `${folder}/${name}-${i + 1}.ogg`);
 const one = (path) => [path];
 // { files, gain, vary (pitch spread), rate }
-const S = (files, gain = 1, vary = 0.04, rate = 1) => ({ files, gain, vary, rate });
+const S = (files, gain = 1, vary = 0.04, rate = 1) => ({
+  files,
+  gain,
+  vary,
+  rate,
+});
 
 const CARD_PLACE = takes('cards', 'card-place', 4);
 const CARD_SLIDE = takes('cards', 'card-slide', 6);
@@ -42,7 +48,12 @@ const SOUNDS = {
   'ui.toggle': S(one('ui/toggle-1.ogg'), 0.5, 0.05),
   'ui.tick': S(one('ui/tick-1.ogg'), 0.25, 0.05),
   // Typing: thocky mechanical key presses, played a little lower for a deeper sound.
-  'ui.type': S(takes('keyboard', 'key', 8).map((f) => f.replace('.ogg', '.wav')), 0.55, 0.05, 0.82),
+  'ui.type': S(
+    takes('keyboard', 'key', 8).map((f) => f.replace('.ogg', '.wav')),
+    0.55,
+    0.05,
+    0.82,
+  ),
   'ui.open': S(one('ui/open.ogg'), 0.45),
   'ui.close': S(one('ui/close.ogg'), 0.45),
   'ui.hold': S(one('ui/select.ogg'), 0.4),
@@ -137,19 +148,86 @@ export const SOUND_NAMES = Object.keys(SOUNDS);
 
 // Channels for the mixer in Settings: each sound belongs to one, and each has its own volume and mute.
 export const SOUND_GROUPS = [
-  { id: 'clicks', label: 'Clicks & toggles', hint: 'Buttons, switches, sliders and dialogs across the site.', icon: 'pointer', sample: 'ui.click' },
-  { id: 'hover', label: 'Hover', hint: 'The soft tick when your mouse moves onto something.', icon: 'eye', sample: 'ui.hover' },
-  { id: 'typing', label: 'Typing', hint: 'Keyboard thocks in search boxes.', icon: 'type', sample: 'ui.type' },
-  { id: 'cards', label: 'Home page cards', hint: 'Card slides and flicks on the home page.', icon: 'sticky-note', sample: 'cards.place' },
-  { id: 'alerts', label: 'Alerts & chat', hint: 'Chat messages, people joining, your turn, ready checks and timer ticks.', icon: 'bell-ring', sample: 'ui.chat' },
-  { id: 'chess', label: 'Chess', hint: 'Piece moves, captures and checks.', icon: 'crown', sample: 'chess.move' },
-  { id: 'snake', label: 'Snake', hint: 'Eating, turning, boosting and crashing.', icon: 'dices', sample: 'snake.eat' },
-  { id: 'mines', label: 'Minesweeper', hint: 'Digging, flagging and explosions.', icon: 'bomb', sample: 'mines.flag' },
-  { id: 'woono', label: 'Woono', hint: 'Dealing, playing, drawing and every card effect.', icon: 'file-stack', sample: 'uno.play' },
-  { id: 'music', label: 'Jingles', hint: 'Short music stings: wins, losses, reverses, skips and hits.', icon: 'music', sample: 'uno.reverse' },
+  {
+    id: 'clicks',
+    label: 'Clicks & toggles',
+    hint: 'Buttons, switches, sliders and dialogs across the site.',
+    icon: 'pointer',
+    sample: 'ui.click',
+  },
+  {
+    id: 'hover',
+    label: 'Hover',
+    hint: 'The soft tick when your mouse moves onto something.',
+    icon: 'eye',
+    sample: 'ui.hover',
+  },
+  {
+    id: 'typing',
+    label: 'Typing',
+    hint: 'Keyboard thocks in search boxes.',
+    icon: 'type',
+    sample: 'ui.type',
+  },
+  {
+    id: 'cards',
+    label: 'Home page cards',
+    hint: 'Card slides and flicks on the home page.',
+    icon: 'sticky-note',
+    sample: 'cards.place',
+  },
+  {
+    id: 'alerts',
+    label: 'Alerts & chat',
+    hint: 'Chat messages, people joining, your turn, ready checks and timer ticks.',
+    icon: 'bell-ring',
+    sample: 'ui.chat',
+  },
+  {
+    id: 'chess',
+    label: 'Chess',
+    hint: 'Piece moves, captures and checks.',
+    icon: 'crown',
+    sample: 'chess.move',
+  },
+  {
+    id: 'snake',
+    label: 'Snake',
+    hint: 'Eating, turning, boosting and crashing.',
+    icon: 'dices',
+    sample: 'snake.eat',
+  },
+  {
+    id: 'mines',
+    label: 'Minesweeper',
+    hint: 'Digging, flagging and explosions.',
+    icon: 'bomb',
+    sample: 'mines.flag',
+  },
+  {
+    id: 'woono',
+    label: 'Woono',
+    hint: 'Dealing, playing, drawing and every card effect.',
+    icon: 'file-stack',
+    sample: 'uno.play',
+  },
+  {
+    id: 'music',
+    label: 'Jingles',
+    hint: 'Short music stings: wins, losses, reverses, skips and hits.',
+    icon: 'music',
+    sample: 'uno.reverse',
+  },
 ];
 
-const ALERTS = new Set(['ui.chat', 'ui.join', 'ui.leave', 'uno.myturn', 'uno.tick', 'chess.tick']);
+const ALERTS = new Set([
+  'ui.chat',
+  'ui.join',
+  'ui.leave',
+  'uno.myturn',
+  'uno.tick',
+  'chess.tick',
+]);
 
 function groupOf(name, sound) {
   if (sound.files.some((f) => f.startsWith('jingles/'))) return 'music';
@@ -164,10 +242,12 @@ function groupOf(name, sound) {
   return 'woono';
 }
 
-for (const [name, sound] of Object.entries(SOUNDS)) sound.group = groupOf(name, sound);
+for (const [name, sound] of Object.entries(SOUNDS))
+  sound.group = groupOf(name, sound);
 
 const GROUP_IDS = SOUND_GROUPS.map((g) => g.id);
-const defaultGroups = () => Object.fromEntries(GROUP_IDS.map((id) => [id, { volume: 1, muted: false }]));
+const defaultGroups = () =>
+  Object.fromEntries(GROUP_IDS.map((id) => [id, { volume: 1, muted: false }]));
 
 let ctx = null;
 let master = null;
@@ -185,12 +265,18 @@ class SoundPrefs {
       const saved = JSON.parse(localStorage.getItem(PREFS_KEY));
       if (saved) {
         this.muted = Boolean(saved.muted);
-        if (Number.isFinite(saved.volume)) this.volume = Math.max(0, Math.min(1, saved.volume));
+        if (Number.isFinite(saved.volume))
+          this.volume = Math.max(0, Math.min(1, saved.volume));
         const groups = defaultGroups();
         for (const id of GROUP_IDS) {
           const g = saved.groups?.[id];
           if (!g) continue;
-          groups[id] = { volume: Number.isFinite(g.volume) ? Math.max(0, Math.min(1, g.volume)) : 1, muted: Boolean(g.muted) };
+          groups[id] = {
+            volume: Number.isFinite(g.volume)
+              ? Math.max(0, Math.min(1, g.volume))
+              : 1,
+            muted: Boolean(g.muted),
+          };
         }
         this.groups = groups;
       }
@@ -212,7 +298,10 @@ class SoundPrefs {
   setGroupVolume(id, volume) {
     if (!GROUP_IDS.includes(id)) return;
     const value = Math.max(0, Math.min(1, Number(volume) || 0));
-    this.groups = { ...this.groups, [id]: { volume: value, muted: value > 0 ? false : this.group(id).muted } };
+    this.groups = {
+      ...this.groups,
+      [id]: { volume: value, muted: value > 0 ? false : this.group(id).muted },
+    };
     this.persist();
   }
 
@@ -229,12 +318,21 @@ class SoundPrefs {
   }
 
   get customised() {
-    return GROUP_IDS.some((id) => this.group(id).muted || this.group(id).volume !== 1);
+    return GROUP_IDS.some(
+      (id) => this.group(id).muted || this.group(id).volume !== 1,
+    );
   }
 
   persist() {
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ muted: this.muted, volume: this.volume, groups: this.groups }));
+      localStorage.setItem(
+        PREFS_KEY,
+        JSON.stringify({
+          muted: this.muted,
+          volume: this.volume,
+          groups: this.groups,
+        }),
+      );
     } catch {
       // storage blocked: lasts for this visit
     }
@@ -279,8 +377,17 @@ function load(path) {
   if (!buffers.has(path)) {
     // eslint-disable-next-line warp-drive/no-external-request-patterns -- static audio files, not app data
     const promise = fetch(`${BASE}/${path}`)
-      .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status)))))
-      .then((data) => new Promise((resolve, reject) => ctx.decodeAudioData(data, resolve, reject)))
+      .then((response) =>
+        response.ok
+          ? response.arrayBuffer()
+          : Promise.reject(new Error(String(response.status))),
+      )
+      .then(
+        (data) =>
+          new Promise((resolve, reject) =>
+            ctx.decodeAudioData(data, resolve, reject),
+          ),
+      )
       .catch(() => null);
     buffers.set(path, promise);
   }
@@ -290,7 +397,8 @@ function load(path) {
 // Starts fetching a group's files ahead of time ('uno', 'chess'…), so the first play isn't late.
 export function preloadSounds(prefix) {
   if (!unlocked || !audio()) return;
-  for (const [name, sound] of Object.entries(SOUNDS)) if (name.startsWith(`${prefix}.`)) sound.files.forEach(load);
+  for (const [name, sound] of Object.entries(SOUNDS))
+    if (name.startsWith(`${prefix}.`)) sound.files.forEach(load);
 }
 
 // The browser unlocks audio on the first real gesture; set up then.
@@ -298,12 +406,19 @@ let unlocked = false;
 function unlock() {
   if (unlocked) return;
   unlocked = true;
-  audio()?.resume?.().catch(() => {});
+  audio()
+    ?.resume?.()
+    .catch(() => {});
   preloadSounds('ui');
   preloadSounds('cards');
 }
 if (typeof window !== 'undefined') {
-  for (const type of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(type, unlock, { once: true, capture: true, passive: true });
+  for (const type of ['pointerdown', 'keydown', 'touchstart'])
+    window.addEventListener(type, unlock, {
+      once: true,
+      capture: true,
+      passive: true,
+    });
 }
 
 export function sfx(name, { force = false } = {}) {
@@ -311,7 +426,9 @@ export function sfx(name, { force = false } = {}) {
   const sound = SOUNDS[name];
   if (!sound) return;
   // `force` plays a muted channel's sample anyway (the mixer's preview button).
-  const channel = force ? Math.max(soundPrefs.groupLevel(sound.group), 0.25) : soundPrefs.groupLevel(sound.group);
+  const channel = force
+    ? Math.max(soundPrefs.groupLevel(sound.group), 0.25)
+    : soundPrefs.groupLevel(sound.group);
   if (channel <= 0) return;
   const now = performance.now();
   if (now - (lastPlayed.get(name) ?? 0) < MIN_GAP_MS) return;
@@ -325,7 +442,8 @@ export function sfx(name, { force = false } = {}) {
     if (!buffer || performance.now() - now > 600) return;
     const source = context.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = sound.rate * (1 + (Math.random() * 2 - 1) * sound.vary);
+    source.playbackRate.value =
+      sound.rate * (1 + (Math.random() * 2 - 1) * sound.vary);
     const gain = context.createGain();
     const level = sound.gain * channel;
     gain.gain.value = level;

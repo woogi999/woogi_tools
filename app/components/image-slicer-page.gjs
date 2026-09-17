@@ -56,19 +56,30 @@ export default class ImageSlicerPage extends Component {
   }
 
   get cols() {
-    return this.preset.id === 'custom' ? Math.max(1, this.customCols) : this.preset.cols;
+    return this.preset.id === 'custom'
+      ? Math.max(1, this.customCols)
+      : this.preset.cols;
   }
 
   get rows() {
-    return this.preset.id === 'custom' ? Math.max(1, this.customRows) : this.preset.rows;
+    return this.preset.id === 'custom'
+      ? Math.max(1, this.customRows)
+      : this.preset.rows;
   }
 
   get gridCells() {
-    return range(this.rows * this.cols).map((i) => ({ id: i, row: Math.floor(i / this.cols), col: i % this.cols, n: i + 1 }));
+    return range(this.rows * this.cols).map((i) => ({
+      id: i,
+      row: Math.floor(i / this.cols),
+      col: i % this.cols,
+      n: i + 1,
+    }));
   }
 
   get gridStyle() {
-    return htmlSafe(`grid-template-columns:repeat(${this.cols},1fr);grid-template-rows:repeat(${this.rows},1fr)`);
+    return htmlSafe(
+      `grid-template-columns:repeat(${this.cols},1fr);grid-template-rows:repeat(${this.rows},1fr)`,
+    );
   }
 
   // Tiles are square, so the whole grid's aspect ratio is cols:rows.
@@ -95,7 +106,8 @@ export default class ImageSlicerPage extends Component {
       this.zipUrl = null;
       this.error = null;
     } catch {
-      this.error = "This browser can't open that image. Try the File Converter first.";
+      this.error =
+        "This browser can't open that image. Try the File Converter first.";
     }
   };
 
@@ -149,8 +161,20 @@ export default class ImageSlicerPage extends Component {
         canvas.height = TILE_SIZE;
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(this.bitmap, cropX + col * tileW, cropY + row * tileH, tileW, tileH, 0, 0, TILE_SIZE, TILE_SIZE);
-        const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+        ctx.drawImage(
+          this.bitmap,
+          cropX + col * tileW,
+          cropY + row * tileH,
+          tileW,
+          tileH,
+          0,
+          0,
+          TILE_SIZE,
+          TILE_SIZE,
+        );
+        const blob = await new Promise((resolve) =>
+          canvas.toBlob(resolve, 'image/png'),
+        );
         const n = row * cols + col + 1;
         const name = `${this.fileName}-${String(n).padStart(2, '0')}.png`;
         entries[name] = new Uint8Array(await blob.arrayBuffer());
@@ -160,21 +184,35 @@ export default class ImageSlicerPage extends Component {
     this.tiles = tiles;
 
     const { zipSync } = await import('fflate');
-    this.zipUrl = URL.createObjectURL(new Blob([zipSync(entries, { level: 6 })], { type: 'application/zip' }));
+    this.zipUrl = URL.createObjectURL(
+      new Blob([zipSync(entries, { level: 6 })], { type: 'application/zip' }),
+    );
   };
 
   pasteFiles = (files) => this.openFile(files[0]);
 
   <template>
-    <ToolPage @route="image-slicer" @subtitle="Slice a photo into a swipeable Instagram carousel or a profile grid, and preview it before you post.">
+    <ToolPage
+      @route="image-slicer"
+      @subtitle="Slice a photo into a swipeable Instagram carousel or a profile grid, and preview it before you post."
+    >
       <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
-          <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOverFile}} {{on "drop" this.dropFile}}>
+          <label
+            class="qr-drop {{if this.bitmap 'is-filled'}}"
+            {{on "dragover" this.dragOverFile}}
+            {{on "drop" this.dropFile}}
+          >
             {{#unless this.bitmap}}
               <Icon @name="grid-3x3" @size={{22}} />
               <span>Drop an image, or click to browse</span>
             {{/unless}}
-            <input type="file" accept="image/*" class="sr-only" {{on "change" this.selectFile}} />
+            <input
+              type="file"
+              accept="image/*"
+              class="sr-only"
+              {{on "change" this.selectFile}}
+            />
           </label>
           {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
 
@@ -184,7 +222,10 @@ export default class ImageSlicerPage extends Component {
               {{#each this.groups as |group|}}
                 <optgroup label={{group.platform}}>
                   {{#each group.items as |p|}}
-                    <option value={{p.id}} selected={{eq p.id this.presetId}}>{{p.label}}</option>
+                    <option
+                      value={{p.id}}
+                      selected={{eq p.id this.presetId}}
+                    >{{p.label}}</option>
                   {{/each}}
                 </optgroup>
               {{/each}}
@@ -193,11 +234,32 @@ export default class ImageSlicerPage extends Component {
 
           {{#if (eq this.preset.id "custom")}}
             <div class="math-row">
-              <label class="math-field"><span class="qr-label is-muted">Columns</span><input type="number" min="1" max="10" class="math-input" value={{this.customCols}} {{on "input" (fn this.setCustom "customCols")}} /></label>
-              <label class="math-field"><span class="qr-label is-muted">Rows</span><input type="number" min="1" max="10" class="math-input" value={{this.customRows}} {{on "input" (fn this.setCustom "customRows")}} /></label>
+              <label class="math-field"><span
+                  class="qr-label is-muted"
+                >Columns</span><input
+                  type="number"
+                  min="1"
+                  max="10"
+                  class="math-input"
+                  value={{this.customCols}}
+                  {{on "input" (fn this.setCustom "customCols")}}
+                /></label>
+              <label class="math-field"><span
+                  class="qr-label is-muted"
+                >Rows</span><input
+                  type="number"
+                  min="1"
+                  max="10"
+                  class="math-input"
+                  value={{this.customRows}}
+                  {{on "input" (fn this.setCustom "customRows")}}
+                /></label>
             </div>
           {{/if}}
-          <p class="tool-hint">Tiles are square. The photo is cropped to fit the grid before slicing, and each panel is saved at {{TILE_SIZE}}×{{TILE_SIZE}}px. For a carousel row, upload panel 1 first, in order.</p>
+          <p class="tool-hint">Tiles are square. The photo is cropped to fit the
+            grid before slicing, and each panel is saved at
+            {{TILE_SIZE}}×{{TILE_SIZE}}px. For a carousel row, upload panel 1
+            first, in order.</p>
         </section>
 
         <section class="math-card">
@@ -212,14 +274,27 @@ export default class ImageSlicerPage extends Component {
               </div>
             </div>
             <div class="settings-actions">
-              <button type="button" class="btn active" {{on "click" this.slice}}>Slice</button>
-              {{#if this.zipUrl}}<a class="btn fs-save" href={{this.zipUrl}} download="{{this.fileName}}-slices.zip"><Icon @name="download" @size={{13}} /> Save all (ZIP)</a>{{/if}}
+              <button
+                type="button"
+                class="btn active"
+                {{on "click" this.slice}}
+              >Slice</button>
+              {{#if this.zipUrl}}<a
+                  class="btn fs-save"
+                  href={{this.zipUrl}}
+                  download="{{this.fileName}}-slices.zip"
+                ><Icon @name="download" @size={{13}} />
+                  Save all (ZIP)</a>{{/if}}
             </div>
 
             {{#if this.tiles.length}}
               <div class="slice-results">
                 {{#each this.tiles key="id" as |tile|}}
-                  <a class="slice-tile" href={{tile.url}} download={{tile.name}}>
+                  <a
+                    class="slice-tile"
+                    href={{tile.url}}
+                    download={{tile.name}}
+                  >
                     <img src={{tile.url}} alt="Panel {{tile.id}}" />
                     <span class="tool-hint">{{tile.id}}</span>
                   </a>

@@ -1,45 +1,45 @@
 // Woogi Tools' Crayon CSS configuration: monochrome palette, rounder
 // "wobbly" radii, Moderustic for body text and headings, and
 // Inconsolata reserved for code / copy-pastable output (colour values, etc).
-@forward 'crayon-css' with (
+@forward "crayon-css" with (
   $base-size: 4px,
-  $default-font: 'sans',
+  $default-font: "sans",
   $font-families: (
-    'sans': (
-      'Moderustic',
+    "sans": (
+      "Moderustic",
       sans-serif,
     ),
-    'mono': (
-      'Inconsolata',
+    "mono": (
+      "Inconsolata",
       ui-monospace,
       monospace,
     ),
   ),
   $border-radii: (
-    'none': 0,
-    'sm': 6px,
-    'DEFAULT': 10px,
-    'md': 14px,
-    'lg': 20px,
-    'xl': 28px,
-    '2xl': 36px,
-    '3xl': 44px,
-    'full': 9999px,
+    "none": 0,
+    "sm": 6px,
+    "DEFAULT": 10px,
+    "md": 14px,
+    "lg": 20px,
+    "xl": 28px,
+    "2xl": 36px,
+    "3xl": 44px,
+    "full": 9999px,
   ),
   $use-tailwind-colors: false,
   $colors: (
-    'white': #ffffff,
-    'black': #000000,
-    'ink-50': #fafafa,
-    'ink-100': #f0f0f0,
-    'ink-200': #e2e2e2,
-    'ink-300': #cccccc,
-    'ink-400': #a3a3a3,
-    'ink-500': #7a7a7a,
-    'ink-600': #5c5c5c,
-    'ink-700': #454545,
-    'ink-800': #2e2e2e,
-    'ink-900': #1e1e1e,
-    'ink-950': #141414,
+    "white": #ffffff,
+    "black": #000000,
+    "ink-50": #fafafa,
+    "ink-100": #f0f0f0,
+    "ink-200": #e2e2e2,
+    "ink-300": #cccccc,
+    "ink-400": #a3a3a3,
+    "ink-500": #7a7a7a,
+    "ink-600": #5c5c5c,
+    "ink-700": #454545,
+    "ink-800": #2e2e2e,
+    "ink-900": #1e1e1e,
+    "ink-950": #141414,
   )
 );

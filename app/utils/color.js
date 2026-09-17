@@ -18,7 +18,13 @@ export function toHex(r, g, b) {
 
 export function parseHex(hex) {
   const clean = hex.trim().replace(/^#/, '');
-  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const full =
+    clean.length === 3
+      ? clean
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : clean;
   if (!/^[0-9a-fA-F]{6}$/.test(full)) return null;
   return {
     r: parseInt(full.slice(0, 2), 16),
@@ -54,7 +60,11 @@ export function rgbToHsl(r, g, b) {
     h /= 6;
   }
 
-  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
 }
 
 export function hslToRgb(h, s, l) {
@@ -81,7 +91,11 @@ export function hslToRgb(h, s, l) {
     b = hue2rgb(p, q, h - 1 / 3);
   }
 
-  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+  return {
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255),
+  };
 }
 
 export function hsvToRgb(h, s, v) {

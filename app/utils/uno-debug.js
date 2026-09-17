@@ -1,27 +1,65 @@
-import { COLORS, DEFAULT_RULES, STACKING_MODES, TURN_TIMES, cardName, topCard, normaliseRules, debugDraw, debugShuffle, debugEmit, debugNote, debugSetTurn } from './uno';
+import {
+  COLORS,
+  DEFAULT_RULES,
+  STACKING_MODES,
+  TURN_TIMES,
+  cardName,
+  topCard,
+  normaliseRules,
+  debugDraw,
+  debugShuffle,
+  debugEmit,
+  debugNote,
+  debugSetTurn,
+} from './uno';
 import { CommandError } from './debug-commands';
 
 // Woono's debug commands (see utils/debug-commands.js). `page` is the Woono page on the host.
 
 const VALUES = {
-  skip: 'skip', s: 'skip', block: 'skip',
-  reverse: 'reverse', rev: 'reverse', r: 'reverse',
-  draw2: 'draw2', '+2': 'draw2', d2: 'draw2',
-  wild: 'wild', w: 'wild',
-  wild4: 'wild4', '+4': 'wild4', w4: 'wild4',
-  target2: 'target2', t2: 'target2',
-  target4: 'target4', t4: 'target4',
-  draw99: 'draw99', '+99': 'draw99',
+  skip: 'skip',
+  s: 'skip',
+  block: 'skip',
+  reverse: 'reverse',
+  rev: 'reverse',
+  r: 'reverse',
+  draw2: 'draw2',
+  '+2': 'draw2',
+  d2: 'draw2',
+  wild: 'wild',
+  w: 'wild',
+  wild4: 'wild4',
+  '+4': 'wild4',
+  w4: 'wild4',
+  target2: 'target2',
+  t2: 'target2',
+  target4: 'target4',
+  t4: 'target4',
+  draw99: 'draw99',
+  '+99': 'draw99',
 };
-const COLOR_ALIASES = { r: 'red', red: 'red', y: 'yellow', yellow: 'yellow', g: 'green', green: 'green', b: 'blue', blue: 'blue' };
+const COLOR_ALIASES = {
+  r: 'red',
+  red: 'red',
+  y: 'yellow',
+  yellow: 'yellow',
+  g: 'green',
+  green: 'green',
+  b: 'blue',
+  blue: 'blue',
+};
 const WILD = new Set(['wild', 'wild4', 'target4', 'draw99']);
 
-const list = (cards) => (cards.length ? cards.map(cardName).join(', ') : '(none)');
+const list = (cards) =>
+  cards.length ? cards.map(cardName).join(', ') : '(none)';
 
 // "red 5", "r5", "blue skip", "wild4", "+4". Returns { color, value }.
 export function parseCard(words) {
   const text = words.join(' ').toLowerCase().trim();
-  if (!text) throw new CommandError('Say which card, like "red 5", "blue skip" or "wild4".');
+  if (!text)
+    throw new CommandError(
+      'Say which card, like "red 5", "blue skip" or "wild4".',
+    );
   const compact = text.match(/^([rygb])([0-9])$/);
   if (compact) return { color: COLOR_ALIASES[compact[1]], value: compact[2] };
   const parts = text.split(/\s+/);
@@ -32,7 +70,10 @@ export function parseCard(words) {
     valueWord = parts.slice(1).join('');
   }
   const value = /^[0-9]$/.test(valueWord) ? valueWord : VALUES[valueWord];
-  if (!value) throw new CommandError(`“${text}” isn’t a card. Try "red 5", "green reverse", "yellow +2" or "wild4".`);
+  if (!value)
+    throw new CommandError(
+      `“${text}” isn’t a card. Try "red 5", "green reverse", "yellow +2" or "wild4".`,
+    );
   if (WILD.has(value)) return { color: null, value };
   if (!color) throw new CommandError(`Which colour? Like "red ${valueWord}".`);
   return { color, value };
@@ -43,12 +84,16 @@ function takeCount(words, max = 50) {
   const last = words.at(-1);
   const match = last?.match(/^[x*](\d+)$/i);
   if (!match) return { words, count: 1 };
-  return { words: words.slice(0, -1), count: Math.max(1, Math.min(max, Number(match[1]))) };
+  return {
+    words: words.slice(0, -1),
+    count: Math.max(1, Math.min(max, Number(match[1]))),
+  };
 }
 
 export function unoDebugTools(page) {
   const state = () => {
-    if (!page.state) throw new CommandError('No game is running. Start one first.');
+    if (!page.state)
+      throw new CommandError('No game is running. Start one first.');
     return page.state;
   };
   const nameOf = (s, i) => s.players[i].name;
@@ -67,7 +112,14 @@ export function unoDebugTools(page) {
     if (i >= 0) return s.drawPile.splice(i, 1)[0];
     i = s.discard.slice(0, -1).findIndex(matches);
     if (i >= 0) return s.discard.splice(i, 1)[0];
-    const ids = [...s.drawPile, ...s.discard, ...s.players.flatMap((p) => p.hand), s.drawn].filter(Boolean).map((c) => c.id);
+    const ids = [
+      ...s.drawPile,
+      ...s.discard,
+      ...s.players.flatMap((p) => p.hand),
+      s.drawn,
+    ]
+      .filter(Boolean)
+      .map((c) => c.id);
     return { id: Math.max(-1, ...ids) + 1, color, value };
   };
   const fixUno = (player) => {
@@ -92,7 +144,11 @@ export function unoDebugTools(page) {
       help: 'Everyone’s cards (only to you).',
       run: () => {
         const s = state();
-        return s.players.map((p, i) => `${i + 1}. ${p.name} (${p.hand.length}): ${list(p.hand)}`).join('\n');
+        return s.players
+          .map(
+            (p, i) => `${i + 1}. ${p.name} (${p.hand.length}): ${list(p.hand)}`,
+          )
+          .join('\n');
       },
     },
     deck: {
@@ -127,7 +183,10 @@ export function unoDebugTools(page) {
         for (let n = 0; n < count; n++) player.hand.push(fetchCard(s, card));
         fixUno(player);
         debugEmit(s, { type: 'draw', player: i, count, reason: 'debug' });
-        changed(ctx, `${ctx.fromName} gave ${player.name} ${count > 1 ? `${count}× ` : ''}${cardName(card)}.`);
+        changed(
+          ctx,
+          `${ctx.fromName} gave ${player.name} ${count > 1 ? `${count}× ` : ''}${cardName(card)}.`,
+        );
       },
     },
     draw: {
@@ -139,7 +198,10 @@ export function unoDebugTools(page) {
         const i = ctx.player(ref);
         const count = Math.max(1, Math.min(99, Number(n) || 1));
         const drew = debugDraw(s, i, count);
-        changed(ctx, `${ctx.fromName} dealt ${nameOf(s, i)} ${drew} card${drew === 1 ? '' : 's'}.`);
+        changed(
+          ctx,
+          `${ctx.fromName} dealt ${nameOf(s, i)} ${drew} card${drew === 1 ? '' : 's'}.`,
+        );
       },
     },
     take: {
@@ -158,16 +220,24 @@ export function unoDebugTools(page) {
           const { words, count } = takeCount(rest);
           const card = parseCard(words);
           for (let n = 0; n < count; n++) {
-            const at = player.hand.findIndex((c) => c.value === card.value && (c.color ?? null) === card.color);
+            const at = player.hand.findIndex(
+              (c) => c.value === card.value && (c.color ?? null) === card.color,
+            );
             if (at < 0) break;
             removed.push(...player.hand.splice(at, 1));
           }
-          if (!removed.length) throw new CommandError(`${player.name} doesn’t have a ${cardName(card)}.`);
+          if (!removed.length)
+            throw new CommandError(
+              `${player.name} doesn’t have a ${cardName(card)}.`,
+            );
         }
         s.drawPile.unshift(...removed);
         debugShuffle(s.drawPile);
         fixUno(player);
-        changed(ctx, `${ctx.fromName} took ${removed.length} card${removed.length === 1 ? '' : 's'} from ${player.name}.`);
+        changed(
+          ctx,
+          `${ctx.fromName} took ${removed.length} card${removed.length === 1 ? '' : 's'} from ${player.name}.`,
+        );
       },
     },
     next: {
@@ -178,7 +248,10 @@ export function unoDebugTools(page) {
         const s = state();
         const card = parseCard(words);
         s.drawPile.push(fetchCard(s, card));
-        changed(ctx, `${ctx.fromName} stacked the deck: the next card is ${cardName(card)}.`);
+        changed(
+          ctx,
+          `${ctx.fromName} stacked the deck: the next card is ${cardName(card)}.`,
+        );
       },
     },
     top: {
@@ -191,8 +264,17 @@ export function unoDebugTools(page) {
         const card = fetchCard(s, parsed);
         s.discard.push(card);
         s.color = card.color ?? s.color;
-        debugEmit(s, { type: 'play', player: s.turn, card, color: card.color, fromCentre: true });
-        changed(ctx, `${ctx.fromName} put ${cardName(card)} on top of the pile.`);
+        debugEmit(s, {
+          type: 'play',
+          player: s.turn,
+          card,
+          color: card.color,
+          fromCentre: true,
+        });
+        changed(
+          ctx,
+          `${ctx.fromName} put ${cardName(card)} on top of the pile.`,
+        );
       },
     },
     color: {
@@ -240,7 +322,8 @@ export function unoDebugTools(page) {
       changes: true,
       run: (args, ctx) => {
         const s = state();
-        if (!s.pending && !s.choice && s.swapPending === null) return 'Nothing is pending.';
+        if (!s.pending && !s.choice && s.swapPending === null)
+          return 'Nothing is pending.';
         s.pending = null;
         s.choice = null;
         s.swapPending = null;
@@ -276,7 +359,17 @@ export function unoDebugTools(page) {
       help: 'The rules this game is using.',
       run: () =>
         Object.entries(state().rules)
-          .map(([key, value]) => `${key}: ${typeof value === 'object' ? Object.entries(value).filter(([, on]) => on).map(([k]) => k).join(', ') : value}`)
+          .map(
+            ([key, value]) =>
+              `${key}: ${
+                typeof value === 'object'
+                  ? Object.entries(value)
+                      .filter(([, on]) => on)
+                      .map(([k]) => k)
+                      .join(', ')
+                  : value
+              }`,
+          )
           .join('\n'),
     },
     rule: {
@@ -285,15 +378,25 @@ export function unoDebugTools(page) {
       changes: true,
       run: ([key, value], ctx) => {
         const s = state();
-        const name = Object.keys(DEFAULT_RULES).find((k) => k.toLowerCase() === String(key ?? '').toLowerCase());
-        if (!name || name === 'cards') throw new CommandError(`No rule called “${key ?? ''}”. See /rules.`);
+        const name = Object.keys(DEFAULT_RULES).find(
+          (k) => k.toLowerCase() === String(key ?? '').toLowerCase(),
+        );
+        if (!name || name === 'cards')
+          throw new CommandError(`No rule called “${key ?? ''}”. See /rules.`);
         let parsed;
         const current = DEFAULT_RULES[name];
-        if (typeof current === 'boolean') parsed = /^(on|true|yes|1)$/i.test(value);
+        if (typeof current === 'boolean')
+          parsed = /^(on|true|yes|1)$/i.test(value);
         else if (typeof current === 'number') parsed = Number(value);
         else parsed = String(value);
-        if (name === 'stacking' && !STACKING_MODES.includes(parsed)) throw new CommandError(`Stacking is one of ${STACKING_MODES.join(', ')}.`);
-        if (name === 'turnTime' && !TURN_TIMES.includes(parsed)) throw new CommandError(`Turn time is one of ${TURN_TIMES.join(', ')} seconds.`);
+        if (name === 'stacking' && !STACKING_MODES.includes(parsed))
+          throw new CommandError(
+            `Stacking is one of ${STACKING_MODES.join(', ')}.`,
+          );
+        if (name === 'turnTime' && !TURN_TIMES.includes(parsed))
+          throw new CommandError(
+            `Turn time is one of ${TURN_TIMES.join(', ')} seconds.`,
+          );
         s.rules = normaliseRules({ ...s.rules, [name]: parsed });
         changed(ctx, `${ctx.fromName} set ${name} to ${s.rules[name]}.`);
       },
@@ -304,11 +407,14 @@ export function unoDebugTools(page) {
       run: ([word], ctx) => {
         const pause = /^(pause|stop|off|freeze)$/i.test(word ?? '');
         const resume = /^(resume|go|on|start)$/i.test(word ?? '');
-        if (!pause && !resume) throw new CommandError('Say /bots pause or /bots resume.');
+        if (!pause && !resume)
+          throw new CommandError('Say /bots pause or /bots resume.');
         page.botsPaused = pause;
         if (pause) page.stopBots();
         else if (page.state) page.runBots();
-        ctx.announce(`${ctx.fromName} ${pause ? 'froze' : 'unfroze'} the computer players.`);
+        ctx.announce(
+          `${ctx.fromName} ${pause ? 'froze' : 'unfroze'} the computer players.`,
+        );
       },
     },
     state: {
@@ -319,15 +425,20 @@ export function unoDebugTools(page) {
   };
 
   function describe(s) {
-    const pending = s.pending ? ` Pending: ${s.pending.kind === 'draw' ? `+${s.pending.amount}` : 'skip'} at ${nameOf(s, s.pending.target)}.` : '';
-    const choice = s.choice ? ` ${nameOf(s, s.choice.player)} is picking a ${s.choice.card.color || s.choice.color ? 'target' : 'colour'}.` : '';
+    const pending = s.pending
+      ? ` Pending: ${s.pending.kind === 'draw' ? `+${s.pending.amount}` : 'skip'} at ${nameOf(s, s.pending.target)}.`
+      : '';
+    const choice = s.choice
+      ? ` ${nameOf(s, s.choice.player)} is picking a ${s.choice.card.color || s.choice.color ? 'target' : 'colour'}.`
+      : '';
     return `Woono: ${s.winner !== null ? `${nameOf(s, s.winner)} won.` : `${nameOf(s, s.turn)}’s turn, going ${s.direction === 1 ? 'clockwise' : 'anticlockwise'}.`} Top: ${cardName(topCard(s))} (${s.color}). Deck: ${s.drawPile.length}.${pending}${choice}${page.botsPaused ? ' Computer players frozen.' : ''}`;
   }
 
   return {
     commands,
     players: () => page.state?.players ?? page.seats,
-    describe: () => (page.state ? describe(page.state) : 'Woono: in the lobby.'),
+    describe: () =>
+      page.state ? describe(page.state) : 'Woono: in the lobby.',
     snapshot: () => (page.state ? structuredClone(page.state) : null),
     restore: (snap) => page.restoreState(snap),
   };

@@ -22,10 +22,37 @@ import HoldConfirm from './hold-confirm';
 import { askConfirm } from '../utils/confirm';
 import { listenForActions, onScreen, openChat } from '../utils/game-input';
 import { CommandError } from '../utils/debug-commands';
-import { FILES, STANDARD_FEN, TIME_CONTROLS, clockFor, formatClock, chess960Fen, premoveTargets, reachableAfterReply, applyPremoves, syncTokens, canMate } from '../utils/chess-extras';
+import {
+  FILES,
+  STANDARD_FEN,
+  TIME_CONTROLS,
+  clockFor,
+  formatClock,
+  chess960Fen,
+  premoveTargets,
+  reachableAfterReply,
+  applyPremoves,
+  syncTokens,
+  canMate,
+} from '../utils/chess-extras';
+import GameSettings from './game-settings';
 
-const PIECE_ICON = { k: 'chess-king', q: 'chess-queen', r: 'chess-rook', b: 'chess-bishop', n: 'chess-knight', p: 'chess-pawn' };
-const PIECE_NAME = { k: 'king', q: 'queen', r: 'rook', b: 'bishop', n: 'knight', p: 'pawn' };
+const PIECE_ICON = {
+  k: 'chess-king',
+  q: 'chess-queen',
+  r: 'chess-rook',
+  b: 'chess-bishop',
+  n: 'chess-knight',
+  p: 'chess-pawn',
+};
+const PIECE_NAME = {
+  k: 'king',
+  q: 'queen',
+  r: 'rook',
+  b: 'bishop',
+  n: 'knight',
+  p: 'pawn',
+};
 const PIECE_VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const START_COUNT = { p: 8, n: 2, b: 2, r: 2, q: 1 };
 const PROMOTIONS = ['q', 'r', 'b', 'n'];
@@ -37,7 +64,19 @@ const LOW_TIME_MS = 20000;
 const FLAG_GRACE_MS = 2500;
 const PREFS_KEY = 'woogi-chess-prefs';
 
-const DEFAULTS = { time: 'none', minutes: 10, increment: 5, start: 'standard', fen: '', color: 'w', level: 'medium', takebacks: true };
+// noBot: the host took the computer opponent off the board and is waiting for
+// a person instead. Chess seats two, so there is nothing to start without one.
+const DEFAULTS = {
+  time: 'none',
+  minutes: 10,
+  increment: 5,
+  start: 'standard',
+  fen: '',
+  color: 'w',
+  level: 'medium',
+  takebacks: true,
+  noBot: false,
+};
 const START_OPTIONS = [
   { id: 'standard', label: 'Standard' },
   { id: 'chess960', label: 'Chess960' },
@@ -77,7 +116,10 @@ function loadPrefs() {
 }
 
 export default class ChessPage extends Component {
-  levels = Object.entries(LEVELS).map(([id, level]) => ({ id, label: level.label }));
+  levels = Object.entries(LEVELS).map(([id, level]) => ({
+    id,
+    label: level.label,
+  }));
   timeControls = TIME_CONTROLS;
   startOptions = START_OPTIONS;
   colorChoices = COLOR_CHOICES;
@@ -149,10 +191,27 @@ export default class ChessPage extends Component {
   // ─── Lobby ───────────────────────────────────────────────────────────
 
   get seats() {
-    const humans = this.room.members.map((m) => ({ ...m, kind: 'human' }));
-    if (humans.length >= 2) return humans;
-    return [...humans, { id: 'bot', name: `${this.botName} (${LEVELS[this.settings.level]?.label ?? 'Medium'})`, kind: 'bot', avatar: this.botAvatar }];
+    // Spectators are in the room but take no seat.
+    const humans = this.room.players.map((m) => ({ ...m, kind: 'human' }));
+    if (humans.length >= 2 || this.settings.noBot) return humans;
+    return [
+      ...humans,
+      {
+        id: 'bot',
+        name: `${this.botName} (${LEVELS[this.settings.level]?.label ?? 'Medium'})`,
+        kind: 'bot',
+        avatar: this.botAvatar,
+      },
+    ];
   }
+
+  // The seat is only offered back when there is actually room for it.
+  get canAddBot() {
+    return this.settings.noBot && this.room.members.length < 2;
+  }
+
+  addBot = () => this.setRule('noBot', false);
+  removeBot = () => this.setRule('noBot', true);
 
   // The computer opponent's pun name and robot look, the same for everyone in the room.
   get botName() {
@@ -163,8 +222,31 @@ export default class ChessPage extends Component {
     return robotAvatar(this.settings.botSeed, 0);
   }
 
+  // Watching rather than playing. Chess already broadcasts the opening position
+  // and every move to everyone in the room, so a spectator gets the game for
+  // free; what it must not get is a colour of its own to move.
+  get iAmSpectator() {
+    return this.room.iAmSpectating;
+  }
+
+  // Chess seats exactly two, and the host is both one of them and the machine
+  // that runs the computer opponent, so only a guest can drop out to watch.
+  // Snake, Minesweeper and Woono have no such tie: their host simulates every
+  // seat, so there the host can sit out and watch the computer players instead.
+  get spectatable() {
+    return this.room.isOnline && !this.room.isHost;
+  }
+
   get vsBotInLobby() {
-    return this.room.members.length < 2;
+    return this.room.members.length < 2 && !this.settings.noBot;
+  }
+
+  // Chess needs two players. Without the computer and without a second person
+  // there is no game to start, so say which is missing rather than failing.
+  get blocker() {
+    if (this.seats.length < 2)
+      return 'Nobody to play against. Add the computer back, or wait for someone to join.';
+    return this.fenError;
   }
 
   get fenError() {
@@ -180,8 +262,10 @@ export default class ChessPage extends Component {
   }
 
   setRule = (key, value) => this.room.setSettings({ [key]: value });
-  setRuleFromInput = (key, event) => this.room.setSettings({ [key]: event.target.value });
-  toggleRule = (key, event) => this.room.setSettings({ [key]: event.target.checked });
+  setRuleFromInput = (key, event) =>
+    this.room.setSettings({ [key]: event.target.value });
+  toggleRule = (key, event) =>
+    this.room.setSettings({ [key]: event.target.checked });
 
   setPref = (key, event) => {
     this.prefs = { ...this.prefs, [key]: event.target.checked };
@@ -196,17 +280,47 @@ export default class ChessPage extends Component {
   // Host (or a local game): deals the game, and tells the guest their side.
   startFromLobby = (color) => {
     const s = this.settings;
-    const fen = s.start === 'chess960' ? chess960Fen() : s.start === 'fen' ? s.fen.trim() : STANDARD_FEN;
-    const chosen = typeof color === 'string' ? color : s.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : s.color;
-    const guest = this.room.members.find((m) => !m.isYou);
+    const fen =
+      s.start === 'chess960'
+        ? chess960Fen()
+        : s.start === 'fen'
+          ? s.fen.trim()
+          : STANDARD_FEN;
+    const chosen =
+      typeof color === 'string'
+        ? color
+        : s.color === 'random'
+          ? Math.random() < 0.5
+            ? 'w'
+            : 'b'
+          : s.color;
+    const guest = this.room.players.find((m) => !m.isYou);
     const clock = clockFor(s);
     this.level = s.level;
-    this.begin({ fen, color: chosen, clock, takebacks: s.takebacks, opponent: guest ? { kind: 'human', name: guest.name, avatar: guest.avatar } : { kind: 'bot', name: `${this.botName} (${LEVELS[s.level].label})`, avatar: this.botAvatar } });
+    this.begin({
+      fen,
+      color: chosen,
+      clock,
+      takebacks: s.takebacks,
+      opponent: guest
+        ? { kind: 'human', name: guest.name, avatar: guest.avatar }
+        : {
+            kind: 'bot',
+            name: `${this.botName} (${LEVELS[s.level].label})`,
+            avatar: this.botAvatar,
+          },
+    });
     this.room.setLocked(true);
     // A rematch needs the other player to press Ready again.
     this.room.resetReady();
     if (guest) {
-      this.room.send({ type: 'start', fen, color: other(chosen), clock, takebacks: s.takebacks });
+      this.room.send({
+        type: 'start',
+        fen,
+        color: other(chosen),
+        clock,
+        takebacks: s.takebacks,
+      });
     }
   };
 
@@ -236,7 +350,8 @@ export default class ChessPage extends Component {
     clearInterval(this.clockTimer);
     if (clock) this.clockTimer = setInterval(() => this.tickClock(), 100);
     this.afterChange();
-    if (opponent?.kind === 'bot') this.chatter.say(this.botName, 'chessHello', { urgent: true });
+    if (opponent?.kind === 'bot')
+      this.chatter.say(this.botName, 'chessHello', { urgent: true });
     this.maybeBotMove();
   }
 
@@ -246,7 +361,10 @@ export default class ChessPage extends Component {
   }
 
   get closeWarning() {
-    if (this.room.isOnline) return this.room.isHost ? 'Close Chess? You’re hosting, so this ends the game and closes the room for everyone.' : 'Close Chess? You’ll be disconnected from the game.';
+    if (this.room.isOnline)
+      return this.room.isHost
+        ? 'Close Chess? You’re hosting, so this ends the game and closes the room for everyone.'
+        : 'Close Chess? You’ll be disconnected from the game.';
     return 'Close Chess? The game in progress will be lost.';
   }
 
@@ -260,10 +378,13 @@ export default class ChessPage extends Component {
     void this.version;
     if (this.result) return this.result;
     const chess = this.chess;
-    if (chess.isCheckmate()) return { winner: other(chess.turn()), reason: 'checkmate' };
+    if (chess.isCheckmate())
+      return { winner: other(chess.turn()), reason: 'checkmate' };
     if (chess.isStalemate()) return { winner: null, reason: 'stalemate' };
-    if (chess.isThreefoldRepetition()) return { winner: null, reason: 'repetition' };
-    if (chess.isInsufficientMaterial()) return { winner: null, reason: 'material' };
+    if (chess.isThreefoldRepetition())
+      return { winner: null, reason: 'repetition' };
+    if (chess.isInsufficientMaterial())
+      return { winner: null, reason: 'material' };
     if (chess.isDraw()) return { winner: null, reason: 'fifty' };
     return null;
   }
@@ -273,11 +394,24 @@ export default class ChessPage extends Component {
   }
 
   get isMyTurn() {
-    return this.version >= 0 && this.mode === 'playing' && !this.isOver && !this.thinking && this.chess.turn() === this.playerColor;
+    return (
+      this.version >= 0 &&
+      this.mode === 'playing' &&
+      !this.isOver &&
+      !this.thinking &&
+      // A spectator is never to move, whatever colour the board is shown from.
+      !this.iAmSpectator &&
+      this.chess.turn() === this.playerColor
+    );
   }
 
   get canPremove() {
-    return this.prefs.premoves && this.mode === 'playing' && !this.isOver && this.chess.turn() !== this.playerColor;
+    return (
+      this.prefs.premoves &&
+      this.mode === 'playing' &&
+      !this.isOver &&
+      this.chess.turn() !== this.playerColor
+    );
   }
 
   get opponentName() {
@@ -289,7 +423,9 @@ export default class ChessPage extends Component {
     if (outcome) {
       if (outcome.winner === null) return DRAWS[outcome.reason];
       const reason = REASONS[outcome.reason];
-      return outcome.winner === this.playerColor ? `You win ${reason}!` : `${this.opponentName} wins ${reason}.`;
+      return outcome.winner === this.playerColor
+        ? `You win ${reason}!`
+        : `${this.opponentName} wins ${reason}.`;
     }
     const check = this.chess.inCheck() ? 'Check! ' : '';
     if (this.thinking) return `${check}${this.botName} is thinking…`;
@@ -319,8 +455,16 @@ export default class ChessPage extends Component {
   get targets() {
     void this.version;
     if (!this.selected) return new Map();
-    if (this.isMyTurn) return new Map(this.chess.moves({ square: this.selected, verbose: true }).map((m) => [m.to, m]));
-    if (this.canPremove) return new Map(this.premoveOptions(this.selected).map((sq) => [sq, { premove: true }]));
+    if (this.isMyTurn)
+      return new Map(
+        this.chess
+          .moves({ square: this.selected, verbose: true })
+          .map((m) => [m.to, m]),
+      );
+    if (this.canPremove)
+      return new Map(
+        this.premoveOptions(this.selected).map((sq) => [sq, { premove: true }]),
+      );
     return new Map();
   }
 
@@ -329,8 +473,13 @@ export default class ChessPage extends Component {
   // really be played are offered; later ones are a close approximation.
   premoveOptions(from) {
     if (this.pieceAt(from)?.color !== this.playerColor) return [];
-    if (!this.premoves.length) return reachableAfterReply(Chess, this.chess.fen(), from);
-    return premoveTargets(this.displayBoard, from, this.chess.getCastlingRights(this.playerColor));
+    if (!this.premoves.length)
+      return reachableAfterReply(Chess, this.chess.fen(), from);
+    return premoveTargets(
+      this.displayBoard,
+      from,
+      this.chess.getCastlingRights(this.playerColor),
+    );
   }
 
   get flipped() {
@@ -355,14 +504,19 @@ export default class ChessPage extends Component {
         const target = targets.get(square);
         out.push({
           square,
-          label: piece ? `${COLOR_NAME[piece.color]} ${PIECE_NAME[piece.type]} on ${square}` : square,
+          label: piece
+            ? `${COLOR_NAME[piece.color]} ${PIECE_NAME[piece.type]} on ${square}`
+            : square,
           dark: (r + c) % 2 === 1,
           selected: square === this.selected,
           target: Boolean(target) && this.prefs.hints,
           capture: Boolean(target) && this.prefs.hints && Boolean(piece),
           premove: premoved.has(square),
           last: last && (last.from === square || last.to === square),
-          check: !this.premoves.length && piece?.type === 'k' && piece.color === checkedKing,
+          check:
+            !this.premoves.length &&
+            piece?.type === 'k' &&
+            piece.color === checkedKing,
           fileLabel: row === 7 ? FILES[c] : null,
           rankLabel: col === 0 ? String(8 - r) : null,
         });
@@ -380,28 +534,58 @@ export default class ChessPage extends Component {
       const rank = Number(t.square[1]) - 1;
       const x = flipped ? 7 - file : file;
       const y = flipped ? rank : 7 - rank;
-      return { ...t, icon: PIECE_ICON[t.type], fill: pieceFill(t.color), premoved: premovedTo.has(t.square), style: htmlSafe(`--x: ${x}; --y: ${y}`) };
+      return {
+        ...t,
+        icon: PIECE_ICON[t.type],
+        fill: pieceFill(t.color),
+        premoved: premovedTo.has(t.square),
+        style: htmlSafe(`--x: ${x}; --y: ${y}`),
+      };
     });
   }
 
   afterChange() {
     this.version++;
     if (this.isOver) this.finish();
-    this.tokens = syncTokens(this.tokens, this.displayBoard, () => ++this.tokenSeq);
+    this.tokens = syncTokens(
+      this.tokens,
+      this.displayBoard,
+      () => ++this.tokenSeq,
+    );
   }
 
   // Pieces each side has taken, and who's ahead on material.
   get captured() {
     void this.version;
-    const left = { w: { p: 0, n: 0, b: 0, r: 0, q: 0 }, b: { p: 0, n: 0, b: 0, r: 0, q: 0 } };
-    for (const row of this.chess.board()) for (const piece of row) if (piece && piece.type !== 'k') left[piece.color][piece.type]++;
+    const left = {
+      w: { p: 0, n: 0, b: 0, r: 0, q: 0 },
+      b: { p: 0, n: 0, b: 0, r: 0, q: 0 },
+    };
+    for (const row of this.chess.board())
+      for (const piece of row)
+        if (piece && piece.type !== 'k') left[piece.color][piece.type]++;
     const takenFrom = (color) =>
-      Object.entries(START_COUNT).flatMap(([type, count]) => Array.from({ length: Math.max(0, count - left[color][type]) }, () => ({ type, icon: PIECE_ICON[type], fill: pieceFill(color) })));
-    const material = (color) => Object.entries(left[color]).reduce((sum, [type, n]) => sum + n * PIECE_VALUE[type], 0);
+      Object.entries(START_COUNT).flatMap(([type, count]) =>
+        Array.from({ length: Math.max(0, count - left[color][type]) }, () => ({
+          type,
+          icon: PIECE_ICON[type],
+          fill: pieceFill(color),
+        })),
+      );
+    const material = (color) =>
+      Object.entries(left[color]).reduce(
+        (sum, [type, n]) => sum + n * PIECE_VALUE[type],
+        0,
+      );
     const me = this.playerColor;
     const them = other(me);
     const lead = material(me) - material(them);
-    return { byMe: takenFrom(them), byThem: takenFrom(me), myLead: lead > 0 ? `+${lead}` : '', theirLead: lead < 0 ? `+${-lead}` : '' };
+    return {
+      byMe: takenFrom(them),
+      byThem: takenFrom(me),
+      myLead: lead > 0 ? `+${lead}` : '',
+      theirLead: lead < 0 ? `+${-lead}` : '',
+    };
   }
 
   get movePairs() {
@@ -410,13 +594,21 @@ export default class ChessPage extends Component {
     const blackFirst = this.chess.history({ verbose: true })[0]?.color === 'b';
     const list = blackFirst ? ['…', ...sans] : sans;
     const pairs = [];
-    for (let i = 0; i < list.length; i += 2) pairs.push({ n: i / 2 + 1, white: list[i], black: list[i + 1] ?? '' });
+    for (let i = 0; i < list.length; i += 2)
+      pairs.push({ n: i / 2 + 1, white: list[i], black: list[i + 1] ?? '' });
     return pairs;
   }
 
   get canTakeback() {
     void this.version;
-    return this.takebacks && !this.isOver && !this.offer && this.chess.history({ verbose: true }).some((m) => m.color === this.playerColor);
+    return (
+      this.takebacks &&
+      !this.isOver &&
+      !this.offer &&
+      this.chess
+        .history({ verbose: true })
+        .some((m) => m.color === this.playerColor)
+    );
   }
 
   // ─── Clocks ──────────────────────────────────────────────────────────
@@ -427,7 +619,10 @@ export default class ChessPage extends Component {
 
   remaining(color) {
     if (!this.clocks) return 0;
-    const spent = this.clockRunning && this.chess.turn() === color ? this.now - this.turnStartedAt : 0;
+    const spent =
+      this.clockRunning && this.chess.turn() === color
+        ? this.now - this.turnStartedAt
+        : 0;
     return this.clocks[color] - spent;
   }
 
@@ -436,7 +631,11 @@ export default class ChessPage extends Component {
     void this.now;
     void this.version;
     const left = this.remaining(color);
-    return { text: formatClock(left), running: this.clockRunning && this.chess.turn() === color, low: left < LOW_TIME_MS };
+    return {
+      text: formatClock(left),
+      running: this.clockRunning && this.chess.turn() === color,
+      low: left < LOW_TIME_MS,
+    };
   }
 
   get myClock() {
@@ -467,7 +666,11 @@ export default class ChessPage extends Component {
 
   flag(color) {
     const winner = other(color);
-    this.endWith(canMate(this.chess.board(), winner) ? { winner, reason: 'timeout' } : { winner: null, reason: 'timeout-draw' });
+    this.endWith(
+      canMate(this.chess.board(), winner)
+        ? { winner, reason: 'timeout' }
+        : { winner: null, reason: 'timeout-draw' },
+    );
   }
 
   // Stops the clocks where they stand.
@@ -488,11 +691,29 @@ export default class ChessPage extends Component {
     if (this.outcome && !this.endSounded) {
       this.endSounded = true;
       const { winner } = this.outcome;
-      setTimeout(() => sfx(winner === null ? 'chess.draw' : winner === this.playerColor ? 'chess.win' : 'chess.lose'), 250);
+      setTimeout(
+        () =>
+          sfx(
+            winner === null
+              ? 'chess.draw'
+              : winner === this.playerColor
+                ? 'chess.win'
+                : 'chess.lose',
+          ),
+        250,
+      );
     }
     if (this.isBot && this.outcome) {
       const { winner } = this.outcome;
-      this.chatter.say(this.botName, winner === null ? 'chessDraw' : winner === this.playerColor ? 'chessLose' : 'chessWin', { urgent: true });
+      this.chatter.say(
+        this.botName,
+        winner === null
+          ? 'chessDraw'
+          : winner === this.playerColor
+            ? 'chessLose'
+            : 'chessWin',
+        { urgent: true },
+      );
     }
     this.freezeClocks();
     this.abort?.abort();
@@ -517,21 +738,43 @@ export default class ChessPage extends Component {
       const t = performance.now();
       this.now = t;
       if (clocks) this.clocks = clocks;
-      else if (this.turnStartedAt !== null) this.clocks = { ...this.clocks, [mover]: this.clocks[mover] - (t - this.turnStartedAt) + this.incMs };
+      else if (this.turnStartedAt !== null)
+        this.clocks = {
+          ...this.clocks,
+          [mover]: this.clocks[mover] - (t - this.turnStartedAt) + this.incMs,
+        };
       // The clock starts after the first move, so no one loses time before the game begins.
       this.turnStartedAt = t;
     }
     this.selected = null;
     this.pendingPromotion = null;
     if (this.offer?.kind === 'takeback') this.offer = null;
-    this.room.recordDebugState(`${COLOR_NAME[result.color]} played ${result.san}`);
-    sfx(result.san.includes('+') || result.san.includes('#') ? 'chess.check' : result.promotion ? 'chess.promote' : /^O-O/.test(result.san) ? 'chess.castle' : result.captured ? 'chess.capture' : 'chess.move');
+    this.room.recordDebugState(
+      `${COLOR_NAME[result.color]} played ${result.san}`,
+    );
+    sfx(
+      result.san.includes('+') || result.san.includes('#')
+        ? 'chess.check'
+        : result.promotion
+          ? 'chess.promote'
+          : /^O-O/.test(result.san)
+            ? 'chess.castle'
+            : result.captured
+              ? 'chess.capture'
+              : 'chess.move',
+    );
     this.afterChange();
     // The computer reacts to captures and checks, its own and yours.
     if (this.isBot && !this.isOver) {
       const botMoved = mover !== this.playerColor;
-      if (result.san.includes('+')) this.chatter.say(this.botName, botMoved ? 'check' : 'checked', { chance: 0.7 });
-      else if (result.captured) this.chatter.say(this.botName, botMoved ? 'capture' : 'hit', { chance: 0.3 });
+      if (result.san.includes('+'))
+        this.chatter.say(this.botName, botMoved ? 'check' : 'checked', {
+          chance: 0.7,
+        });
+      else if (result.captured)
+        this.chatter.say(this.botName, botMoved ? 'capture' : 'hit', {
+          chance: 0.3,
+        });
     }
     return result;
   }
@@ -540,7 +783,15 @@ export default class ChessPage extends Component {
     const result = this.commit(move);
     if (!result) return false;
     if (this.isBot) this.maybeBotMove();
-    else this.room.send({ type: 'move', from: result.from, to: result.to, promotion: result.promotion, fen: this.chess.fen(), clocks: this.clocks });
+    else
+      this.room.send({
+        type: 'move',
+        from: result.from,
+        to: result.to,
+        promotion: result.promotion,
+        fen: this.chess.fen(),
+        clocks: this.clocks,
+      });
     return true;
   }
 
@@ -549,8 +800,18 @@ export default class ChessPage extends Component {
     if (!this.premoves.length || !this.isMyTurn) return;
     const [first, ...rest] = this.premoves;
     this.premoves = rest;
-    const legal = this.chess.moves({ square: first.from, verbose: true }).find((m) => m.to === first.to);
-    if (!legal || !this.playMine({ from: first.from, to: first.to, promotion: legal.promotion ? first.promotion ?? 'q' : undefined })) this.clearPremoves();
+    const legal = this.chess
+      .moves({ square: first.from, verbose: true })
+      .find((m) => m.to === first.to);
+    if (
+      !legal ||
+      !this.playMine({
+        from: first.from,
+        to: first.to,
+        promotion: legal.promotion ? (first.promotion ?? 'q') : undefined,
+      })
+    )
+      this.clearPremoves();
   }
 
   clearPremoves() {
@@ -562,18 +823,30 @@ export default class ChessPage extends Component {
   // Returns whether the piece should stay where it was dropped.
   tryMove(from, to) {
     if (this.isMyTurn) {
-      const move = this.chess.moves({ square: from, verbose: true }).find((m) => m.to === to);
+      const move = this.chess
+        .moves({ square: from, verbose: true })
+        .find((m) => m.to === to);
       if (!move) return false;
       if (move.promotion && !this.prefs.autoQueen) {
         this.pendingPromotion = { from, to };
         return false;
       }
-      return this.playMine({ from, to, promotion: move.promotion ? 'q' : undefined });
+      return this.playMine({
+        from,
+        to,
+        promotion: move.promotion ? 'q' : undefined,
+      });
     }
     if (this.canPremove && this.premoveOptions(from).includes(to)) {
       const piece = this.pieceAt(from);
-      const promotion = piece?.type === 'p' && (to[1] === '8' || to[1] === '1') ? 'q' : undefined;
-      this.premoves = [...this.premoves, { from, to, promotion, color: this.playerColor }];
+      const promotion =
+        piece?.type === 'p' && (to[1] === '8' || to[1] === '1')
+          ? 'q'
+          : undefined;
+      this.premoves = [
+        ...this.premoves,
+        { from, to, promotion, color: this.playerColor },
+      ];
       sfx('ui.click');
       this.selected = null;
       this.afterChange();
@@ -584,6 +857,8 @@ export default class ChessPage extends Component {
 
   clickSquare(square) {
     if (this.mode !== 'playing' || this.isOver || this.pendingPromotion) return;
+    // Watching: the board is a picture, not a thing to press.
+    if (this.iAmSpectator) return;
     if (this.selected && this.targets.has(square)) {
       this.tryMove(this.selected, square);
       return;
@@ -608,7 +883,8 @@ export default class ChessPage extends Component {
 
   debugTools() {
     const need = () => {
-      if (this.mode !== 'playing') throw new CommandError('No game is running. Start one first.');
+      if (this.mode !== 'playing')
+        throw new CommandError('No game is running. Start one first.');
     };
     const colorOf = (word) => {
       const c = String(word ?? '').toLowerCase()[0];
@@ -629,11 +905,28 @@ export default class ChessPage extends Component {
     };
     return {
       players: () => [
-        { id: this.room.selfId, name: `${this.room.profile.name || 'Host'} (${COLOR_NAME[this.playerColor]})` },
-        { id: this.room.members.find((m) => !m.isYou)?.id ?? 'bot', name: `${this.opponentName} (${COLOR_NAME[other(this.playerColor)]})` },
+        {
+          id: this.room.selfId,
+          name: `${this.room.profile.name || 'Host'} (${COLOR_NAME[this.playerColor]})`,
+        },
+        {
+          id: this.room.members.find((m) => !m.isYou)?.id ?? 'bot',
+          name: `${this.opponentName} (${COLOR_NAME[other(this.playerColor)]})`,
+        },
       ],
-      describe: () => (this.mode === 'playing' ? `Chess: ${COLOR_NAME[this.chess.turn()]} to move, move ${this.chess.moveNumber()}. ${this.isOver ? 'Game over.' : ''}\nFEN: ${this.chess.fen()}` : 'Chess: in the lobby.'),
-      snapshot: () => (this.mode === 'playing' ? { pgn: this.chess.pgn(), fen: this.chess.fen(), clocks: this.clocks, result: this.result } : null),
+      describe: () =>
+        this.mode === 'playing'
+          ? `Chess: ${COLOR_NAME[this.chess.turn()]} to move, move ${this.chess.moveNumber()}. ${this.isOver ? 'Game over.' : ''}\nFEN: ${this.chess.fen()}`
+          : 'Chess: in the lobby.',
+      snapshot: () =>
+        this.mode === 'playing'
+          ? {
+              pgn: this.chess.pgn(),
+              fen: this.chess.fen(),
+              clocks: this.clocks,
+              result: this.result,
+            }
+          : null,
       restore: (snap) => {
         const chess = new Chess();
         try {
@@ -655,9 +948,21 @@ export default class ChessPage extends Component {
         this.maybeBotMove();
       },
       commands: {
-        fen: { usage: '/fen', help: 'The position as FEN.', run: () => (need(), this.chess.fen()) },
-        pgn: { usage: '/pgn', help: 'The moves so far as PGN.', run: () => (need(), this.chess.pgn() || '(no moves yet)') },
-        board: { usage: '/board', help: 'The board as text.', run: () => (need(), this.chess.ascii()) },
+        fen: {
+          usage: '/fen',
+          help: 'The position as FEN.',
+          run: () => (need(), this.chess.fen()),
+        },
+        pgn: {
+          usage: '/pgn',
+          help: 'The moves so far as PGN.',
+          run: () => (need(), this.chess.pgn() || '(no moves yet)'),
+        },
+        board: {
+          usage: '/board',
+          help: 'The board as text.',
+          run: () => (need(), this.chess.ascii()),
+        },
         moves: {
           usage: '/moves [square]',
           help: 'Every legal move, or just the ones from a square.',
@@ -674,7 +979,8 @@ export default class ChessPage extends Component {
             need();
             const fen = words.join(' ');
             const check = validateFen(fen);
-            if (!check.ok) throw new CommandError(`That FEN isn’t valid: ${check.error}`);
+            if (!check.ok)
+              throw new CommandError(`That FEN isn’t valid: ${check.error}`);
             this.abort?.abort();
             this.thinking = false;
             this.chess = new Chess(fen);
@@ -688,12 +994,21 @@ export default class ChessPage extends Component {
             need();
             let result;
             try {
-              const long = /^([a-h][1-8])([a-h][1-8])([qrbn])?$/i.exec(san ?? '');
-              result = this.chess.move(long ? { from: long[1], to: long[2], promotion: long[3] } : san);
+              const long = /^([a-h][1-8])([a-h][1-8])([qrbn])?$/i.exec(
+                san ?? '',
+              );
+              result = this.chess.move(
+                long ? { from: long[1], to: long[2], promotion: long[3] } : san,
+              );
             } catch {
-              throw new CommandError(`${san ?? 'That'} isn’t a legal move. See /moves.`);
+              throw new CommandError(
+                `${san ?? 'That'} isn’t a legal move. See /moves.`,
+              );
             }
-            changed(ctx, `${ctx.fromName} played ${result.san} for ${COLOR_NAME[result.color]}.`);
+            changed(
+              ctx,
+              `${ctx.fromName} played ${result.san} for ${COLOR_NAME[result.color]}.`,
+            );
           },
         },
         clock: {
@@ -701,22 +1016,31 @@ export default class ChessPage extends Component {
           help: 'Sets how much time a side has left.',
           run: ([side, seconds], ctx) => {
             need();
-            if (!this.clocks) throw new CommandError('This game has no clocks.');
+            if (!this.clocks)
+              throw new CommandError('This game has no clocks.');
             const color = colorOf(side);
             const ms = Math.max(1, Number(seconds) || 0) * 1000;
             this.freezeClocks();
             this.clocks = { ...this.clocks, [color]: ms };
             if (!this.isOver) this.turnStartedAt = performance.now();
-            changed(ctx, `${ctx.fromName} set ${COLOR_NAME[color]}’s clock to ${Math.round(ms / 1000)}s.`);
+            changed(
+              ctx,
+              `${ctx.fromName} set ${COLOR_NAME[color]}’s clock to ${Math.round(ms / 1000)}s.`,
+            );
           },
         },
         level: {
           usage: '/level <easy|medium|hard>',
           help: 'Changes how strong the computer plays.',
           run: ([id], ctx) => {
-            if (!LEVELS[id]) throw new CommandError(`Pick one of ${Object.keys(LEVELS).join(', ')}.`);
+            if (!LEVELS[id])
+              throw new CommandError(
+                `Pick one of ${Object.keys(LEVELS).join(', ')}.`,
+              );
             this.level = id;
-            ctx.announce(`${ctx.fromName} set the computer to ${LEVELS[id].label}.`);
+            ctx.announce(
+              `${ctx.fromName} set the computer to ${LEVELS[id].label}.`,
+            );
           },
         },
         end: {
@@ -725,9 +1049,15 @@ export default class ChessPage extends Component {
           run: ([word], ctx) => {
             need();
             const winner = /^d/i.test(word ?? '') ? null : colorOf(word);
-            this.endWith(winner === null ? { winner: null, reason: 'agreement' } : { winner, reason: 'resign' });
+            this.endWith(
+              winner === null
+                ? { winner: null, reason: 'agreement' }
+                : { winner, reason: 'resign' },
+            );
             this.syncPosition();
-            ctx.announce(`${ctx.fromName} ended the game: ${winner === null ? 'a draw' : `${COLOR_NAME[winner]} wins`}.`);
+            ctx.announce(
+              `${ctx.fromName} ended the game: ${winner === null ? 'a draw' : `${COLOR_NAME[winner]} wins`}.`,
+            );
           },
         },
       },
@@ -737,7 +1067,13 @@ export default class ChessPage extends Component {
   // Host: sends the whole position to the other player after a debug change.
   syncPosition() {
     if (this.isBot || !this.room.isOnline) return;
-    this.room.send({ type: 'sync', pgn: this.chess.pgn(), fen: this.chess.fen(), clocks: this.clocks, result: this.result });
+    this.room.send({
+      type: 'sync',
+      pgn: this.chess.pgn(),
+      fen: this.chess.fen(),
+      clocks: this.clocks,
+      result: this.result,
+    });
   }
 
   // ─── Keyboard & controller (bound in Settings) ──────────────────────
@@ -757,7 +1093,11 @@ export default class ChessPage extends Component {
       case 'select': {
         // Enter on some other focused button (Resign, Rematch) presses that button instead.
         const focused = document.activeElement;
-        if (focused?.matches?.('button, a[href]') && !this.boardEl?.contains(focused)) return false;
+        if (
+          focused?.matches?.('button, a[href]') &&
+          !this.boardEl?.contains(focused)
+        )
+          return false;
         const square = this.cursor ?? this.selected;
         if (!square) {
           this.moveCursor('up');
@@ -793,7 +1133,8 @@ export default class ChessPage extends Component {
   }
 
   moveCursor(direction) {
-    const start = this.cursor ?? this.selected ?? (this.playerColor === 'w' ? 'e2' : 'e7');
+    const start =
+      this.cursor ?? this.selected ?? (this.playerColor === 'w' ? 'e2' : 'e7');
     let file = FILES.indexOf(start[0]);
     let rank = Number(start[1]) - 1;
     // Up is always up the screen, so a flipped board moves the other way.
@@ -807,7 +1148,9 @@ export default class ChessPage extends Component {
     file = Math.max(0, Math.min(7, file));
     rank = Math.max(0, Math.min(7, rank));
     this.cursor = `${FILES[file]}${rank + 1}`;
-    this.boardEl?.querySelector(`.chess-square[data-square="${this.cursor}"]`)?.focus({ focusVisible: true });
+    this.boardEl
+      ?.querySelector(`.chess-square[data-square="${this.cursor}"]`)
+      ?.focus({ focusVisible: true });
   }
 
   promote = (piece) => {
@@ -819,12 +1162,17 @@ export default class ChessPage extends Component {
   cancelPromotion = () => (this.pendingPromotion = null);
 
   async maybeBotMove() {
-    if (!this.isBot || this.isOver || this.chess.turn() === this.playerColor) return;
+    if (!this.isBot || this.isOver || this.chess.turn() === this.playerColor)
+      return;
     this.thinking = true;
     this.abort?.abort();
     const abort = (this.abort = new AbortController());
     await new Promise((resolve) => setTimeout(resolve, BOT_DELAY_MS));
-    const move = abort.signal.aborted ? null : await findBestMove(this.chess.fen(), this.level, { signal: abort.signal });
+    const move = abort.signal.aborted
+      ? null
+      : await findBestMove(this.chess.fen(), this.level, {
+          signal: abort.signal,
+        });
     if (abort.signal.aborted) return;
     this.thinking = false;
     if (move && this.commit(move)) this.runPremove();
@@ -837,7 +1185,9 @@ export default class ChessPage extends Component {
     const col = Math.floor(((x - rect.left) / rect.width) * 8);
     const row = Math.floor(((y - rect.top) / rect.height) * 8);
     if (col < 0 || col > 7 || row < 0 || row > 7) return null;
-    return this.flipped ? `${FILES[7 - col]}${row + 1}` : `${FILES[col]}${8 - row}`;
+    return this.flipped
+      ? `${FILES[7 - col]}${row + 1}`
+      : `${FILES[col]}${8 - row}`;
   }
 
   boardInput = modifier((board) => {
@@ -847,28 +1197,57 @@ export default class ChessPage extends Component {
 
     const setHover = (square) => {
       if (hover === square) return;
-      board.querySelector('.chess-square.is-drag-over')?.classList.remove('is-drag-over');
+      board
+        .querySelector('.chess-square.is-drag-over')
+        ?.classList.remove('is-drag-over');
       hover = square;
-      if (square) board.querySelector(`.chess-square[data-square="${square}"]`)?.classList.add('is-drag-over');
+      if (square)
+        board
+          .querySelector(`.chess-square[data-square="${square}"]`)
+          ?.classList.add('is-drag-over');
     };
 
     const onDown = (event) => {
-      if (event.button !== 0 || this.mode !== 'playing' || this.isOver || this.pendingPromotion) return;
+      if (
+        event.button !== 0 ||
+        this.mode !== 'playing' ||
+        this.isOver ||
+        this.pendingPromotion
+      )
+        return;
       const square = this.squareFromPoint(event.clientX, event.clientY);
       if (!square) return;
       const mine = this.pieceAt(square)?.color === this.playerColor;
-      drag = { id: event.pointerId, square, x: event.clientX, y: event.clientY, moved: false, mine, wasSelected: this.selected === square, token: null };
+      drag = {
+        id: event.pointerId,
+        square,
+        x: event.clientX,
+        y: event.clientY,
+        moved: false,
+        mine,
+        wasSelected: this.selected === square,
+        token: null,
+      };
       if (mine) {
         event.preventDefault();
         board.setPointerCapture?.(event.pointerId);
-        drag.token = board.querySelector(`.chess-token[data-square="${square}"]`);
-        if (!drag.wasSelected && !(this.selected && this.targets.has(square))) this.selected = square;
+        drag.token = board.querySelector(
+          `.chess-token[data-square="${square}"]`,
+        );
+        if (!drag.wasSelected && !(this.selected && this.targets.has(square)))
+          this.selected = square;
       }
     };
 
     const onMove = (event) => {
-      if (!drag || event.pointerId !== drag.id || !drag.mine || !drag.token) return;
-      if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < DRAG_SLOP_PX) return;
+      if (!drag || event.pointerId !== drag.id || !drag.mine || !drag.token)
+        return;
+      if (
+        !drag.moved &&
+        Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <
+          DRAG_SLOP_PX
+      )
+        return;
       drag.moved = true;
       const rect = board.getBoundingClientRect();
       // The board may be zoomed (picture-in-picture): pointer maths is on screen, the translate is in the board's own pixels.
@@ -895,13 +1274,24 @@ export default class ChessPage extends Component {
         return;
       }
       const token = current.token;
-      const stays = square && square !== current.square ? this.tryMove(current.square, square) : false;
-      if (square && square !== current.square && !stays && !this.pendingPromotion) sfx('chess.illegal');
+      const stays =
+        square && square !== current.square
+          ? this.tryMove(current.square, square)
+          : false;
+      if (
+        square &&
+        square !== current.square &&
+        !stays &&
+        !this.pendingPromotion
+      )
+        sfx('chess.illegal');
       token.classList.remove('is-dragging');
       // A piece dropped on its new square shouldn't slide there again from where it started.
       if (stays) {
         token.classList.add('no-anim');
-        requestAnimationFrame(() => requestAnimationFrame(() => token.classList.remove('no-anim')));
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => token.classList.remove('no-anim')),
+        );
       }
       token.style.removeProperty('translate');
     };
@@ -945,11 +1335,13 @@ export default class ChessPage extends Component {
     const history = this.chess.history({ verbose: true });
     if (!history.length) return;
     this.chess.undo();
-    if (this.chess.turn() !== color && this.chess.history().length) this.chess.undo();
+    if (this.chess.turn() !== color && this.chess.history().length)
+      this.chess.undo();
     this.premoves = [];
     this.selected = null;
     this.offer = null;
-    if (this.clocks && this.turnStartedAt !== null) this.turnStartedAt = performance.now();
+    if (this.clocks && this.turnStartedAt !== null)
+      this.turnStartedAt = performance.now();
     this.afterChange();
   }
 
@@ -972,21 +1364,35 @@ export default class ChessPage extends Component {
     this.offer = null;
     this.room.send({ type: 'offer-reply', kind: offer.kind, accept });
     if (!accept) return;
-    if (offer.kind === 'draw') this.endWith({ winner: null, reason: 'agreement' });
+    if (offer.kind === 'draw')
+      this.endWith({ winner: null, reason: 'agreement' });
     else this.takeback(other(this.playerColor));
   };
 
   resign = async () => {
     if (this.isOver) return;
-    if (!(await askConfirm({ title: 'Resign this game?', message: 'Your opponent wins straight away.', confirmLabel: 'Hold to resign', cancelLabel: 'Keep playing' })) || this.isOver) return;
+    if (
+      !(await askConfirm({
+        title: 'Resign this game?',
+        message: 'Your opponent wins straight away.',
+        confirmLabel: 'Hold to resign',
+        cancelLabel: 'Keep playing',
+      })) ||
+      this.isOver
+    )
+      return;
     this.endWith({ winner: other(this.playerColor), reason: 'resign' });
     if (!this.isBot) this.room.send({ type: 'resign' });
   };
 
   // Online, the host starts the rematch once the guest has pressed Ready.
   playAgain = () => {
-    if (this.isBot) this.startFromLobby(this.settings.color === 'random' ? undefined : this.playerColor);
-    else if (this.room.isHost && this.room.allReady) this.startFromLobby(other(this.playerColor));
+    if (this.isBot)
+      this.startFromLobby(
+        this.settings.color === 'random' ? undefined : this.playerColor,
+      );
+    else if (this.room.isHost && this.room.allReady)
+      this.startFromLobby(other(this.playerColor));
   };
 
   readyCheck = () => this.room.callReadyCheck();
@@ -1002,7 +1408,9 @@ export default class ChessPage extends Component {
   cancelLobby = () => (this.confirmingLobby = false);
 
   get lobbyWarning() {
-    return this.isBot ? 'The game in progress will be cancelled and this position will be lost.' : 'The game in progress will be cancelled for both players and this position will be lost.';
+    return this.isBot
+      ? 'The game in progress will be cancelled and this position will be lost.'
+      : 'The game in progress will be cancelled for both players and this position will be lost.';
   }
 
   toLobby = () => {
@@ -1021,7 +1429,17 @@ export default class ChessPage extends Component {
   }
 
   leave = async () => {
-    if (this.mode === 'playing' && !this.isOver && !(await askConfirm({ title: 'Leave the game?', message: 'You’ll be disconnected, and leaving counts as a loss.', confirmLabel: 'Hold to leave', cancelLabel: 'Keep playing' }))) return;
+    if (
+      this.mode === 'playing' &&
+      !this.isOver &&
+      !(await askConfirm({
+        title: 'Leave the game?',
+        message: 'You’ll be disconnected, and leaving counts as a loss.',
+        confirmLabel: 'Hold to leave',
+        cancelLabel: 'Keep playing',
+      }))
+    )
+      return;
     this.room.close();
     this.backToLobby();
   };
@@ -1041,11 +1459,25 @@ export default class ChessPage extends Component {
     switch (message.type) {
       case 'start': {
         const host = this.room.members.find((m) => m.isHost);
-        this.begin({ fen: message.fen, color: message.color, clock: message.clock, takebacks: message.takebacks, opponent: { kind: 'human', name: host?.name ?? 'Host', avatar: host?.avatar } });
+        this.begin({
+          fen: message.fen,
+          // A spectator is neither player, so it watches from White's side.
+          color: this.iAmSpectator ? 'w' : message.color,
+          clock: message.clock,
+          takebacks: message.takebacks,
+          opponent: {
+            kind: 'human',
+            name: host?.name ?? 'Host',
+            avatar: host?.avatar,
+          },
+        });
         break;
       }
       case 'move':
-        this.commit({ from: message.from, to: message.to, promotion: message.promotion }, { clocks: message.clocks });
+        this.commit(
+          { from: message.from, to: message.to, promotion: message.promotion },
+          { clocks: message.clocks },
+        );
         // Both boards replay the same moves; if they ever disagree, trust the mover.
         if (message.fen && this.chess.fen() !== message.fen) {
           this.chess.load(message.fen);
@@ -1054,18 +1486,26 @@ export default class ChessPage extends Component {
         this.runPremove();
         break;
       case 'resign':
-        this.endWith({ winner: this.playerColor, reason: 'resign' });
+        // The message doesn't say who sent it, and a spectator is neither of
+        // them, so it only learns that somebody resigned.
+        this.endWith({
+          winner: this.iAmSpectator ? null : this.playerColor,
+          reason: 'resign',
+        });
         break;
       case 'flag':
         if (!this.isOver) this.flag(message.color);
         break;
       case 'offer':
-        if (!this.isOver) this.offer = { kind: message.kind, from: 'them' };
+        // Not a spectator's to accept or decline.
+        if (!this.isOver && !this.iAmSpectator)
+          this.offer = { kind: message.kind, from: 'them' };
         break;
       case 'offer-reply':
         this.offer = null;
         if (!message.accept) break;
-        if (message.kind === 'draw') this.endWith({ winner: null, reason: 'agreement' });
+        if (message.kind === 'draw')
+          this.endWith({ winner: null, reason: 'agreement' });
         else this.takeback(this.playerColor);
         break;
       case 'lobby':
@@ -1093,7 +1533,13 @@ export default class ChessPage extends Component {
   }
 
   <template>
-    <ToolPage @route="chess" @game={{true}} @busy={{this.busy}} @closeWarning={{this.closeWarning}} @subtitle="Take on the computer at three levels, or challenge a friend online. Clocks, Chess960 and premoves for the sweaty games.">
+    <ToolPage
+      @route="chess"
+      @game={{true}}
+      @busy={{this.busy}}
+      @closeWarning={{this.closeWarning}}
+      @subtitle="Take on the computer at three levels, or challenge a friend online. Clocks, Chess960 and premoves for the sweaty games."
+    >
       {{#if (eq this.mode "playing")}}
         <div class="game-shell chess-shell pop-in">
           <div class="chess-main">
@@ -1103,73 +1549,165 @@ export default class ChessPage extends Component {
                 {{this.opponentName}}
               </span>
               <span class="chess-captured">
-                {{#each this.captured.byThem as |p|}}<Icon @name={{p.icon}} @size={{14}} @fill={{p.fill}} class="chess-captured-piece" />{{/each}}
-                {{#if this.captured.theirLead}}<span class="chess-lead">{{this.captured.theirLead}}</span>{{/if}}
+                {{#each this.captured.byThem as |p|}}<Icon
+                    @name={{p.icon}}
+                    @size={{14}}
+                    @fill={{p.fill}}
+                    class="chess-captured-piece"
+                  />{{/each}}
+                {{#if this.captured.theirLead}}<span
+                    class="chess-lead"
+                  >{{this.captured.theirLead}}</span>{{/if}}
               </span>
-              {{#if this.theirClock}}<span class="chess-clock {{if this.theirClock.running 'is-running'}} {{if this.theirClock.low 'is-low'}}">{{this.theirClock.text}}</span>{{/if}}
+              {{#if this.theirClock}}<span
+                  class="chess-clock
+                    {{if this.theirClock.running 'is-running'}}
+                    {{if this.theirClock.low 'is-low'}}"
+                >{{this.theirClock.text}}</span>{{/if}}
             </div>
 
             <div class="chess-board-wrap">
-              <div class="chess-board {{if this.canPremove 'is-premoving'}}" data-sound="off" role="grid" aria-label="Chess board" {{this.boardInput}}>
+              <div
+                class="chess-board {{if this.canPremove 'is-premoving'}}"
+                data-sound="off"
+                role="grid"
+                aria-label="Chess board"
+                {{this.boardInput}}
+              >
                 {{#each this.squares key="square" as |sq|}}
                   <button
                     type="button"
-                    class="chess-square {{if sq.dark 'is-dark' 'is-light'}} {{if sq.selected 'is-selected'}} {{if sq.last 'is-last'}} {{if sq.check 'is-check'}} {{if sq.target 'is-target'}} {{if sq.capture 'is-capture'}} {{if sq.premove 'is-premove'}}"
+                    class="chess-square
+                      {{if sq.dark 'is-dark' 'is-light'}}
+                      {{if sq.selected 'is-selected'}}
+                      {{if sq.last 'is-last'}}
+                      {{if sq.check 'is-check'}}
+                      {{if sq.target 'is-target'}}
+                      {{if sq.capture 'is-capture'}}
+                      {{if sq.premove 'is-premove'}}"
                     data-square={{sq.square}}
                     aria-label={{sq.label}}
                     {{on "click" (fn this.keySquare sq.square)}}
                   >
-                    {{#if sq.rankLabel}}<span class="chess-coord chess-rank">{{sq.rankLabel}}</span>{{/if}}
-                    {{#if sq.fileLabel}}<span class="chess-coord chess-file">{{sq.fileLabel}}</span>{{/if}}
+                    {{#if sq.rankLabel}}<span
+                        class="chess-coord chess-rank"
+                      >{{sq.rankLabel}}</span>{{/if}}
+                    {{#if sq.fileLabel}}<span
+                        class="chess-coord chess-file"
+                      >{{sq.fileLabel}}</span>{{/if}}
                   </button>
                 {{/each}}
                 <div class="chess-pieces" aria-hidden="true">
                   {{#each this.tokenViews key="id" as |t|}}
-                    <div class="chess-token {{if t.premoved 'is-premoved'}}" data-square={{t.square}} style={{t.style}}>
-                      <Icon @name={{t.icon}} @size={{44}} @fill={{t.fill}} class="chess-piece is-{{t.color}}" />
+                    <div
+                      class="chess-token {{if t.premoved 'is-premoved'}}"
+                      data-square={{t.square}}
+                      style={{t.style}}
+                    >
+                      <Icon
+                        @name={{t.icon}}
+                        @size={{44}}
+                        @fill={{t.fill}}
+                        class="chess-piece is-{{t.color}}"
+                      />
                     </div>
                   {{/each}}
                 </div>
               </div>
 
               {{#if this.pendingPromotion}}
-                <div class="chess-promotion pop-in" role="dialog" aria-label="Promote pawn to">
+                <div
+                  class="chess-promotion pop-in"
+                  role="dialog"
+                  aria-label="Promote pawn to"
+                >
                   <span class="qr-label">Promote to</span>
                   <div class="chess-promotion-choices">
                     {{#each this.promotions as |p|}}
-                      <button type="button" class="chess-promotion-btn" aria-label={{p}} {{on "click" (fn this.promote p)}}>
-                        <Icon @name={{pieceIcon p}} @size={{36}} @fill={{pieceFill this.playerColor}} class="chess-piece is-{{this.playerColor}}" />
+                      <button
+                        type="button"
+                        class="chess-promotion-btn"
+                        aria-label={{p}}
+                        {{on "click" (fn this.promote p)}}
+                      >
+                        <Icon
+                          @name={{pieceIcon p}}
+                          @size={{36}}
+                          @fill={{pieceFill this.playerColor}}
+                          class="chess-piece is-{{this.playerColor}}"
+                        />
                       </button>
                     {{/each}}
                   </div>
-                  <button type="button" class="btn" {{on "click" this.cancelPromotion}}>Cancel</button>
+                  <button
+                    type="button"
+                    class="btn"
+                    {{on "click" this.cancelPromotion}}
+                  >Cancel</button>
                 </div>
               {{/if}}
             </div>
 
             <div class="chess-player">
-              <span class="chess-player-name"><AvatarPortrait @avatar={{this.room.profile.avatar}} @size={{28}} /> You ({{colorName this.playerColor}})</span>
+              <span class="chess-player-name"><AvatarPortrait
+                  @avatar={{this.room.profile.avatar}}
+                  @size={{28}}
+                />
+                You ({{colorName this.playerColor}})</span>
               <span class="chess-captured">
-                {{#each this.captured.byMe as |p|}}<Icon @name={{p.icon}} @size={{14}} @fill={{p.fill}} class="chess-captured-piece" />{{/each}}
-                {{#if this.captured.myLead}}<span class="chess-lead">{{this.captured.myLead}}</span>{{/if}}
+                {{#each this.captured.byMe as |p|}}<Icon
+                    @name={{p.icon}}
+                    @size={{14}}
+                    @fill={{p.fill}}
+                    class="chess-captured-piece"
+                  />{{/each}}
+                {{#if this.captured.myLead}}<span
+                    class="chess-lead"
+                  >{{this.captured.myLead}}</span>{{/if}}
               </span>
-              {{#if this.myClock}}<span class="chess-clock {{if this.myClock.running 'is-running'}} {{if this.myClock.low 'is-low'}}">{{this.myClock.text}}</span>{{/if}}
+              {{#if this.myClock}}<span
+                  class="chess-clock
+                    {{if this.myClock.running 'is-running'}}
+                    {{if this.myClock.low 'is-low'}}"
+                >{{this.myClock.text}}</span>{{/if}}
             </div>
           </div>
 
           <aside class="chess-side">
-            <p class="game-status {{if this.isOver 'is-over'}}" role="status">{{this.status}}</p>
+            <p
+              class="game-status {{if this.isOver 'is-over'}}"
+              role="status"
+            >{{this.status}}</p>
 
             {{#if this.offer}}
               <div class="chess-offer pop-in">
                 {{#if (eq this.offer.from "them")}}
-                  <span>{{this.opponentName}} {{if (eq this.offer.kind "draw") "offers a draw." "asks to take back their last move."}}</span>
+                  <span>{{this.opponentName}}
+                    {{if
+                      (eq this.offer.kind "draw")
+                      "offers a draw."
+                      "asks to take back their last move."
+                    }}</span>
                   <div class="game-actions">
-                    <button type="button" class="btn active" {{on "click" (fn this.answerOffer true)}}>Accept</button>
-                    <button type="button" class="btn" {{on "click" (fn this.answerOffer false)}}>Decline</button>
+                    <button
+                      type="button"
+                      class="btn active"
+                      {{on "click" (fn this.answerOffer true)}}
+                    >Accept</button>
+                    <button
+                      type="button"
+                      class="btn"
+                      {{on "click" (fn this.answerOffer false)}}
+                    >Decline</button>
                   </div>
                 {{else}}
-                  <span class="tool-hint">{{if (eq this.offer.kind "draw") "Draw offered." "Takeback requested."}} Waiting for {{this.opponentName}}…</span>
+                  <span class="tool-hint">{{if
+                      (eq this.offer.kind "draw")
+                      "Draw offered."
+                      "Takeback requested."
+                    }}
+                    Waiting for
+                    {{this.opponentName}}…</span>
                 {{/if}}
               </div>
             {{/if}}
@@ -1177,54 +1715,136 @@ export default class ChessPage extends Component {
             <div class="game-actions">
               {{#if this.isOver}}
                 {{#if this.isBot}}
-                  <button type="button" class="btn active" {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
+                  <button
+                    type="button"
+                    class="btn active"
+                    {{on "click" this.playAgain}}
+                  ><Icon @name="rotate-cw" @size={{13}} /> Play again</button>
                 {{else if this.room.isHost}}
                   {{#unless this.room.allReady}}
-                    <span class="tool-hint">Waiting for {{this.opponentName}} to agree to a rematch…</span>
-                    <button type="button" class="btn" {{on "click" this.readyCheck}}><Icon @name="bell-ring" @size={{13}} /> Ready check</button>
+                    <span class="tool-hint">Waiting for
+                      {{this.opponentName}}
+                      to agree to a rematch…</span>
+                    <button
+                      type="button"
+                      class="btn"
+                      {{on "click" this.readyCheck}}
+                    ><Icon @name="bell-ring" @size={{13}} />
+                      Ready check</button>
                   {{/unless}}
-                  <button type="button" class="btn active" disabled={{if this.room.allReady false true}} {{on "click" this.playAgain}}><Icon @name="rotate-cw" @size={{13}} /> Rematch</button>
+                  <button
+                    type="button"
+                    class="btn active"
+                    disabled={{if this.room.allReady false true}}
+                    {{on "click" this.playAgain}}
+                  ><Icon @name="rotate-cw" @size={{13}} /> Rematch</button>
                 {{else}}
-                  <ReadyButton @room={{this.room}} @label="Rematch?" @readyLabel="Ready for a rematch" />
+                  <ReadyButton
+                    @room={{this.room}}
+                    @label="Rematch?"
+                    @readyLabel="Ready for a rematch"
+                  />
                 {{/if}}
+              {{else if this.iAmSpectator}}
+                <span class="arcade-chip"><Icon @name="eye" @size={{13}} />
+                  Watching</span>
               {{else}}
                 {{#if this.takebacks}}
-                  <button type="button" class="btn" disabled={{if this.canTakeback false true}} {{on "click" this.requestTakeback}}><Icon @name="undo-2" @size={{13}} /> Takeback</button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={{if this.canTakeback false true}}
+                    {{on "click" this.requestTakeback}}
+                  ><Icon @name="undo-2" @size={{13}} /> Takeback</button>
                 {{/if}}
                 {{#unless this.isBot}}
-                  <button type="button" class="btn" disabled={{if this.offer true false}} {{on "click" this.offerDraw}}><Icon @name="handshake" @size={{13}} /> Offer draw</button>
+                  <button
+                    type="button"
+                    class="btn"
+                    disabled={{if this.offer true false}}
+                    {{on "click" this.offerDraw}}
+                  ><Icon @name="handshake" @size={{13}} /> Offer draw</button>
                 {{/unless}}
-                <button type="button" class="btn" {{on "click" this.resign}}><Icon @name="flag" @size={{13}} /> Resign</button>
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.resign}}
+                ><Icon @name="flag" @size={{13}} /> Resign</button>
               {{/if}}
+              <GameSettings @game="chess" />
               {{#if (showLobbyButton this.isBot this.room.isHost)}}
-                <button type="button" class="btn" {{on "click" this.askLobby}}><Icon @name="users" @size={{13}} /> Lobby</button>
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.askLobby}}
+                ><Icon @name="users" @size={{13}} /> Lobby</button>
               {{else}}
-                <button type="button" class="btn" {{on "click" this.leave}}><Icon @name="log-out" @size={{13}} /> Leave room</button>
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.leave}}
+                ><Icon @name="log-out" @size={{13}} /> Leave room</button>
               {{/if}}
             </div>
             {{#if this.confirmingLobby}}
-              <HoldConfirm @title="Back to the lobby?" @message={{this.lobbyWarning}} @confirmLabel="Hold to end game" @onConfirm={{this.toLobby}} @onCancel={{this.cancelLobby}} />
+              <HoldConfirm
+                @title="Back to the lobby?"
+                @message={{this.lobbyWarning}}
+                @confirmLabel="Hold to end game"
+                @onConfirm={{this.toLobby}}
+                @onCancel={{this.cancelLobby}}
+              />
             {{/if}}
 
             <ol class="chess-moves" aria-label="Moves">
               {{#each this.movePairs as |pair|}}
-                <li><span class="chess-move-n">{{pair.n}}.</span><span>{{pair.white}}</span><span>{{pair.black}}</span></li>
+                <li><span class="chess-move-n">{{pair.n}}.</span><span
+                  >{{pair.white}}</span><span>{{pair.black}}</span></li>
               {{else}}
                 <li class="tool-hint">No moves yet.</li>
               {{/each}}
             </ol>
             <GameChat @room={{this.room}} @floating={{true}} />
-            <p class="tool-hint chess-tip">Drag or click to move. While it’s not your turn, moves are queued as premoves; right-click the board to cancel them.</p>
+            <p class="tool-hint chess-tip">Drag or click to move. While it’s not
+              your turn, moves are queued as premoves; right-click the board to
+              cancel them.</p>
           </aside>
         </div>
       {{else}}
-        <GameLobby @room={{this.room}} @seats={{this.seats}} @maxSeats={{2}} @onStart={{this.startFromLobby}} @blocker={{this.fenError}}>
+        <GameLobby
+          @game="chess"
+          @room={{this.room}}
+          @seats={{this.seats}}
+          @maxSeats={{2}}
+          @onAddBot={{if this.canAddBot this.addBot}}
+          @onRemoveBot={{this.removeBot}}
+          @spectatable={{this.spectatable}}
+          @botLevels={{this.botLevelMap}}
+          @botLevelOptions={{this.levels}}
+          @onSetBotLevel={{this.setBotLevel}}
+          @onStart={{this.startFromLobby}}
+          @blocker={{this.blocker}}
+        >
           <:rules>
             <div class="lobby-rule">
               <span class="lobby-rule-text"><span class="qr-label">Time control</span></span>
-              <div class="chess-time-grid" role="group" aria-label="Time control">
+              <div
+                class="chess-time-grid"
+                role="group"
+                aria-label="Time control"
+              >
                 {{#each this.timeControls as |t|}}
-                  <button type="button" class="chess-time {{if (eq this.settings.time t.id) 'active'}}" aria-pressed={{if (eq this.settings.time t.id) "true" "false"}} {{on "click" (fn this.setRule "time" t.id)}}>
+                  <button
+                    type="button"
+                    class="chess-time
+                      {{if (eq this.settings.time t.id) 'active'}}"
+                    aria-pressed={{if
+                      (eq this.settings.time t.id)
+                      "true"
+                      "false"
+                    }}
+                    {{on "click" (fn this.setRule "time" t.id)}}
+                  >
                     <span class="chess-time-label">{{t.label}}</span>
                     <span class="chess-time-group">{{t.group}}</span>
                   </button>
@@ -1232,44 +1852,115 @@ export default class ChessPage extends Component {
               </div>
               {{#if (eq this.settings.time "custom")}}
                 <div class="chess-custom-time">
-                  <label><span class="qr-label is-muted">Minutes</span><input type="number" min="0.5" max="180" step="0.5" value={{this.settings.minutes}} {{on "change" (fn this.setRuleFromInput "minutes")}} /></label>
-                  <label><span class="qr-label is-muted">Increment (s)</span><input type="number" min="0" max="60" value={{this.settings.increment}} {{on "change" (fn this.setRuleFromInput "increment")}} /></label>
+                  <label><span class="qr-label is-muted">Minutes</span><input
+                      type="number"
+                      min="0.5"
+                      max="180"
+                      step="0.5"
+                      value={{this.settings.minutes}}
+                      {{on "change" (fn this.setRuleFromInput "minutes")}}
+                    /></label>
+                  <label><span class="qr-label is-muted">Increment (s)</span><input
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={{this.settings.increment}}
+                      {{on "change" (fn this.setRuleFromInput "increment")}}
+                    /></label>
                 </div>
               {{/if}}
             </div>
             <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">{{this.colorRuleLabel}}</span></span>
-              <div class="math-tabs" role="group" aria-label={{this.colorRuleLabel}}>
+              <span class="lobby-rule-text"><span
+                  class="qr-label"
+                >{{this.colorRuleLabel}}</span></span>
+              <div
+                class="math-tabs"
+                role="group"
+                aria-label={{this.colorRuleLabel}}
+              >
                 {{#each this.colorChoices as |c|}}
-                  <button type="button" class="qr-tab {{if (eq this.settings.color c.id) 'active'}}" aria-pressed={{if (eq this.settings.color c.id) "true" "false"}} {{on "click" (fn this.setRule "color" c.id)}}>{{c.label}}</button>
+                  <button
+                    type="button"
+                    class="qr-tab {{if (eq this.settings.color c.id) 'active'}}"
+                    aria-pressed={{if
+                      (eq this.settings.color c.id)
+                      "true"
+                      "false"
+                    }}
+                    {{on "click" (fn this.setRule "color" c.id)}}
+                  >{{c.label}}</button>
                 {{/each}}
               </div>
             </div>
             {{#if this.vsBotInLobby}}
               <div class="lobby-rule">
-                <span class="lobby-rule-text"><span class="qr-label">Computer level</span></span>
+                <span class="lobby-rule-text"><span class="qr-label">Computer
+                    level</span></span>
                 <div class="math-tabs" role="group" aria-label="Computer level">
                   {{#each this.levels as |l|}}
-                    <button type="button" class="qr-tab {{if (eq this.settings.level l.id) 'active'}}" aria-pressed={{if (eq this.settings.level l.id) "true" "false"}} {{on "click" (fn this.setRule "level" l.id)}}>{{l.label}}</button>
+                    <button
+                      type="button"
+                      class="qr-tab
+                        {{if (eq this.settings.level l.id) 'active'}}"
+                      aria-pressed={{if
+                        (eq this.settings.level l.id)
+                        "true"
+                        "false"
+                      }}
+                      {{on "click" (fn this.setRule "level" l.id)}}
+                    >{{l.label}}</button>
                   {{/each}}
                 </div>
               </div>
             {{/if}}
             <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">Starting position</span>{{#if (eq this.settings.start "chess960")}}<span class="tool-hint">Shuffled back rank, same for both sides. Castling is off.</span>{{/if}}</span>
-              <div class="math-tabs" role="group" aria-label="Starting position">
+              <span class="lobby-rule-text"><span class="qr-label">Starting
+                  position</span>{{#if
+                  (eq this.settings.start "chess960")
+                }}<span class="tool-hint">Shuffled back rank, same for both
+                    sides. Castling is off.</span>{{/if}}</span>
+              <div
+                class="math-tabs"
+                role="group"
+                aria-label="Starting position"
+              >
                 {{#each this.startOptions as |o|}}
-                  <button type="button" class="qr-tab {{if (eq this.settings.start o.id) 'active'}}" aria-pressed={{if (eq this.settings.start o.id) "true" "false"}} {{on "click" (fn this.setRule "start" o.id)}}>{{o.label}}</button>
+                  <button
+                    type="button"
+                    class="qr-tab {{if (eq this.settings.start o.id) 'active'}}"
+                    aria-pressed={{if
+                      (eq this.settings.start o.id)
+                      "true"
+                      "false"
+                    }}
+                    {{on "click" (fn this.setRule "start" o.id)}}
+                  >{{o.label}}</button>
                 {{/each}}
               </div>
               {{#if (eq this.settings.start "fen")}}
-                <input type="text" placeholder={{STANDARD_FEN}} aria-label="FEN" value={{this.settings.fen}} {{on "change" (fn this.setRuleFromInput "fen")}} />
+                <input
+                  type="text"
+                  placeholder={{STANDARD_FEN}}
+                  aria-label="FEN"
+                  value={{this.settings.fen}}
+                  {{on "change" (fn this.setRuleFromInput "fen")}}
+                />
               {{/if}}
             </div>
             <label class="lobby-rule is-switch">
-              <span class="lobby-rule-text"><span class="qr-label">Takebacks</span><span class="tool-hint">Online, your opponent has to agree.</span></span>
+              <span class="lobby-rule-text"><span
+                  class="qr-label"
+                >Takebacks</span><span class="tool-hint">Online, your opponent
+                  has to agree.</span></span>
               <span class="qr-switch">
-                <input type="checkbox" role="switch" checked={{this.settings.takebacks}} aria-checked={{if this.settings.takebacks "true" "false"}} {{on "change" (fn this.toggleRule "takebacks")}} />
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={{this.settings.takebacks}}
+                  aria-checked={{if this.settings.takebacks "true" "false"}}
+                  {{on "change" (fn this.toggleRule "takebacks")}}
+                />
                 <span class="qr-switch-track" aria-hidden="true"></span>
               </span>
             </label>
@@ -1277,9 +1968,30 @@ export default class ChessPage extends Component {
           <:profile>
             <div class="chess-prefs">
               <span class="qr-label is-muted">Your board</span>
-              <label class="qr-switch"><input type="checkbox" role="switch" checked={{this.prefs.premoves}} aria-checked={{if this.prefs.premoves "true" "false"}} {{on "change" (fn this.setPref "premoves")}} /><span class="qr-switch-track" aria-hidden="true"></span> Premoves</label>
-              <label class="qr-switch"><input type="checkbox" role="switch" checked={{this.prefs.autoQueen}} aria-checked={{if this.prefs.autoQueen "true" "false"}} {{on "change" (fn this.setPref "autoQueen")}} /><span class="qr-switch-track" aria-hidden="true"></span> Always promote to queen</label>
-              <label class="qr-switch"><input type="checkbox" role="switch" checked={{this.prefs.hints}} aria-checked={{if this.prefs.hints "true" "false"}} {{on "change" (fn this.setPref "hints")}} /><span class="qr-switch-track" aria-hidden="true"></span> Show legal moves</label>
+              <label class="qr-switch"><input
+                  type="checkbox"
+                  role="switch"
+                  checked={{this.prefs.premoves}}
+                  aria-checked={{if this.prefs.premoves "true" "false"}}
+                  {{on "change" (fn this.setPref "premoves")}}
+                /><span class="qr-switch-track" aria-hidden="true"></span>
+                Premoves</label>
+              <label class="qr-switch"><input
+                  type="checkbox"
+                  role="switch"
+                  checked={{this.prefs.autoQueen}}
+                  aria-checked={{if this.prefs.autoQueen "true" "false"}}
+                  {{on "change" (fn this.setPref "autoQueen")}}
+                /><span class="qr-switch-track" aria-hidden="true"></span>
+                Always promote to queen</label>
+              <label class="qr-switch"><input
+                  type="checkbox"
+                  role="switch"
+                  checked={{this.prefs.hints}}
+                  aria-checked={{if this.prefs.hints "true" "false"}}
+                  {{on "change" (fn this.setPref "hints")}}
+                /><span class="qr-switch-track" aria-hidden="true"></span>
+                Show legal moves</label>
             </div>
           </:profile>
         </GameLobby>

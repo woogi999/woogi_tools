@@ -8,8 +8,10 @@ import { sfx } from './sound';
 // Anything inside [data-sound="off"] stays quiet (the games' 3D tables and
 // boards make their own sounds).
 
-const PRESSABLE = 'button, a[href], [role="button"], [role="tab"], [role="radio"], summary, select, label.btn, label.qr-switch, .home-chip';
-const SEARCH = '.home-search-input, .sidebar-search input, input[type="search"], .command-palette input';
+const PRESSABLE =
+  'button, a[href], [role="button"], [role="tab"], [role="radio"], summary, select, label.btn, label.qr-switch, .home-chip';
+const SEARCH =
+  '.home-search-input, .sidebar-search input, input[type="search"], .command-palette input';
 
 let installed = false;
 
@@ -18,7 +20,10 @@ export function installUiSounds() {
   installed = true;
   let hovered = null;
 
-  const quiet = (el) => !el || el.closest('[data-sound="off"]') || el.matches(':disabled, [aria-disabled="true"]');
+  const quiet = (el) =>
+    !el ||
+    el.closest('[data-sound="off"]') ||
+    el.matches(':disabled, [aria-disabled="true"]');
 
   document.addEventListener(
     'pointerover',
@@ -31,7 +36,7 @@ export function installUiSounds() {
       if (!target || quiet(target)) return;
       sfx(card ? 'cards.hover' : 'ui.hover');
     },
-    { passive: true }
+    { passive: true },
   );
 
   document.addEventListener(
@@ -51,7 +56,7 @@ export function installUiSounds() {
       }
       if (el.closest(PRESSABLE)) sfx('ui.click');
     },
-    { capture: true, passive: true }
+    { capture: true, passive: true },
   );
 
   document.addEventListener(
@@ -59,8 +64,9 @@ export function installUiSounds() {
     (event) => {
       const el = event.target;
       if (el?.matches?.(SEARCH) && !quiet(el)) sfx('ui.type');
-      else if (el?.matches?.('input[type="range"]') && !quiet(el)) sfx('ui.tick');
+      else if (el?.matches?.('input[type="range"]') && !quiet(el))
+        sfx('ui.tick');
     },
-    { passive: true }
+    { passive: true },
   );
 }

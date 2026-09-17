@@ -21,7 +21,10 @@ const eq = (a, b) => a === b;
 const showFace = (slot, activeKey) => !slot.lite || slot.key === activeKey;
 const slotAt = (slots, i) => slots[i];
 // A spare card in the pool is hidden; a dealt one keeps `is-dealing` (restarted by `redeal`).
-const cardClass = (slot, activeKey) => (slot ? `fan-card is-dealing ${slot.item.className ?? ''}${slot.key === activeKey ? ' is-active' : ''}` : 'fan-card is-pooled');
+const cardClass = (slot, activeKey) =>
+  slot
+    ? `fan-card is-dealing ${slot.item.className ?? ''}${slot.key === activeKey ? ' is-active' : ''}`
+    : 'fan-card is-pooled';
 
 // A fan of cards held by a drawn hand. The hand is two drawings
 // (public/search_assets) on the same 768×1924 canvas stacked in one spot:
@@ -51,9 +54,11 @@ export default class FanHand extends Component {
   get layout() {
     const items = this.args.items ?? [];
     const count = items.length;
-    const step = count > 1 ? Math.min(MAX_STEP_DEG, MAX_FAN_DEG / (count - 1)) : 0;
+    const step =
+      count > 1 ? Math.min(MAX_STEP_DEG, MAX_FAN_DEG / (count - 1)) : 0;
     const middle = (count - 1) / 2;
-    const stagger = count > STAGGER_LIMIT ? 0 : Math.min(25, DEAL_MS / Math.max(1, count));
+    const stagger =
+      count > STAGGER_LIMIT ? 0 : Math.min(25, DEAL_MS / Math.max(1, count));
     // A high-water mark, not state anything renders from: the pool only ever grows.
     // eslint-disable-next-line ember/no-side-effects
     this.poolSize = Math.max(this.poolSize, count);
@@ -65,7 +70,9 @@ export default class FanHand extends Component {
         item,
         key: item.key,
         lite: count > FULL_FACE_LIMIT && i !== count - 1,
-        style: htmlSafe(`--angle: ${((i - middle) * step).toFixed(2)}deg; --delay: ${Math.round(i * stagger)}ms; z-index: ${i + 1}`),
+        style: htmlSafe(
+          `--angle: ${((i - middle) * step).toFixed(2)}deg; --delay: ${Math.round(i * stagger)}ms; z-index: ${i + 1}`,
+        ),
       })),
       pool: Array.from({ length: this.poolSize }, (_, i) => i),
     };
@@ -74,15 +81,20 @@ export default class FanHand extends Component {
   // The card under a point, by its angle around the pivot; null when off the fan.
   cardAt(stage, x, y) {
     const { slots, step } = this.layout;
-    const pivot = stage.querySelector('.card-hand-pivot')?.getBoundingClientRect();
+    const pivot = stage
+      .querySelector('.card-hand-pivot')
+      ?.getBoundingClientRect();
     // offsetHeight ignores CSS zoom (the picture-in-picture window scales its
     // content down); the stage's on-screen size tells how much.
     const zoom = stage.getBoundingClientRect().width / (stage.offsetWidth || 1);
-    const cardHeight = (stage.querySelector('.fan-card:not(.is-pooled)')?.offsetHeight ?? 0) * zoom;
+    const cardHeight =
+      (stage.querySelector('.fan-card:not(.is-pooled)')?.offsetHeight ?? 0) *
+      zoom;
     if (!pivot || !cardHeight || !slots.length) return null;
     const dx = x - pivot.left;
     const dy = y - pivot.top;
-    if (Math.hypot(dx, dy) > cardHeight * 1.5 || dy > cardHeight * 0.15) return null;
+    if (Math.hypot(dx, dy) > cardHeight * 1.5 || dy > cardHeight * 0.15)
+      return null;
     const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
     const first = -((slots.length - 1) / 2) * step;
     const edge = Math.max(step, 14);
@@ -129,7 +141,14 @@ export default class FanHand extends Component {
       }
       // The cards have touch-action: none, so this drag won't scroll the page.
       stage.setPointerCapture?.(event.pointerId);
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, dragged: false, startKey: key, wasUp: key === this.args.activeKey };
+      gesture = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        dragged: false,
+        startKey: key,
+        wasUp: key === this.args.activeKey,
+      };
       activate(key);
     };
 
@@ -140,7 +159,12 @@ export default class FanHand extends Component {
         return;
       }
       if (!gesture || event.pointerId !== gesture.id) return;
-      if (!gesture.dragged && Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > TAP_SLOP_PX) gesture.dragged = true;
+      if (
+        !gesture.dragged &&
+        Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) >
+          TAP_SLOP_PX
+      )
+        gesture.dragged = true;
       if (gesture.dragged) scheduleHitTest(true);
     };
 
@@ -187,7 +211,8 @@ export default class FanHand extends Component {
   redeal = modifier((list, [slots]) => {
     const changed = [];
     slots.forEach((slot, i) => {
-      if (this.dealt[i] !== slot.key && list.children[i]) changed.push(list.children[i]);
+      if (this.dealt[i] !== slot.key && list.children[i])
+        changed.push(list.children[i]);
     });
     this.dealt = slots.map((slot) => slot.key);
     if (!changed.length) return;
@@ -197,7 +222,7 @@ export default class FanHand extends Component {
   });
 
   // Snaps the hand with a quick flick whenever the dealt cards actually change
-  // (a fresh search, a card played). Skips the very first deal — nothing to react to yet.
+  // (a fresh search, a card played). Skips the very first deal, since there is nothing to react to yet.
   flick = modifier((stage, [key]) => {
     if (this.lastKey === undefined) {
       this.lastKey = key;
@@ -215,19 +240,40 @@ export default class FanHand extends Component {
 
   <template>
     <section class="card-hand {{@class}}" aria-hidden="true">
-      <div class="card-hand-stage" {{this.track}} {{this.flick this.layout.key}}>
-        <img src="/search_assets/hand_back.png" alt="" class="hand-image" draggable="false" />
+      <div
+        class="card-hand-stage"
+        {{this.track}}
+        {{this.flick this.layout.key}}
+      >
+        <img
+          src="/search_assets/hand_back.png"
+          alt=""
+          class="hand-image"
+          draggable="false"
+        />
         <span class="card-hand-pivot"></span>
-        <ul class="card-fan {{if this.layout.many 'is-many'}}" {{this.redeal this.layout.slots}}>
+        <ul
+          class="card-fan {{if this.layout.many 'is-many'}}"
+          {{this.redeal this.layout.slots}}
+        >
           {{#each this.layout.pool key="@index" as |i|}}
             {{#let (slotAt this.layout.slots i) as |slot|}}
               <li class={{cardClass slot @activeKey}} style={{slot.style}}>
-                {{#if slot}}{{yield slot.item (showFace slot @activeKey) (eq slot.key @activeKey)}}{{/if}}
+                {{#if slot}}{{yield
+                    slot.item
+                    (showFace slot @activeKey)
+                    (eq slot.key @activeKey)
+                  }}{{/if}}
               </li>
             {{/let}}
           {{/each}}
         </ul>
-        <img src="/search_assets/hand_front.png" alt="" class="hand-image hand-front" draggable="false" />
+        <img
+          src="/search_assets/hand_front.png"
+          alt=""
+          class="hand-image hand-front"
+          draggable="false"
+        />
       </div>
     </section>
   </template>

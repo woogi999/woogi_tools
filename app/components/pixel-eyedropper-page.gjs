@@ -45,7 +45,9 @@ export default class PixelEyedropperPage extends Component {
 
   get zoomStyle() {
     if (!this.zoomPct) return htmlSafe('display:none');
-    return htmlSafe(`background-image:url(${this.imageUrl});background-position:${this.zoomPos.x}% ${this.zoomPos.y}%`);
+    return htmlSafe(
+      `background-image:url(${this.imageUrl});background-position:${this.zoomPos.x}% ${this.zoomPos.y}%`,
+    );
   }
 
   get swatchStyle() {
@@ -76,7 +78,8 @@ export default class PixelEyedropperPage extends Component {
       this.error = null;
       this.draw();
     } catch {
-      this.error = "This browser can't open that image. Try the File Converter first.";
+      this.error =
+        "This browser can't open that image. Try the File Converter first.";
     }
   };
 
@@ -93,14 +96,22 @@ export default class PixelEyedropperPage extends Component {
 
   sampleAt = (clientX, clientY) => {
     const rect = this.canvas.getBoundingClientRect();
-    const x = Math.floor(((clientX - rect.left) / rect.width) * this.canvas.width);
-    const y = Math.floor(((clientY - rect.top) / rect.height) * this.canvas.height);
-    if (x < 0 || y < 0 || x >= this.canvas.width || y >= this.canvas.height) return;
+    const x = Math.floor(
+      ((clientX - rect.left) / rect.width) * this.canvas.width,
+    );
+    const y = Math.floor(
+      ((clientY - rect.top) / rect.height) * this.canvas.height,
+    );
+    if (x < 0 || y < 0 || x >= this.canvas.width || y >= this.canvas.height)
+      return;
     const [r, g, b] = this.ctx.getImageData(x, y, 1, 1).data;
     this.r = r;
     this.g = g;
     this.b = b;
-    this.zoomPos = { x: (x / this.canvas.width) * 100, y: (y / this.canvas.height) * 100 };
+    this.zoomPos = {
+      x: (x / this.canvas.width) * 100,
+      y: (y / this.canvas.height) * 100,
+    };
   };
 
   move = (e) => {
@@ -114,7 +125,10 @@ export default class PixelEyedropperPage extends Component {
   pick = (e) => {
     this.move(e);
     const hex = toHex(this.r, this.g, this.b);
-    this.history = [hex, ...this.history.filter((h) => h !== hex)].slice(0, HISTORY_LIMIT);
+    this.history = [hex, ...this.history.filter((h) => h !== hex)].slice(
+      0,
+      HISTORY_LIMIT,
+    );
   };
 
   setHex = (hex) => {
@@ -130,15 +144,27 @@ export default class PixelEyedropperPage extends Component {
   pasteFiles = (files) => this.openFile(files[0]);
 
   <template>
-    <ToolPage @route="pixel-eyedropper" @subtitle="Upload an image and click anywhere to grab that exact colour. Colour thief mode: on.">
+    <ToolPage
+      @route="pixel-eyedropper"
+      @subtitle="Upload an image and click anywhere to grab that exact colour. Colour thief mode: on."
+    >
       <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
-          <label class="qr-drop {{if this.bitmap 'is-filled'}}" {{on "dragover" this.dragOver}} {{on "drop" this.drop}}>
+          <label
+            class="qr-drop {{if this.bitmap 'is-filled'}}"
+            {{on "dragover" this.dragOver}}
+            {{on "drop" this.drop}}
+          >
             {{#unless this.bitmap}}
               <Icon @name="pipette" @size={{22}} />
               <span>Drop an image, or click to browse</span>
             {{/unless}}
-            <input type="file" accept="image/*" class="sr-only" {{on "change" this.selectFile}} />
+            <input
+              type="file"
+              accept="image/*"
+              class="sr-only"
+              {{on "change" this.selectFile}}
+            />
           </label>
 
           {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
@@ -152,9 +178,14 @@ export default class PixelEyedropperPage extends Component {
                 {{on "mouseleave" this.leave}}
                 {{on "click" this.pick}}
               ></canvas>
-              <div class="eyedrop-zoom" style={{this.zoomStyle}} aria-hidden="true"></div>
+              <div
+                class="eyedrop-zoom"
+                style={{this.zoomStyle}}
+                aria-hidden="true"
+              ></div>
             </div>
-            <p class="tool-hint">Click anywhere on the image to save that colour to your history.</p>
+            <p class="tool-hint">Click anywhere on the image to save that colour
+              to your history.</p>
           {{/if}}
         </section>
 
@@ -162,20 +193,32 @@ export default class PixelEyedropperPage extends Component {
           <h3 class="qr-heading">Sampled colour</h3>
           <div class="math-row is-aligned">
             <span class="eyedrop-swatch" style={{this.swatchStyle}}></span>
-            <ColourField @value={{this.hex}} @label="Sampled colour" @onChange={{this.setHex}} />
+            <ColourField
+              @value={{this.hex}}
+              @label="Sampled colour"
+              @onChange={{this.setHex}}
+            />
           </div>
           <div class="math-stats">
             <div class="math-stat">
               <span>RGB</span>
-              <div class="field-head"><strong>{{this.rgbText}}</strong><CopyButton @value={{this.rgbText}} /></div>
+              <div class="field-head"><strong
+                >{{this.rgbText}}</strong><CopyButton
+                  @value={{this.rgbText}}
+                /></div>
             </div>
             <div class="math-stat">
               <span>HSL</span>
-              <div class="field-head"><strong>{{this.hslText}}</strong><CopyButton @value={{this.hslText}} /></div>
+              <div class="field-head"><strong
+                >{{this.hslText}}</strong><CopyButton
+                  @value={{this.hslText}}
+                /></div>
             </div>
             <div class="math-stat">
               <span>HEX</span>
-              <div class="field-head"><strong>{{this.hex}}</strong><CopyButton @value={{this.hex}} /></div>
+              <div class="field-head"><strong>{{this.hex}}</strong><CopyButton
+                  @value={{this.hex}}
+                /></div>
             </div>
           </div>
 
@@ -183,7 +226,13 @@ export default class PixelEyedropperPage extends Component {
             <h3 class="qr-heading">History</h3>
             <div class="eyedrop-history">
               {{#each this.history as |hex|}}
-                <button type="button" class="eyedrop-chip" style={{htmlSwatch hex}} title={{hex}} {{on "click" (fn this.useHistory hex)}}></button>
+                <button
+                  type="button"
+                  class="eyedrop-chip"
+                  style={{htmlSwatch hex}}
+                  title={{hex}}
+                  {{on "click" (fn this.useHistory hex)}}
+                ></button>
               {{/each}}
             </div>
           {{/if}}

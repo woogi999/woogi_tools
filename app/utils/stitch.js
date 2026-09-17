@@ -21,7 +21,8 @@ export async function loadImage(file) {
     const image = await new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(`${file.name} couldn’t be read as an image`));
+      img.onerror = () =>
+        reject(new Error(`${file.name} couldn’t be read as an image`));
       img.src = url;
     });
     // Drawn from a bitmap so the object URL can go straight away.
@@ -34,25 +35,64 @@ export async function loadImage(file) {
 
 // Works out the sheet's shape without drawing it, for the live "what you'll get" line.
 export function planSheet(images, options) {
-  const { layout = 'grid', columns = 0, cellWidth = 0, cellHeight = 0, gap = 0, padding = 0, maxSize = 0 } = options;
+  const {
+    layout = 'grid',
+    columns = 0,
+    cellWidth = 0,
+    cellHeight = 0,
+    gap = 0,
+    padding = 0,
+    maxSize = 0,
+  } = options;
   const count = images.length;
   if (!count) return null;
-  const cols = layout === 'row' ? count : layout === 'column' ? 1 : Math.max(1, columns || Math.ceil(Math.sqrt(count)));
+  const cols =
+    layout === 'row'
+      ? count
+      : layout === 'column'
+        ? 1
+        : Math.max(1, columns || Math.ceil(Math.sqrt(count)));
   const rows = Math.ceil(count / cols);
-  const cw = Math.max(1, Math.round(cellWidth || Math.max(...images.map((i) => i.width))));
-  const ch = Math.max(1, Math.round(cellHeight || Math.max(...images.map((i) => i.height))));
+  const cw = Math.max(
+    1,
+    Math.round(cellWidth || Math.max(...images.map((i) => i.width))),
+  );
+  const ch = Math.max(
+    1,
+    Math.round(cellHeight || Math.max(...images.map((i) => i.height))),
+  );
   const width = padding * 2 + cols * cw + gap * (cols - 1);
   const height = padding * 2 + rows * ch + gap * (rows - 1);
   // A size cap scales the whole sheet down at the end, so the cells stay in step.
-  const scale = maxSize > 0 ? Math.min(1, maxSize / Math.max(width, height)) : 1;
-  return { cols, rows, cellWidth: cw, cellHeight: ch, width, height, scale, outWidth: Math.max(1, Math.round(width * scale)), outHeight: Math.max(1, Math.round(height * scale)) };
+  const scale =
+    maxSize > 0 ? Math.min(1, maxSize / Math.max(width, height)) : 1;
+  return {
+    cols,
+    rows,
+    cellWidth: cw,
+    cellHeight: ch,
+    width,
+    height,
+    scale,
+    outWidth: Math.max(1, Math.round(width * scale)),
+    outHeight: Math.max(1, Math.round(height * scale)),
+  };
 }
 
 // Where one image sits inside its cell, for the chosen fit.
 function place(image, cw, ch, fit) {
   if (fit === 'stretch') return { x: 0, y: 0, w: cw, h: ch };
-  if (fit === 'none') return { x: (cw - image.width) / 2, y: (ch - image.height) / 2, w: image.width, h: image.height };
-  const ratio = fit === 'cover' ? Math.max(cw / image.width, ch / image.height) : Math.min(cw / image.width, ch / image.height);
+  if (fit === 'none')
+    return {
+      x: (cw - image.width) / 2,
+      y: (ch - image.height) / 2,
+      w: image.width,
+      h: image.height,
+    };
+  const ratio =
+    fit === 'cover'
+      ? Math.max(cw / image.width, ch / image.height)
+      : Math.min(cw / image.width, ch / image.height);
   const w = image.width * ratio;
   const h = image.height * ratio;
   return { x: (cw - w) / 2, y: (ch - h) / 2, w, h };
@@ -61,7 +101,13 @@ function place(image, cw, ch, fit) {
 export function drawSheet(canvas, images, options) {
   const plan = planSheet(images, options);
   if (!plan) return null;
-  const { gap = 0, padding = 0, background = 'transparent', fit = 'contain', smooth = true } = options;
+  const {
+    gap = 0,
+    padding = 0,
+    background = 'transparent',
+    fit = 'contain',
+    smooth = true,
+  } = options;
   canvas.width = plan.outWidth;
   canvas.height = plan.outHeight;
   const ctx = canvas.getContext('2d');

@@ -10,7 +10,14 @@ import PrintButton from './print-button';
 import ColourField from './colour-field';
 import { acceptPastedFiles } from '../utils/paste-files';
 import { formatBytes } from '../utils/file-share';
-import { loadImage, planSheet, drawSheet, canvasBlob, FITS, LAYOUTS } from '../utils/stitch';
+import {
+  loadImage,
+  planSheet,
+  drawSheet,
+  canvasBlob,
+  FITS,
+  LAYOUTS,
+} from '../utils/stitch';
 
 // Sticks a pile of images together into one sheet: a spritesheet for a game, a
 // flipbook strip, or a plain contact sheet. Everything is drawn on a canvas here.
@@ -24,6 +31,15 @@ const eq = (a, b) => a === b;
 let nextId = 1;
 
 export default class ImageStitcherPage extends Component {
+  // While this is true, leaving the page floats the tool in a PiP window
+  // instead of tearing it down, so the work carries on (see services/pip.js).
+  get pipBusy() {
+    return this.busy;
+  }
+
+  get pipWarning() {
+    return 'Close the Image Stitcher? The sheet being built will be lost.';
+  }
   @tracked items = [];
   @tracked dragging = false;
   @tracked layout = 'grid';
@@ -80,11 +96,12 @@ export default class ImageStitcherPage extends Component {
     return planSheet(this.images, this.options);
   }
 
-  // "4 across, 3 down · 512×384 · 128×128 a frame" — the bit that matters for game dev.
+  // "4 across, 3 down · 512×384 · 128×128 a frame": the bit that matters for game dev.
   get planText() {
     const plan = this.plan;
     if (!plan) return '';
-    const scaled = plan.scale < 1 ? ` (scaled down from ${plan.width}×${plan.height})` : '';
+    const scaled =
+      plan.scale < 1 ? ` (scaled down from ${plan.width}×${plan.height})` : '';
     return `${plan.cols} across, ${plan.rows} down · ${plan.outWidth}×${plan.outHeight}${scaled} · ${plan.cellWidth}×${plan.cellHeight} a frame`;
   }
 
@@ -128,7 +145,9 @@ export default class ImageStitcherPage extends Component {
       this.items = [...this.items, item];
       try {
         const image = await loadImage(file);
-        this.items = this.items.map((i) => (i.id === item.id ? { ...i, image } : i));
+        this.items = this.items.map((i) =>
+          i.id === item.id ? { ...i, image } : i,
+        );
       } catch (error) {
         this.items = this.items.filter((i) => i.id !== item.id);
         this.error = error.message;
@@ -167,7 +186,11 @@ export default class ImageStitcherPage extends Component {
 
   setFit = (e) => this.pick('fit', e.target.value);
   setFormat = (e) => this.pick('format', e.target.value);
-  setQuality = (e) => this.pick('quality', Math.max(10, Math.min(100, Number(e.target.value) || 92)));
+  setQuality = (e) =>
+    this.pick(
+      'quality',
+      Math.max(10, Math.min(100, Number(e.target.value) || 92)),
+    );
   setBgColor = (value) => this.pick('bgColor', value);
   toggleSmooth = (e) => this.pick('smooth', e.target.checked);
 
@@ -184,7 +207,12 @@ export default class ImageStitcherPage extends Component {
 
   sortByName = () => {
     // Numbers inside names count as numbers, so frame2 lands before frame10.
-    this.items = [...this.items].sort((a, b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true, sensitivity: 'base' }));
+    this.items = [...this.items].sort((a, b) =>
+      a.file.name.localeCompare(b.file.name, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      }),
+    );
     this.changed();
   };
 
@@ -214,7 +242,8 @@ export default class ImageStitcherPage extends Component {
       this.resultUrl = URL.createObjectURL(blob);
       this.resultSize = blob.size;
     } catch (error) {
-      this.error = error?.message ?? 'Something went wrong stitching these together';
+      this.error =
+        error?.message ?? 'Something went wrong stitching these together';
     } finally {
       this.busy = false;
     }
@@ -225,33 +254,99 @@ export default class ImageStitcherPage extends Component {
   }
 
   <template>
-    <ToolPage @route="image-stitcher" @subtitle="Stick images together into one sheet: spritesheets, flipbook frames or a plain grid. Set the columns, the frame size and a size cap.">
+    <ToolPage
+      @route="image-stitcher"
+      @busy={{this.pipBusy}}
+      @closeWarning={{this.pipWarning}}
+      @subtitle="Stick images together into one sheet: spritesheets, flipbook frames or a plain grid. Set the columns, the frame size and a size cap."
+    >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
-          <label class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}" {{on "dragover" this.dragOver}} {{on "dragleave" this.dragOver}} {{on "drop" this.drop}}>
+          <label
+            class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}"
+            {{on "dragover" this.dragOver}}
+            {{on "dragleave" this.dragOver}}
+            {{on "drop" this.drop}}
+          >
             <Icon @name="layout-grid" @size={{22}} />
-            <span>{{if this.dragging "Drop them here" "Drop your frames, paste them, or click to browse"}}</span>
-            <input type="file" accept="image/*" multiple class="sr-only" {{on "change" this.selectFiles}} />
+            <span>{{if
+                this.dragging
+                "Drop them here"
+                "Drop your frames, paste them, or click to browse"
+              }}</span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              class="sr-only"
+              {{on "change" this.selectFiles}}
+            />
           </label>
 
           <div class="math-tabs" role="group" aria-label="Layout">
             {{#each this.layouts as |l|}}
-              <button type="button" class="qr-tab {{if (eq this.layout l.id) 'active'}}" {{on "click" (fn this.pick "layout" l.id)}}>{{l.label}}</button>
+              <button
+                type="button"
+                class="qr-tab {{if (eq this.layout l.id) 'active'}}"
+                {{on "click" (fn this.pick "layout" l.id)}}
+              >{{l.label}}</button>
             {{/each}}
           </div>
 
           <div class="math-row">
             {{#if (eq this.layout "grid")}}
-              <label class="math-field"><span class="qr-label is-muted">Columns (0 = work it out)</span><input type="number" min="0" class="math-input" value={{this.columns}} {{on "input" (fn this.number "columns")}} /></label>
+              <label class="math-field"><span class="qr-label is-muted">Columns
+                  (0 = work it out)</span><input
+                  type="number"
+                  min="0"
+                  class="math-input"
+                  value={{this.columns}}
+                  {{on "input" (fn this.number "columns")}}
+                /></label>
             {{/if}}
-            <label class="math-field"><span class="qr-label is-muted">Frame width (0 = biggest)</span><input type="number" min="0" class="math-input" value={{this.cellWidth}} {{on "input" (fn this.number "cellWidth")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Frame height (0 = biggest)</span><input type="number" min="0" class="math-input" value={{this.cellHeight}} {{on "input" (fn this.number "cellHeight")}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">Frame
+                width (0 = biggest)</span><input
+                type="number"
+                min="0"
+                class="math-input"
+                value={{this.cellWidth}}
+                {{on "input" (fn this.number "cellWidth")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Frame
+                height (0 = biggest)</span><input
+                type="number"
+                min="0"
+                class="math-input"
+                value={{this.cellHeight}}
+                {{on "input" (fn this.number "cellHeight")}}
+              /></label>
           </div>
 
           <div class="math-row">
-            <label class="math-field"><span class="qr-label is-muted">Gap between frames (px)</span><input type="number" min="0" class="math-input" value={{this.gap}} {{on "input" (fn this.number "gap")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Edge padding (px)</span><input type="number" min="0" class="math-input" value={{this.padding}} {{on "input" (fn this.number "padding")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Max sheet size (0 = no cap)</span><input type="number" min="0" class="math-input" value={{this.maxSize}} {{on "input" (fn this.number "maxSize")}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">Gap
+                between frames (px)</span><input
+                type="number"
+                min="0"
+                class="math-input"
+                value={{this.gap}}
+                {{on "input" (fn this.number "gap")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Edge
+                padding (px)</span><input
+                type="number"
+                min="0"
+                class="math-input"
+                value={{this.padding}}
+                {{on "input" (fn this.number "padding")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Max sheet
+                size (0 = no cap)</span><input
+                type="number"
+                min="0"
+                class="math-input"
+                value={{this.maxSize}}
+                {{on "input" (fn this.number "maxSize")}}
+              /></label>
           </div>
 
           <div class="math-row">
@@ -259,7 +354,10 @@ export default class ImageStitcherPage extends Component {
               <span class="qr-label is-muted">How each image sits</span>
               <select class="select" {{on "change" this.setFit}}>
                 {{#each this.fits as |f|}}
-                  <option value={{f.id}} selected={{eq this.fit f.id}}>{{f.label}}</option>
+                  <option
+                    value={{f.id}}
+                    selected={{eq this.fit f.id}}
+                  >{{f.label}}</option>
                 {{/each}}
               </select>
             </label>
@@ -267,27 +365,57 @@ export default class ImageStitcherPage extends Component {
               <span class="qr-label is-muted">Save as</span>
               <select class="select" {{on "change" this.setFormat}}>
                 {{#each this.formats as |f|}}
-                  <option value={{f.id}} selected={{eq this.format f.id}}>{{f.label}}</option>
+                  <option
+                    value={{f.id}}
+                    selected={{eq this.format f.id}}
+                  >{{f.label}}</option>
                 {{/each}}
               </select>
             </label>
             {{#if this.usesQuality}}
-              <label class="math-field"><span class="qr-label is-muted">Quality: {{this.quality}}</span><input type="range" min="10" max="100" value={{this.quality}} {{on "input" this.setQuality}} /></label>
+              <label class="math-field"><span class="qr-label is-muted">Quality:
+                  {{this.quality}}</span><input
+                  type="range"
+                  min="10"
+                  max="100"
+                  value={{this.quality}}
+                  {{on "input" this.setQuality}}
+                /></label>
             {{/if}}
           </div>
 
           <div class="math-tabs" role="group" aria-label="Background">
-            <button type="button" class="qr-tab {{if (eq this.background 'transparent') 'active'}}" {{on "click" (fn this.pick "background" "transparent")}}>See-through</button>
-            <button type="button" class="qr-tab {{if (eq this.background 'colour') 'active'}}" {{on "click" (fn this.pick "background" "colour")}}>A colour</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.background 'transparent') 'active'}}"
+              {{on "click" (fn this.pick "background" "transparent")}}
+            >See-through</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.background 'colour') 'active'}}"
+              {{on "click" (fn this.pick "background" "colour")}}
+            >A colour</button>
           </div>
           {{#if (eq this.background "colour")}}
-            <ColourField @label="Background" @value={{this.bgColor}} @onChange={{this.setBgColor}} />
+            <ColourField
+              @label="Background"
+              @value={{this.bgColor}}
+              @onChange={{this.setBgColor}}
+            />
           {{/if}}
 
           <label class="lobby-rule is-switch">
-            <span class="lobby-rule-text"><span class="qr-label">Smooth when scaling</span><span class="tool-hint">Leave this off for pixel art: it keeps the edges hard instead of blurring them.</span></span>
+            <span class="lobby-rule-text"><span class="qr-label">Smooth when
+                scaling</span><span class="tool-hint">Leave this off for pixel
+                art: it keeps the edges hard instead of blurring them.</span></span>
             <span class="qr-switch">
-              <input type="checkbox" role="switch" checked={{this.smooth}} aria-checked={{if this.smooth "true" "false"}} {{on "change" this.toggleSmooth}} />
+              <input
+                type="checkbox"
+                role="switch"
+                checked={{this.smooth}}
+                aria-checked={{if this.smooth "true" "false"}}
+                {{on "change" this.toggleSmooth}}
+              />
               <span class="qr-switch-track" aria-hidden="true"></span>
             </span>
           </label>
@@ -298,18 +426,43 @@ export default class ImageStitcherPage extends Component {
             <div class="fc-toolbar">
               <h3 class="qr-heading">The sheet</h3>
               <div class="settings-actions">
-                <button type="button" class="btn active" disabled={{this.busy}} {{on "click" this.stitch}}>{{if this.busy "Stitching…" "Stitch them"}}</button>
+                <button
+                  type="button"
+                  class="btn active"
+                  disabled={{this.busy}}
+                  {{on "click" this.stitch}}
+                >{{if this.busy "Stitching…" "Stitch them"}}</button>
                 {{#if this.resultUrl}}
-                  <a class="btn fs-save" href={{this.resultUrl}} download={{this.resultName}}><Icon @name="download" @size={{13}} /> Save</a>
-                  <PrintButton @url={{this.resultUrl}} @name={{this.resultName}} />
+                  <a
+                    class="btn fs-save"
+                    href={{this.resultUrl}}
+                    download={{this.resultName}}
+                  ><Icon @name="download" @size={{13}} /> Save</a>
+                  <PrintButton
+                    @url={{this.resultUrl}}
+                    @name={{this.resultName}}
+                  />
                 {{/if}}
-                <button type="button" class="btn" {{on "click" this.sortByName}}>Sort by name</button>
-                <button type="button" class="btn" {{on "click" this.clear}}>Clear</button>
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.sortByName}}
+                >Sort by name</button>
+                <button
+                  type="button"
+                  class="btn"
+                  {{on "click" this.clear}}
+                >Clear</button>
               </div>
             </div>
-            <p class="tool-hint">{{this.planText}}{{#if this.resultSize}} · {{formatBytes this.resultSize}}{{/if}}</p>
+            <p class="tool-hint">{{this.planText}}{{#if this.resultSize}}
+                ·
+                {{formatBytes this.resultSize}}{{/if}}</p>
             {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
-            <div class="stitch-preview"><canvas class="stitch-canvas" {{this.preview}}></canvas></div>
+            <div class="stitch-preview"><canvas
+                class="stitch-canvas"
+                {{this.preview}}
+              ></canvas></div>
 
             <ul class="fs-list">
               {{#each this.items key="id" as |item index|}}
@@ -317,13 +470,32 @@ export default class ImageStitcherPage extends Component {
                   <span class="stitch-index">{{index}}</span>
                   <div class="fs-row-info">
                     <span class="fs-row-name">{{item.file.name}}</span>
-                    <span class="fs-row-size">{{#if item.image}}{{item.image.width}}×{{item.image.height}} · {{/if}}{{formatBytes item.file.size}}</span>
+                    <span class="fs-row-size">{{#if
+                        item.image
+                      }}{{item.image.width}}×{{item.image.height}}
+                        ·
+                      {{/if}}{{formatBytes item.file.size}}</span>
                   </div>
                   <div class="fs-row-status">
-                    <button type="button" class="btn" aria-label="Move {{item.file.name}} earlier" {{on "click" (fn this.move item.id -1)}}><Icon @name="arrow-up" @size={{13}} /></button>
-                    <button type="button" class="btn" aria-label="Move {{item.file.name}} later" {{on "click" (fn this.move item.id 1)}}><Icon @name="arrow-down" @size={{13}} /></button>
+                    <button
+                      type="button"
+                      class="btn"
+                      aria-label="Move {{item.file.name}} earlier"
+                      {{on "click" (fn this.move item.id -1)}}
+                    ><Icon @name="arrow-up" @size={{13}} /></button>
+                    <button
+                      type="button"
+                      class="btn"
+                      aria-label="Move {{item.file.name}} later"
+                      {{on "click" (fn this.move item.id 1)}}
+                    ><Icon @name="arrow-down" @size={{13}} /></button>
                   </div>
-                  <button type="button" class="fs-remove" aria-label="Remove {{item.file.name}}" {{on "click" (fn this.remove item.id)}}><Icon @name="x" @size={{13}} /></button>
+                  <button
+                    type="button"
+                    class="fs-remove"
+                    aria-label="Remove {{item.file.name}}"
+                    {{on "click" (fn this.remove item.id)}}
+                  ><Icon @name="x" @size={{13}} /></button>
                 </li>
               {{/each}}
             </ul>

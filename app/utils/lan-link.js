@@ -20,13 +20,20 @@ function encode(payload) {
   const bytes = deflateSync(strToU8(JSON.stringify(payload)), { level: 9 });
   let binary = '';
   for (const b of bytes) binary += String.fromCharCode(b);
-  return PREFIX + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return (
+    PREFIX +
+    btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  );
 }
 
 export function decode(code) {
   const clean = String(code ?? '').replace(/\s+/g, '');
-  if (!clean.startsWith(PREFIX)) throw new Error('That isn’t a Woogi nearby-play code.');
-  const base64 = clean.slice(PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+  if (!clean.startsWith(PREFIX))
+    throw new Error('That isn’t a Woogi nearby-play code.');
+  const base64 = clean
+    .slice(PREFIX.length)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
   const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
   const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
   return JSON.parse(strFromU8(inflateSync(bytes)));
@@ -110,7 +117,8 @@ export async function createInvite(id) {
     code: encode({ t: 'offer', id, sdp: pc.localDescription.sdp }),
     async accept(reply) {
       const payload = decode(reply);
-      if (payload.t !== 'answer' || payload.id !== id) throw new Error('That reply is for a different invite.');
+      if (payload.t !== 'answer' || payload.id !== id)
+        throw new Error('That reply is for a different invite.');
       await pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
     },
   };
@@ -119,11 +127,21 @@ export async function createInvite(id) {
 // Guest: turns the host's invite into a reply code, and a connection that opens once the host accepts it.
 export async function answerInvite(invite) {
   const payload = decode(invite);
-  if (payload.t !== 'offer') throw new Error('That’s a reply code. Paste the invite from the host instead.');
+  if (payload.t !== 'offer')
+    throw new Error(
+      'That’s a reply code. Paste the invite from the host instead.',
+    );
   const pc = newConnection();
-  const channelReady = new Promise((resolve) => pc.addEventListener('datachannel', (event) => resolve(event.channel)));
+  const channelReady = new Promise((resolve) =>
+    pc.addEventListener('datachannel', (event) => resolve(event.channel)),
+  );
   await pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
   await pc.setLocalDescription(await pc.createAnswer());
   await gathered(pc);
-  return { id: payload.id, pc, channelReady, code: encode({ t: 'answer', id: payload.id, sdp: pc.localDescription.sdp }) };
+  return {
+    id: payload.id,
+    pc,
+    channelReady,
+    code: encode({ t: 'answer', id: payload.id, sdp: pc.localDescription.sdp }),
+  };
 }

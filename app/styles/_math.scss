@@ -3,7 +3,9 @@
 .math-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 16px;
+  // Columns sit side by side with no card around them, so the gap between them
+  // is what separates them: wider across than down.
+  gap: 22px 36px;
   width: 100%;
   align-items: start;
 }
@@ -15,15 +17,16 @@
   width: 100%;
 }
 
+// A tool's contents sit straight on the page. The heading and the spacing group
+// them; boxing every group in its own panel made the pages look like forms.
 .math-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-  padding: 16px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-card);
-  background: var(--bg-elevated);
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .math-tabs {
@@ -243,15 +246,15 @@
   transition: width 0.15s ease;
 }
 
-.pw-meter[data-rating='weak'] .pw-meter-fill {
+.pw-meter[data-rating="weak"] .pw-meter-fill {
   background: var(--card-red);
 }
 
-.pw-meter[data-rating='fair'] .pw-meter-fill {
+.pw-meter[data-rating="fair"] .pw-meter-fill {
   background: #e5a13b;
 }
 
-.pw-meter[data-rating='strong'] .pw-meter-fill {
+.pw-meter[data-rating="strong"] .pw-meter-fill {
   background: #30a46c;
 }
 
@@ -331,7 +334,7 @@
   letter-spacing: 0.05em;
 }
 
-input[type='text'].calc-input {
+input[type="text"].calc-input {
   border: 0;
   background: none;
   padding: 10px 0 0;
@@ -398,7 +401,9 @@ input[type='text'].calc-input {
 
 @media (prefers-reduced-motion: no-preference) {
   .calc-key {
-    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.12s ease;
+    transition:
+      transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.12s ease;
   }
 
   .calc-key:active {
@@ -527,7 +532,7 @@ input[type='text'].calc-input {
   white-space: nowrap;
 }
 
-input[type='text'].graph-fn-input {
+input[type="text"].graph-fn-input {
   flex: 1;
   min-width: 0;
   font-size: 0.9rem;
@@ -750,7 +755,10 @@ input[type='text'].graph-fn-input {
   border: 1px solid var(--border-color);
   background: var(--bg-elevated-2);
   color: transparent;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .settings-tool-item input:checked + .settings-tool-check {
@@ -779,4 +787,375 @@ input[type='text'].graph-fn-input {
 
 .btn.is-danger:hover {
   border-color: var(--card-red);
+}
+
+// ─── Currency converter ──────────────────────────────────────────────────
+// One centred column: the conversion, then the chart for that pair, then the
+// short list of other currencies you chose to keep an eye on.
+
+.cc-page {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  width: 100%;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.cc-convert {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+}
+
+.cc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 10px;
+}
+
+.cc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 170px;
+  min-width: 0;
+  text-align: left;
+}
+
+.cc-field.cc-amount {
+  flex: 0 1 130px;
+}
+
+.cc-swap {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 10px;
+}
+
+// The answer is the reason the page exists, so it gets the room.
+.cc-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 22px 16px;
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated);
+}
+
+.cc-from,
+.cc-equals {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.cc-big {
+  font-size: clamp(1.7rem, 7vw, 2.6rem);
+  font-weight: 600;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.cc-unit {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.cc-source {
+  text-align: center;
+}
+
+.cc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cc-chart-section,
+.cc-watch-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cc-chart-wrap {
+  height: 200px;
+}
+
+.cc-chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cc-watch-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cc-add {
+  max-width: 200px;
+}
+
+.cc-watch {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cc-watch-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--border-color);
+}
+
+.cc-watch-row:last-child {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cc-watch-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.cc-watch-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+// ─── Geometry calculator ─────────────────────────────────────────────────
+
+.geo-layout {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (width <= 480px) {
+  .geo-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.geo-sketch {
+  width: 100%;
+  aspect-ratio: 1;
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.geo-sketch text {
+  fill: var(--text-dim);
+  stroke: none;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  text-anchor: middle;
+}
+
+.geo-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.geo-unit {
+  max-width: 160px;
+}
+
+.geo-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.geo-result dt {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.geo-result dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.geo-result dd small {
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+// ─── Speed test ──────────────────────────────────────────────────────────
+@property --share {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
+// A half-dial: the arc is a conic gradient clipped to a semicircle, filled to
+// --share (0..1); the needle turns from -90° to +90° over the same share.
+.st-stage {
+  align-items: center;
+}
+
+.st-gauge {
+  position: relative;
+  width: min(320px, 100%);
+  aspect-ratio: 2 / 1.15;
+  --share: 0;
+}
+
+.st-gauge-arc {
+  position: absolute;
+  inset: 0 0 auto;
+  aspect-ratio: 2 / 1;
+  border-radius: 999px 999px 0 0;
+  background: conic-gradient(
+    from -90deg at 50% 100%,
+    var(--accent) calc(var(--share) * 180deg),
+    var(--bg-elevated-2) calc(var(--share) * 180deg) 180deg,
+    transparent 180deg
+  );
+  mask: radial-gradient(circle at 50% 100%, transparent 62%, #000 63%);
+  transition: --share 0.2s linear;
+}
+
+.st-gauge-needle {
+  position: absolute;
+  left: 50%;
+  bottom: calc(15% - 2px);
+  width: 4px;
+  height: 44%;
+  border-radius: 2px;
+  background: var(--text);
+  transform-origin: 50% 100%;
+  transform: translateX(-50%) rotate(calc(var(--share) * 180deg - 90deg));
+  transition: transform 0.25s ease-out;
+}
+
+.st-gauge-needle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transform: translateX(-50%);
+}
+
+.st-gauge-face {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.st-gauge-value {
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.st-gauge-phase {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.st-gauge-min,
+.st-gauge-max {
+  position: absolute;
+  top: 88%;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+.st-gauge-min {
+  left: 2%;
+}
+
+.st-gauge-max {
+  right: 2%;
+}
+
+.st-go {
+  min-width: 120px;
+  justify-content: center;
+}
+
+.st-results {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+}
+
+.st-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.st-result strong {
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+}
+
+.st-result small {
+  font-size: 0.65em;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.st-spark {
+  width: 100%;
+  height: 48px;
+  display: block;
+}
+
+.st-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.st-table th,
+.st-table td {
+  text-align: left;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.st-table th {
+  color: var(--text-dim);
+  font-weight: 500;
 }

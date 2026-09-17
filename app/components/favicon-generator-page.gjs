@@ -29,11 +29,22 @@ async function toPng(bitmap, size) {
   const w = bitmap.width * scale;
   const h = bitmap.height * scale;
   ctx.drawImage(bitmap, (size - w) / 2, (size - h) / 2, w, h);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const blob = await new Promise((resolve) =>
+    canvas.toBlob(resolve, 'image/png'),
+  );
   return { size, bytes: new Uint8Array(await blob.arrayBuffer()), blob };
 }
 
 export default class FaviconGeneratorPage extends Component {
+  // While this is true, leaving the page floats the tool in a PiP window
+  // instead of tearing it down, so the work carries on (see services/pip.js).
+  get pipBusy() {
+    return this.busy;
+  }
+
+  get pipWarning() {
+    return 'Close the Favicon Generator? The icons being built will be lost.';
+  }
   snippet = SNIPPET;
 
   @tracked imageUrl = null;
@@ -68,18 +79,32 @@ export default class FaviconGeneratorPage extends Component {
       this.revokeAll();
       this.imageUrl = URL.createObjectURL(file);
 
-      const pngs = await Promise.all(PNG_SIZES.map((size) => toPng(bitmap, size)));
-      this.pngs = pngs.map((p) => ({ ...p, url: URL.createObjectURL(p.blob), name: nameFor(p.size) }));
+      const pngs = await Promise.all(
+        PNG_SIZES.map((size) => toPng(bitmap, size)),
+      );
+      this.pngs = pngs.map((p) => ({
+        ...p,
+        url: URL.createObjectURL(p.blob),
+        name: nameFor(p.size),
+      }));
 
       const icoSources = pngs.filter((p) => ICO_SIZES.includes(p.size));
-      const icoBlob = buildIco(icoSources.map((p) => ({ width: p.size, height: p.size, bytes: p.bytes })));
+      const icoBlob = buildIco(
+        icoSources.map((p) => ({
+          width: p.size,
+          height: p.size,
+          bytes: p.bytes,
+        })),
+      );
       const icoBytes = new Uint8Array(await icoBlob.arrayBuffer());
       this.icoUrl = URL.createObjectURL(icoBlob);
 
       const { zipSync } = await import('fflate');
       const entries = { 'favicon.ico': icoBytes };
       for (const p of this.pngs) entries[p.name] = p.bytes;
-      this.zipUrl = URL.createObjectURL(new Blob([zipSync(entries, { level: 6 })], { type: 'application/zip' }));
+      this.zipUrl = URL.createObjectURL(
+        new Blob([zipSync(entries, { level: 6 })], { type: 'application/zip' }),
+      );
     } catch {
       this.error = "This browser can't open that image.";
     } finally {
@@ -101,37 +126,74 @@ export default class FaviconGeneratorPage extends Component {
   pasteFiles = (files) => this.openFile(files[0]);
 
   <template>
-    <ToolPage @route="favicon-generator" @subtitle="Drop in an image and get every favicon size a website needs, the .ico file and the HTML to link them.">
+    <ToolPage
+      @route="favicon-generator"
+      @busy={{this.pipBusy}}
+      @closeWarning={{this.pipWarning}}
+      @subtitle="Drop in an image and get every favicon size a website needs, the .ico file and the HTML to link them."
+    >
       <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
-          <label class="qr-drop" {{on "dragover" this.dragOver}} {{on "drop" this.drop}}>
+          <label
+            class="qr-drop"
+            {{on "dragover" this.dragOver}}
+            {{on "drop" this.drop}}
+          >
             <Icon @name="app-window" @size={{22}} />
-            <span>{{if this.busy "Working…" "Drop an image, or click to browse"}}</span>
-            <input type="file" accept="image/*" class="sr-only" {{on "change" this.selectFile}} disabled={{this.busy}} />
+            <span>{{if
+                this.busy
+                "Working…"
+                "Drop an image, or click to browse"
+              }}</span>
+            <input
+              type="file"
+              accept="image/*"
+              class="sr-only"
+              {{on "change" this.selectFile}}
+              disabled={{this.busy}}
+            />
           </label>
           {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
-          <p class="tool-hint">A square image works best. Smaller sizes are cropped to fit without stretching.</p>
+          <p class="tool-hint">A square image works best. Smaller sizes are
+            cropped to fit without stretching.</p>
         </section>
 
         {{#if this.pngs.length}}
           <section class="math-card">
             <div class="field-head">
               <h3 class="qr-heading">Generated files</h3>
-              {{#if this.zipUrl}}<a class="btn active" href={{this.zipUrl}} download="favicons.zip"><Icon @name="download" @size={{13}} /> Download all (ZIP)</a>{{/if}}
+              {{#if this.zipUrl}}<a
+                  class="btn active"
+                  href={{this.zipUrl}}
+                  download="favicons.zip"
+                ><Icon @name="download" @size={{13}} />
+                  Download all (ZIP)</a>{{/if}}
             </div>
             <ul class="fs-list">
               {{#each this.pngs key="name" as |p|}}
                 <li class="fs-row">
                   <img src={{p.url}} alt="" class="favicon-thumb" />
-                  <div class="fs-row-info"><span class="fs-row-name">{{p.name}}</span></div>
-                  <a class="btn fs-save" href={{p.url}} download={{p.name}}><Icon @name="download" @size={{13}} /></a>
+                  <div class="fs-row-info"><span
+                      class="fs-row-name"
+                    >{{p.name}}</span></div>
+                  <a
+                    class="btn fs-save"
+                    href={{p.url}}
+                    download={{p.name}}
+                  ><Icon @name="download" @size={{13}} /></a>
                 </li>
               {{/each}}
               {{#if this.icoUrl}}
                 <li class="fs-row">
                   <img src={{this.firstPngUrl}} alt="" class="favicon-thumb" />
-                  <div class="fs-row-info"><span class="fs-row-name">favicon.ico</span></div>
-                  <a class="btn fs-save" href={{this.icoUrl}} download="favicon.ico"><Icon @name="download" @size={{13}} /></a>
+                  <div class="fs-row-info"><span
+                      class="fs-row-name"
+                    >favicon.ico</span></div>
+                  <a
+                    class="btn fs-save"
+                    href={{this.icoUrl}}
+                    download="favicon.ico"
+                  ><Icon @name="download" @size={{13}} /></a>
                 </li>
               {{/if}}
             </ul>

@@ -5,7 +5,8 @@
 // each cell null or { square, type, color }.
 
 export const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-export const STANDARD_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+export const STANDARD_FEN =
+  'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
 export const TIME_CONTROLS = [
   { id: 'none', label: 'No clock', group: 'Casual' },
@@ -25,7 +26,10 @@ export function clockFor(settings) {
   if (settings.time === 'none') return null;
   const control = TIME_CONTROLS.find((t) => t.id === settings.time);
   const base = control?.base ?? clamp(Number(settings.minutes) || 10, 0.5, 180);
-  const inc = control?.base !== undefined ? control.inc : clamp(Number(settings.increment) || 0, 0, 60);
+  const inc =
+    control?.base !== undefined
+      ? control.inc
+      : clamp(Number(settings.increment) || 0, 0, 60);
   return { baseMs: base * 60000, incMs: inc * 1000 };
 }
 
@@ -47,7 +51,8 @@ export function formatClock(ms) {
 export function chess960Fen() {
   const rank = Array(8).fill(null);
   const free = () => rank.map((p, i) => (p ? -1 : i)).filter((i) => i >= 0);
-  const place = (piece, options) => (rank[options[Math.floor(Math.random() * options.length)]] = piece);
+  const place = (piece, options) =>
+    (rank[options[Math.floor(Math.random() * options.length)]] = piece);
   place('b', [0, 2, 4, 6]);
   place('b', [1, 3, 5, 7]);
   place('q', free());
@@ -61,8 +66,14 @@ export function chess960Fen() {
   return `${back}/pppppppp/8/8/8/8/PPPPPPPP/${back.toUpperCase()} w - - 0 1`;
 }
 
-export const coords = (square) => [FILES.indexOf(square[0]), Number(square[1]) - 1];
-export const squareAt = (file, rank) => (file >= 0 && file < 8 && rank >= 0 && rank < 8 ? `${FILES[file]}${rank + 1}` : null);
+export const coords = (square) => [
+  FILES.indexOf(square[0]),
+  Number(square[1]) - 1,
+];
+export const squareAt = (file, rank) =>
+  file >= 0 && file < 8 && rank >= 0 && rank < 8
+    ? `${FILES[file]}${rank + 1}`
+    : null;
 const cell = (board, square) => {
   const [f, r] = coords(square);
   return board[7 - r][f];
@@ -70,10 +81,38 @@ const cell = (board, square) => {
 
 // ─── Premoves ──────────────────────────────────────────────────────────
 
-const KNIGHT = [[1, 2], [2, 1], [2, -1], [1, -2], [-1, -2], [-2, -1], [-2, 1], [-1, 2]];
-const KING = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
-const ROOK_RAYS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-const BISHOP_RAYS = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+const KNIGHT = [
+  [1, 2],
+  [2, 1],
+  [2, -1],
+  [1, -2],
+  [-1, -2],
+  [-2, -1],
+  [-2, 1],
+  [-1, 2],
+];
+const KING = [
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+];
+const ROOK_RAYS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+const BISHOP_RAYS = [
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+];
 
 // Exactly the squares `square`'s piece could legally move to after any one
 // reply by the side to move: the premoves that might actually get played.
@@ -95,7 +134,11 @@ export function reachableAfterReply(ChessClass, fen, square) {
 // Moves that can never become legal are left out: onto your own pieces or the
 // enemy king, pawn pushes through your own pieces, and castling without the
 // right to (`castling` is { k, q } for the piece's side) or without the rook.
-export function premoveTargets(board, square, castling = { k: false, q: false }) {
+export function premoveTargets(
+  board,
+  square,
+  castling = { k: false, q: false },
+) {
   const piece = cell(board, square);
   if (!piece) return [];
   const [f, r] = coords(square);
@@ -119,7 +162,8 @@ export function premoveTargets(board, square, castling = { k: false, q: false })
     case 'p': {
       const dir = piece.color === 'w' ? 1 : -1;
       const one = add(0, dir);
-      if (one && !own(one) && r === (piece.color === 'w' ? 1 : 6)) add(0, dir * 2);
+      if (one && !own(one) && r === (piece.color === 'w' ? 1 : 6))
+        add(0, dir * 2);
       add(-1, dir);
       add(1, dir);
       break;
@@ -135,7 +179,8 @@ export function premoveTargets(board, square, castling = { k: false, q: false })
           const p = cell(board, `${file}${home}`);
           return p?.type === 'r' && p.color === piece.color;
         };
-        const clear = (files) => files.every((file) => !cell(board, `${file}${home}`));
+        const clear = (files) =>
+          files.every((file) => !cell(board, `${file}${home}`));
         if (castling.k && rook('h') && clear(['f', 'g'])) add(2, 0);
         if (castling.q && rook('a') && clear(['b', 'c', 'd'])) add(-2, 0);
       }
@@ -167,7 +212,12 @@ export function applyPremoves(board, premoves) {
     if (!piece || (color && piece.color !== color)) continue;
     set(from, null);
     const lastRank = to[1] === (piece.color === 'w' ? '8' : '1');
-    set(to, piece.type === 'p' && lastRank ? { ...piece, type: promotion ?? 'q' } : piece);
+    set(
+      to,
+      piece.type === 'p' && lastRank
+        ? { ...piece, type: promotion ?? 'q' }
+        : piece,
+    );
     // Castling premove: bring the rook along.
     if (piece.type === 'k' && Math.abs(coords(to)[0] - coords(from)[0]) === 2) {
       const rank = from[1];
@@ -213,18 +263,32 @@ export function syncTokens(previous, board, nextId) {
     return Math.hypot(af - bf, ar - br);
   };
   for (const piece of unplaced) {
-    const pool = previous.filter((t) => !used.has(t.id) && t.color === piece.color);
+    const pool = previous.filter(
+      (t) => !used.has(t.id) && t.color === piece.color,
+    );
     const candidates = pool.filter((t) => t.type === piece.type);
-    const from = (candidates.length ? candidates : pool.filter((t) => t.type === 'p')).sort((a, b) => distance(a.square, piece.square) - distance(b.square, piece.square))[0];
+    const from = (
+      candidates.length ? candidates : pool.filter((t) => t.type === 'p')
+    ).sort(
+      (a, b) =>
+        distance(a.square, piece.square) - distance(b.square, piece.square),
+    )[0];
     if (from) used.add(from.id);
-    tokens.push({ id: from?.id ?? nextId(), type: piece.type, color: piece.color, square: piece.square });
+    tokens.push({
+      id: from?.id ?? nextId(),
+      type: piece.type,
+      color: piece.color,
+      square: piece.square,
+    });
   }
   return tokens;
 }
 
 // Whether `color` still has enough to ever checkmate (for a win on time).
 export function canMate(board, color) {
-  const pieces = board.flat().filter((p) => p && p.color === color && p.type !== 'k');
+  const pieces = board
+    .flat()
+    .filter((p) => p && p.color === color && p.type !== 'k');
   if (pieces.some((p) => ['p', 'r', 'q'].includes(p.type))) return true;
   return pieces.length >= 2;
 }

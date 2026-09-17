@@ -37,7 +37,12 @@ export default class JjsStuffPage extends Component {
   @cached
   get parsed() {
     if (!this.data) return null;
-    return Object.fromEntries(TABS.filter((t) => t.source).map((t) => [t.id, parseNotes(this.data.RAW[t.source])]));
+    return Object.fromEntries(
+      TABS.filter((t) => t.source).map((t) => [
+        t.id,
+        parseNotes(this.data.RAW[t.source]),
+      ]),
+    );
   }
 
   get current() {
@@ -58,7 +63,12 @@ export default class JjsStuffPage extends Component {
   get results() {
     const parsed = this.parsed;
     if (!parsed) return {};
-    return Object.fromEntries(Object.entries(parsed).map(([id, notes]) => [id, filterGroups(notes.groups, this.query)]));
+    return Object.fromEntries(
+      Object.entries(parsed).map(([id, notes]) => [
+        id,
+        filterGroups(notes.groups, this.query),
+      ]),
+    );
   }
 
   get groups() {
@@ -74,7 +84,10 @@ export default class JjsStuffPage extends Component {
     const searching = Boolean(this.query.trim());
     return TABS.map((t) => {
       let count = null;
-      if (searching && this.parsed) count = t.source ? this.results[t.id].reduce((n, g) => n + g.rows.length, 0) : this.presets.length;
+      if (searching && this.parsed)
+        count = t.source
+          ? this.results[t.id].reduce((n, g) => n + g.rows.length, 0)
+          : this.presets.length;
       return { ...t, count };
     });
   }
@@ -100,7 +113,9 @@ export default class JjsStuffPage extends Component {
   jump = (event) => {
     const key = event.target.value;
     event.target.value = '';
-    document.getElementById(`jjs-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document
+      .getElementById(`jjs-${key}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   copy = async (value) => {
@@ -115,26 +130,54 @@ export default class JjsStuffPage extends Component {
   };
 
   <template>
-    <ToolPage @route="jjs-stuff" @subtitle="Everything for the Jujutsu Shenanigans Skill Builder in one spot: sound IDs, emote music, punch, kick and flip directions, animations, startups and presets. Tap an ID to copy it.">
+    <ToolPage
+      @route="jjs-stuff"
+      @subtitle="Everything for the Jujutsu Shenanigans Skill Builder in one spot: sound IDs, emote music, punch, kick and flip directions, animations, startups and presets. Tap an ID to copy it."
+    >
       <div class="jjs pop-in">
         <div class="jjs-bar">
           <div class="home-chips jjs-tabs" role="tablist" aria-label="Sections">
             {{#each this.tabItems key="id" as |t|}}
-              <button type="button" role="tab" class="home-chip {{if (eq this.tab t.id) 'active'}} {{if (eq t.count 0) 'is-empty'}}" aria-selected={{if (eq this.tab t.id) "true" "false"}} {{on "click" (fn this.setTab t.id)}}>
-                {{t.label}}{{#if t.count}} <span class="jjs-tab-count">{{t.count}}</span>{{/if}}
+              <button
+                type="button"
+                role="tab"
+                class="home-chip
+                  {{if (eq this.tab t.id) 'active'}}
+                  {{if (eq t.count 0) 'is-empty'}}"
+                aria-selected={{if (eq this.tab t.id) "true" "false"}}
+                {{on "click" (fn this.setTab t.id)}}
+              >
+                {{t.label}}{{#if t.count}}
+                  <span class="jjs-tab-count">{{t.count}}</span>{{/if}}
               </button>
             {{/each}}
           </div>
           <div class="jjs-search-row">
             <label class="jjs-search">
               <Icon @name="search" @size={{15}} />
-              <input type="search" class="math-input" placeholder="Search: gojo red, black flash, 1.2x, conga…" aria-label="Search the notes" value={{this.query}} {{on "input" this.setQuery}} />
+              <input
+                type="search"
+                class="math-input"
+                placeholder="Search: gojo red, black flash, 1.2x, conga…"
+                aria-label="Search the notes"
+                value={{this.query}}
+                {{on "input" this.setQuery}}
+              />
               {{#if this.query}}
-                <button type="button" class="qr-icon-btn" aria-label="Clear search" {{on "click" this.clearQuery}}><Icon @name="x" @size={{14}} /></button>
+                <button
+                  type="button"
+                  class="qr-icon-btn"
+                  aria-label="Clear search"
+                  {{on "click" this.clearQuery}}
+                ><Icon @name="x" @size={{14}} /></button>
               {{/if}}
             </label>
             {{#if this.sections.length}}
-              <select class="jjs-jump" aria-label="Jump to" {{on "change" this.jump}}>
+              <select
+                class="jjs-jump"
+                aria-label="Jump to"
+                {{on "change" this.jump}}
+              >
                 <option value="">Jump to…</option>
                 {{#each this.sections key="key" as |s|}}
                   <option value={{s.key}}>{{s.name}}</option>
@@ -146,15 +189,27 @@ export default class JjsStuffPage extends Component {
         </div>
 
         {{#if this.failed}}
-          <p class="tool-error">Couldn’t load the notes. Check your connection and reload the page.</p>
+          <p class="tool-error">Couldn’t load the notes. Check your connection
+            and reload the page.</p>
         {{else if this.data}}
           {{#if this.isPresets}}
             <div class="jjs-presets">
               {{#each this.presets key="name" as |p|}}
                 <div class="math-card jjs-preset">
-                  <span class="jjs-preset-name"><Icon @name="sparkles" @size={{14}} /> {{p.name}}</span>
-                  <button type="button" class="btn {{if (eq this.copied p.text) 'copied active'}}" {{on "click" (fn this.copy p.text)}}>
-                    <Icon @name={{if (eq this.copied p.text) "check" "copy"}} @size={{13}} />
+                  <span class="jjs-preset-name"><Icon
+                      @name="sparkles"
+                      @size={{14}}
+                    />
+                    {{p.name}}</span>
+                  <button
+                    type="button"
+                    class="btn {{if (eq this.copied p.text) 'copied active'}}"
+                    {{on "click" (fn this.copy p.text)}}
+                  >
+                    <Icon
+                      @name={{if (eq this.copied p.text) "check" "copy"}}
+                      @size={{13}}
+                    />
                     {{if (eq this.copied p.text) "Copied" "Copy preset"}}
                   </button>
                 </div>
@@ -162,7 +217,8 @@ export default class JjsStuffPage extends Component {
                 <p class="tool-hint">No presets match “{{this.query}}”.</p>
               {{/each}}
             </div>
-            <p class="tool-hint">VFX presets made by TheNoob (@dhdvru2i on Discord).</p>
+            <p class="tool-hint">VFX presets made by TheNoob (@dhdvru2i on
+              Discord).</p>
           {{else}}
             {{#if this.intro.length}}
               <div class="jjs-intro">
@@ -170,34 +226,61 @@ export default class JjsStuffPage extends Component {
               </div>
             {{/if}}
             {{#if this.query}}
-              <p class="tool-hint">{{this.rowCount}} {{if (eq this.rowCount 1) "match" "matches"}} in {{this.current.label}}.</p>
+              <p class="tool-hint">{{this.rowCount}}
+                {{if (eq this.rowCount 1) "match" "matches"}}
+                in
+                {{this.current.label}}.</p>
             {{/if}}
             <div class="jjs-groups">
               {{#each this.groups key="key" as |group|}}
                 <section class="jjs-group" id="jjs-{{group.key}}">
                   <header class="jjs-group-head">
-                    {{#if group.parent}}<span class="jjs-group-parent">{{group.parent}}</span>{{/if}}
+                    {{#if group.parent}}<span
+                        class="jjs-group-parent"
+                      >{{group.parent}}</span>{{/if}}
                     <h3 class="qr-heading">{{group.title}}</h3>
-                    {{#if group.note}}<span class="tool-hint">{{group.note}}</span>{{/if}}
+                    {{#if group.note}}<span
+                        class="tool-hint"
+                      >{{group.note}}</span>{{/if}}
                   </header>
                   <ul class="jjs-rows">
                     {{#each group.rows as |row|}}
                       {{#if (eq row.kind "sound")}}
                         <li class="jjs-row">
-                          <button type="button" class="jjs-id {{if (eq this.copied row.id) 'is-copied'}}" title="Copy {{row.id}}" {{on "click" (fn this.copy row.id)}}>
-                            <Icon @name={{if (eq this.copied row.id) "check" "copy"}} @size={{11}} />{{row.id}}
+                          <button
+                            type="button"
+                            class="jjs-id
+                              {{if (eq this.copied row.id) 'is-copied'}}"
+                            title="Copy {{row.id}}"
+                            {{on "click" (fn this.copy row.id)}}
+                          >
+                            <Icon
+                              @name={{if
+                                (eq this.copied row.id)
+                                "check"
+                                "copy"
+                              }}
+                              @size={{11}}
+                            />{{row.id}}
                           </button>
                           <span class="jjs-label">{{row.label}}</span>
-                          {{#if row.speed}}<span class="lobby-tag jjs-speed">{{row.speed}}</span>{{/if}}
+                          {{#if row.speed}}<span
+                              class="lobby-tag jjs-speed"
+                            >{{row.speed}}</span>{{/if}}
                         </li>
                       {{else if (eq row.kind "startup")}}
                         <li class="jjs-row">
                           <span class="jjs-label">{{row.name}}</span>
                           <span class="lobby-tag jjs-time">{{row.time}}s</span>
-                          {{#if row.note}}<span class="jjs-note">{{row.note}}</span>{{/if}}
+                          {{#if row.note}}<span
+                              class="jjs-note"
+                            >{{row.note}}</span>{{/if}}
                         </li>
                       {{else if (eq row.kind "sub")}}
-                        <li class="jjs-sub">{{row.text}}{{#if row.note}} <span class="jjs-note">{{row.note}}</span>{{/if}}</li>
+                        <li class="jjs-sub">{{row.text}}{{#if row.note}}
+                            <span
+                              class="jjs-note"
+                            >{{row.note}}</span>{{/if}}</li>
                       {{else}}
                         <li class="jjs-row is-text">{{row.text}}</li>
                       {{/if}}
@@ -205,7 +288,9 @@ export default class JjsStuffPage extends Component {
                   </ul>
                 </section>
               {{else}}
-                <p class="tool-hint">Nothing in {{this.current.label}} matches “{{this.query}}”.</p>
+                <p class="tool-hint">Nothing in
+                  {{this.current.label}}
+                  matches “{{this.query}}”.</p>
               {{/each}}
             </div>
           {{/if}}

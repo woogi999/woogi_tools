@@ -17,6 +17,7 @@ Router.map(function () {
   this.route('age-calculator');
   this.route('winrate-calculator');
   this.route('unit-converter');
+  this.route('currency-converter');
   this.route('wage-calculator');
   this.route('qr-code');
   this.route('file-share');
@@ -42,7 +43,9 @@ Router.map(function () {
   this.route('image-cropper');
   this.route('image-slicer');
   this.route('pomodoro-timer');
-  this.route('random-picker');
+  this.route('spin-the-wheel');
+  this.route('dice-roll');
+  this.route('coin-toss');
   this.route('background-remover');
   this.route('file-compressor');
   this.route('pixel-eyedropper');
@@ -59,6 +62,7 @@ Router.map(function () {
   this.route('trimmer');
   this.route('metadata-editor');
   this.route('auto-subtitle');
+  this.route('subtitle-baker');
   this.route('audio-normalizer');
   this.route('grammar-checker');
   this.route('paraphraser');
@@ -72,6 +76,19 @@ Router.map(function () {
   this.route('woono');
   this.route('avatar-editor');
   this.route('uno');
+  this.route('geometry-calculator');
+  this.route('image-editor');
+  this.route('image-censor');
+  this.route('video-censor');
+  this.route('barcode-generator');
+  this.route('emoji-picker');
+  this.route('ascii-art');
+  this.route('video-player');
+  this.route('mockup-preview');
+  this.route('online-ruler');
+  this.route('document-redacter');
+  this.route('world-radio');
+  this.route('speed-test');
   this.route('jjs-stuff');
   this.route('settings');
   this.route('updates');

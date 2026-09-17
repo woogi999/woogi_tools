@@ -5,10 +5,11 @@ import { fn } from '@ember/helper';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
+import { keepState } from '../utils/tool-state';
 
 const WORDS =
   'lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip ex ea commodo consequat duis aute irure in reprehenderit voluptate velit esse cillum dolore eu fugiat nulla pariatur excepteur sint occaecat cupidatat non proident sunt culpa qui officia deserunt mollit anim id est laborum'.split(
-    ' '
+    ' ',
   );
 
 const UNITS = [
@@ -29,7 +30,10 @@ function capitalize(word) {
 
 function makeSentence(minWords = 6, maxWords = 16) {
   const count = randomInt(minWords, maxWords);
-  const words = Array.from({ length: count }, () => WORDS[randomInt(0, WORDS.length - 1)]);
+  const words = Array.from(
+    { length: count },
+    () => WORDS[randomInt(0, WORDS.length - 1)],
+  );
   // Sprinkle in an occasional comma, the way real Lorem Ipsum generators do.
   if (count > 6 && Math.random() < 0.6) {
     const at = randomInt(2, count - 3);
@@ -45,7 +49,10 @@ function makeParagraph(minSentences = 4, maxSentences = 8) {
 
 function generate(unit, count, startWithLorem) {
   if (unit === 'words') {
-    const words = Array.from({ length: Math.max(1, count) }, () => WORDS[randomInt(0, WORDS.length - 1)]);
+    const words = Array.from(
+      { length: Math.max(1, count) },
+      () => WORDS[randomInt(0, WORDS.length - 1)],
+    );
     if (startWithLorem) {
       const lead = 'lorem ipsum dolor sit amet'.split(' ');
       lead.forEach((w, i) => (words[i] = w));
@@ -53,12 +60,18 @@ function generate(unit, count, startWithLorem) {
     return capitalize(words.join(' '));
   }
   if (unit === 'sentences') {
-    const sentences = Array.from({ length: Math.max(1, count) }, () => makeSentence());
-    if (startWithLorem) sentences[0] = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
+    const sentences = Array.from({ length: Math.max(1, count) }, () =>
+      makeSentence(),
+    );
+    if (startWithLorem)
+      sentences[0] = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.';
     return sentences.join(' ');
   }
-  const paragraphs = Array.from({ length: Math.max(1, count) }, () => makeParagraph());
-  if (startWithLorem) paragraphs[0] = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. ${paragraphs[0]}`;
+  const paragraphs = Array.from({ length: Math.max(1, count) }, () =>
+    makeParagraph(),
+  );
+  if (startWithLorem)
+    paragraphs[0] = `Lorem ipsum dolor sit amet, consectetur adipiscing elit. ${paragraphs[0]}`;
   return paragraphs.join('\n\n');
 }
 
@@ -72,6 +85,7 @@ export default class LoremIpsumPage extends Component {
 
   constructor(owner, args) {
     super(owner, args);
+    keepState(this, 'lorem-ipsum', ['unit', 'count', 'startWithLorem']);
     this.regenerate();
   }
 
@@ -103,24 +117,46 @@ export default class LoremIpsumPage extends Component {
   };
 
   <template>
-    <ToolPage @route="lorem-ipsum" @subtitle="Generate placeholder text by paragraphs, sentences or words. Lorem ipsum dolor sit whatever.">
+    <ToolPage
+      @route="lorem-ipsum"
+      @subtitle="Generate placeholder text by paragraphs, sentences or words. Lorem ipsum dolor sit whatever."
+    >
       <div class="math-grid pop-in">
         <section class="math-card">
           <h3 class="qr-heading">Options</h3>
           <div class="math-tabs" role="group" aria-label="Unit">
             {{#each this.units as |u|}}
-              <button type="button" class="qr-tab {{if (eq this.unit u.id) 'active'}}" {{on "click" (fn this.setUnit u.id)}}>{{u.label}}</button>
+              <button
+                type="button"
+                class="qr-tab {{if (eq this.unit u.id) 'active'}}"
+                {{on "click" (fn this.setUnit u.id)}}
+              >{{u.label}}</button>
             {{/each}}
           </div>
           <label class="math-field">
             <span class="qr-label is-muted">How many {{this.unit}}</span>
-            <input type="number" min="1" max="50" class="math-input" value={{this.count}} {{on "input" this.setCount}} />
+            <input
+              type="number"
+              min="1"
+              max="50"
+              class="math-input"
+              value={{this.count}}
+              {{on "input" this.setCount}}
+            />
           </label>
           <label class="math-check">
-            <input type="checkbox" checked={{this.startWithLorem}} {{on "change" this.toggleStart}} />
+            <input
+              type="checkbox"
+              checked={{this.startWithLorem}}
+              {{on "change" this.toggleStart}}
+            />
             Start with "Lorem ipsum dolor sit amet…"
           </label>
-          <button type="button" class="btn math-use" {{on "click" this.regenerate}}><Icon @name="refresh-cw" @size={{13}} /> Regenerate</button>
+          <button
+            type="button"
+            class="btn math-use"
+            {{on "click" this.regenerate}}
+          ><Icon @name="refresh-cw" @size={{13}} /> Regenerate</button>
         </section>
 
         <section class="math-card">
@@ -128,8 +164,16 @@ export default class LoremIpsumPage extends Component {
             <h3 class="qr-heading">Output</h3>
             <CopyButton @value={{this.output}} />
           </div>
-          <textarea class="math-input lorem-output" readonly rows="14" aria-label="Generated placeholder text">{{this.output}}</textarea>
-          <p class="tool-hint">{{this.wordCount}} words · {{this.charCount}} characters</p>
+          <textarea
+            class="math-input lorem-output"
+            readonly
+            rows="14"
+            aria-label="Generated placeholder text"
+          >{{this.output}}</textarea>
+          <p class="tool-hint">{{this.wordCount}}
+            words ·
+            {{this.charCount}}
+            characters</p>
         </section>
       </div>
     </ToolPage>
