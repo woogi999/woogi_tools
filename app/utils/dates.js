@@ -1,10 +1,13 @@
-export const daysInMonth = (year, month) => new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+export const daysInMonth = (year, month) =>
+  new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 
 const pad = (n) => String(n).padStart(2, '0');
 
 // "YYYY-MM-DD" for <input type="date">, from local calendar fields.
-export const toDateInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-export const toDateTimeInput = (d) => `${toDateInput(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+export const toDateInput = (d) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const toDateTimeInput = (d) =>
+  `${toDateInput(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 // Date-only values live at UTC midnight so DST can never shift a day.
 export function parseDateInput(value) {
@@ -23,7 +26,12 @@ export function calendarDiff(from, to, utc = true) {
   const get = (d) =>
     utc
       ? [d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0]
-      : [d.getFullYear(), d.getMonth(), d.getDate(), d.getHours() * 60 + d.getMinutes()];
+      : [
+          d.getFullYear(),
+          d.getMonth(),
+          d.getDate(),
+          d.getHours() * 60 + d.getMinutes(),
+        ];
   const [y1, m1, d1, t1] = get(from);
   const [y2, m2, d2, t2] = get(to);
   let years = y2 - y1;
@@ -42,7 +50,13 @@ export function calendarDiff(from, to, utc = true) {
     years--;
     months += 12;
   }
-  return { years, months, days, hours: Math.floor(minutes / 60), minutes: minutes % 60 };
+  return {
+    years,
+    months,
+    days,
+    hours: Math.floor(minutes / 60),
+    minutes: minutes % 60,
+  };
 }
 
 // Whole calendar days between two dates, ignoring time of day and DST.

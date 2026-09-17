@@ -1,4 +1,17 @@
-import { COLORS, act, legalActions, playableIds, canDrawNow, canPassNow, canChallengeNow, actorIndex, drawAmount, isTargeted, timeOut, nextIndex } from './uno';
+import {
+  COLORS,
+  act,
+  legalActions,
+  playableIds,
+  canDrawNow,
+  canPassNow,
+  canChallengeNow,
+  actorIndex,
+  drawAmount,
+  isTargeted,
+  timeOut,
+  nextIndex,
+} from './uno';
 
 // How computer players decide, by actually thinking it through: for every move
 // they could make, they play the rest of the game out many times and keep the
@@ -21,7 +34,11 @@ const MAX_STEPS = 300;
 const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 // The bot's best move, or null if it has none (or was cancelled).
-export async function think(state, index, { signal, budgetMs = MAX_THINK_MS } = {}) {
+export async function think(
+  state,
+  index,
+  { signal, budgetMs = MAX_THINK_MS } = {},
+) {
   const actions = candidates(state, index);
   if (actions.length <= 1) return actions[0] ?? null;
   const stats = actions.map(() => ({ n: 0, sum: 0, squares: 0 }));
@@ -40,13 +57,19 @@ export async function think(state, index, { signal, budgetMs = MAX_THINK_MS } = 
       tries++;
     }
     if (signal?.aborted) return null;
-    if (confident(stats) || stats.every((s) => s.n >= MAX_TRIES) || performance.now() - started > budgetMs) break;
+    if (
+      confident(stats) ||
+      stats.every((s) => s.n >= MAX_TRIES) ||
+      performance.now() - started > budgetMs
+    )
+      break;
     await nextFrame();
     if (signal?.aborted) return null;
   }
   let best = 0;
   stats.forEach((s, i) => {
-    if (s.n && s.sum / s.n > stats[best].sum / Math.max(1, stats[best].n)) best = i;
+    if (s.n && s.sum / s.n > stats[best].sum / Math.max(1, stats[best].n))
+      best = i;
   });
   return actions[best];
 }
@@ -57,7 +80,11 @@ function candidates(state, index) {
   const actions = legalActions(state, index);
   // Drawing again with a card to play (allowed when drawing until you can play) is never worth weighing.
   const canPlayOne = !state.pending && actions.some((a) => a.type === 'play');
-  return actions.filter((a) => (a.type !== 'play' || a.color === null || colors.includes(a.color)) && !(canPlayOne && a.type === 'draw'));
+  return actions.filter(
+    (a) =>
+      (a.type !== 'play' || a.color === null || colors.includes(a.color)) &&
+      !(canPlayOne && a.type === 'draw'),
+  );
 }
 
 // Upper-confidence picking: mostly try the moves that look best, but give every move a fair look.
@@ -65,7 +92,10 @@ function chooseArm(stats, total) {
   let best = 0;
   let bestValue = -Infinity;
   stats.forEach((s, i) => {
-    const value = s.n < MIN_TRIES ? Infinity - s.n : s.sum / s.n + Math.sqrt((2 * Math.log(total + 1)) / s.n);
+    const value =
+      s.n < MIN_TRIES
+        ? Infinity - s.n
+        : s.sum / s.n + Math.sqrt((2 * Math.log(total + 1)) / s.n);
     if (value > bestValue) {
       bestValue = value;
       best = i;
@@ -79,7 +109,8 @@ function confident(stats) {
   if (stats.some((s) => s.n < MIN_TRIES)) return false;
   const bounds = stats.map((s) => {
     const mean = s.sum / s.n;
-    const spread = 2.5 * Math.sqrt(Math.max(1e-6, s.squares / s.n - mean * mean) / s.n);
+    const spread =
+      2.5 * Math.sqrt(Math.max(1e-6, s.squares / s.n - mean * mean) / s.n);
     return { low: mean - spread, high: mean + spread, mean };
   });
   const top = bounds.reduce((a, b) => (b.mean > a.mean ? b : a));
@@ -102,12 +133,27 @@ function imagine(state, me) {
   const theirDrawn = state.drawn && state.turn !== me;
   if (theirDrawn) unseen.push(state.drawn);
   shuffle(unseen);
-  const players = state.players.map((p, i) => ({ ...p, hand: i === me ? [...p.hand] : unseen.splice(0, p.hand.length) }));
+  const players = state.players.map((p, i) => ({
+    ...p,
+    hand: i === me ? [...p.hand] : unseen.splice(0, p.hand.length),
+  }));
   let pending = state.pending && { ...state.pending };
   // Whether a wild draw card was an illegal bluff is hidden too: guess from how likely its player was to hold the old colour.
-  if (pending?.offender !== null && pending?.offender !== undefined && pending.offender !== me) {
-    const share = unseen.length ? unseen.filter((c) => c.color === pending.prevColor).length / unseen.length : 0.25;
-    pending = { ...pending, hadMatch: Math.random() < 1 - (1 - share) ** (players[pending.offender].hand.length + 1) };
+  if (
+    pending?.offender !== null &&
+    pending?.offender !== undefined &&
+    pending.offender !== me
+  ) {
+    const share = unseen.length
+      ? unseen.filter((c) => c.color === pending.prevColor).length /
+        unseen.length
+      : 0.25;
+    pending = {
+      ...pending,
+      hadMatch:
+        Math.random() <
+        1 - (1 - share) ** (players[pending.offender].hand.length + 1),
+    };
   }
   return {
     ...state,
@@ -144,35 +190,49 @@ function playOut(world, me) {
   const mine = world.players[me].hand.length;
   if (world.winner === me) return 1;
   if (world.winner !== null) return 0.12 * Math.max(0, 1 - mine / 8);
-  const fewest = Math.min(...world.players.filter((_, i) => i !== me).map((p) => p.hand.length));
+  const fewest = Math.min(
+    ...world.players.filter((_, i) => i !== me).map((p) => p.hand.length),
+  );
   return Math.max(0, Math.min(1, 0.5 + (fewest - mine) * 0.06));
 }
 
 // A decent, instant move: what the imagined players do inside the search.
 export function quickMove(state, index) {
   const player = state.players[index];
-  const others = state.players.map((p, i) => ({ i, n: p.hand.length })).filter((p) => p.i !== index);
+  const others = state.players
+    .map((p, i) => ({ i, n: p.hand.length }))
+    .filter((p) => p.i !== index);
   const leader = others.reduce((a, b) => (b.n < a.n ? b : a));
   if (state.choice?.player === index) {
     const { card, color } = state.choice;
-    return !card.color && !color ? { type: 'choose', color: favouriteColors(player.hand)[0] } : { type: 'choose', target: leader.i };
+    return !card.color && !color
+      ? { type: 'choose', color: favouriteColors(player.hand)[0] }
+      : { type: 'choose', target: leader.i };
   }
   if (state.swapPending === index) return { type: 'swap', target: leader.i };
-  if (canChallengeNow(state, index) && Math.random() < 0.3) return { type: 'challenge' };
+  if (canChallengeNow(state, index) && Math.random() < 0.3)
+    return { type: 'challenge' };
 
   const ids = playableIds(state, index);
-  const cards = ids.map((id) => (state.drawn?.id === id ? state.drawn : player.hand.find((c) => c.id === id)));
+  const cards = ids.map((id) =>
+    state.drawn?.id === id ? state.drawn : player.hand.find((c) => c.id === id),
+  );
   if (state.drawn && state.turn === index && !state.pending) {
-    return cards.length ? playMove(state, player, cards[0], leader) : { type: 'keep' };
+    return cards.length
+      ? playMove(state, player, cards[0], leader)
+      : { type: 'keep' };
   }
   if (cards.length) {
-    const threatened = state.players[nextIndex(state, 1, index)].hand.length <= 2;
+    const threatened =
+      state.players[nextIndex(state, 1, index)].hand.length <= 2;
     const rank = (card) => {
       let score = Math.random();
       if (card.color === state.color) score += 10;
       if (/^\d$/.test(card.value)) score += Number(card.value) / 10;
-      if (['skip', 'reverse', 'draw2', 'target2'].includes(card.value)) score += threatened ? 30 : 5;
-      if (!card.color && drawAmount(card)) score += threatened || state.pending ? 40 : -30;
+      if (['skip', 'reverse', 'draw2', 'target2'].includes(card.value))
+        score += threatened ? 30 : 5;
+      if (!card.color && drawAmount(card))
+        score += threatened || state.pending ? 40 : -30;
       if (card.value === 'wild') score -= 20;
       if (state.pending && drawAmount(card)) score += 50 - drawAmount(card);
       return score;
@@ -186,5 +246,12 @@ export function quickMove(state, index) {
 }
 
 function playMove(state, player, card, leader) {
-  return { type: 'play', cardId: card.id, color: card.color ? null : favouriteColors(player.hand.filter((c) => c.id !== card.id))[0], target: isTargeted(card) ? leader.i : null };
+  return {
+    type: 'play',
+    cardId: card.id,
+    color: card.color
+      ? null
+      : favouriteColors(player.hand.filter((c) => c.id !== card.id))[0],
+    target: isTargeted(card) ? leader.i : null,
+  };
 }

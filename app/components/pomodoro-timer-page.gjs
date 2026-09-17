@@ -29,8 +29,14 @@ function chime() {
       const gain = audio.createGain();
       osc.frequency.value = [660, 880, 990][i];
       gain.gain.setValueAtTime(0.0001, audio.currentTime + delay);
-      gain.gain.exponentialRampToValueAtTime(0.25, audio.currentTime + delay + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + delay + 0.5);
+      gain.gain.exponentialRampToValueAtTime(
+        0.25,
+        audio.currentTime + delay + 0.02,
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        audio.currentTime + delay + 0.5,
+      );
       osc.connect(gain).connect(audio.destination);
       osc.start(audio.currentTime + delay);
       osc.stop(audio.currentTime + delay + 0.55);
@@ -76,11 +82,16 @@ export default class PomodoroTimerPage extends Component {
 
   get ringStyle() {
     const done = this.phaseLength ? 1 - this.remaining / this.phaseLength : 0;
-    return htmlSafe(`stroke-dasharray:${RING};stroke-dashoffset:${RING * (1 - Math.min(1, Math.max(0, done)))}`);
+    return htmlSafe(
+      `stroke-dasharray:${RING};stroke-dashoffset:${RING * (1 - Math.min(1, Math.max(0, done)))}`,
+    );
   }
 
   get roundDots() {
-    return Array.from({ length: this.settings.rounds }, (_, i) => ({ done: i < this.round - 1 || (i === this.round - 1 && this.phase !== 'focus') }));
+    return Array.from({ length: this.settings.rounds }, (_, i) => ({
+      done:
+        i < this.round - 1 || (i === this.round - 1 && this.phase !== 'focus'),
+    }));
   }
 
   // Timing comes from the wall clock, so a throttled background tab stays accurate.
@@ -92,7 +103,8 @@ export default class PomodoroTimerPage extends Component {
 
   start = () => {
     if (this.running) return;
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    if ('Notification' in window && Notification.permission === 'default')
+      Notification.requestPermission();
     this.running = true;
     this.endsAt = Date.now() + this.remaining;
     this.interval = setInterval(this.tick, 250);
@@ -115,8 +127,16 @@ export default class PomodoroTimerPage extends Component {
     this.pause();
     if (finished) {
       if (this.settings.sound) chime();
-      if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-        new Notification(this.phase === 'focus' ? 'Focus session done. Time for a break.' : 'Break over. Back to it.');
+      if (
+        'Notification' in window &&
+        Notification.permission === 'granted' &&
+        document.hidden
+      ) {
+        new Notification(
+          this.phase === 'focus'
+            ? 'Focus session done. Time for a break.'
+            : 'Break over. Back to it.',
+        );
       }
     }
     if (this.phase === 'focus') {
@@ -140,7 +160,13 @@ export default class PomodoroTimerPage extends Component {
   };
 
   updateSetting = (key, event) => {
-    const value = key === 'sound' ? event.target.checked : Math.min(key === 'rounds' ? 12 : 180, Math.max(1, Math.floor(+event.target.value) || 1));
+    const value =
+      key === 'sound'
+        ? event.target.checked
+        : Math.min(
+            key === 'rounds' ? 12 : 180,
+            Math.max(1, Math.floor(+event.target.value) || 1),
+          );
     this.settings = { ...this.settings, [key]: value };
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings));
@@ -151,49 +177,136 @@ export default class PomodoroTimerPage extends Component {
   };
 
   <template>
-    <ToolPage @route="pomodoro-timer" @subtitle="Work in focused sessions with little breaks in between, and a longer break every few rounds.">
+    <ToolPage
+      @route="pomodoro-timer"
+      @subtitle="Work in focused sessions with little breaks in between, and a longer break every few rounds."
+    >
       <div class="math-grid pop-in">
         <section class="math-card pomo-card">
           <div class="math-tabs" role="group" aria-label="Phase">
-            <button type="button" class="qr-tab {{if (eq this.phase 'focus') 'active'}}" {{on "click" (fn this.choosePhase "focus")}}>Focus</button>
-            <button type="button" class="qr-tab {{if (eq this.phase 'short') 'active'}}" {{on "click" (fn this.choosePhase "short")}}>Short break</button>
-            <button type="button" class="qr-tab {{if (eq this.phase 'long') 'active'}}" {{on "click" (fn this.choosePhase "long")}}>Long break</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.phase 'focus') 'active'}}"
+              {{on "click" (fn this.choosePhase "focus")}}
+            >Focus</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.phase 'short') 'active'}}"
+              {{on "click" (fn this.choosePhase "short")}}
+            >Short break</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.phase 'long') 'active'}}"
+              {{on "click" (fn this.choosePhase "long")}}
+            >Long break</button>
           </div>
           <div class="pomo-dial is-{{this.phase}}">
             <svg viewBox="0 0 200 200" aria-hidden="true">
               <circle class="pomo-track" cx="100" cy="100" r="88" />
-              <circle class="pomo-progress" cx="100" cy="100" r="88" style={{this.ringStyle}} />
+              <circle
+                class="pomo-progress"
+                cx="100"
+                cy="100"
+                r="88"
+                style={{this.ringStyle}}
+              />
             </svg>
             <div class="pomo-readout">
-              <span class="pomo-clock" role="timer" aria-live="off">{{this.clock}}</span>
-              <span class="tool-hint">{{this.phaseLabel}} · round {{this.round}} of {{this.settings.rounds}}</span>
+              <span
+                class="pomo-clock"
+                role="timer"
+                aria-live="off"
+              >{{this.clock}}</span>
+              <span class="tool-hint">{{this.phaseLabel}}
+                · round
+                {{this.round}}
+                of
+                {{this.settings.rounds}}</span>
             </div>
           </div>
           <div class="pomo-dots" aria-label="Rounds">
-            {{#each this.roundDots as |dot|}}<span class="pomo-dot {{if dot.done 'is-done'}}"></span>{{/each}}
+            {{#each this.roundDots as |dot|}}<span
+                class="pomo-dot {{if dot.done 'is-done'}}"
+              ></span>{{/each}}
           </div>
           <div class="settings-actions pomo-actions">
             {{#if this.running}}
-              <button type="button" class="btn active" {{on "click" this.pause}}>Pause</button>
+              <button
+                type="button"
+                class="btn active"
+                {{on "click" this.pause}}
+              >Pause</button>
             {{else}}
-              <button type="button" class="btn active" {{on "click" this.start}}>Start</button>
+              <button
+                type="button"
+                class="btn active"
+                {{on "click" this.start}}
+              >Start</button>
             {{/if}}
-            <button type="button" class="btn" {{on "click" this.reset}}><Icon @name="rotate-ccw" @size={{13}} /> Reset</button>
-            <button type="button" class="btn" {{on "click" this.skip}}>Skip</button>
+            <button type="button" class="btn" {{on "click" this.reset}}><Icon
+                @name="rotate-ccw"
+                @size={{13}}
+              />
+              Reset</button>
+            <button
+              type="button"
+              class="btn"
+              {{on "click" this.skip}}
+            >Skip</button>
           </div>
-          <p class="tool-hint">{{this.completed}} focus session{{if (eq this.completed 1) "" "s"}} completed this visit.</p>
+          <p class="tool-hint">{{this.completed}}
+            focus session{{if (eq this.completed 1) "" "s"}}
+            completed this visit.</p>
         </section>
 
         <section class="math-card">
           <h3 class="qr-heading">Settings</h3>
           <div class="math-row">
-            <label class="math-field"><span class="qr-label is-muted">Focus (min)</span><input type="number" min="1" max="180" class="math-input" value={{this.settings.focus}} {{on "input" (fn this.updateSetting "focus")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Short break (min)</span><input type="number" min="1" max="180" class="math-input" value={{this.settings.short}} {{on "input" (fn this.updateSetting "short")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Long break (min)</span><input type="number" min="1" max="180" class="math-input" value={{this.settings.long}} {{on "input" (fn this.updateSetting "long")}} /></label>
-            <label class="math-field"><span class="qr-label is-muted">Rounds before long break</span><input type="number" min="1" max="12" class="math-input" value={{this.settings.rounds}} {{on "input" (fn this.updateSetting "rounds")}} /></label>
+            <label class="math-field"><span class="qr-label is-muted">Focus
+                (min)</span><input
+                type="number"
+                min="1"
+                max="180"
+                class="math-input"
+                value={{this.settings.focus}}
+                {{on "input" (fn this.updateSetting "focus")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Short
+                break (min)</span><input
+                type="number"
+                min="1"
+                max="180"
+                class="math-input"
+                value={{this.settings.short}}
+                {{on "input" (fn this.updateSetting "short")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Long break
+                (min)</span><input
+                type="number"
+                min="1"
+                max="180"
+                class="math-input"
+                value={{this.settings.long}}
+                {{on "input" (fn this.updateSetting "long")}}
+              /></label>
+            <label class="math-field"><span class="qr-label is-muted">Rounds
+                before long break</span><input
+                type="number"
+                min="1"
+                max="12"
+                class="math-input"
+                value={{this.settings.rounds}}
+                {{on "input" (fn this.updateSetting "rounds")}}
+              /></label>
           </div>
-          <label class="math-check"><input type="checkbox" checked={{this.settings.sound}} {{on "change" (fn this.updateSetting "sound")}} /> Play a chime when a phase ends</label>
-          <p class="tool-hint">Keep this tab open. If you allow notifications, you'll get one when a phase ends while you're in another tab.</p>
+          <label class="math-check"><input
+              type="checkbox"
+              checked={{this.settings.sound}}
+              {{on "change" (fn this.updateSetting "sound")}}
+            />
+            Play a chime when a phase ends</label>
+          <p class="tool-hint">Keep this tab open. If you allow notifications,
+            you'll get one when a phase ends while you're in another tab.</p>
         </section>
       </div>
     </ToolPage>

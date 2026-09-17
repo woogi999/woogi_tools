@@ -35,7 +35,10 @@ const measureSearchBar = modifier((section) => {
   const container = section.parentElement;
   const update = () => {
     const top = parseFloat(getComputedStyle(section).top) || 0;
-    container.style.setProperty('--search-h', `${section.offsetHeight + top}px`);
+    container.style.setProperty(
+      '--search-h',
+      `${section.offsetHeight + top}px`,
+    );
   };
   const observer = new ResizeObserver(update);
   observer.observe(section);
@@ -62,7 +65,21 @@ function matchesName(query, tool) {
 // A tool's position in the list fixes its rank and suit, so a card keeps the
 // same "identity" wherever it's shown (favourites or the full grid). Suits
 // cycle in the classic alternating black/red order.
-const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+const RANKS = [
+  'A',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '10',
+  'J',
+  'Q',
+  'K',
+];
 const SUITS = [
   { symbol: '♠', black: true },
   { symbol: '♥', black: false },
@@ -77,6 +94,7 @@ export default class HomePage extends Component {
   @service router;
 
   categories = CATEGORIES;
+  toolCount = CARDS.length;
   matchModes = MATCH_MODES;
   sorts = SORTS;
 
@@ -94,21 +112,32 @@ export default class HomePage extends Component {
 
   @cached
   get cards() {
-    return CARDS.filter((tool) => this.toolVisibility.isVisible(tool)).map((tool, i) => ({
-      tool,
-      starred: this.favourites.has(tool.route),
-      rank: RANKS[i % RANKS.length],
-      suit: SUITS[i % SUITS.length],
-    }));
+    return CARDS.filter((tool) => this.toolVisibility.isVisible(tool)).map(
+      (tool, i) => ({
+        tool,
+        starred: this.favourites.has(tool.route),
+        rank: RANKS[i % RANKS.length],
+        suit: SUITS[i % SUITS.length],
+      }),
+    );
   }
 
   get activeFilterCount() {
-    return this.filterCategories.length + (this.favouritesOnly ? 1 : 0) + (this.matchMode !== 'all' ? 1 : 0) + (this.sort !== 'relevance' ? 1 : 0);
+    return (
+      this.filterCategories.length +
+      (this.favouritesOnly ? 1 : 0) +
+      (this.matchMode !== 'all' ? 1 : 0) +
+      (this.sort !== 'relevance' ? 1 : 0)
+    );
   }
 
   // Typing, or a filter that narrows the list, switches the page to results.
   get isSearching() {
-    return Boolean(this.query.trim()) || this.filterCategories.length > 0 || this.favouritesOnly;
+    return (
+      Boolean(this.query.trim()) ||
+      this.filterCategories.length > 0 ||
+      this.favouritesOnly
+    );
   }
 
   // Read many times per render (the hand, the grid, counts), so worth caching.
@@ -119,15 +148,32 @@ export default class HomePage extends Component {
     const query = this.query.trim();
     let tools;
     if (!query) tools = TOOLS;
-    else if (this.matchMode === 'names') tools = TOOLS.filter((tool) => matchesName(query, tool));
+    else if (this.matchMode === 'names')
+      tools = TOOLS.filter((tool) => matchesName(query, tool));
     else tools = searchTools(query);
 
     let results = tools
-      .filter((tool) => tool.route !== 'index' && this.toolVisibility.isVisible(tool))
-      .filter((tool) => !this.filterCategories.length || this.filterCategories.includes(tool.category))
+      .filter(
+        (tool) => tool.route !== 'index' && this.toolVisibility.isVisible(tool),
+      )
+      .filter(
+        (tool) =>
+          !this.filterCategories.length ||
+          this.filterCategories.includes(tool.category),
+      )
       .filter((tool) => !this.favouritesOnly || this.favourites.has(tool.route))
-      .map((tool) => byRoute.get(tool.route) ?? { tool, starred: this.favourites.has(tool.route), ...JOKER });
-    if (this.sort === 'az' || !query) results = results.sort((a, b) => a.tool.label.localeCompare(b.tool.label));
+      .map(
+        (tool) =>
+          byRoute.get(tool.route) ?? {
+            tool,
+            starred: this.favourites.has(tool.route),
+            ...JOKER,
+          },
+      );
+    if (this.sort === 'az' || !query)
+      results = results.sort((a, b) =>
+        a.tool.label.localeCompare(b.tool.label),
+      );
     return results;
   }
 
@@ -150,7 +196,10 @@ export default class HomePage extends Component {
     }
     return [...groups]
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([name, items]) => ({ name, items: items.sort((a, b) => a.tool.label.localeCompare(b.tool.label)) }));
+      .map(([name, items]) => ({
+        name,
+        items: items.sort((a, b) => a.tool.label.localeCompare(b.tool.label)),
+      }));
   }
 
   updateQuery = (event) => {
@@ -179,14 +228,20 @@ export default class HomePage extends Component {
 
   feelingLucky = () => {
     const pool = this.cards;
-    if (pool.length) this.router.transitionTo(pool[Math.floor(Math.random() * pool.length)].tool.route);
+    if (pool.length)
+      this.router.transitionTo(
+        pool[Math.floor(Math.random() * pool.length)].tool.route,
+      );
   };
 
   toggleFilters = () => (this.showFilters = !this.showFilters);
   toggleFilterCategory = (category) => {
-    this.filterCategories = this.filterCategories.includes(category) ? this.filterCategories.filter((c) => c !== category) : [...this.filterCategories, category];
+    this.filterCategories = this.filterCategories.includes(category)
+      ? this.filterCategories.filter((c) => c !== category)
+      : [...this.filterCategories, category];
   };
-  toggleFavouritesOnly = (event) => (this.favouritesOnly = event.target.checked);
+  toggleFavouritesOnly = (event) =>
+    (this.favouritesOnly = event.target.checked);
   setMatchMode = (id) => (this.matchMode = id);
   setSort = (id) => (this.sort = id);
   resetFilters = () => {
@@ -201,9 +256,20 @@ export default class HomePage extends Component {
 
   <template>
     <div class="container">
-      <section class="home-search {{if this.isSearching 'is-searching'}}" {{measureSearchBar}}>
-        <img src="/icon_expanded.gif" alt="Woogi Tools" class="home-search-logo" />
-        <form class="home-search-form" role="search" {{on "submit" this.submit}}>
+      <section
+        class="home-search {{if this.isSearching 'is-searching'}}"
+        {{measureSearchBar}}
+      >
+        <img
+          src="/icon_expanded.gif"
+          alt="Woogi Tools"
+          class="home-search-logo"
+        />
+        <form
+          class="home-search-form"
+          role="search"
+          {{on "submit" this.submit}}
+        >
           <Icon @name="search" @size={{16}} />
           <input
             type="search"
@@ -217,12 +283,25 @@ export default class HomePage extends Component {
             {{autofocusOnDesktop}}
           />
           {{#if this.query}}
-            <button type="button" class="qr-icon-btn" aria-label="Clear search" {{on "click" this.clear}}><Icon @name="x" @size={{14}} /></button>
+            <button
+              type="button"
+              class="qr-icon-btn"
+              aria-label="Clear search"
+              {{on "click" this.clear}}
+            ><Icon @name="x" @size={{14}} /></button>
           {{/if}}
-          <button type="button" class="home-filter-btn {{if this.showFilters 'active'}}" aria-expanded={{if this.showFilters "true" "false"}} aria-controls="home-filters" {{on "click" this.toggleFilters}}>
+          <button
+            type="button"
+            class="home-filter-btn {{if this.showFilters 'active'}}"
+            aria-expanded={{if this.showFilters "true" "false"}}
+            aria-controls="home-filters"
+            {{on "click" this.toggleFilters}}
+          >
             <Icon @name="list-filter" @size={{14}} />
             <span>Filters</span>
-            {{#if this.activeFilterCount}}<span class="home-filter-count">{{this.activeFilterCount}}</span>{{/if}}
+            {{#if this.activeFilterCount}}<span
+                class="home-filter-count"
+              >{{this.activeFilterCount}}</span>{{/if}}
           </button>
         </form>
 
@@ -232,7 +311,17 @@ export default class HomePage extends Component {
               <span class="qr-label is-muted">Categories</span>
               <div class="home-chips">
                 {{#each this.categories as |category|}}
-                  <button type="button" class="home-chip {{if (includes this.filterCategories category) 'active'}}" aria-pressed={{if (includes this.filterCategories category) "true" "false"}} {{on "click" (fn this.toggleFilterCategory category)}}>{{category}}</button>
+                  <button
+                    type="button"
+                    class="home-chip
+                      {{if (includes this.filterCategories category) 'active'}}"
+                    aria-pressed={{if
+                      (includes this.filterCategories category)
+                      "true"
+                      "false"
+                    }}
+                    {{on "click" (fn this.toggleFilterCategory category)}}
+                  >{{category}}</button>
                 {{/each}}
               </div>
             </div>
@@ -240,7 +329,12 @@ export default class HomePage extends Component {
               <span class="qr-label is-muted">Match in</span>
               <div class="math-tabs" role="group" aria-label="Match in">
                 {{#each this.matchModes as |m|}}
-                  <button type="button" class="qr-tab {{if (eq this.matchMode m.id) 'active'}}" aria-pressed={{if (eq this.matchMode m.id) "true" "false"}} {{on "click" (fn this.setMatchMode m.id)}}>{{m.label}}</button>
+                  <button
+                    type="button"
+                    class="qr-tab {{if (eq this.matchMode m.id) 'active'}}"
+                    aria-pressed={{if (eq this.matchMode m.id) "true" "false"}}
+                    {{on "click" (fn this.setMatchMode m.id)}}
+                  >{{m.label}}</button>
                 {{/each}}
               </div>
             </div>
@@ -248,18 +342,33 @@ export default class HomePage extends Component {
               <span class="qr-label is-muted">Sort</span>
               <div class="math-tabs" role="group" aria-label="Sort">
                 {{#each this.sorts as |s|}}
-                  <button type="button" class="qr-tab {{if (eq this.sort s.id) 'active'}}" aria-pressed={{if (eq this.sort s.id) "true" "false"}} {{on "click" (fn this.setSort s.id)}}>{{s.label}}</button>
+                  <button
+                    type="button"
+                    class="qr-tab {{if (eq this.sort s.id) 'active'}}"
+                    aria-pressed={{if (eq this.sort s.id) "true" "false"}}
+                    {{on "click" (fn this.setSort s.id)}}
+                  >{{s.label}}</button>
                 {{/each}}
               </div>
             </div>
             <div class="home-filter-row">
               <label class="qr-switch">
-                <input type="checkbox" role="switch" checked={{this.favouritesOnly}} aria-checked={{if this.favouritesOnly "true" "false"}} {{on "change" this.toggleFavouritesOnly}} />
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={{this.favouritesOnly}}
+                  aria-checked={{if this.favouritesOnly "true" "false"}}
+                  {{on "change" this.toggleFavouritesOnly}}
+                />
                 <span class="qr-switch-track" aria-hidden="true"></span>
                 Favourites only
               </label>
               {{#if this.activeFilterCount}}
-                <button type="button" class="btn math-use" {{on "click" this.resetFilters}}>Clear filters</button>
+                <button
+                  type="button"
+                  class="btn math-use"
+                  {{on "click" this.resetFilters}}
+                >Clear filters</button>
               {{/if}}
             </div>
           </div>
@@ -267,9 +376,14 @@ export default class HomePage extends Component {
 
         {{#unless this.isSearching}}
           <div class="home-search-actions">
-            <button type="button" class="btn home-lucky" {{on "click" this.feelingLucky}}>I'm Feeling Lucky</button>
+            <button
+              type="button"
+              class="btn home-lucky"
+              {{on "click" this.feelingLucky}}
+            >I'm Feeling Lucky</button>
           </div>
-          <p class="home-search-hint">Small tools, no bloat. No accounts, no tracking.</p>
+          <p class="home-search-hint">Small tools, no bloat. No accounts, no
+            tracking.</p>
         {{/unless}}
       </section>
 
@@ -277,28 +391,58 @@ export default class HomePage extends Component {
         {{#if this.results.length}}
           <div class="home-results {{if this.showHand 'has-hand'}}">
             {{#if this.showHand}}
-              <CardHand @cards={{this.results}} @activeRoute={{this.activeRoute}} @onActivate={{this.setActive}} />
+              <CardHand
+                @cards={{this.results}}
+                @activeRoute={{this.activeRoute}}
+                @onActivate={{this.setActive}}
+              />
             {{/if}}
             <section class="home-results-grid" aria-label="Search results">
-              <h2 class="section-title">{{this.results.length}} {{if (eq this.results.length 1) "result" "results"}}</h2>
+              <h2 class="section-title">{{this.results.length}}
+                {{if (eq this.results.length 1) "result" "results"}}</h2>
               <div class="tool-grid">
                 {{! Keyed by position, so typing reuses the cards already on screen instead of rebuilding them. }}
                 {{#each this.results key="@index" as |card|}}
-                  <ToolCard @card={{card}} @active={{eq card.tool.route this.activeRoute}} @onHover={{this.setActive}} />
+                  <ToolCard
+                    @card={{card}}
+                    @active={{eq card.tool.route this.activeRoute}}
+                    @onHover={{this.setActive}}
+                  />
                 {{/each}}
               </div>
             </section>
           </div>
         {{else}}
-          <p class="home-no-results">Nothing matches “{{this.query}}”{{if this.activeFilterCount " with these filters"}}. Try another word.</p>
+          <p class="home-no-results">Nothing matches “{{this.query}}”{{if
+              this.activeFilterCount
+              " with these filters"
+            }}. Try another word.</p>
         {{/if}}
       {{else}}
         <nav class="home-categories pop-in" aria-label="Browse by category">
-          <button type="button" class="home-chip {{unless this.browseCategory 'active'}}" aria-pressed={{if this.browseCategory "false" "true"}} {{on "click" (fn this.setBrowseCategory null)}}>All</button>
+          <button
+            type="button"
+            class="home-chip {{unless this.browseCategory 'active'}}"
+            aria-pressed={{if this.browseCategory "false" "true"}}
+            {{on "click" (fn this.setBrowseCategory null)}}
+          >All</button>
           {{#each this.categories as |category|}}
-            <button type="button" class="home-chip {{if (eq this.browseCategory category) 'active'}}" aria-pressed={{if (eq this.browseCategory category) "true" "false"}} {{on "click" (fn this.setBrowseCategory category)}}>{{category}}</button>
+            <button
+              type="button"
+              class="home-chip
+                {{if (eq this.browseCategory category) 'active'}}"
+              aria-pressed={{if
+                (eq this.browseCategory category)
+                "true"
+                "false"
+              }}
+              {{on "click" (fn this.setBrowseCategory category)}}
+            >{{category}}</button>
           {{/each}}
         </nav>
+        <p class="home-count pop-in">Have a look through all
+          <strong>{{this.toolCount}}</strong>
+          tools, every one of them free, no account, and nothing uploaded.</p>
 
         {{#unless this.browseCategory}}
           <section class="home-section pop-in">
@@ -310,7 +454,8 @@ export default class HomePage extends Component {
                 {{/each}}
               </div>
             {{else}}
-              <p class="history-empty">Star a tool below and it will show up here.</p>
+              <p class="history-empty">Star a tool below and it will show up
+                here.</p>
             {{/if}}
           </section>
         {{/unless}}
@@ -349,14 +494,35 @@ function hover(onHover, route) {
 }
 
 const ToolCard = <template>
-  <div class="tool-card {{if @card.suit.black 'is-black' 'is-red'}} {{if @active 'is-active'}}" {{on "mouseenter" (hover @onHover @card.tool.route)}} {{on "mouseleave" (hover @onHover null)}}>
+  <div
+    class="tool-card
+      {{if @card.suit.black 'is-black' 'is-red'}}
+      {{if @active 'is-active'}}"
+    {{on "mouseenter" (hover @onHover @card.tool.route)}}
+    {{on "mouseleave" (hover @onHover null)}}
+  >
     {{#if @card.tool.category}}
-      <FavouriteStar @route={{@card.tool.route}} @size={{16}} class="card-star" />
+      <FavouriteStar
+        @route={{@card.tool.route}}
+        @size={{16}}
+        class="card-star"
+      />
     {{/if}}
-    <span class="card-corner card-corner-tl"><span class="card-rank">{{@card.rank}}</span><span class="card-suit">{{@card.suit.symbol}}</span></span>
-    <span class="card-corner card-corner-br"><span class="card-rank">{{@card.rank}}</span><span class="card-suit">{{@card.suit.symbol}}</span></span>
+    <span class="card-corner card-corner-tl"><span
+        class="card-rank"
+      >{{@card.rank}}</span><span
+        class="card-suit"
+      >{{@card.suit.symbol}}</span></span>
+    <span class="card-corner card-corner-br"><span
+        class="card-rank"
+      >{{@card.rank}}</span><span
+        class="card-suit"
+      >{{@card.suit.symbol}}</span></span>
     <Icon @name={{@card.tool.icon}} @size={{34}} class="tool-icon" />
-    <LinkTo @route={{@card.tool.route}} class="tool-card-link">{{@card.tool.label}}</LinkTo>
+    <LinkTo
+      @route={{@card.tool.route}}
+      class="tool-card-link"
+    >{{@card.tool.label}}</LinkTo>
     <p>{{@card.tool.description}}</p>
   </div>
 </template>;

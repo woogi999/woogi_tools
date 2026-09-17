@@ -15,7 +15,25 @@ import { tracked } from '@glimmer/tracking';
 //   const release = pushPadHandler((button, { down, repeat }) => …)
 //   padStick('right') -> { x, y } from -1 to 1
 
-const NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'LS', 'RS', 'DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight', 'Home'];
+const NAMES = [
+  'A',
+  'B',
+  'X',
+  'Y',
+  'LB',
+  'RB',
+  'LT',
+  'RT',
+  'Back',
+  'Start',
+  'LS',
+  'RS',
+  'DPadUp',
+  'DPadDown',
+  'DPadLeft',
+  'DPadRight',
+  'Home',
+];
 const DIRECTIONS = new Set(['DPadUp', 'DPadDown', 'DPadLeft', 'DPadRight']);
 const REPEAT_DELAY_MS = 380;
 const REPEAT_EVERY_MS = 110;
@@ -52,7 +70,8 @@ function emit(button, info) {
     padState.active = true;
     document.documentElement.classList.add('is-pad');
   }
-  for (let i = handlers.length - 1; i >= 0; i--) if (handlers[i](button, info)) return;
+  for (let i = handlers.length - 1; i >= 0; i--)
+    if (handlers[i](button, info)) return;
   siteNavigation(button, info);
 }
 
@@ -74,14 +93,21 @@ function poll(now) {
   if (lx < -STICK_DEAD) pressed.add('DPadLeft');
   if (lx > STICK_DEAD) pressed.add('DPadRight');
   const dead = (v) => (Math.abs(v) < ANALOG_DEAD ? 0 : v);
-  stick = { left: { x: dead(lx), y: dead(ly) }, right: { x: dead(rx), y: dead(ry) } };
+  stick = {
+    left: { x: dead(lx), y: dead(ly) },
+    right: { x: dead(rx), y: dead(ry) },
+  };
 
   for (const button of pressed) {
     const state = held.get(button);
     if (!state) {
       held.set(button, { since: now, lastRepeat: now });
       emit(button, { down: true, repeat: false });
-    } else if (DIRECTIONS.has(button) && now - state.since > REPEAT_DELAY_MS && now - state.lastRepeat > REPEAT_EVERY_MS) {
+    } else if (
+      DIRECTIONS.has(button) &&
+      now - state.since > REPEAT_DELAY_MS &&
+      now - state.lastRepeat > REPEAT_EVERY_MS
+    ) {
       state.lastRepeat = now;
       emit(button, { down: true, repeat: true });
     }
@@ -92,7 +118,8 @@ function poll(now) {
     emit(button, { down: false, repeat: false });
   }
   // The right stick scrolls the page when nothing else is using it.
-  if (!handlers.length && stick.right.y) window.scrollBy({ top: stick.right.y * 18, behavior: 'instant' });
+  if (!handlers.length && stick.right.y)
+    window.scrollBy({ top: stick.right.y * 18, behavior: 'instant' });
   frame = requestAnimationFrame(poll);
 }
 
@@ -101,14 +128,22 @@ function start() {
 }
 
 export function installGamepad() {
-  if (installed || typeof window === 'undefined' || !('getGamepads' in navigator)) return;
+  if (
+    installed ||
+    typeof window === 'undefined' ||
+    !('getGamepads' in navigator)
+  )
+    return;
   installed = true;
   window.addEventListener('gamepadconnected', (event) => {
-    padState.connected = event.gamepad.id.replace(/\s*\(.*\)\s*$/, '') || 'Controller';
+    padState.connected =
+      event.gamepad.id.replace(/\s*\(.*\)\s*$/, '') || 'Controller';
     start();
   });
   window.addEventListener('gamepaddisconnected', () => {
-    const still = [...(navigator.getGamepads?.() ?? [])].find((p) => p?.connected);
+    const still = [...(navigator.getGamepads?.() ?? [])].find(
+      (p) => p?.connected,
+    );
     padState.connected = still ? still.id : null;
     if (still) start();
   });
@@ -123,13 +158,18 @@ export function installGamepad() {
   // A controller already connected before the page loaded shows up on its first press.
   start();
   setInterval(() => {
-    if (frame === null && [...(navigator.getGamepads?.() ?? [])].some((p) => p?.connected)) start();
+    if (
+      frame === null &&
+      [...(navigator.getGamepads?.() ?? [])].some((p) => p?.connected)
+    )
+      start();
   }, 1000);
 }
 
 // ─── Moving round the site ─────────────────────────────────────────────
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
 
 function scope() {
   const dialogs = [...document.querySelectorAll('dialog[open]')];
@@ -150,23 +190,36 @@ function focusables() {
 
 function focus(el) {
   el.focus({ preventScroll: true, focusVisible: true });
-  el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  el.scrollIntoView({
+    block: 'nearest',
+    inline: 'nearest',
+    behavior: 'smooth',
+  });
 }
 
 // The nearest element in a direction, favouring ones straight ahead.
 function move(direction) {
   const all = focusables();
-  const current = document.activeElement && all.includes(document.activeElement) ? document.activeElement : null;
+  const current =
+    document.activeElement && all.includes(document.activeElement)
+      ? document.activeElement
+      : null;
   if (!current) {
     // Start from whatever is nearest the top of the screen.
-    const first = all.find((el) => el.getBoundingClientRect().top >= 0) ?? all[0];
+    const first =
+      all.find((el) => el.getBoundingClientRect().top >= 0) ?? all[0];
     if (first) focus(first);
     return;
   }
   const from = current.getBoundingClientRect();
   const cx = from.left + from.width / 2;
   const cy = from.top + from.height / 2;
-  const [dx, dy] = { DPadUp: [0, -1], DPadDown: [0, 1], DPadLeft: [-1, 0], DPadRight: [1, 0] }[direction];
+  const [dx, dy] = {
+    DPadUp: [0, -1],
+    DPadDown: [0, 1],
+    DPadLeft: [-1, 0],
+    DPadRight: [1, 0],
+  }[direction];
   let best = null;
   let bestScore = Infinity;
   for (const el of all) {
@@ -184,11 +237,19 @@ function move(direction) {
     }
   }
   if (best) focus(best);
-  else if (dy) window.scrollBy({ top: dy * window.innerHeight * 0.4, behavior: 'smooth' });
+  else if (dy)
+    window.scrollBy({ top: dy * window.innerHeight * 0.4, behavior: 'smooth' });
 }
 
 function key(target, type, keyName, code) {
-  target.dispatchEvent(new KeyboardEvent(type, { key: keyName, code, bubbles: true, cancelable: true }));
+  target.dispatchEvent(
+    new KeyboardEvent(type, {
+      key: keyName,
+      code,
+      bubbles: true,
+      cancelable: true,
+    }),
+  );
 }
 
 function siteNavigation(button, { down }) {
@@ -201,15 +262,29 @@ function siteNavigation(button, { down }) {
   if (!down) return;
   if (DIRECTIONS.has(button)) {
     // Sliders slide sideways; everything else moves focus.
-    if (active?.matches?.('input[type="range"]') && (button === 'DPadLeft' || button === 'DPadRight')) {
+    if (
+      active?.matches?.('input[type="range"]') &&
+      (button === 'DPadLeft' || button === 'DPadRight')
+    ) {
       const step = Number(active.step) || 1;
-      active.value = String(Number(active.value) + (button === 'DPadRight' ? step : -step));
+      active.value = String(
+        Number(active.value) + (button === 'DPadRight' ? step : -step),
+      );
       active.dispatchEvent(new Event('input', { bubbles: true }));
       active.dispatchEvent(new Event('change', { bubbles: true }));
       return;
     }
-    if (active?.matches?.('select') && (button === 'DPadLeft' || button === 'DPadRight')) {
-      active.selectedIndex = Math.max(0, Math.min(active.options.length - 1, active.selectedIndex + (button === 'DPadRight' ? 1 : -1)));
+    if (
+      active?.matches?.('select') &&
+      (button === 'DPadLeft' || button === 'DPadRight')
+    ) {
+      active.selectedIndex = Math.max(
+        0,
+        Math.min(
+          active.options.length - 1,
+          active.selectedIndex + (button === 'DPadRight' ? 1 : -1),
+        ),
+      );
       active.dispatchEvent(new Event('change', { bubbles: true }));
       return;
     }
@@ -219,7 +294,12 @@ function siteNavigation(button, { down }) {
   switch (button) {
     case 'A':
       if (!active || active === document.body) move('DPadDown');
-      else if (active.matches('input[type="text"], input[type="search"], input:not([type]), textarea')) active.focus();
+      else if (
+        active.matches(
+          'input[type="text"], input[type="search"], input:not([type]), textarea',
+        )
+      )
+        active.focus();
       else active.click();
       break;
     case 'B': {
@@ -228,12 +308,22 @@ function siteNavigation(button, { down }) {
         dialog.dispatchEvent(new Event('cancel', { cancelable: true }));
         return;
       }
-      if (active && active !== document.body && active.matches('input, textarea')) {
+      if (
+        active &&
+        active !== document.body &&
+        active.matches('input, textarea')
+      ) {
         active.blur();
         return;
       }
-      key(document.activeElement ?? document.body, 'keydown', 'Escape', 'Escape');
-      if (!document.querySelector('.command-palette, .sidebar.is-open')) history.back();
+      key(
+        document.activeElement ?? document.body,
+        'keydown',
+        'Escape',
+        'Escape',
+      );
+      if (!document.querySelector('.command-palette, .sidebar.is-open'))
+        history.back();
       break;
     }
     case 'X':
@@ -242,7 +332,15 @@ function siteNavigation(button, { down }) {
     case 'Start':
     case 'Y':
       // The site's search (Ctrl+F).
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', code: 'KeyF', ctrlKey: true, bubbles: true, cancelable: true }));
+      window.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'f',
+          code: 'KeyF',
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
       break;
     case 'LB':
     case 'LT':

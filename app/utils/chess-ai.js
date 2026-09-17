@@ -91,7 +91,9 @@ export function evaluate(chess) {
       const piece = board[r][c];
       if (!piece) continue;
       const table = PST[piece.type];
-      const value = VALUE[piece.type] + (piece.color === 'w' ? table[r][c] : table[7 - r][c]);
+      const value =
+        VALUE[piece.type] +
+        (piece.color === 'w' ? table[r][c] : table[7 - r][c]);
       score += piece.color === 'w' ? value : -value;
     }
   }
@@ -127,7 +129,11 @@ class Search {
     const standPat = this.side() * evaluate(this.chess);
     if (standPat >= beta || depth === 0) return standPat;
     if (standPat > alpha) alpha = standPat;
-    const captures = orderMoves(this.chess.moves({ verbose: true }).filter((m) => m.captured || m.promotion));
+    const captures = orderMoves(
+      this.chess
+        .moves({ verbose: true })
+        .filter((m) => m.captured || m.promotion),
+    );
     for (const move of captures) {
       this.chess.move(move);
       const score = -(yield* this.quiesce(-beta, -alpha, depth - 1));
@@ -160,7 +166,10 @@ class Search {
   *root(depth, previousBest) {
     const scored = [];
     let alpha = -Infinity;
-    for (const move of orderMoves(this.chess.moves({ verbose: true }), previousBest)) {
+    for (const move of orderMoves(
+      this.chess.moves({ verbose: true }),
+      previousBest,
+    )) {
       this.chess.move(move);
       const score = -(yield* this.negamax(depth - 1, -Infinity, -alpha, 1));
       this.chess.undo();

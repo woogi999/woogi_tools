@@ -5,6 +5,7 @@ import { fn } from '@ember/helper';
 import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import CopyButton from './copy-button';
+import { keepState } from '../utils/tool-state';
 
 const MATCH_LIMIT = 1000;
 const TIMEOUT_MS = 1500;
@@ -53,7 +54,8 @@ export default class RegexTesterPage extends Component {
 
   @tracked pattern = '(?<user>[\\w.+-]+)@(?<domain>[\\w-]+\\.[\\w.]+)';
   @tracked activeFlags = 'gi';
-  @tracked text = 'Contact ann@example.com or bob.smith+news@mail.co.uk for details.';
+  @tracked text =
+    'Contact ann@example.com or bob.smith+news@mail.co.uk for details.';
   @tracked replacement = '$<user> at $<domain>';
   @tracked result = { matches: [] };
   @tracked busy = false;
@@ -64,6 +66,12 @@ export default class RegexTesterPage extends Component {
 
   constructor(owner, args) {
     super(owner, args);
+    keepState(this, 'regex-tester', [
+      'pattern',
+      'activeFlags',
+      'text',
+      'replacement',
+    ]);
     registerDestructor(this, () => {
       this.worker?.terminate();
       clearTimeout(this.timer);
@@ -90,7 +98,16 @@ export default class RegexTesterPage extends Component {
       n: i + 1,
       text: m.text,
       index: m.index,
-      groups: [...m.groups.map((g, j) => ({ name: `$${j + 1}`, value: g ?? '(no match)' })), ...m.named.map(([name, value]) => ({ name, value: value ?? '(no match)' }))],
+      groups: [
+        ...m.groups.map((g, j) => ({
+          name: `$${j + 1}`,
+          value: g ?? '(no match)',
+        })),
+        ...m.named.map(([name, value]) => ({
+          name,
+          value: value ?? '(no match)',
+        })),
+      ],
     }));
   }
 
@@ -106,7 +123,9 @@ export default class RegexTesterPage extends Component {
       this.result = { matches: [] };
       return;
     }
-    const url = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: 'text/javascript' }));
+    const url = URL.createObjectURL(
+      new Blob([WORKER_SOURCE], { type: 'text/javascript' }),
+    );
     const worker = new Worker(url);
     URL.revokeObjectURL(url);
     this.worker = worker;
@@ -120,15 +139,28 @@ export default class RegexTesterPage extends Component {
     this.timer = setTimeout(() => {
       worker.terminate();
       this.busy = false;
-      this.result = { matches: [], error: `Stopped after ${TIMEOUT_MS / 1000} s. This pattern probably backtracks catastrophically (nested quantifiers like (a+)+ are the usual cause).` };
+      this.result = {
+        matches: [],
+        error: `Stopped after ${TIMEOUT_MS / 1000} s. This pattern probably backtracks catastrophically (nested quantifiers like (a+)+ are the usual cause).`,
+      };
     }, TIMEOUT_MS);
-    worker.postMessage({ pattern: this.pattern, flags: this.activeFlags, text: this.text, replacement: this.replacement === '' ? null : this.replacement, limit: MATCH_LIMIT });
+    worker.postMessage({
+      pattern: this.pattern,
+      flags: this.activeFlags,
+      text: this.text,
+      replacement: this.replacement === '' ? null : this.replacement,
+      limit: MATCH_LIMIT,
+    });
   }
 
   hasFlag = (id) => this.activeFlags.includes(id);
 
   toggleFlag = (id) => {
-    this.activeFlags = this.hasFlag(id) ? this.activeFlags.replace(id, '') : FLAGS.map((f) => f.id).filter((f) => f === id || this.activeFlags.includes(f)).join('');
+    this.activeFlags = this.hasFlag(id)
+      ? this.activeFlags.replace(id, '')
+      : FLAGS.map((f) => f.id)
+          .filter((f) => f === id || this.activeFlags.includes(f))
+          .join('');
     this.run();
   };
 
@@ -148,35 +180,78 @@ export default class RegexTesterPage extends Component {
   };
 
   <template>
-    <ToolPage @route="regex-tester" @subtitle="Write a JavaScript regular expression and watch matches, capture groups and replacements light up as you type.">
+    <ToolPage
+      @route="regex-tester"
+      @subtitle="Write a JavaScript regular expression and watch matches, capture groups and replacements light up as you type."
+    >
       <div class="text-tool pop-in">
         <div class="math-grid">
           <section class="math-card">
             <label class="math-field">
               <span class="qr-label is-muted">Pattern</span>
-              <span class="regex-input"><span aria-hidden="true">/</span><input type="text" class="math-input" spellcheck="false" autocomplete="off" value={{this.pattern}} {{on "input" this.setPattern}} /><span aria-hidden="true">/{{this.activeFlags}}</span></span>
+              <span class="regex-input"><span aria-hidden="true">/</span><input
+                  type="text"
+                  class="math-input"
+                  spellcheck="false"
+                  autocomplete="off"
+                  value={{this.pattern}}
+                  {{on "input" this.setPattern}}
+                /><span aria-hidden="true">/{{this.activeFlags}}</span></span>
             </label>
             <div class="line-actions" role="group" aria-label="Flags">
               {{#each this.flags as |f|}}
-                <button type="button" class="btn {{if (this.hasFlag f.id) 'active'}}" title={{f.hint}} aria-pressed={{if (this.hasFlag f.id) "true" "false"}} {{on "click" (fn this.toggleFlag f.id)}}>{{f.id}} · {{f.label}}</button>
+                <button
+                  type="button"
+                  class="btn {{if (this.hasFlag f.id) 'active'}}"
+                  title={{f.hint}}
+                  aria-pressed={{if (this.hasFlag f.id) "true" "false"}}
+                  {{on "click" (fn this.toggleFlag f.id)}}
+                >{{f.id}} · {{f.label}}</button>
               {{/each}}
             </div>
             <label class="field-label" for="rx-text">Test text</label>
-            <textarea id="rx-text" class="textarea text-area-tall" spellcheck="false" value={{this.text}} {{on "input" this.setText}}></textarea>
+            <textarea
+              id="rx-text"
+              class="textarea text-area-tall"
+              spellcheck="false"
+              value={{this.text}}
+              {{on "input" this.setText}}
+            ></textarea>
 
             {{#if this.result.error}}
               <p class="tool-error">{{this.result.error}}</p>
             {{else}}
-              <p class="tool-hint">{{this.result.matches.length}}{{if this.result.capped "+"}} match{{if (eq this.result.matches.length 1) "" "es"}}{{if this.busy " · working…"}}</p>
-              <div class="regex-preview">{{#each this.segments as |s|}}{{#if s.match}}<mark class={{if s.alt "is-alt"}}>{{s.text}}</mark>{{else}}{{s.text}}{{/if}}{{/each}}</div>
+              <p class="tool-hint">{{this.result.matches.length}}{{if
+                  this.result.capped
+                  "+"
+                }}
+                match{{if (eq this.result.matches.length 1) "" "es"}}{{if
+                  this.busy
+                  " · working…"
+                }}</p>
+              <div class="regex-preview">{{#each this.segments as |s|}}{{#if
+                    s.match
+                  }}<mark
+                      class={{if s.alt "is-alt"}}
+                    >{{s.text}}</mark>{{else}}{{s.text}}{{/if}}{{/each}}</div>
             {{/if}}
 
             <label class="math-field">
               <span class="qr-label is-muted">Replace with (optional)</span>
-              <input type="text" class="math-input" spellcheck="false" value={{this.replacement}} {{on "input" this.setReplacement}} />
+              <input
+                type="text"
+                class="math-input"
+                spellcheck="false"
+                value={{this.replacement}}
+                {{on "input" this.setReplacement}}
+              />
             </label>
             {{#if this.result.replaced}}
-              <div class="field-head"><span class="qr-label is-muted">Result</span><CopyButton @value={{this.result.replaced}} /></div>
+              <div class="field-head"><span
+                  class="qr-label is-muted"
+                >Result</span><CopyButton
+                  @value={{this.result.replaced}}
+                /></div>
               <pre class="code-block">{{this.result.replaced}}</pre>
             {{/if}}
           </section>
@@ -187,9 +262,13 @@ export default class RegexTesterPage extends Component {
               <ol class="regex-matches">
                 {{#each this.matchList as |m|}}
                   <li>
-                    <div class="field-head"><code>{{m.text}}</code><span class="tool-hint">#{{m.n}} at {{m.index}}</span></div>
+                    <div class="field-head"><code>{{m.text}}</code><span
+                        class="tool-hint"
+                      >#{{m.n}} at {{m.index}}</span></div>
                     {{#each m.groups as |g|}}
-                      <div class="regex-group"><span class="tool-hint">{{g.name}}</span><code>{{g.value}}</code></div>
+                      <div class="regex-group"><span
+                          class="tool-hint"
+                        >{{g.name}}</span><code>{{g.value}}</code></div>
                     {{/each}}
                   </li>
                 {{/each}}

@@ -9,14 +9,25 @@ import CopyButton from './copy-button';
 
 const eq = (a, b) => a === b;
 const not = (a) => !a;
-const canScan = () => typeof window.BarcodeDetector === 'function' && Boolean(navigator.mediaDevices?.getUserMedia);
+const canScan = () =>
+  typeof window.BarcodeDetector === 'function' &&
+  Boolean(navigator.mediaDevices?.getUserMedia);
 const canShare = () => typeof navigator.share === 'function';
 
 // Draws a code as a QR image.
 const qr = modifier((element, [data]) => {
   element.replaceChildren();
   if (!data) return;
-  const code = new QRCodeStyling({ type: 'svg', width: 220, height: 220, margin: 6, data, qrOptions: { errorCorrectionLevel: 'L' }, dotsOptions: { type: 'square', color: '#141414' }, backgroundOptions: { color: '#ffffff' } });
+  const code = new QRCodeStyling({
+    type: 'svg',
+    width: 220,
+    height: 220,
+    margin: 6,
+    data,
+    qrOptions: { errorCorrectionLevel: 'L' },
+    dotsOptions: { type: 'square', color: '#141414' },
+    backgroundOptions: { color: '#ffffff' },
+  });
   code.append(element);
 });
 
@@ -45,7 +56,10 @@ class QrScanner extends Component {
           }
         }, 350);
       })
-      .catch(() => (this.error = 'Couldn’t open the camera. Type the code in instead.'));
+      .catch(
+        () =>
+          (this.error = 'Couldn’t open the camera. Type the code in instead.'),
+      );
     return () => {
       stopped = true;
       clearInterval(timer);
@@ -61,14 +75,18 @@ class QrScanner extends Component {
       {{else}}
         <video class="nearby-video" muted playsinline {{this.camera}}></video>
       {{/if}}
-      <button type="button" class="btn" {{on "click" @onClose}}><Icon @name="keyboard" @size={{13}} /> Type it in instead</button>
+      <button type="button" class="btn" {{on "click" @onClose}}><Icon
+          @name="keyboard"
+          @size={{13}}
+        />
+        Type it in instead</button>
     </div>
   </template>
 }
 
 // Playing with no internet. A browser tab can't broadcast on the network or
 // listen for connections the way a game console does (no raw sockets, no
-// listening server — that's a security boundary all browsers share), so this
+// listening server, which is a security boundary all browsers share), so this
 // is the closest thing: two devices on the same Wi-Fi or hotspot pair up
 // directly over WebRTC. The only manual step left is trading two small codes,
 // which happens by camera automatically wherever it can.
@@ -105,7 +123,10 @@ export default class NearbyPanel extends Component {
 
   // A rough count of seats spoken for: everyone already in, plus invites still pending an answer.
   get roomFull() {
-    return this.room.members.length + this.room.lanInvites.length >= this.room.maxPlayers;
+    return (
+      this.room.members.length + this.room.lanInvites.length >=
+      this.room.maxPlayers
+    );
   }
 
   run = async (task) => {
@@ -114,7 +135,8 @@ export default class NearbyPanel extends Component {
     try {
       await task();
     } catch (error) {
-      this.error = error?.message || 'That didn’t work. Check the code and try again.';
+      this.error =
+        error?.message || 'That didn’t work. Check the code and try again.';
     } finally {
       this.working = false;
     }
@@ -128,7 +150,8 @@ export default class NearbyPanel extends Component {
 
   // One invite, ready to be scanned. Called again automatically once someone joins.
   async createInvite() {
-    if (this.invite && !this.inviteConnected) this.room.cancelInvite(this.invite);
+    if (this.invite && !this.inviteConnected)
+      this.room.cancelInvite(this.invite);
     this.reply = '';
     this.inviteState = '';
     this.manualGuestSide = false;
@@ -183,16 +206,21 @@ export default class NearbyPanel extends Component {
   };
 
   share = (code) => {
-    navigator.share({ title: 'Woogi nearby game code', text: code }).catch(() => {});
+    navigator
+      .share({ title: 'Woogi nearby game code', text: code })
+      .catch(() => {});
   };
 
   <template>
     <div class="nearby">
       {{#if (eq this.room.status "joined")}}
-        <p class="fs-status is-connected"><Icon @name="check" @size={{14}} /> Connected to the nearby host.</p>
+        <p class="fs-status is-connected"><Icon @name="check" @size={{14}} />
+          Connected to the nearby host.</p>
 
       {{else if this.hosting}}
-        <p class="tool-hint">Show your code below — a nearby player scans it, and you're connected as soon as your camera catches their reply. A fresh code lines up automatically for the next one.</p>
+        <p class="tool-hint">Show your code below. A nearby player scans it, and
+          you're connected as soon as your camera catches their reply. A fresh
+          code lines up automatically for the next one.</p>
 
         {{#if this.invite}}
           <div class="nearby-live">
@@ -202,69 +230,147 @@ export default class NearbyPanel extends Component {
                 <span class="fs-link">{{this.invite.code}}</span>
                 <CopyButton @value={{this.invite.code}} />
                 {{#if this.canShare}}
-                  <button type="button" class="btn" aria-label="Share this code" title="Share this code" {{on "click" (fn this.share this.invite.code)}}><Icon @name="share-2" @size={{13}} /></button>
+                  <button
+                    type="button"
+                    class="btn"
+                    aria-label="Share this code"
+                    title="Share this code"
+                    {{on "click" (fn this.share this.invite.code)}}
+                  ><Icon @name="share-2" @size={{13}} /></button>
                 {{/if}}
               </div>
             </div>
 
             {{#if this.canScan}}
               {{#unless this.manualGuestSide}}
-                <QrScanner @hint="Now hold your camera up to their reply" @onScan={{this.scanned}} @onClose={{this.useManualGuestSide}} />
+                <QrScanner
+                  @hint="Now hold your camera up to their reply"
+                  @onScan={{this.scanned}}
+                  @onClose={{this.useManualGuestSide}}
+                />
               {{/unless}}
             {{/if}}
 
             {{#if (or this.manualGuestSide (not this.canScan))}}
-              <textarea class="nearby-input" rows="3" placeholder="Paste their reply code" aria-label="Reply code" value={{this.reply}} {{on "input" this.setReply}}></textarea>
+              <textarea
+                class="nearby-input"
+                rows="3"
+                placeholder="Paste their reply code"
+                aria-label="Reply code"
+                value={{this.reply}}
+                {{on "input" this.setReply}}
+              ></textarea>
               <div class="nearby-actions">
-                {{#if this.canScan}}<button type="button" class="btn" {{on "click" this.useCameraGuestSide}}><Icon @name="qr-code" @size={{13}} /> Scan instead</button>{{/if}}
-                <button type="button" class="btn active" disabled={{if this.reply false true}} {{on "click" (fn this.acceptReply undefined)}}>Connect</button>
+                {{#if this.canScan}}<button
+                    type="button"
+                    class="btn"
+                    {{on "click" this.useCameraGuestSide}}
+                  ><Icon @name="qr-code" @size={{13}} />
+                    Scan instead</button>{{/if}}
+                <button
+                  type="button"
+                  class="btn active"
+                  disabled={{if this.reply false true}}
+                  {{on "click" (fn this.acceptReply undefined)}}
+                >Connect</button>
               </div>
             {{/if}}
 
-            {{#if this.inviteState}}<p class="fs-status">{{this.inviteState}}</p>{{/if}}
+            {{#if this.inviteState}}<p
+                class="fs-status"
+              >{{this.inviteState}}</p>{{/if}}
           </div>
         {{/if}}
 
         {{#if this.roomFull}}
-          <p class="fs-status is-connected"><Icon @name="check" @size={{14}} /> The game's full.</p>
+          <p class="fs-status is-connected"><Icon @name="check" @size={{14}} />
+            The game's full.</p>
         {{else}}
-          <button type="button" class="btn" disabled={{this.working}} {{on "click" this.newInvite}}><Icon @name="rotate-cw" @size={{13}} /> Fresh code</button>
+          <button
+            type="button"
+            class="btn"
+            disabled={{this.working}}
+            {{on "click" this.newInvite}}
+          ><Icon @name="rotate-cw" @size={{13}} /> Fresh code</button>
         {{/if}}
 
       {{else if (eq this.room.status "joining")}}
-        <p class="tool-hint">Show this to the host, however you like — it connects the moment they get it.</p>
+        <p class="tool-hint">Show this to the host, however you like; it
+          connects the moment they get it.</p>
         <div class="nearby-code">
           <div class="nearby-qr" {{qr this.replyCode}}></div>
           <div class="fs-code-row">
             <span class="fs-link">{{this.replyCode}}</span>
             <CopyButton @value={{this.replyCode}} />
             {{#if this.canShare}}
-              <button type="button" class="btn" aria-label="Share this code" title="Share this code" {{on "click" (fn this.share this.replyCode)}}><Icon @name="share-2" @size={{13}} /></button>
+              <button
+                type="button"
+                class="btn"
+                aria-label="Share this code"
+                title="Share this code"
+                {{on "click" (fn this.share this.replyCode)}}
+              ><Icon @name="share-2" @size={{13}} /></button>
             {{/if}}
           </div>
         </div>
-        <p class="fs-status"><Icon @name="radio-tower" @size={{14}} /> Waiting for the host…</p>
+        <p class="fs-status"><Icon @name="radio-tower" @size={{14}} />
+          Waiting for the host…</p>
 
       {{else if this.wantsToJoin}}
         {{#if this.canScan}}
           {{#unless this.manualHostSide}}
-            <QrScanner @hint="Point your camera at the host's code" @onScan={{this.scanned}} @onClose={{this.useManualHostSide}} />
+            <QrScanner
+              @hint="Point your camera at the host's code"
+              @onScan={{this.scanned}}
+              @onClose={{this.useManualHostSide}}
+            />
           {{/unless}}
         {{/if}}
         {{#if (or this.manualHostSide (not this.canScan))}}
-          <textarea class="nearby-input" rows="3" placeholder="Paste the host's invite code" aria-label="Invite code" value={{this.hostCode}} {{on "input" this.setHostCode}}></textarea>
+          <textarea
+            class="nearby-input"
+            rows="3"
+            placeholder="Paste the host's invite code"
+            aria-label="Invite code"
+            value={{this.hostCode}}
+            {{on "input" this.setHostCode}}
+          ></textarea>
           <div class="nearby-actions">
-            {{#if this.canScan}}<button type="button" class="btn" {{on "click" this.useCameraHostSide}}><Icon @name="qr-code" @size={{13}} /> Scan instead</button>{{/if}}
-            <button type="button" class="btn active" disabled={{this.joinDisabled}} {{on "click" (fn this.makeReply undefined)}}>Join</button>
+            {{#if this.canScan}}<button
+                type="button"
+                class="btn"
+                {{on "click" this.useCameraHostSide}}
+              ><Icon @name="qr-code" @size={{13}} />
+                Scan instead</button>{{/if}}
+            <button
+              type="button"
+              class="btn active"
+              disabled={{this.joinDisabled}}
+              {{on "click" (fn this.makeReply undefined)}}
+            >Join</button>
           </div>
         {{/if}}
-        <button type="button" class="btn" {{on "click" this.cancelJoining}}><Icon @name="arrow-left" @size={{13}} /> Back</button>
+        <button
+          type="button"
+          class="btn"
+          {{on "click" this.cancelJoining}}
+        ><Icon @name="arrow-left" @size={{13}} /> Back</button>
 
       {{else}}
-        <p class="tool-hint">No internet? Get everyone on the same Wi-Fi or hotspot. One person hosts, everyone else joins — a phone camera does the rest.</p>
+        <p class="tool-hint">No internet? Get everyone on the same Wi-Fi or
+          hotspot. One person hosts, everyone else joins, and a phone camera
+          does the rest.</p>
         <div class="nearby-actions">
-          <button type="button" class="btn active" {{on "click" this.hostNearby}}><Icon @name="radio-tower" @size={{13}} /> Host nearby game</button>
-          <button type="button" class="btn" {{on "click" this.startJoining}}><Icon @name="qr-code" @size={{13}} /> Join a nearby game</button>
+          <button
+            type="button"
+            class="btn active"
+            {{on "click" this.hostNearby}}
+          ><Icon @name="radio-tower" @size={{13}} /> Host nearby game</button>
+          <button
+            type="button"
+            class="btn"
+            {{on "click" this.startJoining}}
+          ><Icon @name="qr-code" @size={{13}} /> Join a nearby game</button>
         </div>
       {{/if}}
       {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}

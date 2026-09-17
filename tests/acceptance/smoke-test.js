@@ -5,7 +5,13 @@ import { setupApplicationTest } from 'woogi-tools/tests/helpers';
 module('Acceptance | smoke', function (hooks) {
   setupApplicationTest(hooks);
 
-  hooks.beforeEach(() => localStorage.removeItem('woogi-favourites'));
+  hooks.beforeEach(() => {
+    localStorage.removeItem('woogi-favourites');
+    // Tools remember what you typed into them (app/utils/tool-state.js); a test
+    // that starts from a previous run's leftovers isn't testing anything.
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith('woogi-tool:')) localStorage.removeItem(key);
+  });
 
   test('every tool page renders its starred heading and credits', async function (assert) {
     for (const [url, title] of [
@@ -16,7 +22,9 @@ module('Acceptance | smoke', function (hooks) {
       await visit(url);
       assert.dom('.hero-title span').hasText(title);
       assert.dom('.hero-title .star-btn').exists();
-      assert.dom('.made-with .credit-list').exists({ count: url === '/color-picker' ? 1 : 2 });
+      assert
+        .dom('.made-with .credit-list')
+        .exists({ count: url === '/color-picker' ? 1 : 2 });
     }
   });
 
@@ -52,8 +60,139 @@ module('Acceptance | smoke', function (hooks) {
     await waitUntil(() => find('.sidebar-nav.has-active'));
     const nav = find('.sidebar-nav');
     const active = find('.nav-link.active');
-    assert.strictEqual(nav.style.getPropertyValue('--hand-y'), `${active.offsetTop + active.offsetHeight / 2}px`);
-    assert.dom('.nav-group-label').doesNotHaveStyle({ textTransform: 'uppercase' });
+    assert.strictEqual(
+      nav.style.getPropertyValue('--hand-y'),
+      `${active.offsetTop + active.offsetHeight / 2}px`,
+    );
+    assert
+      .dom('.nav-group-label')
+      .doesNotHaveStyle({ textTransform: 'uppercase' });
+  });
+
+  // These two mount a whole page from their own constructors, which is where a
+  // tracked write during render brought the whole app down once.
+  test('the writing tools render and take input', async function (assert) {
+    await visit('/grammar-checker');
+    assert.dom('.hero-title span').hasText('Grammar Checker');
+    assert.dom('.lt-editor .lt-input').exists();
+    await fillIn('.lt-input', 'This is a sentence.');
+    assert.dom('.lt-input').hasValue('This is a sentence.');
+
+    await visit('/paraphraser');
+    assert.dom('.hero-title span').hasText('Paraphraser');
+    assert.dom('.lt-editor .lt-input').exists();
+    await fillIn('.lt-input', 'It is a very good idea.');
+    assert.dom('.lt-input').hasValue('It is a very good idea.');
+  });
+
+  test('a tool remembers what you typed into it', async function (assert) {
+    await visit('/text-case');
+    await fillIn('.textarea', 'remember me');
+    // The save is on a timer, so wait for it to land rather than guess.
+    await waitUntil(() => localStorage.getItem('woogi-tool:text-case'), {
+      timeout: 3000,
+    });
+
+    await visit('/color-picker');
+    await visit('/text-case');
+    await waitUntil(() => find('.textarea')?.value === 'remember me', {
+      timeout: 3000,
+    });
+    assert.dom('.textarea').hasValue('remember me');
+  });
+
+  test('the newer tools render', async function (assert) {
+    for (const [url, title] of [
+      ['/spin-the-wheel', 'Spin the Wheel'],
+      ['/dice-roll', 'Dice Roll'],
+      ['/coin-toss', 'Coin Toss'],
+      ['/geometry-calculator', 'Geometry Calculator'],
+      ['/image-editor', 'Image Editor'],
+      ['/image-censor', 'Image Censor'],
+      ['/video-censor', 'Video Censor'],
+      ['/subtitle-baker', 'Subtitle Baker'],
+      ['/barcode-generator', 'Barcode Generator'],
+      ['/emoji-picker', 'Emoji Picker'],
+      ['/ascii-art', 'ASCII Art'],
+      ['/video-player', 'Video Player'],
+      ['/mockup-preview', 'Mockup Preview'],
+      ['/online-ruler', 'Online Ruler'],
+      ['/document-redacter', 'Document Redacter'],
+      ['/speed-test', 'Speed Test'],
+    ]) {
+      await visit(url);
+      assert.dom('.hero-title span').hasText(title);
+    }
+
+    await visit('/barcode-generator');
+    assert.dom('.bc-preview svg').exists();
+    await visit('/ascii-art');
+    assert.dom('.ascii-out').exists();
+    await visit('/geometry-calculator');
+    assert.dom('.geo-result').exists();
+    await visit('/emoji-picker');
+    assert.dom('.ep-cell').exists();
+    await visit('/dice-roll');
+    await click('.dice-roll-btn');
+    await waitUntil(() => find('.die'), { timeout: 3000 });
+    assert.dom('.die').exists();
+  });
+
+  test('the currency converter renders with its watchlist', async function (assert) {
+    await visit('/currency-converter');
+    assert.dom('.hero-title span').hasText('Currency Converter');
+    assert.dom('.cc-result .cc-big').exists();
+    // The default list, minus USD which is what it converts from.
+    assert.dom('.cc-watch-row').exists({ count: 4 });
+  });
+
+  // The editor lives inside each game now rather than being a tool of its own,
+  // so getting to it goes through that game's lobby.
+  async function openEditor() {
+    await visit('/snake');
+    await click('.lobby-editor-btn');
+  }
+
+  test('the level editor paints, saves and round-trips a share code', async function (assert) {
+    localStorage.removeItem('woogi-levels');
+    await openEditor();
+    assert.dom('.le-page').exists('the editor opened inside the game');
+
+    // The flat grid is the half of the editor a test can drive; the 3D stage
+    // next to it is the same level, built by the game's own island code.
+    await click('.le-grid-head .btn');
+    assert.dom('.le-cell').exists({ count: 400 }, '20 x 20 by default');
+
+    await click('.le-cell[data-i="0"]');
+    assert.dom('.le-cell[data-i="0"]').hasClass('is-rock');
+    await fillIn('.le-bar .le-field input[type=text]', 'Test Isle');
+    await click('.le-save');
+    assert.dom('.le-list-row').exists({ count: 1 });
+    assert.dom('.le-list-row strong').hasText('Test Isle');
+
+    // The share code carries it: clear everything, paste it back, get it again.
+    const code = find('.le-code').textContent.trim();
+    assert.ok(code.startsWith('WOOGI1-'), 'a share code was produced');
+    await click('.le-new');
+    await fillIn('.le-share-row input[type=text]', code);
+    await click('.le-load');
+    assert
+      .dom('.le-cell[data-i="0"]')
+      .hasClass('is-rock', 'the level came back');
+    assert.dom('.le-list-row').exists({ count: 2 });
+
+    localStorage.removeItem('woogi-levels');
+  });
+
+  test('the level editor builds the level on a real island', async function (assert) {
+    await openEditor();
+    // A canvas, not a picture of one: the same scene code the game runs.
+    assert.dom('.le-stage-canvas').exists();
+    assert.dom('.le-view-btns .qr-icon-btn').exists({ count: 5 });
+    // Cut-out is offered as a brush, which is what shapes the playing grid.
+    assert.dom('.le-brush .le-swatch.is-void').exists();
+    await click('.le-close');
+    assert.dom('.game-lobby').exists('and it goes back to the lobby');
   });
 
   test('qr generator renders and switches modes', async function (assert) {
@@ -66,7 +205,9 @@ module('Acceptance | smoke', function (hooks) {
     assert.dom('.colour-field input[type=color]').hasValue('#ff0000');
 
     await click('.qr-tab:nth-child(2)');
-    assert.dom('.qr-empty').hasText('Enter network details to generate QR code');
+    assert
+      .dom('.qr-empty')
+      .hasText('Enter network details to generate QR code');
     await fillIn('#qr-ssid', 'Home');
     await fillIn('#qr-password', 'secret');
     await waitUntil(() => find('.qr-image svg'));

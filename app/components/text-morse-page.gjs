@@ -7,6 +7,7 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
 import { toMorse, fromMorse } from '../utils/ciphers';
+import { keepState } from '../utils/tool-state';
 
 // Morse code both ways, with the dits and dahs played out loud at the speed you pick.
 
@@ -25,12 +26,15 @@ export default class TextMorsePage extends Component {
 
   constructor(owner, args) {
     super(owner, args);
+    keepState(this, 'text-morse', ['text', 'direction', 'wpm']);
     registerDestructor(this, () => this.stop());
   }
 
   get output() {
     if (!this.text.trim()) return '';
-    return this.direction === 'encode' ? toMorse(this.text) : fromMorse(this.text);
+    return this.direction === 'encode'
+      ? toMorse(this.text)
+      : fromMorse(this.text);
   }
 
   // What gets played: the morse, whichever side it's on.
@@ -87,41 +91,91 @@ export default class TextMorsePage extends Component {
         at += unit * 4;
       }
     }
-    this.timers.push(setTimeout(() => this.stop(), (at - ctx.currentTime + 0.2) * 1000));
+    this.timers.push(
+      setTimeout(() => this.stop(), (at - ctx.currentTime + 0.2) * 1000),
+    );
   };
 
   <template>
-    <ToolPage @route="text-morse" @subtitle="Words to Morse code and back, with the dits and dahs played out loud so you can hear it.">
+    <ToolPage
+      @route="text-morse"
+      @subtitle="Words to Morse code and back, with the dits and dahs played out loud so you can hear it."
+    >
       <div class="math-grid text-tool pop-in">
         <section class="math-card">
           <div class="math-tabs" role="group" aria-label="Direction">
-            <button type="button" class="qr-tab {{if (eq this.direction 'encode') 'active'}}" {{on "click" (fn this.setDirection "encode")}}>Words to Morse</button>
-            <button type="button" class="qr-tab {{if (eq this.direction 'decode') 'active'}}" {{on "click" (fn this.setDirection "decode")}}>Morse to words</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.direction 'encode') 'active'}}"
+              {{on "click" (fn this.setDirection "encode")}}
+            >Words to Morse</button>
+            <button
+              type="button"
+              class="qr-tab {{if (eq this.direction 'decode') 'active'}}"
+              {{on "click" (fn this.setDirection "decode")}}
+            >Morse to words</button>
           </div>
-          <label class="field-label" for="morse-text">{{if (eq this.direction "encode") "Your words" "The Morse"}}</label>
-          <textarea id="morse-text" class="textarea text-area-tall" spellcheck="false" value={{this.text}} {{on "input" this.setText}}></textarea>
-          <p class="tool-hint">Spaces between letters, a slash between words: <code>.... .. / - .... . .-. .</code></p>
+          <label class="field-label" for="morse-text">{{if
+              (eq this.direction "encode")
+              "Your words"
+              "The Morse"
+            }}</label>
+          <textarea
+            id="morse-text"
+            class="textarea text-area-tall"
+            spellcheck="false"
+            value={{this.text}}
+            {{on "input" this.setText}}
+          ></textarea>
+          <p class="tool-hint">Spaces between letters, a slash between words:
+            <code>.... .. / - .... . .-. .</code></p>
         </section>
 
         <section class="math-card">
           <div class="fc-toolbar">
-            <h3 class="qr-heading">{{if (eq this.direction "encode") "Morse" "Words"}}</h3>
+            <h3 class="qr-heading">{{if
+                (eq this.direction "encode")
+                "Morse"
+                "Words"
+              }}</h3>
             <div class="settings-actions">
               <CopyButton @value={{this.output}} />
               {{#if this.playing}}
-                <button type="button" class="btn" {{on "click" this.stop}}><Icon @name="square" @size={{13}} /> Stop</button>
+                <button type="button" class="btn" {{on "click" this.stop}}><Icon
+                    @name="square"
+                    @size={{13}}
+                  />
+                  Stop</button>
               {{else}}
-                <button type="button" class="btn" {{on "click" this.play}}><Icon @name="play" @size={{13}} /> Listen</button>
+                <button type="button" class="btn" {{on "click" this.play}}><Icon
+                    @name="play"
+                    @size={{13}}
+                  />
+                  Listen</button>
               {{/if}}
             </div>
           </div>
-          <p class="cipher-output">{{if this.output this.output "Nothing yet — type something on the left."}}</p>
+          <p class="cipher-output">{{if
+              this.output
+              this.output
+              "Nothing yet. Type something on the left."
+            }}</p>
 
           <label class="math-field">
-            <span class="qr-label is-muted">Speed: {{this.wpm}} words a minute</span>
-            <input type="range" min="5" max="40" value={{this.wpm}} {{on "input" this.setWpm}} />
+            <span class="qr-label is-muted">Speed:
+              {{this.wpm}}
+              words a minute</span>
+            <input
+              type="range"
+              min="5"
+              max="40"
+              value={{this.wpm}}
+              {{on "input" this.setWpm}}
+            />
           </label>
-          <p class="tool-hint">A dit is one beat, a dah is three, and the gaps are a beat between symbols, three between letters and seven between words — proper Morse timing, at 600 Hz.</p>
+          <p class="tool-hint">A dit is one beat, a dah is three, and the gaps
+            are a beat between symbols, three between letters and seven between
+            words: proper Morse timing, at 600 Hz.</p>
         </section>
       </div>
     </ToolPage>

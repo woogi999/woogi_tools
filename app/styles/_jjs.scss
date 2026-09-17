@@ -179,7 +179,9 @@
   color: var(--text);
   font-family: var(--font-mono);
   font-size: 0.76rem;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .jjs-id .icon {

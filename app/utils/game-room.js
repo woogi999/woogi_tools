@@ -69,6 +69,9 @@ export default class GameRoom {
   // Guests who've pressed Ready (the host keeps the real list and sends it out): { [id]: true }.
   // The host is always ready (they press Start), and so are computer players.
   @tracked readyIds = {};
+  // Who is watching rather than playing. Host-authoritative and broadcast with
+  // the rest of the lobby, exactly like readyIds.
+  @tracked spectatorIds = {};
   // When the host last called a ready check (this device's clock), so guests can be nudged.
   @tracked readyCheckAt = 0;
   // Debug mode (see utils/debug-commands.js): whether it's on, and who besides the host can use it.
@@ -83,12 +86,18 @@ export default class GameRoom {
   hostConn = null; // guest: the connection to the host
   slowTimer = null;
 
-  constructor(game, { maxPlayers = 2, settings = {}, onMessage, onGuestLeft, onClosed } = {}) {
+  constructor(
+    game,
+    { maxPlayers = 2, settings = {}, onMessage, onGuestLeft, onClosed } = {},
+  ) {
     this.game = game;
     this.maxPlayers = maxPlayers;
     this.factory = settings;
     // The rules you last played with come back next time.
-    const restored = { ...settings, ...pickKnown(settings, readJson(settingsKey(game))) };
+    const restored = {
+      ...settings,
+      ...pickKnown(settings, readJson(settingsKey(game))),
+    };
     this.settings = restored;
     // A guest who leaves gets their own rules back, not the last host's.
     this.defaults = restored;
@@ -102,7 +111,9 @@ export default class GameRoom {
   // ─── Who's here ──────────────────────────────────────────────────────
 
   get role() {
-    return this.status === 'joining' || this.status === 'joined' ? 'guest' : 'host';
+    return this.status === 'joining' || this.status === 'joined'
+      ? 'guest'
+      : 'host';
   }
 
   get isHost() {
@@ -129,20 +140,85 @@ export default class GameRoom {
   // Everyone in the lobby, host first: [{ id, name, avatar, isHost, isYou }].
   get members() {
     const ready = (id, isHost) => isHost || Boolean(this.readyIds[id]);
-    if (this.role === 'guest') return this.roster.map((m) => ({ ...m, isYou: m.id === this.selfPeerId, ready: ready(m.id, m.isHost) }));
-    const me = { id: this.selfId, ...this.profile, isHost: true, isYou: true, ready: true };
-    return [me, ...this.guests.map((g) => ({ ...g, isHost: false, isYou: false, ready: ready(g.id, false) }))];
+    const watching = (id) => Boolean(this.spectatorIds[id]);
+    if (this.role === 'guest')
+      return this.roster.map((m) => ({
+        ...m,
+        isYou: m.id === this.selfPeerId,
+        ready: ready(m.id, m.isHost),
+        spectating: watching(m.id),
+      }));
+    const me = {
+      id: this.selfId,
+      ...this.profile,
+      isHost: true,
+      isYou: true,
+      ready: true,
+      spectating: watching(this.selfId),
+    };
+    return [
+      me,
+      ...this.guests.map((g) => ({
+        ...g,
+        isHost: false,
+        isYou: false,
+        ready: ready(g.id, false),
+        spectating: watching(g.id),
+      })),
+    ];
+  }
+
+  // ─── Spectators ──────────────────────────────────────────────────────
+  //
+  // A spectator is in the room but not in the game: they take no seat, they
+  // don't have to be Ready for it to start, and every game shows them a view of
+  // it rather than a way to play it. Switching sides is a lobby-only decision,
+  // so nobody can walk out of a game half way through and leave a gap.
+
+  // The people who will actually be playing.
+  get players() {
+    return this.members.filter((m) => !m.spectating);
+  }
+
+  get spectators() {
+    return this.members.filter((m) => m.spectating);
+  }
+
+  get iAmSpectating() {
+    return Boolean(this.spectatorIds[this.selfId]);
+  }
+
+  // Host or guest: watch instead of play. Ignored once a game is under way.
+  setSpectating(on) {
+    const id = this.selfId;
+    if (Boolean(this.spectatorIds[id]) === Boolean(on)) return;
+    if (this.role === 'guest') {
+      // Shown straight away; the host's next lobby message confirms it.
+      this.spectatorIds = withFlag(this.spectatorIds, id, on);
+      this.post(this.hostConn, { t: 'spectate', on: Boolean(on) });
+    } else {
+      this.spectatorIds = withFlag(this.spectatorIds, id, on);
+      this.broadcastLobby();
+    }
+    sfx(on ? 'ui.toggle' : 'ui.select');
+  }
+
+  // Host: put someone back in the game, or out of it.
+  setSpectatingFor(id, on) {
+    if (!this.isHost) return;
+    this.spectatorIds = withFlag(this.spectatorIds, id, on);
+    this.broadcastLobby();
   }
 
   // ─── Ready ───────────────────────────────────────────────────────────
 
   // Every guest has pressed Ready (always true with no guests).
   get allReady() {
-    return this.members.every((m) => m.ready);
+    return this.players.every((m) => m.ready);
   }
 
   get readyCount() {
-    return this.members.filter((m) => m.ready).length;
+    return this.players.filter((m) => m.ready).length;
   }
 
   get iAmReady() {
@@ -164,7 +240,8 @@ export default class GameRoom {
     this.readyIds = {};
     this.readyCheckAt = Date.now();
     this.broadcastLobby();
-    for (const conn of this.conns.values()) this.post(conn, { t: 'ready-check' });
+    for (const conn of this.conns.values())
+      this.post(conn, { t: 'ready-check' });
   }
 
   // Host: everyone has to press Ready again (after a game starts, so a rematch needs everyone's say-so).
@@ -186,20 +263,28 @@ export default class GameRoom {
 
   setProfile(patch) {
     this.profile = saveProfile({ ...this.profile, ...patch });
-    if (this.role === 'guest') this.post(this.hostConn, { t: 'profile', profile: this.wireProfile() });
+    if (this.role === 'guest')
+      this.post(this.hostConn, { t: 'profile', profile: this.wireProfile() });
     else this.broadcastLobby();
   }
 
   setSettings(patch) {
     if (!this.isHost) return;
-    const changed = Object.keys(patch).some((key) => JSON.stringify(this.settings[key]) !== JSON.stringify(patch[key]));
+    const changed = Object.keys(patch).some(
+      (key) =>
+        JSON.stringify(this.settings[key]) !== JSON.stringify(patch[key]),
+    );
     this.settings = { ...this.settings, ...patch };
     this.defaults = this.settings;
     writeJson(settingsKey(this.game), withoutSeed(this.settings));
     // New rules: everyone has to agree to them again.
     if (changed && Object.keys(this.readyIds).length) {
       this.readyIds = {};
-      if (this.status === 'open') this.postChat({ system: true, text: 'The rules changed, so everyone needs to press Ready again.' });
+      if (this.status === 'open')
+        this.postChat({
+          system: true,
+          text: 'The rules changed, so everyone needs to press Ready again.',
+        });
     }
     this.broadcastLobby();
   }
@@ -207,9 +292,19 @@ export default class GameRoom {
   // ─── Saved rule sets ─────────────────────────────────────────────────
 
   savePreset(name) {
-    const label = String(name ?? '').trim().slice(0, 32) || `Rules ${this.presets.length + 1}`;
-    const preset = { id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: label, settings: withoutSeed(this.settings) };
-    this.presets = [...this.presets.filter((p) => p.name !== label), preset].slice(-MAX_PRESETS);
+    const label =
+      String(name ?? '')
+        .trim()
+        .slice(0, 32) || `Rules ${this.presets.length + 1}`;
+    const preset = {
+      id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+      name: label,
+      settings: withoutSeed(this.settings),
+    };
+    this.presets = [
+      ...this.presets.filter((p) => p.name !== label),
+      preset,
+    ].slice(-MAX_PRESETS);
     writeJson(presetsKey(this.game), this.presets);
     return preset;
   }
@@ -236,13 +331,32 @@ export default class GameRoom {
   }
 
   wireProfile() {
-    return { name: this.profile.name.trim() || 'Player', avatar: this.profile.avatar, pose: this.profile.pose };
+    return {
+      name: this.profile.name.trim() || 'Player',
+      avatar: this.profile.avatar,
+      pose: this.profile.pose,
+    };
   }
 
   broadcastLobby() {
     if (this.status !== 'open') return;
-    const members = this.members.map(({ id, name, avatar, pose, isHost }) => ({ id, name: id === HOST_ID ? this.wireProfile().name : name, avatar, pose, isHost }));
-    for (const conn of this.conns.values()) this.post(conn, { t: 'lobby', members, settings: this.settings, locked: this.locked, ready: this.readyIds, debug: { on: this.debug.enabled, ops: [...this.debug.ops] } });
+    const members = this.members.map(({ id, name, avatar, pose, isHost }) => ({
+      id,
+      name: id === HOST_ID ? this.wireProfile().name : name,
+      avatar,
+      pose,
+      isHost,
+    }));
+    for (const conn of this.conns.values())
+      this.post(conn, {
+        t: 'lobby',
+        members,
+        settings: this.settings,
+        locked: this.locked,
+        ready: this.readyIds,
+        spectators: this.spectatorIds,
+        debug: { on: this.debug.enabled, ops: [...this.debug.ops] },
+      });
   }
 
   // ─── Hosting ─────────────────────────────────────────────────────────
@@ -274,8 +388,12 @@ export default class GameRoom {
   // Takes the first free listing slot, and answers anyone browsing with a short description of the room.
   async list(slot = 0) {
     if (slot >= LISTING_SLOTS || this.status !== 'open' || !this.listed) return;
-    const [{ default: Peer }, options] = await Promise.all([import('peerjs'), peerOptions().catch(() => null)]);
-    if (!options || this.status !== 'open' || !this.listed || this.listingPeer) return;
+    const [{ default: Peer }, options] = await Promise.all([
+      import('peerjs'),
+      peerOptions().catch(() => null),
+    ]);
+    if (!options || this.status !== 'open' || !this.listed || this.listingPeer)
+      return;
     const listing = new Peer(listingId(this.game, slot), options);
     this.listingPeer = listing;
     listing.on('open', () => (this.listing = true));
@@ -301,12 +419,22 @@ export default class GameRoom {
   }
 
   listingInfo() {
-    return { code: this.code, host: this.wireProfile().name, players: this.members.length, max: this.maxPlayers, locked: this.locked, password: Boolean(this.password) };
+    return {
+      code: this.code,
+      host: this.wireProfile().name,
+      players: this.members.length,
+      max: this.maxPlayers,
+      locked: this.locked,
+      password: Boolean(this.password),
+    };
   }
 
   // Everyone's public rooms for a game, found by knocking on each listing slot.
   static async browse(game) {
-    const [{ default: Peer }, options] = await Promise.all([import('peerjs'), peerOptions().catch(() => null)]);
+    const [{ default: Peer }, options] = await Promise.all([
+      import('peerjs'),
+      peerOptions().catch(() => null),
+    ]);
     // Without a relay, knocking on listed rooms would show them your address; find nothing instead.
     if (!options) return [];
     return new Promise((resolve) => {
@@ -314,7 +442,12 @@ export default class GameRoom {
       const peer = new Peer(options);
       const finish = () => {
         peer.destroy();
-        resolve([...rooms.values()].sort((a, b) => Number(a.locked) - Number(b.locked) || b.players - a.players));
+        resolve(
+          [...rooms.values()].sort(
+            (a, b) =>
+              Number(a.locked) - Number(b.locked) || b.players - a.players,
+          ),
+        );
       };
       const timer = setTimeout(finish, BROWSE_MS);
       // Missing slots just raise 'peer-unavailable' errors, which are expected here.
@@ -326,11 +459,21 @@ export default class GameRoom {
       });
       peer.on('open', () => {
         for (let slot = 0; slot < LISTING_SLOTS; slot++) {
-          const conn = peer.connect(listingId(game, slot), { reliable: true, serialization: 'json' });
+          const conn = peer.connect(listingId(game, slot), {
+            reliable: true,
+            serialization: 'json',
+          });
           conn.on('data', (message) => {
             const room = message?.room;
             if (message?.t !== 'info' || typeof room?.code !== 'string') return;
-            rooms.set(room.code, { code: room.code.slice(0, 8).toUpperCase(), host: String(room.host ?? 'Someone').slice(0, 20), players: Number(room.players) || 1, max: Number(room.max) || 2, locked: Boolean(room.locked), password: Boolean(room.password) });
+            rooms.set(room.code, {
+              code: room.code.slice(0, 8).toUpperCase(),
+              host: String(room.host ?? 'Someone').slice(0, 20),
+              players: Number(room.players) || 1,
+              max: Number(room.max) || 2,
+              locked: Boolean(room.locked),
+              password: Boolean(room.password),
+            });
           });
         }
       });
@@ -353,7 +496,10 @@ export default class GameRoom {
     const invite = await createInvite(`lan-${generateRoomCode(8)}`);
     this.admit(invite.connection);
     this.lanInvites = [...this.lanInvites, invite];
-    invite.connection.on('open', () => (this.lanInvites = this.lanInvites.filter((i) => i !== invite)));
+    invite.connection.on(
+      'open',
+      () => (this.lanInvites = this.lanInvites.filter((i) => i !== invite)),
+    );
     return invite;
   }
 
@@ -380,9 +526,15 @@ export default class GameRoom {
       if (this.lanPc !== answer.pc) return;
       const conn = new LanConnection(answer.pc, channel, HOST_ID);
       this.hostConn = conn;
-      conn.on('open', () => this.post(conn, { t: 'hello', profile: this.wireProfile() }));
+      conn.on('open', () =>
+        this.post(conn, { t: 'hello', profile: this.wireProfile() }),
+      );
       conn.on('data', (message) => this.fromHost(message));
-      conn.on('close', () => (this.status === 'joining' ? this.close('The nearby connection didn’t go through.') : this.hostLost()));
+      conn.on('close', () =>
+        this.status === 'joining'
+          ? this.close('The nearby connection didn’t go through.')
+          : this.hostLost(),
+      );
     });
     return answer.code;
   }
@@ -391,10 +543,21 @@ export default class GameRoom {
     conn.on('data', (message) => {
       if (message?.t === 'hello') {
         const full = this.guests.length + 1 >= this.maxPlayers;
-        const wrongPassword = this.password && message.password !== this.password;
+        const wrongPassword =
+          this.password && message.password !== this.password;
         if (full || this.locked || wrongPassword) {
-          const reason = wrongPassword ? (message.password ? 'Wrong password.' : 'This room has a password.') : this.locked ? 'That game has already started. Ask the host to go back to the lobby.' : 'That room is full.';
-          this.post(conn, { t: 'reject', reason, password: Boolean(wrongPassword) });
+          const reason = wrongPassword
+            ? message.password
+              ? 'Wrong password.'
+              : 'This room has a password.'
+            : this.locked
+              ? 'That game has already started. Ask the host to go back to the lobby.'
+              : 'That room is full.';
+          this.post(conn, {
+            t: 'reject',
+            reason,
+            password: Boolean(wrongPassword),
+          });
           setTimeout(() => conn.close(), 300);
           return;
         }
@@ -408,22 +571,45 @@ export default class GameRoom {
       } else if (!this.conns.has(conn.peer)) {
         return;
       } else if (message?.t === 'profile') {
-        this.guests = this.guests.map((g) => (g.id === conn.peer ? { id: g.id, ...cleanProfile(message.profile) } : g));
+        this.guests = this.guests.map((g) =>
+          g.id === conn.peer
+            ? { id: g.id, ...cleanProfile(message.profile) }
+            : g,
+        );
         this.broadcastLobby();
       } else if (message?.t === 'ready') {
         const guest = this.guests.find((g) => g.id === conn.peer);
-        if (!guest || Boolean(this.readyIds[conn.peer]) === Boolean(message.ready)) return;
+        if (
+          !guest ||
+          Boolean(this.readyIds[conn.peer]) === Boolean(message.ready)
+        )
+          return;
         const next = { ...this.readyIds };
         if (message.ready) next[conn.peer] = true;
         else delete next[conn.peer];
         this.readyIds = next;
         this.broadcastLobby();
         if (message.ready) sfx('ui.select');
+      } else if (message?.t === 'spectate') {
+        const guest = this.guests.find((g) => g.id === conn.peer);
+        if (
+          !guest ||
+          Boolean(this.spectatorIds[conn.peer]) === Boolean(message.on)
+        )
+          return;
+        this.spectatorIds = withFlag(this.spectatorIds, conn.peer, message.on);
+        this.broadcastLobby();
       } else if (message?.t === 'command') {
-        if (typeof message.text === 'string') this.debug.run(message.text.slice(0, 400), conn.peer);
+        if (typeof message.text === 'string')
+          this.debug.run(message.text.slice(0, 400), conn.peer);
       } else if (message?.t === 'chat') {
         const guest = this.guests.find((g) => g.id === conn.peer);
-        if (guest && this.allowChat(conn.peer)) this.postChat({ from: conn.peer, name: guest.name, text: message.text });
+        if (guest && this.allowChat(conn.peer))
+          this.postChat({
+            from: conn.peer,
+            name: guest.name,
+            text: message.text,
+          });
       } else if (message?.t === 'game') {
         this.onMessage?.(message.data, conn.peer);
       }
@@ -470,9 +656,14 @@ export default class GameRoom {
     if (!peer) return;
     peer.on('open', (id) => {
       this.selfPeerId = id;
-      const conn = peer.connect(peerId(this.game, clean), { reliable: true, serialization: 'json' });
+      const conn = peer.connect(peerId(this.game, clean), {
+        reliable: true,
+        serialization: 'json',
+      });
       this.hostConn = conn;
-      conn.on('open', () => this.post(conn, { t: 'hello', profile: this.wireProfile(), password }));
+      conn.on('open', () =>
+        this.post(conn, { t: 'hello', profile: this.wireProfile(), password }),
+      );
       conn.on('data', (message) => this.fromHost(message));
       conn.on('close', () => this.hostLost());
       conn.on('error', () => this.hostLost());
@@ -483,12 +674,27 @@ export default class GameRoom {
     if (message?.t === 'lobby') {
       if (this.status === 'joining') this.settle();
       this.status = 'joined';
-      this.roster = Array.isArray(message.members) ? message.members.map((m) => ({ ...m, ...cleanProfile(m) })) : [];
+      this.roster = Array.isArray(message.members)
+        ? message.members.map((m) => ({ ...m, ...cleanProfile(m) }))
+        : [];
       this.settings = message.settings;
       this.locked = message.locked;
       this.debugOn = Boolean(message.debug?.on);
-      this.debugOps = Array.isArray(message.debug?.ops) ? message.debug.ops.map(String) : [];
-      this.readyIds = message.ready && typeof message.ready === 'object' ? Object.fromEntries(Object.keys(message.ready).map((id) => [id, true])) : {};
+      this.debugOps = Array.isArray(message.debug?.ops)
+        ? message.debug.ops.map(String)
+        : [];
+      this.readyIds =
+        message.ready && typeof message.ready === 'object'
+          ? Object.fromEntries(
+              Object.keys(message.ready).map((id) => [id, true]),
+            )
+          : {};
+      this.spectatorIds =
+        message.spectators && typeof message.spectators === 'object'
+          ? Object.fromEntries(
+              Object.keys(message.spectators).map((id) => [id, true]),
+            )
+          : {};
     } else if (message?.t === 'ready-check') {
       this.readyCheckAt = Date.now();
       sfx('uno.myturn');
@@ -522,39 +728,69 @@ export default class GameRoom {
     // Commands (/debug, /help…) run on the host and never show up as a message.
     if (/^\s*\//.test(String(text ?? ''))) {
       if (this.isBusy) return;
-      if (this.role === 'guest') this.post(this.hostConn, { t: 'command', text: String(text).slice(0, 400) });
+      if (this.role === 'guest')
+        this.post(this.hostConn, {
+          t: 'command',
+          text: String(text).slice(0, 400),
+        });
       else this.debug.run(String(text), this.selfId);
       return;
     }
     const clean = censor(text);
     if (!clean || this.isBusy) return;
-    if (this.role === 'guest') this.post(this.hostConn, { t: 'chat', text: clean });
-    else this.postChat({ from: HOST_ID, name: this.wireProfile().name, text: clean });
+    if (this.role === 'guest')
+      this.post(this.hostConn, { t: 'chat', text: clean });
+    else
+      this.postChat({
+        from: HOST_ID,
+        name: this.wireProfile().name,
+        text: clean,
+      });
   }
 
   // A computer player talking. Only the host runs the computer players, so only the host says their lines.
   botChat(name, text) {
-    if (this.isHost) this.postChat({ from: `bot:${name}`, name, text, bot: true });
+    if (this.isHost)
+      this.postChat({ from: `bot:${name}`, name, text, bot: true });
   }
 
-  postChat({ from = null, name = '', text, system = false, bot = false, debug = false }) {
-    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, from, name, text, system, bot, debug });
+  postChat({
+    from = null,
+    name = '',
+    text,
+    system = false,
+    bot = false,
+    debug = false,
+  }) {
+    const message = cleanChat({
+      id: `${Date.now().toString(36)}-${++this.chatSeq}`,
+      from,
+      name,
+      text,
+      system,
+      bot,
+      debug,
+    });
     if (!message.text) return;
     this.addChat(message);
-    for (const conn of this.conns.values()) this.post(conn, { t: 'chat-msg', message });
+    for (const conn of this.conns.values())
+      this.post(conn, { t: 'chat-msg', message });
   }
 
   addChat(message) {
     this.chat = [...this.chat.slice(-(CHAT_HISTORY - 1)), message];
     if (message.debug) return;
-    if (message.system) sfx(/ left\.$/.test(message.text) ? 'ui.leave' : 'ui.join');
+    if (message.system)
+      sfx(/ left\.$/.test(message.text) ? 'ui.leave' : 'ui.join');
     else if (!message.bot && message.from !== this.selfId) sfx('ui.chat');
   }
 
   // At most CHAT_BURST messages per guest in any CHAT_WINDOW_MS.
   allowChat(id) {
     const now = Date.now();
-    const recent = (this.chatTimes.get(id) ?? []).filter((t) => now - t < CHAT_WINDOW_MS);
+    const recent = (this.chatTimes.get(id) ?? []).filter(
+      (t) => now - t < CHAT_WINDOW_MS,
+    );
     if (recent.length >= CHAT_BURST) return false;
     this.chatTimes.set(id, [...recent, now]);
     return true;
@@ -580,12 +816,18 @@ export default class GameRoom {
   }
 
   get iHaveDebug() {
-    return this.debugOn && (this.isHost || this.debugOps.includes(this.selfPeerId));
+    return (
+      this.debugOn && (this.isHost || this.debugOps.includes(this.selfPeerId))
+    );
   }
 
   // A debug reply for one person only.
   whisper(id, text) {
-    const message = cleanChat({ id: `${Date.now().toString(36)}-${++this.chatSeq}`, text, debug: true });
+    const message = cleanChat({
+      id: `${Date.now().toString(36)}-${++this.chatSeq}`,
+      text,
+      debug: true,
+    });
     if (id === this.selfId) this.addChat(message);
     else this.post(this.conns.get(id), { t: 'chat-msg', message });
   }
@@ -595,7 +837,9 @@ export default class GameRoom {
   // Host: to every guest. Guest: to the host.
   send(data) {
     if (this.role === 'guest') this.post(this.hostConn, { t: 'game', data });
-    else for (const conn of this.conns.values()) this.post(conn, { t: 'game', data });
+    else
+      for (const conn of this.conns.values())
+        this.post(conn, { t: 'game', data });
   }
 
   sendTo(id, data) {
@@ -612,7 +856,10 @@ export default class GameRoom {
     this.slowTimer = setTimeout(() => (this.slow = true), SLOW_CONNECT_MS);
     try {
       // Only loaded once someone actually plays online.
-      const [{ default: Peer }, options] = await Promise.all([import('peerjs'), peerOptions()]);
+      const [{ default: Peer }, options] = await Promise.all([
+        import('peerjs'),
+        peerOptions(),
+      ]);
       if (!this.isBusy) return null; // cancelled while loading
       // Relayed through TURN (utils/ice.js), so no one in the room sees anyone else's IP address.
       const peer = id ? new Peer(id, options) : new Peer(options);
@@ -634,15 +881,24 @@ export default class GameRoom {
     // Once a room is up, broker hiccups don't matter: real losses arrive as a closed connection.
     if (this.isOnline) return;
     if (error?.type === 'private-connection') this.close(error.message);
-    else if (error?.type === 'unavailable-id') this.close('That room code just got taken. Try again.');
-    else if (error?.type === 'peer-unavailable') this.close('No room found with that code. Check it and try again.');
-    else this.close("Couldn't reach the connection service. Check your connection and try again.");
+    else if (error?.type === 'unavailable-id')
+      this.close('That room code just got taken. Try again.');
+    else if (error?.type === 'peer-unavailable')
+      this.close('No room found with that code. Check it and try again.');
+    else
+      this.close(
+        "Couldn't reach the connection service. Check your connection and try again.",
+      );
   }
 
   // Back to a local lobby. Guests keep nothing; a host keeps its rules.
   close(error = '') {
     const wasGuest = this.role === 'guest';
-    const links = [this.hostConn, ...this.lanInvites.map((i) => i.connection), ...this.conns.values()].filter((c) => c instanceof LanConnection);
+    const links = [
+      this.hostConn,
+      ...this.lanInvites.map((i) => i.connection),
+      ...this.conns.values(),
+    ].filter((c) => c instanceof LanConnection);
     this.settle();
     this.unlist();
     this.peer?.destroy();
@@ -697,6 +953,14 @@ function writeJson(key, value) {
 }
 
 // Computer player names are picked fresh each visit, so they aren't saved.
+// Adds or removes one id from a { id: true } set, without mutating it.
+function withFlag(set, id, on) {
+  const next = { ...set };
+  if (on) next[id] = true;
+  else delete next[id];
+  return next;
+}
+
 function withoutSeed(settings) {
   const rest = { ...settings };
   delete rest.botSeed;
@@ -711,7 +975,8 @@ function pickKnown(defaults, saved) {
     if (key === 'botSeed' || !(key in defaults)) continue;
     const expected = defaults[key];
     if (expected !== null && typeof expected === 'object') {
-      if (value && typeof value === 'object' && !Array.isArray(value)) out[key] = { ...expected, ...pickKnown(expected, value) };
+      if (value && typeof value === 'object' && !Array.isArray(value))
+        out[key] = { ...expected, ...pickKnown(expected, value) };
     } else if (typeof value === typeof expected) {
       out[key] = value;
     }
@@ -723,15 +988,33 @@ function readPresets(game) {
   const list = readJson(presetsKey(game));
   if (!Array.isArray(list)) return [];
   return list
-    .filter((p) => p && typeof p.id === 'string' && p.settings && typeof p.settings === 'object')
+    .filter(
+      (p) =>
+        p &&
+        typeof p.id === 'string' &&
+        p.settings &&
+        typeof p.settings === 'object',
+    )
     .slice(-MAX_PRESETS)
-    .map((p) => ({ id: p.id, name: String(p.name ?? 'Rules').slice(0, 32), settings: p.settings }));
+    .map((p) => ({
+      id: p.id,
+      name: String(p.name ?? 'Rules').slice(0, 32),
+      settings: p.settings,
+    }));
 }
 
 function cleanChat(message) {
   // Debug replies come from the host's command console: longer, with line breaks, and not filtered.
   if (message?.debug) {
-    return { id: String(message.id ?? Math.random()), from: null, name: '', text: String(message.text ?? '').slice(0, 4000), system: true, bot: false, debug: true };
+    return {
+      id: String(message.id ?? Math.random()),
+      from: null,
+      name: '',
+      text: String(message.text ?? '').slice(0, 4000),
+      system: true,
+      bot: false,
+      debug: true,
+    };
   }
   return {
     id: String(message?.id ?? Math.random()),
@@ -744,5 +1027,9 @@ function cleanChat(message) {
 }
 
 function cleanProfile(profile) {
-  return { name: String(profile?.name ?? 'Player').slice(0, 20) || 'Player', avatar: playerAvatar(profile?.avatar), pose: normalisePose(profile?.pose) };
+  return {
+    name: String(profile?.name ?? 'Player').slice(0, 20) || 'Player',
+    avatar: playerAvatar(profile?.avatar),
+    pose: normalisePose(profile?.pose),
+  };
 }

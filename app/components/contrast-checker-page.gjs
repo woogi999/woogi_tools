@@ -5,6 +5,7 @@ import { htmlSafe } from '@ember/template';
 import ToolPage from './tool-page';
 import ColourField from './colour-field';
 import { parseHex, rgbToHsl, hslToRgb, toHex } from '../utils/color';
+import { keepState } from '../utils/tool-state';
 
 // WCAG 2.x relative luminance of an sRGB colour.
 function luminance(hex) {
@@ -59,6 +60,11 @@ export default class ContrastCheckerPage extends Component {
   @tracked background = '#FFFFFF';
   @tracked target = 'aaNormal';
 
+  constructor(owner, args) {
+    super(owner, args);
+    keepState(this, 'contrast-checker', ['foreground', 'background', 'target']);
+  }
+
   get ratio() {
     return contrast(this.foreground, this.background);
   }
@@ -92,17 +98,38 @@ export default class ContrastCheckerPage extends Component {
   setForeground = (hex) => (this.foreground = hex);
   setBackground = (hex) => (this.background = hex);
   setTarget = (e) => (this.target = e.target.value);
-  swap = () => ([this.foreground, this.background] = [this.background, this.foreground]);
+  swap = () =>
+    ([this.foreground, this.background] = [this.background, this.foreground]);
   applySuggestion = () => (this.foreground = this.suggestion);
 
   <template>
-    <ToolPage @route="contrast-checker" @subtitle="Pop in your text and background colours to see if they pass WCAG contrast. Too faint? We’ll suggest a colour that works.">
+    <ToolPage
+      @route="contrast-checker"
+      @subtitle="Pop in your text and background colours to see if they pass WCAG contrast. Too faint? We’ll suggest a colour that works."
+    >
       <div class="math-grid pop-in">
         <section class="math-card">
           <div class="math-row is-aligned">
-            <div class="math-field"><span class="qr-label is-muted">Text</span><ColourField @label="Text colour" @value={{this.foreground}} @onChange={{this.setForeground}} /></div>
-            <button type="button" class="btn math-swap" aria-label="Swap colours" {{on "click" this.swap}}>⇄</button>
-            <div class="math-field"><span class="qr-label is-muted">Background</span><ColourField @label="Background colour" @value={{this.background}} @onChange={{this.setBackground}} /></div>
+            <div class="math-field"><span
+                class="qr-label is-muted"
+              >Text</span><ColourField
+                @label="Text colour"
+                @value={{this.foreground}}
+                @onChange={{this.setForeground}}
+              /></div>
+            <button
+              type="button"
+              class="btn math-swap"
+              aria-label="Swap colours"
+              {{on "click" this.swap}}
+            >⇄</button>
+            <div class="math-field"><span
+                class="qr-label is-muted"
+              >Background</span><ColourField
+                @label="Background colour"
+                @value={{this.background}}
+                @onChange={{this.setBackground}}
+              /></div>
           </div>
           <div class="contrast-preview" style={{this.previewStyle}}>
             <span class="contrast-large">Large text looks like this</span>
@@ -119,8 +146,15 @@ export default class ContrastCheckerPage extends Component {
           <ul class="case-list">
             {{#each this.results as |r|}}
               <li class="case-item">
-                <div class="case-text"><span class="case-value">{{r.label}}</span><span class="tool-hint">needs {{r.min}}:1</span></div>
-                <span class="fs-tag {{if r.pass 'is-done' 'is-error'}}">{{if r.pass "Pass" "Fail"}}</span>
+                <div class="case-text"><span
+                    class="case-value"
+                  >{{r.label}}</span><span class="tool-hint">needs
+                    {{r.min}}:1</span></div>
+                <span class="fs-tag {{if r.pass 'is-done' 'is-error'}}">{{if
+                    r.pass
+                    "Pass"
+                    "Fail"
+                  }}</span>
               </li>
             {{/each}}
           </ul>
@@ -128,18 +162,30 @@ export default class ContrastCheckerPage extends Component {
             <span class="qr-label is-muted">Fix for</span>
             <select class="select" {{on "change" this.setTarget}}>
               {{#each this.checks as |c|}}
-                <option value={{c.id}} selected={{eq this.target c.id}}>{{c.label}}</option>
+                <option
+                  value={{c.id}}
+                  selected={{eq this.target c.id}}
+                >{{c.label}}</option>
               {{/each}}
             </select>
           </label>
           {{#if this.suggestion}}
             <div class="contrast-fix">
-              <span class="contrast-swatch" style={{this.suggestionSwatch}} aria-hidden="true"></span>
+              <span
+                class="contrast-swatch"
+                style={{this.suggestionSwatch}}
+                aria-hidden="true"
+              ></span>
               <span>Try <code>{{this.suggestion}}</code> for the text.</span>
-              <button type="button" class="btn" {{on "click" this.applySuggestion}}>Use it</button>
+              <button
+                type="button"
+                class="btn"
+                {{on "click" this.applySuggestion}}
+              >Use it</button>
             </div>
           {{else}}
-            <p class="tool-hint">These colours already pass {{this.targetCheck.label}}.</p>
+            <p class="tool-hint">These colours already pass
+              {{this.targetCheck.label}}.</p>
           {{/if}}
           <p class="tool-hint">Large text means at least 24px, or 18.66px bold.</p>
         </section>

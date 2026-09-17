@@ -28,7 +28,9 @@ const escape = (chars) => chars.replace(/[-\\\]^]/g, '\\$&');
 // "fag" -> f+[^a-z0-9]?[a@4]+[^a-z0-9]?g+ ...
 function stem(word) {
   return [...word]
-    .map((ch) => (ch === ' ' ? '[^a-z0-9]*' : `[${escape(LOOKALIKES[ch] ?? ch)}]+`))
+    .map((ch) =>
+      ch === ' ' ? '[^a-z0-9]*' : `[${escape(LOOKALIKES[ch] ?? ch)}]+`,
+    )
     .join('[^a-z0-9]?');
 }
 
@@ -79,7 +81,13 @@ const BLOCKED = [
   ['go die', 'word'],
 ];
 
-const PATTERN = new RegExp(BLOCKED.map(([phrase, edge]) => `(?<![a-z0-9])${stem(phrase)}${edge === 'word' ? '(?![a-z0-9])' : ''}`).join('|'), 'gi');
+const PATTERN = new RegExp(
+  BLOCKED.map(
+    ([phrase, edge]) =>
+      `(?<![a-z0-9])${stem(phrase)}${edge === 'word' ? '(?![a-z0-9])' : ''}`,
+  ).join('|'),
+  'gi',
+);
 
 // Invisible characters people slip between letters to get past filters.
 const INVISIBLE = /[\u00AD\u200B-\u200F\u2060\uFEFF]/g;

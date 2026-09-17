@@ -5,6 +5,7 @@ import { fn } from '@ember/helper';
 import ToolPage from './tool-page';
 import CopyButton from './copy-button';
 import { describeCron, CRON_PRESETS } from '../utils/cron';
+import { keepState } from '../utils/tool-state';
 
 function nextRuns(expr, count = 5) {
   // A small brute-force matcher: walk minute by minute rather than
@@ -12,7 +13,8 @@ function nextRuns(expr, count = 5) {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return [];
   const [mi, hr, dom, mo, dow] = parts;
-  const matches = (value, field) => field === '*' || field.split(',').some((tok) => matchToken(value, tok));
+  const matches = (value, field) =>
+    field === '*' || field.split(',').some((tok) => matchToken(value, tok));
   function matchToken(value, tok) {
     const [range, step] = tok.split('/');
     const s = step ? Number(step) : 1;
@@ -32,8 +34,15 @@ function nextRuns(expr, count = 5) {
   while (results.length < count && guard < 60 * 24 * 366) {
     guard++;
     const domOk = matches(date.getDate(), dom);
-    const dowOk = matches(date.getDay(), dow) || matches(date.getDay() + 7, dow);
-    if (matches(date.getMinutes(), mi) && matches(date.getHours(), hr) && matches(date.getMonth() + 1, mo) && domOk && dowOk) {
+    const dowOk =
+      matches(date.getDay(), dow) || matches(date.getDay() + 7, dow);
+    if (
+      matches(date.getMinutes(), mi) &&
+      matches(date.getHours(), hr) &&
+      matches(date.getMonth() + 1, mo) &&
+      domOk &&
+      dowOk
+    ) {
       results.push(new Date(date));
     }
     date.setMinutes(date.getMinutes() + 1);
@@ -45,6 +54,11 @@ export default class CronBuilderPage extends Component {
   presets = CRON_PRESETS;
 
   @tracked expr = '0 9 * * 1-5';
+
+  constructor(owner, args) {
+    super(owner, args);
+    keepState(this, 'cron-builder', ['expr']);
+  }
 
   get result() {
     try {
@@ -67,14 +81,24 @@ export default class CronBuilderPage extends Component {
   usePreset = (expr) => (this.expr = expr);
 
   <template>
-    <ToolPage @route="cron-builder" @subtitle="Write a cron expression and see what it means in plain words, plus when it runs next. No more guessing.">
+    <ToolPage
+      @route="cron-builder"
+      @subtitle="Write a cron expression and see what it means in plain words, plus when it runs next. No more guessing."
+    >
       <div class="math-grid pop-in">
         <section class="math-card">
           <div class="field-head">
             <label class="field-label" for="cron-input">Cron expression</label>
             <CopyButton @value={{this.expr}} />
           </div>
-          <input id="cron-input" type="text" class="math-input is-mono" spellcheck="false" value={{this.expr}} {{on "input" this.setExpr}} />
+          <input
+            id="cron-input"
+            type="text"
+            class="math-input is-mono"
+            spellcheck="false"
+            value={{this.expr}}
+            {{on "input" this.setExpr}}
+          />
 
           {{#if this.result.error}}
             <p class="tool-error">{{this.result.error}}</p>
@@ -85,7 +109,11 @@ export default class CronBuilderPage extends Component {
           <h3 class="qr-heading">Presets</h3>
           <div class="line-actions">
             {{#each this.presets as |p|}}
-              <button type="button" class="btn" {{on "click" (fn this.usePreset p.expr)}}>{{p.label}}</button>
+              <button
+                type="button"
+                class="btn"
+                {{on "click" (fn this.usePreset p.expr)}}
+              >{{p.label}}</button>
             {{/each}}
           </div>
         </section>
@@ -99,9 +127,12 @@ export default class CronBuilderPage extends Component {
               {{/each}}
             </div>
           {{else}}
-            <p class="tool-hint">Fix the expression above to see upcoming run times.</p>
+            <p class="tool-hint">Fix the expression above to see upcoming run
+              times.</p>
           {{/if}}
-          <p class="tool-hint">Fields are minute, hour, day-of-month, month, day-of-week (0 and 7 both mean Sunday). Use commas for lists, hyphens for ranges and a slash for steps.</p>
+          <p class="tool-hint">Fields are minute, hour, day-of-month, month,
+            day-of-week (0 and 7 both mean Sunday). Use commas for lists,
+            hyphens for ranges and a slash for steps.</p>
         </section>
       </div>
     </ToolPage>
@@ -109,5 +140,11 @@ export default class CronBuilderPage extends Component {
 }
 
 function formatDate(d) {
-  return d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

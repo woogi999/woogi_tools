@@ -1,5 +1,5 @@
 // A hand-picked subset of the most commonly combined .gitignore rules.
-// Not a mirror of github/gitignore — just enough to cover common stacks.
+// Not a mirror of github/gitignore, just enough to cover common stacks.
 export const GITIGNORE_TEMPLATES = [
   {
     id: 'node',

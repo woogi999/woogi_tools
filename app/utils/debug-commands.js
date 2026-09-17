@@ -42,7 +42,12 @@ export class DebugConsole {
     if (!this.enabled || !this.tools?.snapshot) return;
     const snap = this.tools.snapshot();
     if (snap === null || snap === undefined) return;
-    this.history.push({ id: ++this.seq, label: String(label ?? 'Change').slice(0, 80), at: Date.now(), snap });
+    this.history.push({
+      id: ++this.seq,
+      label: String(label ?? 'Change').slice(0, 80),
+      at: Date.now(),
+      snap,
+    });
     if (this.history.length > HISTORY) this.history.shift();
   }
 
@@ -52,20 +57,36 @@ export class DebugConsole {
 
   builtins() {
     return {
-      help: { usage: '/help [command]', help: 'Lists every command, or explains one.', run: (args, ctx) => this.help(args, ctx) },
-      debug: { usage: '/debug [on|off]', help: 'Host only: turns debug mode on or off for the room.', run: () => '' },
-      status: { usage: '/status', help: 'Debug mode, who has access, and the game at a glance.', run: (args, ctx) => this.status(ctx) },
+      help: {
+        usage: '/help [command]',
+        help: 'Lists every command, or explains one.',
+        run: (args, ctx) => this.help(args, ctx),
+      },
+      debug: {
+        usage: '/debug [on|off]',
+        help: 'Host only: turns debug mode on or off for the room.',
+        run: () => '',
+      },
+      status: {
+        usage: '/status',
+        help: 'Debug mode, who has access, and the game at a glance.',
+        run: (args, ctx) => this.status(ctx),
+      },
       op: {
         usage: '/op <player>',
         help: 'Host only: lets a player use debug commands too.',
         hostOnly: true,
         run: (args, ctx) => {
           const member = this.member(args.join(' '));
-          if (member.isHost) return `${member.name} is the host and already has access.`;
+          if (member.isHost)
+            return `${member.name} is the host and already has access.`;
           this.ops.add(member.id);
           this.room.syncDebug();
           ctx.announce(`${ctx.fromName} gave ${member.name} debug access.`);
-          this.room.whisper(member.id, 'You have debug access now. Type /help to see what you can do.');
+          this.room.whisper(
+            member.id,
+            'You have debug access now. Type /help to see what you can do.',
+          );
           return '';
         },
       },
@@ -75,24 +96,35 @@ export class DebugConsole {
         hostOnly: true,
         run: (args, ctx) => {
           const member = this.member(args.join(' '));
-          if (!this.ops.delete(member.id)) return `${member.name} didn’t have debug access.`;
+          if (!this.ops.delete(member.id))
+            return `${member.name} didn’t have debug access.`;
           this.room.syncDebug();
-          ctx.announce(`${ctx.fromName} took debug access away from ${member.name}.`);
+          ctx.announce(
+            `${ctx.fromName} took debug access away from ${member.name}.`,
+          );
           return '';
         },
       },
-      ops: { usage: '/ops', help: 'Who can use debug commands.', run: () => this.opsText() },
+      ops: {
+        usage: '/ops',
+        help: 'Who can use debug commands.',
+        run: () => this.opsText(),
+      },
       history: {
         usage: '/history [count]',
         help: 'The saved game states you can go back to, newest last.',
         run: (args) => {
-          if (!this.tools?.snapshot) return 'This game doesn’t keep states to go back to.';
+          if (!this.tools?.snapshot)
+            return 'This game doesn’t keep states to go back to.';
           const count = Math.max(1, Math.min(40, Number(args[0]) || 12));
           if (!this.history.length) return 'Nothing saved yet.';
           const now = Date.now();
           return this.history
             .slice(-count)
-            .map((h) => `#${h.id}  ${h.label}  (${Math.round((now - h.at) / 1000)}s ago)`)
+            .map(
+              (h) =>
+                `#${h.id}  ${h.label}  (${Math.round((now - h.at) / 1000)}s ago)`,
+            )
             .join('\n');
         },
       },
@@ -105,8 +137,11 @@ export class DebugConsole {
           let index;
           const arg = args[0];
           if (arg?.startsWith('#')) {
-            index = this.history.findIndex((h) => h.id === Number(arg.slice(1)));
-            if (index < 0) throw new CommandError(`No saved state ${arg}. See /history.`);
+            index = this.history.findIndex(
+              (h) => h.id === Number(arg.slice(1)),
+            );
+            if (index < 0)
+              throw new CommandError(`No saved state ${arg}. See /history.`);
           } else {
             const steps = Math.max(1, Number(arg) || 1);
             index = Math.max(0, this.history.length - 1 - steps);
@@ -114,7 +149,9 @@ export class DebugConsole {
           const target = this.history[index];
           this.history = this.history.slice(0, index + 1);
           this.tools.restore(structuredClone(target.snap));
-          ctx.announce(`${ctx.fromName} rewound the game to #${target.id}: ${target.label}.`);
+          ctx.announce(
+            `${ctx.fromName} rewound the game to #${target.id}: ${target.label}.`,
+          );
           return '';
         },
       },
@@ -140,30 +177,44 @@ export class DebugConsole {
   }
 
   status(ctx) {
-    const lines = [`Debug mode is ${this.enabled ? 'on' : 'off'}.`, this.opsText()];
+    const lines = [
+      `Debug mode is ${this.enabled ? 'on' : 'off'}.`,
+      this.opsText(),
+    ];
     const game = this.tools?.describe?.();
     if (game) lines.push(game);
-    if (ctx.isHost && this.history.length) lines.push(`${this.history.length} saved states (see /history).`);
+    if (ctx.isHost && this.history.length)
+      lines.push(`${this.history.length} saved states (see /history).`);
     return lines.join('\n');
   }
 
   opsText() {
-    const names = this.room.members.filter((m) => m.isHost || this.ops.has(m.id)).map((m) => (m.isHost ? `${m.name} (host)` : m.name));
+    const names = this.room.members
+      .filter((m) => m.isHost || this.ops.has(m.id))
+      .map((m) => (m.isHost ? `${m.name} (host)` : m.name));
     return `Debug access: ${names.join(', ')}.`;
   }
 
   // A room member from a name (or the start of one) or a lobby number.
   member(ref) {
     const members = this.room.members;
-    const text = String(ref ?? '').trim().toLowerCase();
+    const text = String(ref ?? '')
+      .trim()
+      .toLowerCase();
     if (!text) throw new CommandError('Say which player.');
     const n = Number(text);
     if (Number.isInteger(n) && members[n - 1]) return members[n - 1];
     const exact = members.find((m) => m.name.toLowerCase() === text);
-    const partial = members.filter((m) => m.name.toLowerCase().startsWith(text));
+    const partial = members.filter((m) =>
+      m.name.toLowerCase().startsWith(text),
+    );
     if (exact) return exact;
     if (partial.length === 1) return partial[0];
-    throw new CommandError(partial.length ? `More than one player starts with “${ref}”.` : `No one in the room called “${ref}”.`);
+    throw new CommandError(
+      partial.length
+        ? `More than one player starts with “${ref}”.`
+        : `No one in the room called “${ref}”.`,
+    );
   }
 
   // Runs a command typed by `from`. Returns nothing; replies go to them, announcements to all.
@@ -174,25 +225,43 @@ export class DebugConsole {
     const isHost = from === room.selfId;
     const fromName = room.members.find((m) => m.id === from)?.name ?? 'Someone';
     const reply = (message) => message && room.whisper(from, message);
-    const announce = (message) => room.postChat({ system: true, debug: true, text: message });
+    const announce = (message) =>
+      room.postChat({ system: true, debug: true, text: message });
 
     if (name === 'debug') {
-      if (!isHost) return reply('Only the host can switch debug mode on or off.');
-      const want = words[0] ? !/^(off|0|false|no)$/i.test(words[0]) : !this.enabled;
-      if (want === this.enabled) return reply(`Debug mode is already ${want ? 'on' : 'off'}.`);
+      if (!isHost)
+        return reply('Only the host can switch debug mode on or off.');
+      const want = words[0]
+        ? !/^(off|0|false|no)$/i.test(words[0])
+        : !this.enabled;
+      if (want === this.enabled)
+        return reply(`Debug mode is already ${want ? 'on' : 'off'}.`);
       this.enabled = want;
       if (!want) this.ops.clear();
       else if (!this.history.length) this.record('Debug mode switched on');
       room.syncDebug();
-      announce(want ? `${fromName} switched on debug mode. Type /help to see the commands.` : `${fromName} switched off debug mode.`);
+      announce(
+        want
+          ? `${fromName} switched on debug mode. Type /help to see the commands.`
+          : `${fromName} switched off debug mode.`,
+      );
       return;
     }
-    if (!this.enabled) return reply(isHost ? 'Debug mode is off. Type /debug to switch it on.' : 'Debug mode is off. Only the host can switch it on.');
-    if (!isHost && !this.ops.has(from)) return reply('You don’t have debug access. The host can give it with /op.');
+    if (!this.enabled)
+      return reply(
+        isHost
+          ? 'Debug mode is off. Type /debug to switch it on.'
+          : 'Debug mode is off. Only the host can switch it on.',
+      );
+    if (!isHost && !this.ops.has(from))
+      return reply(
+        'You don’t have debug access. The host can give it with /op.',
+      );
 
     const command = this.commands()[name];
     if (!command) return reply(`Unknown command /${name}. Try /help.`);
-    if (command.hostOnly && !isHost) return reply(`Only the host can use /${name}.`);
+    if (command.hostOnly && !isHost)
+      return reply(`Only the host can use /${name}.`);
 
     const ctx = {
       room,
@@ -204,20 +273,32 @@ export class DebugConsole {
       record: (label) => this.record(label),
       player: (ref) => {
         const players = this.tools?.players?.() ?? [];
-        const text = String(ref ?? '').trim().toLowerCase();
-        if (!text) throw new CommandError('Say which player (a seat number, a name, or "me").');
+        const text = String(ref ?? '')
+          .trim()
+          .toLowerCase();
+        if (!text)
+          throw new CommandError(
+            'Say which player (a seat number, a name, or "me").',
+          );
         if (text === 'me') {
           const mine = players.findIndex((p) => p.id === from);
-          if (mine < 0) throw new CommandError('You’re not playing in this game.');
+          if (mine < 0)
+            throw new CommandError('You’re not playing in this game.');
           return mine;
         }
         const n = Number(text);
         if (Number.isInteger(n) && players[n - 1]) return n - 1;
         const exact = players.findIndex((p) => p.name.toLowerCase() === text);
         if (exact >= 0) return exact;
-        const partial = players.map((p, i) => [p, i]).filter(([p]) => p.name.toLowerCase().startsWith(text));
+        const partial = players
+          .map((p, i) => [p, i])
+          .filter(([p]) => p.name.toLowerCase().startsWith(text));
         if (partial.length === 1) return partial[0][1];
-        throw new CommandError(partial.length ? `More than one player starts with “${ref}”.` : `No player called “${ref}”. Seats: ${players.map((p, i) => `${i + 1} ${p.name}`).join(', ')}.`);
+        throw new CommandError(
+          partial.length
+            ? `More than one player starts with “${ref}”.`
+            : `No player called “${ref}”. Seats: ${players.map((p, i) => `${i + 1} ${p.name}`).join(', ')}.`,
+        );
       },
     };
 

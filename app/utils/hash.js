@@ -1,9 +1,18 @@
 // MD5 and CRC-32 aren't in WebCrypto, so they're implemented here; SHA comes from crypto.subtle.
 
-const toHex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+const toHex = (bytes) =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 
-const MD5_SHIFTS = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21];
-const MD5_K = Array.from({ length: 64 }, (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0);
+const MD5_SHIFTS = [
+  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5,
+  9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11,
+  16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15,
+  21,
+];
+const MD5_K = Array.from(
+  { length: 64 },
+  (_, i) => Math.floor(Math.abs(Math.sin(i + 1)) * 2 ** 32) >>> 0,
+);
 
 export function md5(bytes) {
   const bitLength = bytes.length * 8;
@@ -62,9 +71,29 @@ export function crc32(bytes) {
 
 export const ALGORITHMS = [
   { id: 'md5', label: 'MD5', run: async (b) => md5(b) },
-  { id: 'sha1', label: 'SHA-1', run: async (b) => toHex(new Uint8Array(await crypto.subtle.digest('SHA-1', b))) },
-  { id: 'sha256', label: 'SHA-256', run: async (b) => toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', b))) },
-  { id: 'sha384', label: 'SHA-384', run: async (b) => toHex(new Uint8Array(await crypto.subtle.digest('SHA-384', b))) },
-  { id: 'sha512', label: 'SHA-512', run: async (b) => toHex(new Uint8Array(await crypto.subtle.digest('SHA-512', b))) },
+  {
+    id: 'sha1',
+    label: 'SHA-1',
+    run: async (b) =>
+      toHex(new Uint8Array(await crypto.subtle.digest('SHA-1', b))),
+  },
+  {
+    id: 'sha256',
+    label: 'SHA-256',
+    run: async (b) =>
+      toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', b))),
+  },
+  {
+    id: 'sha384',
+    label: 'SHA-384',
+    run: async (b) =>
+      toHex(new Uint8Array(await crypto.subtle.digest('SHA-384', b))),
+  },
+  {
+    id: 'sha512',
+    label: 'SHA-512',
+    run: async (b) =>
+      toHex(new Uint8Array(await crypto.subtle.digest('SHA-512', b))),
+  },
   { id: 'crc32', label: 'CRC-32', run: async (b) => crc32(b) },
 ];

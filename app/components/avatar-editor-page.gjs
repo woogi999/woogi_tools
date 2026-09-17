@@ -23,14 +23,33 @@ export default class AvatarEditorPage extends Component {
   setName = (event) => this.store({ name: event.target.value });
 
   <template>
-    <ToolPage @route="avatar-editor" @subtitle="Build your little 3D self, your OC, or a total gremlin. Pick the hair and fit, strike a pose, and save pictures. They show up in games too.">
+    <ToolPage
+      @route="avatar-editor"
+      @subtitle="Build your little 3D self, your OC, or a total gremlin. Pick the hair and fit, strike a pose, and save pictures. They show up in games too."
+    >
       <div class="avatar-editor-page pop-in">
         <label class="lobby-name avatar-editor-name">
           <span class="qr-label is-muted">Name in games</span>
-          <input type="text" maxlength={{this.nameLength}} value={{this.profile.name}} {{on "input" this.setName}} />
+          <input
+            type="text"
+            maxlength={{this.nameLength}}
+            value={{this.profile.name}}
+            {{on "input" this.setName}}
+          />
         </label>
-        <AvatarEditor @avatar={{this.profile.avatar}} @pose={{this.profile.pose}} @name={{this.profile.name}} @lookId={{this.profile.look}} @onChange={{this.setAvatar}} @onPoseChange={{this.setPose}} @onWear={{this.wear}} @onSaved={{this.saved}} />
-        <p class="tool-hint">Changes apply to your games profile straight away. Save looks to switch between them later from Settings or any game lobby.</p>
+        <AvatarEditor
+          @avatar={{this.profile.avatar}}
+          @pose={{this.profile.pose}}
+          @name={{this.profile.name}}
+          @lookId={{this.profile.look}}
+          @onChange={{this.setAvatar}}
+          @onPoseChange={{this.setPose}}
+          @onWear={{this.wear}}
+          @onSaved={{this.saved}}
+        />
+        <p class="tool-hint">Changes apply to your games profile straight away.
+          Save looks to switch between them later from Settings or any game
+          lobby.</p>
       </div>
     </ToolPage>
   </template>

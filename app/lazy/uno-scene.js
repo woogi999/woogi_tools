@@ -41,7 +41,17 @@ import { createCuller } from './culling';
 import { rendererOptions, createGovernor, tabHidden } from './perf';
 import { sfx } from '../utils/sound';
 import { dealTiming, RESHUFFLE_MS } from '../utils/uno';
-import { AvatarKit, HEAD_Y, buildAvatar, disposeAvatar, disposeGroup, holdCards, moodFace, reachArms, withOutline } from './avatar-model';
+import {
+  AvatarKit,
+  HEAD_Y,
+  buildAvatar,
+  disposeAvatar,
+  disposeGroup,
+  holdCards,
+  moodFace,
+  reachArms,
+  withOutline,
+} from './avatar-model';
 
 export { createAvatarPreview } from './avatar-model';
 
@@ -57,25 +67,62 @@ export { createAvatarPreview } from './avatar-model';
 // game is running. It's loaded with a dynamic import, so three.js is only
 // downloaded once someone opens Woono.
 
-const UNO_COLORS = { red: '#E5484D', yellow: '#F2B90D', green: '#30A46C', blue: '#3E7BE0' };
+const UNO_COLORS = {
+  red: '#E5484D',
+  yellow: '#F2B90D',
+  green: '#30A46C',
+  blue: '#3E7BE0',
+};
 const INK = '#141414';
 const TABLE_RADIUS = 2.9;
 const SEAT_RADIUS = 3.65;
+// Watching the table rather than sitting at it: a slow orbit looking down on
+// the discard, far enough out that every seat stays in frame.
+const SPECTATE_RADIUS = 7.2;
+const SPECTATE_HEIGHT = 5.4;
+const SPECTATE_SPIN = 0.085; // radians a second: one lap every ~74s
 const AVATAR_SCALE = 1.3;
 const AVATAR_Y = -0.3;
 // The cards other players hold, as a fraction of a card on the table.
 const SEAT_CARD_SCALE = 0.25;
 const DECK_POS = new Vector3(-0.75, 0.2, -0.1);
 const PILE_POS = new Vector3(0.5, 0.2, -0.1);
-const SYMBOLS = { skip: '⊘', reverse: '⇄', draw2: '+2', wild: 'W', wild4: '+4', target2: '+2', target4: '+4', draw99: '+99' };
+const SYMBOLS = {
+  skip: '⊘',
+  reverse: '⇄',
+  draw2: '+2',
+  wild: 'W',
+  wild4: '+4',
+  target2: '+2',
+  target4: '+4',
+  draw99: '+99',
+};
 const TARGETED = new Set(['target2', 'target4']);
 const CARD_W = 0.62;
 const CARD_H = 0.93;
 const COLOR_ORDER = { red: 0, yellow: 1, green: 2, blue: 3 };
-const VALUE_ORDER = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2', 'wild', 'wild4'];
+const VALUE_ORDER = [
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  'skip',
+  'reverse',
+  'draw2',
+  'wild',
+  'wild4',
+];
 const Y_AXIS = new Vector3(0, 1, 0);
 
-const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduce';
+const reducedMotion = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ||
+  document.documentElement.dataset.motion === 'reduce';
 
 // ─── Shared materials & textures ──────────────────────────────────────
 
@@ -93,7 +140,13 @@ class Kit extends AvatarKit {
       // Repaint the card back if it was already drawn without the picture.
       const back = this.textures.get('card:back');
       if (back) {
-        drawCard(back.image.getContext('2d'), back.image.width, back.image.height, null, image);
+        drawCard(
+          back.image.getContext('2d'),
+          back.image.width,
+          back.image.height,
+          null,
+          image,
+        );
         back.needsUpdate = true;
       }
     };
@@ -103,15 +156,25 @@ class Kit extends AvatarKit {
       for (const [key, texture] of this.textures) {
         const [kind, color, value] = key.split(':');
         if (kind !== 'card' || value !== 'skip') continue;
-        drawCard(texture.image.getContext('2d'), texture.image.width, texture.image.height, { color: color === 'wild' ? null : color, value }, this.backArt);
+        drawCard(
+          texture.image.getContext('2d'),
+          texture.image.width,
+          texture.image.height,
+          { color: color === 'wild' ? null : color, value },
+          this.backArt,
+        );
         texture.needsUpdate = true;
       }
     });
   }
 
   cardFace(card) {
-    const key = card ? `card:${card.color ?? 'wild'}:${card.value}` : 'card:back';
-    return this.texture(key, 160, 240, (ctx, w, h) => drawCard(ctx, w, h, card, this.backArt));
+    const key = card
+      ? `card:${card.color ?? 'wild'}:${card.value}`
+      : 'card:back';
+    return this.texture(key, 160, 240, (ctx, w, h) =>
+      drawCard(ctx, w, h, card, this.backArt),
+    );
   }
 }
 
@@ -133,7 +196,12 @@ function drawCard(ctx, w, h, card, backArt) {
     ctx.clip();
     const cx = w / 2;
     const cy = h / 2;
-    [UNO_COLORS.red, UNO_COLORS.yellow, UNO_COLORS.green, UNO_COLORS.blue].forEach((color, i) => {
+    [
+      UNO_COLORS.red,
+      UNO_COLORS.yellow,
+      UNO_COLORS.green,
+      UNO_COLORS.blue,
+    ].forEach((color, i) => {
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -193,7 +261,11 @@ function drawCard(ctx, w, h, card, backArt) {
     return;
   }
   const symbol = SYMBOLS[card.value] ?? card.value;
-  const ink = card.color ? (card.color === 'yellow' ? '#B58600' : UNO_COLORS[card.color]) : '#141414';
+  const ink = card.color
+    ? card.color === 'yellow'
+      ? '#B58600'
+      : UNO_COLORS[card.color]
+    : '#141414';
   if (TARGETED.has(card.value)) {
     // Targeted draw cards carry crosshairs behind the number.
     ctx.save();
@@ -202,7 +274,12 @@ function drawCard(ctx, w, h, card, backArt) {
     ctx.lineWidth = 4 * unit;
     ctx.beginPath();
     ctx.arc(w / 2, h / 2, 34 * unit, 0, Math.PI * 2);
-    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0]]) {
+    for (const [dx, dy] of [
+      [0, -1],
+      [0, 1],
+      [-1, 0],
+      [1, 0],
+    ]) {
       ctx.moveTo(w / 2 + dx * 26 * unit, h / 2 + dy * 26 * unit);
       ctx.lineTo(w / 2 + dx * 44 * unit, h / 2 + dy * 44 * unit);
     }
@@ -221,7 +298,10 @@ function drawCard(ctx, w, h, card, backArt) {
   ctx.fillStyle = '#fff';
   ctx.strokeStyle = 'rgba(0,0,0,0.35)';
   ctx.lineWidth = 3 * unit;
-  for (const [x, y, turn] of [[26, 28, 0], [102, 164, Math.PI]]) {
+  for (const [x, y, turn] of [
+    [26, 28, 0],
+    [102, 164, Math.PI],
+  ]) {
     ctx.save();
     ctx.translate(x * unit, y * unit);
     ctx.rotate(turn);
@@ -244,7 +324,12 @@ function loadSketches(onReady) {
     Object.entries({ octagon: Octagon, hand: Hand }).map(
       ([name, node]) =>
         new Promise((resolve) => {
-          const svg = createElement(node, { width: 128, height: 128, stroke: '#fff', 'stroke-width': 2.2 });
+          const svg = createElement(node, {
+            width: 128,
+            height: 128,
+            stroke: '#fff',
+            'stroke-width': 2.2,
+          });
           const image = new Image();
           image.onload = () => {
             SKETCHES[name] = image;
@@ -252,8 +337,8 @@ function loadSketches(onReady) {
           };
           image.onerror = resolve;
           image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
-        })
-    )
+        }),
+    ),
   );
   sketchesLoading.then(onReady);
 }
@@ -288,8 +373,20 @@ function drawStopHand(ctx, cx, cy, size, sign, hand) {
   ctx.fillStyle = sign;
   ctx.fill();
   if (SKETCHES.octagon && SKETCHES.hand) {
-    ctx.drawImage(sketch('octagon', hand), -r * 1.08, -r * 1.08, r * 2.16, r * 2.16);
-    ctx.drawImage(sketch('hand', hand), -r * 0.62, -r * 0.62, r * 1.24, r * 1.24);
+    ctx.drawImage(
+      sketch('octagon', hand),
+      -r * 1.08,
+      -r * 1.08,
+      r * 2.16,
+      r * 2.16,
+    );
+    ctx.drawImage(
+      sketch('hand', hand),
+      -r * 0.62,
+      -r * 0.62,
+      r * 1.24,
+      r * 1.24,
+    );
     ctx.restore();
     return;
   }
@@ -328,7 +425,12 @@ class Tweens {
   list = [];
 
   add(duration, update, { delay = 0, done } = {}) {
-    this.list.push({ start: performance.now() + delay, duration, update, done });
+    this.list.push({
+      start: performance.now() + delay,
+      duration,
+      update,
+      done,
+    });
   }
 
   tick(now) {
@@ -403,23 +505,52 @@ class Particles {
     this.maxLife = new Float32Array(capacity);
     this.gravity = new Float32Array(capacity);
     this.geometry = new BufferGeometry();
-    this.geometry.setAttribute('position', new BufferAttribute(this.positions, 3));
+    this.geometry.setAttribute(
+      'position',
+      new BufferAttribute(this.positions, 3),
+    );
     this.geometry.setAttribute('color', new BufferAttribute(this.colors, 3));
     this.geometry.setDrawRange(0, 0);
-    this.material = new PointsMaterial({ size: 0.16, map: texture, vertexColors: true, transparent: true, depthWrite: false, blending: AdditiveBlending });
+    this.material = new PointsMaterial({
+      size: 0.16,
+      map: texture,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      blending: AdditiveBlending,
+    });
     this.points = new Points(this.geometry, this.material);
     this.points.frustumCulled = false;
     this.points.renderOrder = 12;
     this.color = new Color();
   }
 
-  emit(origin, count, colors, { speed = 2, up = 1.5, life = 0.9, gravity = 4, spread = 0.1 } = {}) {
+  emit(
+    origin,
+    count,
+    colors,
+    { speed = 2, up = 1.5, life = 0.9, gravity = 4, spread = 0.1 } = {},
+  ) {
     for (let n = 0; n < count && this.count < this.capacity; n++) {
       const i = this.count++;
       const angle = Math.random() * Math.PI * 2;
       const power = speed * (0.35 + Math.random() * 0.65);
-      this.positions.set([origin.x + (Math.random() - 0.5) * spread, origin.y, origin.z + (Math.random() - 0.5) * spread], i * 3);
-      this.velocity.set([Math.cos(angle) * power, up * (0.5 + Math.random()), Math.sin(angle) * power], i * 3);
+      this.positions.set(
+        [
+          origin.x + (Math.random() - 0.5) * spread,
+          origin.y,
+          origin.z + (Math.random() - 0.5) * spread,
+        ],
+        i * 3,
+      );
+      this.velocity.set(
+        [
+          Math.cos(angle) * power,
+          up * (0.5 + Math.random()),
+          Math.sin(angle) * power,
+        ],
+        i * 3,
+      );
       this.color.set(colors[n % colors.length]);
       this.base.set([this.color.r, this.color.g, this.color.b], i * 3);
       this.maxLife[i] = life * (0.6 + Math.random() * 0.6);
@@ -495,7 +626,14 @@ class Label {
     this.canvas.height = height;
     this.texture = new CanvasTexture(this.canvas);
     this.texture.colorSpace = SRGBColorSpace;
-    this.sprite = new Sprite(new SpriteMaterial({ map: this.texture, transparent: true, depthTest: false, depthWrite: false }));
+    this.sprite = new Sprite(
+      new SpriteMaterial({
+        map: this.texture,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
     this.sprite.renderOrder = 15;
     this.aspect = width / height;
     this.baseScale = scale;
@@ -513,7 +651,11 @@ class Label {
   }
 
   setScale(multiplier) {
-    this.sprite.scale.set(this.baseScale * this.aspect * multiplier, this.baseScale * multiplier, 1);
+    this.sprite.scale.set(
+      this.baseScale * this.aspect * multiplier,
+      this.baseScale * multiplier,
+      1,
+    );
   }
 
   dispose() {
@@ -529,7 +671,12 @@ const ICONS = {};
 function loadIcons(onReady) {
   let pending = 0;
   for (const [name, node] of Object.entries({ bot: Bot, crown: Crown })) {
-    const svg = createElement(node, { width: 64, height: 64, stroke: INK, 'stroke-width': 2.4 });
+    const svg = createElement(node, {
+      width: 64,
+      height: 64,
+      stroke: INK,
+      'stroke-width': 2.4,
+    });
     const image = new Image();
     pending++;
     image.onload = () => {
@@ -540,12 +687,26 @@ function loadIcons(onReady) {
   }
 }
 
-function drawNameTag(ctx, w, h, { name, count, turn, uno, exposed, winner, bot }) {
+function drawNameTag(
+  ctx,
+  w,
+  h,
+  { name, count, turn, uno, exposed, winner, bot },
+) {
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
   const fill = winner ? '#F2B90D' : turn ? '#FFF3B0' : '#FFFFFF';
   const pillH = h * 0.62;
-  pill(ctx, 6, 6, w - 12, pillH, fill, turn || winner ? '#F2B90D' : INK, turn ? 9 : 5);
+  pill(
+    ctx,
+    6,
+    6,
+    w - 12,
+    pillH,
+    fill,
+    turn || winner ? '#F2B90D' : INK,
+    turn ? 9 : 5,
+  );
   ctx.fillStyle = INK;
   const icons = [winner && ICONS.crown, bot && ICONS.bot].filter(Boolean);
   const iconSize = 40;
@@ -559,15 +720,35 @@ function drawNameTag(ctx, w, h, { name, count, turn, uno, exposed, winner, bot }
   const textWidth = ctx.measureText(name).width;
   const start = (w - textWidth - iconSpace) / 2;
   const middle = 6 + pillH / 2;
-  icons.forEach((icon, i) => ctx.drawImage(icon, start + i * (iconSize + 6), middle - iconSize / 2, iconSize, iconSize));
+  icons.forEach((icon, i) =>
+    ctx.drawImage(
+      icon,
+      start + i * (iconSize + 6),
+      middle - iconSize / 2,
+      iconSize,
+      iconSize,
+    ),
+  );
   ctx.textAlign = 'left';
   ctx.fillText(name, start + iconSpace, middle + 2);
   ctx.textAlign = 'center';
   // The card count hangs underneath: red once they've said Woono, orange while they can still be called out.
-  const badge = exposed ? `${count} · no Woono!` : uno ? `${count} · WOONO!` : `${count} ${count === 1 ? 'card' : 'cards'}`;
+  const badge = exposed
+    ? `${count} · no Woono!`
+    : uno
+      ? `${count} · WOONO!`
+      : `${count} ${count === 1 ? 'card' : 'cards'}`;
   ctx.font = '800 26px Moderustic, sans-serif';
   const bw = ctx.measureText(badge).width + 34;
-  pill(ctx, (w - bw) / 2, h * 0.64, bw, h * 0.32, exposed ? '#E8740C' : uno ? UNO_COLORS.red : INK, null);
+  pill(
+    ctx,
+    (w - bw) / 2,
+    h * 0.64,
+    bw,
+    h * 0.32,
+    exposed ? '#E8740C' : uno ? UNO_COLORS.red : INK,
+    null,
+  );
   ctx.fillStyle = '#fff';
   ctx.fillText(badge, w / 2, h * 0.64 + (h * 0.32) / 2 + 1);
 }
@@ -621,14 +802,24 @@ const FAN_TILT = 0.45;
 // How high above your hand a card you've just drawn waits.
 const CENTRE_Y = 0.78;
 
-const sortHand = (hand) => [...hand].sort((a, b) => (COLOR_ORDER[a.color] ?? 9) - (COLOR_ORDER[b.color] ?? 9) || VALUE_ORDER.indexOf(a.value) - VALUE_ORDER.indexOf(b.value));
+const sortHand = (hand) =>
+  [...hand].sort(
+    (a, b) =>
+      (COLOR_ORDER[a.color] ?? 9) - (COLOR_ORDER[b.color] ?? 9) ||
+      VALUE_ORDER.indexOf(a.value) - VALUE_ORDER.indexOf(b.value),
+  );
 
 export function createUnoScene(canvas) {
   // Every device: no antialiasing on high-density screens, fewer pixels on phones, and the
   // resolution eases down while frames run slow (lazy/perf.js).
   const phone = window.matchMedia?.('(pointer: coarse)').matches;
   const options = rendererOptions(phone ? 1.25 : 1.5);
-  const renderer = new WebGLRenderer({ canvas, antialias: options.antialias, alpha: true, powerPreference: 'default' });
+  const renderer = new WebGLRenderer({
+    canvas,
+    antialias: options.antialias,
+    alpha: true,
+    powerPreference: 'default',
+  });
   const governor = createGovernor(renderer, { max: options.pixelRatio });
   renderer.outputColorSpace = SRGBColorSpace;
   const calm = reducedMotion();
@@ -653,21 +844,46 @@ export function createUnoScene(canvas) {
   // Table: felt top, wooden rim, a pedestal, and a soft shadow on the floor.
   const table = new Group();
   scene.add(table);
-  const feltMaterial = new MeshToonMaterial({ color: new Color('#2F6B55'), gradientMap: kit.gradient });
+  const feltMaterial = new MeshToonMaterial({
+    color: new Color('#2F6B55'),
+    gradientMap: kit.gradient,
+  });
   const feltColor = new Color('#2F6B55');
-  const felt = new Mesh(new CylinderGeometry(TABLE_RADIUS, TABLE_RADIUS, 0.12, 56), feltMaterial);
+  const felt = new Mesh(
+    new CylinderGeometry(TABLE_RADIUS, TABLE_RADIUS, 0.12, 56),
+    feltMaterial,
+  );
   table.add(withOutline(felt, kit));
-  const rim = new Mesh(new TorusGeometry(TABLE_RADIUS, 0.12, 10, 64), kit.toon('#7A5234'));
+  const rim = new Mesh(
+    new TorusGeometry(TABLE_RADIUS, 0.12, 10, 64),
+    kit.toon('#7A5234'),
+  );
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.05;
   table.add(withOutline(rim, kit, true));
-  const leg = new Mesh(new CylinderGeometry(0.5, 0.9, 1.8, 20), kit.toon('#5E3F28'));
+  const leg = new Mesh(
+    new CylinderGeometry(0.5, 0.9, 1.8, 20),
+    kit.toon('#5E3F28'),
+  );
   leg.position.y = -0.95;
   table.add(leg);
   // The table top hides everything underneath it from where you sit: its pedestal, the floor shadow, other players' legs.
-  culler.addOccluder({ type: 'disc', center: new Vector3(0, 0.06, 0), radius: TABLE_RADIUS });
+  culler.addOccluder({
+    type: 'disc',
+    center: new Vector3(0, 0.06, 0),
+    radius: TABLE_RADIUS,
+  });
   const glow = glowTexture();
-  const shadow = new Mesh(new CircleGeometry(TABLE_RADIUS * 1.5, 40), new MeshBasicMaterial({ map: glow, color: '#000000', transparent: true, opacity: 0.35, depthWrite: false }));
+  const shadow = new Mesh(
+    new CircleGeometry(TABLE_RADIUS * 1.5, 40),
+    new MeshBasicMaterial({
+      map: glow,
+      color: '#000000',
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    }),
+  );
   shadow.rotation.x = -Math.PI / 2;
   shadow.position.y = -1.84;
   scene.add(shadow);
@@ -675,14 +891,26 @@ export function createUnoScene(canvas) {
   culler.track(shadow);
 
   // A ring round the discard pile in the colour to match, with arrows showing the direction of play.
-  const colorRing = new Mesh(new RingGeometry(0.72, 0.84, 48), new MeshBasicMaterial({ color: '#ffffff', side: DoubleSide, transparent: true, opacity: 0.9 }));
+  const colorRing = new Mesh(
+    new RingGeometry(0.72, 0.84, 48),
+    new MeshBasicMaterial({
+      color: '#ffffff',
+      side: DoubleSide,
+      transparent: true,
+      opacity: 0.9,
+    }),
+  );
   colorRing.rotation.x = -Math.PI / 2;
   colorRing.position.set(PILE_POS.x, 0.075, PILE_POS.z);
   scene.add(colorRing);
   const arrows = new Group();
   arrows.position.set(0, 0.08, 0);
   scene.add(arrows);
-  const arrowMaterial = new MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.35 });
+  const arrowMaterial = new MeshBasicMaterial({
+    color: '#ffffff',
+    transparent: true,
+    opacity: 0.35,
+  });
   const arrowGeometry = new ConeGeometry(0.1, 0.26, 3);
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
@@ -694,7 +922,10 @@ export function createUnoScene(canvas) {
   const pointArrows = (dir) => {
     for (const arrow of arrows.children) {
       arrow.rotation.set(Math.PI / 2, 0, 0);
-      arrow.rotateOnWorldAxis(Y_AXIS, arrow.userData.angle - (dir * Math.PI) / 2);
+      arrow.rotateOnWorldAxis(
+        Y_AXIS,
+        arrow.userData.angle - (dir * Math.PI) / 2,
+      );
     }
   };
   pointArrows(1);
@@ -703,14 +934,29 @@ export function createUnoScene(canvas) {
   const deck = new Group();
   deck.position.copy(DECK_POS);
   scene.add(deck);
-  const deckBox = new Mesh(new BoxGeometry(CARD_W, 0.3, CARD_H), kit.toon('#f4f4f4'));
+  const deckBox = new Mesh(
+    new BoxGeometry(CARD_W, 0.3, CARD_H),
+    kit.toon('#f4f4f4'),
+  );
   deckBox.position.y = -0.03;
   deck.add(withOutline(deckBox, kit, true));
-  const deckTop = new Mesh(new PlaneGeometry(CARD_W, CARD_H), new MeshBasicMaterial({ map: kit.cardFace(null) }));
+  const deckTop = new Mesh(
+    new PlaneGeometry(CARD_W, CARD_H),
+    new MeshBasicMaterial({ map: kit.cardFace(null) }),
+  );
   deckTop.rotation.x = -Math.PI / 2;
   deckTop.position.y = 0.125;
   deck.add(deckTop);
-  const drawRing = new Mesh(new RingGeometry(0.62, 0.76, 48), new MeshBasicMaterial({ color: '#FFD84D', transparent: true, opacity: 0, side: DoubleSide, depthWrite: false }));
+  const drawRing = new Mesh(
+    new RingGeometry(0.62, 0.76, 48),
+    new MeshBasicMaterial({
+      color: '#FFD84D',
+      transparent: true,
+      opacity: 0,
+      side: DoubleSide,
+      depthWrite: false,
+    }),
+  );
   drawRing.rotation.x = -Math.PI / 2;
   drawRing.position.set(DECK_POS.x, 0.08, DECK_POS.z);
   scene.add(drawRing);
@@ -740,7 +986,8 @@ export function createUnoScene(canvas) {
     deckFull = Math.max(deckFull, count, 1);
     const share = count / deckFull;
     const byCards = (DECK_MIN + count * CARD_THICKNESS) / DECK_HEIGHT;
-    deckGoal = count <= 0 ? 0 : Math.max(0, Math.min(1, Math.max(share, byCards)));
+    deckGoal =
+      count <= 0 ? 0 : Math.max(0, Math.min(1, Math.max(share, byCards)));
   }
 
   function animateDeck(dt) {
@@ -764,8 +1011,26 @@ export function createUnoScene(canvas) {
   scene.add(colorWheel);
   const colorPads = Object.keys(UNO_COLORS).map((color, i) => {
     const start = Math.PI / 4 + (i * Math.PI) / 2 + 0.06;
-    const pad = new Mesh(new RingGeometry(0.2, 0.6, 20, 1, start, Math.PI / 2 - 0.12), new MeshBasicMaterial({ color: UNO_COLORS[color], side: DoubleSide, depthTest: false, depthWrite: false, transparent: true }));
-    const rim = new Mesh(new RingGeometry(0.18, 0.64, 20, 1, start - 0.03, Math.PI / 2 - 0.06), new MeshBasicMaterial({ color: INK, side: DoubleSide, depthTest: false, depthWrite: false, transparent: true }));
+    const pad = new Mesh(
+      new RingGeometry(0.2, 0.6, 20, 1, start, Math.PI / 2 - 0.12),
+      new MeshBasicMaterial({
+        color: UNO_COLORS[color],
+        side: DoubleSide,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+      }),
+    );
+    const rim = new Mesh(
+      new RingGeometry(0.18, 0.64, 20, 1, start - 0.03, Math.PI / 2 - 0.06),
+      new MeshBasicMaterial({
+        color: INK,
+        side: DoubleSide,
+        depthTest: false,
+        depthWrite: false,
+        transparent: true,
+      }),
+    );
     rim.position.z = -0.002;
     rim.renderOrder = 41;
     rim.raycast = () => {};
@@ -795,8 +1060,12 @@ export function createUnoScene(canvas) {
     }
     for (let index = 0; index < playerCount; index++) {
       const k = relative(index);
-      const { x, z } = k === 0 ? { x: 0, z: SEAT_RADIUS } : seatPosition(k, playerCount);
-      const material = new MeshToonMaterial({ color: new Color(UNO_COLORS.red), gradientMap: kit.gradient });
+      const { x, z } =
+        k === 0 ? { x: 0, z: SEAT_RADIUS } : seatPosition(k, playerCount);
+      const material = new MeshToonMaterial({
+        color: new Color(UNO_COLORS.red),
+        gradientMap: kit.gradient,
+      });
       const arrow = new Group();
       const shaft = withOutline(new Mesh(arrowShaft, material), kit, true);
       shaft.position.z = 0.25;
@@ -807,11 +1076,19 @@ export function createUnoScene(canvas) {
       arrow.add(shaft, head);
       // Aimed at their chest (at you, down towards your hand), so the far ones tilt up and stay easy to see.
       const start = new Vector3(PILE_POS.x, 0.55, PILE_POS.z);
-      const direction = new Vector3(x, k === 0 ? 0.1 : 1.1, z).sub(start).normalize();
+      const direction = new Vector3(x, k === 0 ? 0.1 : 1.1, z)
+        .sub(start)
+        .normalize();
       arrow.rotation.order = 'YXZ';
       arrow.rotation.y = Math.atan2(direction.x, direction.z);
       arrow.rotation.x = -Math.asin(direction.y);
-      arrow.userData = { index, material, direction, size: k === 0 ? 1 : 1.35, base: start.addScaledVector(direction, 0.95) };
+      arrow.userData = {
+        index,
+        material,
+        direction,
+        size: k === 0 ? 1 : 1.35,
+        base: start.addScaledVector(direction, 0.95),
+      };
       arrow.position.copy(arrow.userData.base);
       targetArrows.add(arrow);
     }
@@ -819,16 +1096,30 @@ export function createUnoScene(canvas) {
 
   // Shows the colour wheel or the arrows when it's your pick.
   function syncPicker(next) {
-    const choice = next.choice?.player === next.you && next.winner === null ? next.choice : null;
+    const choice =
+      next.choice?.player === next.you && next.winner === null
+        ? next.choice
+        : null;
     colorWheel.visible = choice?.needs === 'color';
     if (choice?.needs === 'target' && arrowsKey !== `${playerCount}:${me}`) {
       arrowsKey = `${playerCount}:${me}`;
       buildArrows();
     }
     targetArrows.visible = choice?.needs === 'target';
-    const text = choice ? (choice.needs === 'color' ? 'Pick a colour' : 'Who draws?') : '';
-    pickLabel.draw(text, (ctx, w, h) => text && drawBanner(ctx, w, h, text, '#ffffff', INK));
-    pickLabel.sprite.position.set(PILE_POS.x, choice?.needs === 'color' ? 1.55 : 1.05, PILE_POS.z);
+    const text = choice
+      ? choice.needs === 'color'
+        ? 'Pick a colour'
+        : 'Who draws?'
+      : '';
+    pickLabel.draw(
+      text,
+      (ctx, w, h) => text && drawBanner(ctx, w, h, text, '#ffffff', INK),
+    );
+    pickLabel.sprite.position.set(
+      PILE_POS.x,
+      choice?.needs === 'color' ? 1.55 : 1.05,
+      PILE_POS.z,
+    );
     pickLabel.sprite.visible = Boolean(choice);
     if (!choice) pickHover = null;
   }
@@ -839,27 +1130,37 @@ export function createUnoScene(canvas) {
       colorWheel.quaternion.copy(camera.quaternion);
       colorWheel.position.y = 0.75 + Math.sin(now / 500) * 0.03;
       for (const pad of colorPads) {
-        const hovered = pickHover?.type === 'color' && pickHover.color === pad.userData.color;
+        const hovered =
+          pickHover?.type === 'color' && pickHover.color === pad.userData.color;
         const push = hovered ? 0.08 : 0;
-        pad.position.x += (Math.cos(pad.userData.angle) * push - pad.position.x) * ease;
-        pad.position.y += (Math.sin(pad.userData.angle) * push - pad.position.y) * ease;
-        pad.scale.setScalar(pad.scale.x + ((hovered ? 1.1 : 1) - pad.scale.x) * ease);
+        pad.position.x +=
+          (Math.cos(pad.userData.angle) * push - pad.position.x) * ease;
+        pad.position.y +=
+          (Math.sin(pad.userData.angle) * push - pad.position.y) * ease;
+        pad.scale.setScalar(
+          pad.scale.x + ((hovered ? 1.1 : 1) - pad.scale.x) * ease,
+        );
       }
     }
     if (targetArrows.visible) {
       for (const arrow of targetArrows.children) {
         const { index, base, direction, material, size } = arrow.userData;
-        const hovered = pickHover?.type === 'target' && pickHover.index === index;
+        const hovered =
+          pickHover?.type === 'target' && pickHover.index === index;
         const nudge = Math.sin(now / 220 + index) * 0.06 + (hovered ? 0.2 : 0);
         arrow.position.copy(base).addScaledVector(direction, nudge);
-        arrow.scale.setScalar(arrow.scale.x + (size * (hovered ? 1.25 : 1) - arrow.scale.x) * ease);
+        arrow.scale.setScalar(
+          arrow.scale.x + (size * (hovered ? 1.25 : 1) - arrow.scale.x) * ease,
+        );
         material.color.set(hovered ? '#FFD84D' : UNO_COLORS.red);
       }
     }
   }
 
   const cardGeometry = new PlaneGeometry(CARD_W, CARD_H);
-  const cards = new MeshPool(() => new Mesh(cardGeometry, new MeshBasicMaterial({ side: DoubleSide })));
+  const cards = new MeshPool(
+    () => new Mesh(cardGeometry, new MeshBasicMaterial({ side: DoubleSide })),
+  );
   const takeCard = (card) => {
     const mesh = cards.acquire();
     mesh.material.map = kit.cardFace(card);
@@ -872,15 +1173,45 @@ export function createUnoScene(canvas) {
     return mesh;
   };
   const popupGeometry = new PlaneGeometry(1.4, 0.55);
-  const popups = new MeshPool(() => new Mesh(popupGeometry, new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false })));
+  const popups = new MeshPool(
+    () =>
+      new Mesh(
+        popupGeometry,
+        new MeshBasicMaterial({
+          transparent: true,
+          depthTest: false,
+          depthWrite: false,
+        }),
+      ),
+  );
   const confettiGeometry = new PlaneGeometry(0.08, 0.14);
-  const confettiBits = new MeshPool(() => new Mesh(confettiGeometry, new MeshBasicMaterial({ side: DoubleSide })));
+  const confettiBits = new MeshPool(
+    () =>
+      new Mesh(confettiGeometry, new MeshBasicMaterial({ side: DoubleSide })),
+  );
   const ringGeometry = new RingGeometry(0.8, 1, 48);
-  const rings = new MeshPool(() => new Mesh(ringGeometry, new MeshBasicMaterial({ transparent: true, side: DoubleSide, depthWrite: false })));
+  const rings = new MeshPool(
+    () =>
+      new Mesh(
+        ringGeometry,
+        new MeshBasicMaterial({
+          transparent: true,
+          side: DoubleSide,
+          depthWrite: false,
+        }),
+      ),
+  );
   const particles = new Particles(calm ? 200 : 700, glow);
   scene.add(particles.points);
 
-  const turnDisc = new Mesh(new RingGeometry(0.45, 0.62, 40), new MeshBasicMaterial({ color: '#F5C518', transparent: true, opacity: 0.35 }));
+  const turnDisc = new Mesh(
+    new RingGeometry(0.45, 0.62, 40),
+    new MeshBasicMaterial({
+      color: '#F5C518',
+      transparent: true,
+      opacity: 0.35,
+    }),
+  );
   turnDisc.rotation.x = -Math.PI / 2;
   scene.add(turnDisc);
 
@@ -892,19 +1223,38 @@ export function createUnoScene(canvas) {
   const glowGeometry = new PlaneGeometry(CARD_W * 1.12, CARD_H * 1.08);
 
   // A card you just drew, face up above your hand until you play or keep it.
-  const myCentre = new Mesh(new PlaneGeometry(CARD_W, CARD_H), new MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+  const myCentre = new Mesh(
+    new PlaneGeometry(CARD_W, CARD_H),
+    new MeshBasicMaterial({
+      transparent: true,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
   myCentre.renderOrder = 70;
   myCentre.visible = false;
   myCentre.position.set(0, CENTRE_Y, 0.05);
   myCentre.scale.setScalar(HAND_CARD_SCALE * 1.35);
-  const myCentreGlow = new Mesh(glowGeometry, new MeshBasicMaterial({ color: '#FFD84D', transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+  const myCentreGlow = new Mesh(
+    glowGeometry,
+    new MeshBasicMaterial({
+      color: '#FFD84D',
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+      depthWrite: false,
+    }),
+  );
   myCentreGlow.position.z = -0.002;
   myCentreGlow.renderOrder = 69.5;
   myCentreGlow.raycast = () => {};
   myCentre.add(myCentreGlow);
   hand.add(myCentre);
   // Someone else's drawn card, face down in front of them.
-  const theirCentre = new Mesh(new PlaneGeometry(CARD_W, CARD_H), new MeshBasicMaterial({ map: kit.cardFace(null), side: DoubleSide }));
+  const theirCentre = new Mesh(
+    new PlaneGeometry(CARD_W, CARD_H),
+    new MeshBasicMaterial({ map: kit.cardFace(null), side: DoubleSide }),
+  );
   theirCentre.visible = false;
   theirCentre.scale.setScalar(0.7);
   scene.add(theirCentre);
@@ -943,8 +1293,15 @@ export function createUnoScene(canvas) {
   // Everyone else shares the far side of the table, so no one sits right
   // beside you, out of view.
   const seatPosition = (k, n) => {
-    const angle = k === 0 ? 0 : -(SEAT_ARC[0] + ((k - 0.5) / (n - 1)) * (SEAT_ARC[1] - SEAT_ARC[0]));
-    return { angle, x: Math.sin(angle) * SEAT_RADIUS, z: Math.cos(angle) * SEAT_RADIUS };
+    const angle =
+      k === 0
+        ? 0
+        : -(SEAT_ARC[0] + ((k - 0.5) / (n - 1)) * (SEAT_ARC[1] - SEAT_ARC[0]));
+    return {
+      angle,
+      x: Math.sin(angle) * SEAT_RADIUS,
+      z: Math.cos(angle) * SEAT_RADIUS,
+    };
   };
   const relative = (index) => (index - me + playerCount) % playerCount;
   const handPoint = (index) => {
@@ -986,7 +1343,11 @@ export function createUnoScene(canvas) {
       card.scale.setScalar(SEAT_CARD_SCALE);
       const turn = shown > 1 ? -(i / (shown - 1) - 0.5) * spread : 0;
       // Each card turns about a point near its bottom edge, like a hand of cards pinched at the base.
-      card.position.set(-Math.sin(turn) * height * 0.38, Math.cos(turn) * height * 0.38, i * 0.004);
+      card.position.set(
+        -Math.sin(turn) * height * 0.38,
+        Math.cos(turn) * height * 0.38,
+        i * 0.004,
+      );
       card.rotation.z = turn;
       fan.add(card);
     }
@@ -1008,7 +1369,13 @@ export function createUnoScene(canvas) {
     const rebuildAll = layoutKey !== `${n}:${me}`;
     layoutKey = `${n}:${me}`;
     for (const [index, seat] of seats) {
-      if (rebuildAll || !players[index] || seat.key !== avatarKey(players[index].avatar) || index === me) removeSeat(index, seat);
+      if (
+        rebuildAll ||
+        !players[index] ||
+        seat.key !== avatarKey(players[index].avatar) ||
+        index === me
+      )
+        removeSeat(index, seat);
     }
     players.forEach((player, index) => {
       const k = relative(index);
@@ -1035,7 +1402,19 @@ export function createUnoScene(canvas) {
         // Far seats get slightly bigger tags, so every name stays readable.
         tag.setScale(0.8 + top.distanceTo(EYE) * 0.07);
         scene.add(tag.sprite);
-        seat = { group, avatar, fan: null, count: -1, key: avatarKey(player.avatar), phase: Math.random() * 10, blinkAt: performance.now() + 1000 + Math.random() * 3000, yaw: 0, pitch: 0, tag, hop: 0 };
+        seat = {
+          group,
+          avatar,
+          fan: null,
+          count: -1,
+          key: avatarKey(player.avatar),
+          phase: Math.random() * 10,
+          blinkAt: performance.now() + 1000 + Math.random() * 3000,
+          yaw: 0,
+          pitch: 0,
+          tag,
+          hop: 0,
+        };
         seats.set(index, seat);
       }
       const count = Math.min(player.count, 10);
@@ -1053,8 +1432,18 @@ export function createUnoScene(canvas) {
     const seat = seats.get(index);
     if (!seat) return;
     seat.player = player;
-    const state = { name: player.name, count: player.count, bot: player.kind === 'bot', uno: player.said && player.count === 1, exposed: player.exposed, turn: winner === null && turn === index, winner: winner === index };
-    seat.tag.draw(JSON.stringify(state), (ctx, w, h) => drawNameTag(ctx, w, h, state));
+    const state = {
+      name: player.name,
+      count: player.count,
+      bot: player.kind === 'bot',
+      uno: player.said && player.count === 1,
+      exposed: player.exposed,
+      turn: winner === null && turn === index,
+      winner: winner === index,
+    };
+    seat.tag.draw(JSON.stringify(state), (ctx, w, h) =>
+      drawNameTag(ctx, w, h, state),
+    );
   }
 
   // Once the icons have loaded, redraw every tag that was drawn without them.
@@ -1078,7 +1467,19 @@ export function createUnoScene(canvas) {
   }
 
   // sound plays as the card leaves, landSound as it lands, so what you hear matches what you see.
-  function flyCard(card, from, to, { delay = 0, faceUp = true, done, startRotation = null, sound = null, landSound = null } = {}) {
+  function flyCard(
+    card,
+    from,
+    to,
+    {
+      delay = 0,
+      faceUp = true,
+      done,
+      startRotation = null,
+      sound = null,
+      landSound = null,
+    } = {},
+  ) {
     const mesh = takeCard(faceUp ? card : null);
     mesh.visible = false;
     scene.add(mesh);
@@ -1096,7 +1497,11 @@ export function createUnoScene(canvas) {
         const e = easeInOut(t);
         mesh.position.lerpVectors(from, to, e);
         mesh.position.y += Math.sin(t * Math.PI) * 0.9;
-        mesh.rotation.set(MathUtils.lerp(tilt, -Math.PI / 2, e), 0, spin * (1 - e));
+        mesh.rotation.set(
+          MathUtils.lerp(tilt, -Math.PI / 2, e),
+          0,
+          spin * (1 - e),
+        );
         mesh.scale.setScalar(MathUtils.lerp(faceUp ? 0.8 : 0.5, 1, e));
       },
       {
@@ -1111,9 +1516,26 @@ export function createUnoScene(canvas) {
   }
 
   // A word or symbol that pops up over someone (or in front of you) and floats away.
-  function popup(index, text, fill, { color = '#fff', lift = 0, big = false, scale = 1, delay = 0, duration = 1500 } = {}) {
+  function popup(
+    index,
+    text,
+    fill,
+    {
+      color = '#fff',
+      lift = 0,
+      big = false,
+      scale = 1,
+      delay = 0,
+      duration = 1500,
+    } = {},
+  ) {
     const mesh = popups.acquire();
-    mesh.material.map = kit.texture(`popup:${text}:${fill}:${color}`, 360, 140, (ctx, w, h) => drawBanner(ctx, w, h, text, fill, color));
+    mesh.material.map = kit.texture(
+      `popup:${text}:${fill}:${color}`,
+      360,
+      140,
+      (ctx, w, h) => drawBanner(ctx, w, h, text, fill, color),
+    );
     mesh.material.needsUpdate = true;
     mesh.renderOrder = 16;
     mesh.scale.setScalar(0.001);
@@ -1126,7 +1548,12 @@ export function createUnoScene(canvas) {
         // Placed when it appears, so one in front of you follows where you're looking by then.
         base ??= headPoint(index, lift);
         mesh.quaternion.copy(camera.quaternion);
-        const pop = t < 0.15 ? easeOut(t / 0.15) * 1.15 : t > 0.85 ? 1 - (t - 0.85) / 0.15 : 1 + Math.max(0, 0.3 - t);
+        const pop =
+          t < 0.15
+            ? easeOut(t / 0.15) * 1.15
+            : t > 0.85
+              ? 1 - (t - 0.85) / 0.15
+              : 1 + Math.max(0, 0.3 - t);
         mesh.scale.setScalar(Math.max(0.001, pop * size));
         mesh.position.set(base.x, base.y + t * 0.35, base.z);
       },
@@ -1156,7 +1583,12 @@ export function createUnoScene(canvas) {
     const seat = seats.get(index);
     if (!seat || calm) return;
     endEmote(seat);
-    seat.emote = { kind, start: performance.now() + delay, ms: spec.ms, arms: Boolean(spec.arms) };
+    seat.emote = {
+      kind,
+      start: performance.now() + delay,
+      ms: spec.ms,
+      arms: Boolean(spec.arms),
+    };
   }
 
   function endEmote(seat) {
@@ -1201,7 +1633,8 @@ export function createUnoScene(canvas) {
         head.rotation.z += 0.12;
         break;
       case 'shocked':
-        seat.avatar.userData.body.scale.x = 1 + Math.sin(Math.min(1, t * 4) * Math.PI) * 0.06;
+        seat.avatar.userData.body.scale.x =
+          1 + Math.sin(Math.min(1, t * 4) * Math.PI) * 0.06;
         head.rotation.x -= 0.2 * fade;
         break;
       case 'smug':
@@ -1243,7 +1676,11 @@ export function createUnoScene(canvas) {
   }
 
   // A flat ring that spreads out across the table and fades.
-  function shockwave(position, color, { size = 1.6, duration = 520, delay = 0 } = {}) {
+  function shockwave(
+    position,
+    color,
+    { size = 1.6, duration = 520, delay = 0 } = {},
+  ) {
     const mesh = rings.acquire();
     mesh.material.color.set(color);
     mesh.material.opacity = 0;
@@ -1262,13 +1699,20 @@ export function createUnoScene(canvas) {
     );
   }
 
-  const burst = (position, colors, count, options) => particles.emit(position, calm ? Math.ceil(count / 3) : count, colors, options);
+  const burst = (position, colors, count, options) =>
+    particles.emit(
+      position,
+      calm ? Math.ceil(count / 3) : count,
+      colors,
+      options,
+    );
 
   function hop(index, times = 1) {
     const seat = seats.get(index);
     if (!seat) return;
     tweens.add(420 * times, (t) => {
-      seat.avatar.position.y = AVATAR_Y + Math.abs(Math.sin(t * Math.PI * times)) * 0.35;
+      seat.avatar.position.y =
+        AVATAR_Y + Math.abs(Math.sin(t * Math.PI * times)) * 0.35;
     });
   }
 
@@ -1278,15 +1722,31 @@ export function createUnoScene(canvas) {
     for (let i = 0; i < total; i++) {
       const mesh = confettiBits.acquire();
       mesh.material.color.set(colors[i % 4]);
-      const start = new Vector3((Math.random() - 0.5) * 6, 4 + Math.random() * 2, (Math.random() - 0.5) * 5);
-      const drift = new Vector3((Math.random() - 0.5) * 1.5, 0, (Math.random() - 0.5) * 1.5);
-      const spin = new Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8);
+      const start = new Vector3(
+        (Math.random() - 0.5) * 6,
+        4 + Math.random() * 2,
+        (Math.random() - 0.5) * 5,
+      );
+      const drift = new Vector3(
+        (Math.random() - 0.5) * 1.5,
+        0,
+        (Math.random() - 0.5) * 1.5,
+      );
+      const spin = new Vector3(
+        Math.random() * 8,
+        Math.random() * 8,
+        Math.random() * 8,
+      );
       mesh.position.copy(start);
       scene.add(mesh);
       tweens.add(
         1800 + Math.random() * 900,
         (t) => {
-          mesh.position.set(start.x + drift.x * t, start.y - t * 4.6, start.z + drift.z * t);
+          mesh.position.set(
+            start.x + drift.x * t,
+            start.y - t * 4.6,
+            start.z + drift.z * t,
+          );
           mesh.rotation.set(spin.x * t, spin.y * t, spin.z * t);
         },
         { delay: Math.random() * 400, done: () => confettiBits.release(mesh) },
@@ -1297,8 +1757,18 @@ export function createUnoScene(canvas) {
       tweens.add(1, () => {}, {
         delay: 250 + i * 380,
         done: () => {
-          const at = new Vector3((Math.random() - 0.5) * 3, 2.4 + Math.random(), (Math.random() - 0.5) * 2.5);
-          burst(at, [colors[i % 4], '#ffffff'], 70, { speed: 2.6, up: 1.2, life: 1.1, gravity: 2.5, spread: 0.05 });
+          const at = new Vector3(
+            (Math.random() - 0.5) * 3,
+            2.4 + Math.random(),
+            (Math.random() - 0.5) * 2.5,
+          );
+          burst(at, [colors[i % 4], '#ffffff'], 70, {
+            speed: 2.6,
+            up: 1.2,
+            life: 1.1,
+            gravity: 2.5,
+            spread: 0.05,
+          });
         },
       });
     }
@@ -1314,12 +1784,21 @@ export function createUnoScene(canvas) {
   // The events of one update, animated. Cards drawn because of a card that was just played wait for it to land.
   function playEvents(events, fresh) {
     const played = events.some((e) => e.type === 'play');
-    const drewToCentre = events.some((e) => e.type === 'draw' && e.reason === 'centre');
-    for (const event of events) playEvent(event, fresh, { afterPlay: played ? 450 : 0, afterCentre: drewToCentre ? 450 : 0 });
+    const drewToCentre = events.some(
+      (e) => e.type === 'draw' && e.reason === 'centre',
+    );
+    for (const event of events)
+      playEvent(event, fresh, {
+        afterPlay: played ? 450 : 0,
+        afterCentre: drewToCentre ? 450 : 0,
+      });
   }
 
   // A sound now, or after delay ms, in step with the animation it belongs to.
-  const soundAt = (name, delay = 0) => (delay > 0 ? tweens.add(1, () => {}, { delay, done: () => sfx(name) }) : sfx(name));
+  const soundAt = (name, delay = 0) =>
+    delay > 0
+      ? tweens.add(1, () => {}, { delay, done: () => sfx(name) })
+      : sfx(name);
 
   function playEvent(event, fresh, { afterPlay = 0, afterCentre = 0 } = {}) {
     switch (event.type) {
@@ -1327,17 +1806,35 @@ export function createUnoScene(canvas) {
         const card = event.card;
         const color = UNO_COLORS[event.color] ?? '#ffffff';
         const mine = relative(event.player) === 0;
-        const from = event.fromCentre ? centrePoint(event.player) : mine && leftHand.has(card.id) ? leftHand.get(card.id) : handPoint(event.player);
+        const from = event.fromCentre
+          ? centrePoint(event.player)
+          : mine && leftHand.has(card.id)
+            ? leftHand.get(card.id)
+            : handPoint(event.player);
         const to = PILE_POS.clone().add(new Vector3(0, 0.05, 0));
         const special = card.value in SYMBOLS;
-        const landSound = card.value === 'skip' ? 'uno.skip' : card.value === 'reverse' ? 'uno.reverseCard' : !card.color ? 'uno.wild' : /draw|target/.test(card.value) ? 'uno.attack' : 'uno.play';
+        const landSound =
+          card.value === 'skip'
+            ? 'uno.skip'
+            : card.value === 'reverse'
+              ? 'uno.reverseCard'
+              : !card.color
+                ? 'uno.wild'
+                : /draw|target/.test(card.value)
+                  ? 'uno.attack'
+                  : 'uno.play';
         flyCard(card, from, to, {
           landSound,
           startRotation: mine ? 0.2 : -0.4,
           done: () => {
             setTopCard(card);
             shockwave(PILE_POS, color, { size: special ? 2.4 : 1.4 });
-            burst(to, card.color ? [color, '#ffffff'] : Object.values(UNO_COLORS), special ? 60 : 24, { speed: special ? 2.4 : 1.4, up: 1.6, life: 0.8 });
+            burst(
+              to,
+              card.color ? [color, '#ffffff'] : Object.values(UNO_COLORS),
+              special ? 60 : 24,
+              { speed: special ? 2.4 : 1.4, up: 1.6, life: 0.8 },
+            );
           },
         });
         if (seats.has(event.player)) hop(event.player);
@@ -1348,13 +1845,19 @@ export function createUnoScene(canvas) {
         feltFlash = 1;
         flashColor.set(UNO_COLORS[event.color] ?? '#ffffff');
         sfx('uno.color');
-        shockwave(PILE_POS, UNO_COLORS[event.color] ?? '#ffffff', { size: 4.5, duration: 900 });
+        shockwave(PILE_POS, UNO_COLORS[event.color] ?? '#ffffff', {
+          size: 4.5,
+          duration: 900,
+        });
         break;
       case 'draw': {
         const deckTop = DECK_POS.clone().add(new Vector3(0, 0.2, 0));
         if (event.reason === 'centre') {
           // One card up into the middle, where its player decides what to do with it.
-          flyCard(null, deckTop, centrePoint(event.player), { faceUp: false, sound: 'uno.draw' });
+          flyCard(null, deckTop, centrePoint(event.player), {
+            faceUp: false,
+            sound: 'uno.draw',
+          });
           centreRevealAt = performance.now() + 420;
           break;
         }
@@ -1364,18 +1867,46 @@ export function createUnoScene(canvas) {
         // Each card whooshes off the deck, and the last one lands with a thud (a slam for a big pile).
         for (let i = 0; i < flying; i++) {
           const last = i === flying - 1;
-          flyCard(null, deckTop, handPoint(event.player), { faceUp: false, delay: delay + i * 90, sound: mine || i % 2 === 0 ? 'uno.receive' : null, landSound: last ? (event.count >= 4 ? 'uno.slam' : 'uno.land') : null });
+          flyCard(null, deckTop, handPoint(event.player), {
+            faceUp: false,
+            delay: delay + i * 90,
+            sound: mine || i % 2 === 0 ? 'uno.receive' : null,
+            landSound: last
+              ? event.count >= 4
+                ? 'uno.slam'
+                : 'uno.land'
+              : null,
+          });
         }
         // Being hit with a draw card gets its own sting, right as the cards start coming at you.
-        if (event.reason === 'hit' && mine && event.count >= 2) soundAt('uno.plused', delay);
-        if (event.count >= 2 && fresh) popup(event.player, `+${event.count}`, event.count >= 99 ? INK : UNO_COLORS.red, { big: event.count >= 4, delay });
+        if (event.reason === 'hit' && mine && event.count >= 2)
+          soundAt('uno.plused', delay);
+        if (event.count >= 2 && fresh)
+          popup(
+            event.player,
+            `+${event.count}`,
+            event.count >= 99 ? INK : UNO_COLORS.red,
+            { big: event.count >= 4, delay },
+          );
         if (event.reason === 'hit') {
           // The draw lands only once it's taken (or can't be answered): the hit, the shake, the reaction.
-          emote(event.player, event.count >= 10 ? 'stunned' : event.count >= 4 ? 'angry' : 'annoyed', delay);
-          if (relative(event.player) === 0) addShake(Math.min(0.12, 0.03 * Math.log2(event.count + 1)));
+          emote(
+            event.player,
+            event.count >= 10
+              ? 'stunned'
+              : event.count >= 4
+                ? 'angry'
+                : 'annoyed',
+            delay,
+          );
+          if (relative(event.player) === 0)
+            addShake(Math.min(0.12, 0.03 * Math.log2(event.count + 1)));
           else {
             const { x, z } = seatPosition(relative(event.player), playerCount);
-            shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, { size: event.count >= 4 ? 1.6 : 1.1, delay });
+            shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, {
+              size: event.count >= 4 ? 1.6 : 1.1,
+              delay,
+            });
           }
         }
         if (event.reason === 'callout') emote(event.player, 'shocked');
@@ -1383,7 +1914,12 @@ export function createUnoScene(canvas) {
       }
       case 'keep':
         // The drawn card goes from the middle into their hand (yours glides in on its own).
-        if (relative(event.player) !== 0) flyCard(null, centrePoint(event.player), handPoint(event.player), { faceUp: false, delay: afterCentre, sound: 'uno.keep' });
+        if (relative(event.player) !== 0)
+          flyCard(null, centrePoint(event.player), handPoint(event.player), {
+            faceUp: false,
+            delay: afterCentre,
+            sound: 'uno.keep',
+          });
         else soundAt('uno.keep', afterCentre);
         break;
       case 'uno': {
@@ -1391,8 +1927,16 @@ export function createUnoScene(canvas) {
         sfx('uno.uno');
         hop(event.player);
         emote(event.player, 'cheer');
-        const at = relative(event.player) === 0 ? handPoint(event.player) : headPoint(event.player, -0.6);
-        burst(at, ['#F2B90D', '#ffffff', UNO_COLORS.red], 50, { speed: 1.8, up: 2, life: 0.9, gravity: 3 });
+        const at =
+          relative(event.player) === 0
+            ? handPoint(event.player)
+            : headPoint(event.player, -0.6);
+        burst(at, ['#F2B90D', '#ffffff', UNO_COLORS.red], 50, {
+          speed: 1.8,
+          up: 2,
+          life: 0.9,
+          gravity: 3,
+        });
         break;
       }
       case 'callout':
@@ -1401,26 +1945,44 @@ export function createUnoScene(canvas) {
         emote(event.player, 'smug');
         break;
       case 'skip': {
-        popup(event.player, 'Skipped!', '#ffffff', { color: UNO_COLORS.red, delay: afterPlay });
+        popup(event.player, 'Skipped!', '#ffffff', {
+          color: UNO_COLORS.red,
+          delay: afterPlay,
+        });
         if (relative(event.player) === 0) soundAt('uno.skipped', afterPlay);
         emote(event.player, 'annoyed', afterPlay);
         const k = relative(event.player);
         if (k !== 0) {
           const { x, z } = seatPosition(k, playerCount);
-          shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, { size: 1.2, delay: afterPlay });
+          shockwave(new Vector3(x * 0.62, 0, z * 0.62), UNO_COLORS.red, {
+            size: 1.2,
+            delay: afterPlay,
+          });
         }
         break;
       }
       case 'block':
-        popup(event.player, 'Blocked!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        popup(event.player, 'Blocked!', '#ffffff', {
+          color: INK,
+          big: true,
+          delay: afterPlay,
+        });
         soundAt('uno.block', afterPlay);
         emote(event.player, 'smug', afterPlay);
         emote(event.from, 'shocked', afterPlay + 200);
-        shockwave(PILE_POS, '#ffffff', { size: 3, duration: 700, delay: afterPlay });
+        shockwave(PILE_POS, '#ffffff', {
+          size: 3,
+          duration: 700,
+          delay: afterPlay,
+        });
         break;
       case 'reflect':
         arrowBoost = 1;
-        popup(event.player, '⇄ Sent back!', '#ffffff', { color: INK, big: true, delay: afterPlay });
+        popup(event.player, '⇄ Sent back!', '#ffffff', {
+          color: INK,
+          big: true,
+          delay: afterPlay,
+        });
         soundAt('uno.reflect', afterPlay);
         emote(event.player, 'smug', afterPlay);
         emote(event.target, 'shocked', afterPlay + 250);
@@ -1431,10 +1993,21 @@ export function createUnoScene(canvas) {
         arrowBoost = 1;
         // The reverse jingle, once the card has landed.
         soundAt('uno.reverse', 450);
-        shockwave(new Vector3(0, 0, 0), '#ffffff', { size: 3.2, duration: 700 });
+        shockwave(new Vector3(0, 0, 0), '#ffffff', {
+          size: 3.2,
+          duration: 700,
+        });
         break;
       case 'swap': {
-        for (const [a, b] of [[event.a, event.b], [event.b, event.a]]) for (let i = 0; i < 4; i++) flyCard(null, handPoint(a), handPoint(b), { faceUp: false, delay: i * 70 });
+        for (const [a, b] of [
+          [event.a, event.b],
+          [event.b, event.a],
+        ])
+          for (let i = 0; i < 4; i++)
+            flyCard(null, handPoint(a), handPoint(b), {
+              faceUp: false,
+              delay: i * 70,
+            });
         popup(event.a, '⇄ Swap', '#ffffff', { color: INK });
         sfx('uno.swap');
         emote(event.a, 'smug', 500);
@@ -1444,7 +2017,13 @@ export function createUnoScene(canvas) {
       case 'rotate':
         arrowBoost = 1;
         sfx('uno.rotate');
-        for (let p = 0; p < playerCount; p++) flyCard(null, handPoint(p), handPoint((p + event.direction + playerCount) % playerCount), { faceUp: false });
+        for (let p = 0; p < playerCount; p++)
+          flyCard(
+            null,
+            handPoint(p),
+            handPoint((p + event.direction + playerCount) % playerCount),
+            { faceUp: false },
+          );
         break;
       case 'challenge': {
         popup(event.player, 'Challenge!', '#ffffff', { color: INK, big: true });
@@ -1454,9 +2033,22 @@ export function createUnoScene(canvas) {
         tweens.add(1, () => {}, {
           delay: 700,
           done: () => {
-            popup(loser, event.success ? 'Caught!' : 'Nope!', event.success ? UNO_COLORS.green : UNO_COLORS.red, { lift: -0.3 });
-            const at = relative(loser) === 0 ? handPoint(loser) : headPoint(loser, -0.8);
-            burst(at, event.success ? [UNO_COLORS.green, '#ffffff'] : [UNO_COLORS.red, INK], 40, { speed: 1.6, up: 1.5 });
+            popup(
+              loser,
+              event.success ? 'Caught!' : 'Nope!',
+              event.success ? UNO_COLORS.green : UNO_COLORS.red,
+              { lift: -0.3 },
+            );
+            const at =
+              relative(loser) === 0 ? handPoint(loser) : headPoint(loser, -0.8);
+            burst(
+              at,
+              event.success
+                ? [UNO_COLORS.green, '#ffffff']
+                : [UNO_COLORS.red, INK],
+              40,
+              { speed: 1.6, up: 1.5 },
+            );
             if (relative(loser) === 0) addShake(0.06);
           },
         });
@@ -1469,15 +2061,22 @@ export function createUnoScene(canvas) {
         sfx('uno.timeout');
         break;
       case 'win':
-        popup(event.player, relative(event.player) === 0 ? 'You win!' : 'Winner!', '#F2B90D', { color: INK, big: true });
-        if (fresh) soundAt(relative(event.player) === 0 ? 'uno.win' : 'uno.lose', 450);
+        popup(
+          event.player,
+          relative(event.player) === 0 ? 'You win!' : 'Winner!',
+          '#F2B90D',
+          { color: INK, big: true },
+        );
+        if (fresh)
+          soundAt(relative(event.player) === 0 ? 'uno.win' : 'uno.lose', 450);
         if (fresh) {
           confetti();
           // The winner celebrates; everyone else claps, or sulks if they were close.
           emote(event.player, 'joy', 300);
           for (let p = 0; p < playerCount; p++) {
             if (p === event.player) continue;
-            const count = p === me ? view?.hand.length : seats.get(p)?.player?.count;
+            const count =
+              p === me ? view?.hand.length : seats.get(p)?.player?.count;
             emote(p, count <= 2 ? 'sad' : 'clap', 700 + p * 120);
           }
         } else hop(event.player, 4);
@@ -1492,7 +2091,11 @@ export function createUnoScene(canvas) {
   const toward = new Vector3();
   function autoLook(index, seat) {
     const focus = winner ?? turn;
-    if (focus === index) return { yaw: Math.sin(performance.now() / 1400 + seat.phase) * 0.15, pitch: 0.3 };
+    if (focus === index)
+      return {
+        yaw: Math.sin(performance.now() / 1400 + seat.phase) * 0.15,
+        pitch: 0.3,
+      };
     const k = relative(focus);
     if (k === 0) toward.set(0, 1.5, SEAT_RADIUS);
     else {
@@ -1502,7 +2105,10 @@ export function createUnoScene(canvas) {
     toward.sub(seat.group.position);
     // Into the seat's own frame, where +z is straight at the table's centre.
     toward.applyAxisAngle(Y_AXIS, -seat.group.rotation.y);
-    return { yaw: MathUtils.clamp(Math.atan2(toward.x, toward.z), -HEAD_YAW, HEAD_YAW), pitch: 0.05 };
+    return {
+      yaw: MathUtils.clamp(Math.atan2(toward.x, toward.z), -HEAD_YAW, HEAD_YAW),
+      pitch: 0.05,
+    };
   }
 
   // ─── Your hand ─────────────────────────────────────────────────────
@@ -1521,7 +2127,10 @@ export function createUnoScene(canvas) {
   }
 
   // `kept`: a card you just kept glides down from where it waited above the hand, after `keptDelay` ms.
-  function syncHand(next, { kept = false, keptDelay = 0, drawnDelay = 0 } = {}) {
+  function syncHand(
+    next,
+    { kept = false, keptDelay = 0, drawnDelay = 0 } = {},
+  ) {
     const sorted = sortHand(next.hand);
     const ids = new Set(sorted.map((c) => c.id));
     leftHand.clear();
@@ -1539,7 +2148,16 @@ export function createUnoScene(canvas) {
         mesh.material.depthTest = false;
         mesh.material.transparent = true;
         mesh.userData.cardId = card.id;
-        const glowMesh = new Mesh(glowGeometry, new MeshBasicMaterial({ color: '#FFD84D', transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
+        const glowMesh = new Mesh(
+          glowGeometry,
+          new MeshBasicMaterial({
+            color: '#FFD84D',
+            transparent: true,
+            opacity: 0,
+            depthTest: false,
+            depthWrite: false,
+          }),
+        );
         glowMesh.position.z = -0.002;
         glowMesh.raycast = () => {};
         mesh.add(glowMesh);
@@ -1555,7 +2173,8 @@ export function createUnoScene(canvas) {
           mesh.rotation.set(0, 0, 0.6);
           mesh.scale.setScalar(HAND_CARD_SCALE * 0.6);
           // Stays hidden until the card you drew has actually flown from the deck to your hand.
-          if (drawnDelay) mesh.userData.holdUntil = performance.now() + drawnDelay;
+          if (drawnDelay)
+            mesh.userData.holdUntil = performance.now() + drawnDelay;
         }
         hand.add(mesh);
         handCards.set(card.id, mesh);
@@ -1571,17 +2190,26 @@ export function createUnoScene(canvas) {
   // cards still flying in (held back by holdUntil) don't take up room until they land.
   let handOrder = [];
   function layoutHand(now) {
-    const arrived = handOrder.filter((mesh) => !(mesh.userData.holdUntil > now));
+    const arrived = handOrder.filter(
+      (mesh) => !(mesh.userData.holdUntil > now),
+    );
     const n = arrived.length;
     // Spread the fan wider for more cards, but never past the edges of the view.
     const room = (handHalfWidth * 2) / hand.scale.x / FAN_RADIUS - 0.3;
-    const spread = Math.min(n <= 1 ? 0 : 0.12 * (n - 1), MathUtils.clamp(room, 0.3, 1.5));
+    const spread = Math.min(
+      n <= 1 ? 0 : 0.12 * (n - 1),
+      MathUtils.clamp(room, 0.3, 1.5),
+    );
     arrived.forEach((mesh, i) => {
       const angle = n > 1 ? (i / (n - 1) - 0.5) * spread : 0;
       mesh.userData.angle = angle;
       mesh.userData.order = i;
       mesh.userData.arrived = true;
-      mesh.userData.home = new Vector3(Math.sin(angle) * FAN_RADIUS, (Math.cos(angle) - 1) * FAN_RADIUS * FAN_CURVE, i * 0.004);
+      mesh.userData.home = new Vector3(
+        Math.sin(angle) * FAN_RADIUS,
+        (Math.cos(angle) - 1) * FAN_RADIUS * FAN_CURVE,
+        i * 0.004,
+      );
     });
     for (const mesh of handOrder) {
       if (mesh.userData.holdUntil > now) mesh.userData.arrived = false;
@@ -1596,7 +2224,9 @@ export function createUnoScene(canvas) {
     for (const mesh of handCards.values()) {
       const can = playable.has(mesh.userData.cardId);
       mesh.userData.playable = can;
-      mesh.material.color.set(can || next.winner !== null ? '#ffffff' : '#a3a3a3');
+      mesh.material.color.set(
+        can || next.winner !== null ? '#ffffff' : '#a3a3a3',
+      );
     }
   }
 
@@ -1605,7 +2235,12 @@ export function createUnoScene(canvas) {
     const myTurn = view && view.turn === view.you && view.winner === null;
     const pulse = 0.35 + Math.sin(now / 260) * 0.2;
     // A card that just landed makes room for itself.
-    if (handOrder.some((mesh) => !mesh.userData.arrived && !(mesh.userData.holdUntil > now))) layoutHand(now);
+    if (
+      handOrder.some(
+        (mesh) => !mesh.userData.arrived && !(mesh.userData.holdUntil > now),
+      )
+    )
+      layoutHand(now);
     for (const mesh of handCards.values()) {
       const { home, angle, order, playable } = mesh.userData;
       const focused = mesh.userData.cardId === (selectedId ?? hoverId);
@@ -1614,15 +2249,24 @@ export function createUnoScene(canvas) {
       mesh.visible = !(mesh.userData.holdUntil > now);
       if (!mesh.visible) continue;
       const lift = focused ? 0.3 : playable ? 0.06 : 0;
-      handAim.set(home.x - Math.sin(angle) * (focused ? -0.02 : 0), home.y + lift + (focused ? swipeLift : 0), home.z + (focused ? 0.12 : 0));
+      handAim.set(
+        home.x - Math.sin(angle) * (focused ? -0.02 : 0),
+        home.y + lift + (focused ? swipeLift : 0),
+        home.z + (focused ? 0.12 : 0),
+      );
       mesh.position.lerp(handAim, ease);
-      mesh.rotation.z += (-angle * FAN_TILT * (focused ? 0.4 : 1) - mesh.rotation.z) * ease;
+      mesh.rotation.z +=
+        (-angle * FAN_TILT * (focused ? 0.4 : 1) - mesh.rotation.z) * ease;
       const scale = HAND_CARD_SCALE * (focused ? 1.18 : 1);
       mesh.scale.setScalar(mesh.scale.x + (scale - mesh.scale.x) * ease);
       mesh.renderOrder = focused ? 60 : 20 + order;
       mesh.userData.glow.renderOrder = mesh.renderOrder - 0.5;
       // Playable cards glow: on your turn, or out of turn when they're a jump-in.
-      mesh.userData.glow.material.opacity = playable ? pulse + handFlash * 0.5 : myTurn ? handFlash * 0.4 : 0;
+      mesh.userData.glow.material.opacity = playable
+        ? pulse + handFlash * 0.5
+        : myTurn
+          ? handFlash * 0.4
+          : 0;
     }
 
     // The card you drew, waiting above your hand; theirs, face down in front of them.
@@ -1630,10 +2274,17 @@ export function createUnoScene(canvas) {
     myCentre.visible = centreWanted === 'mine' && reveal;
     theirCentre.visible = centreWanted === 'theirs' && reveal;
     if (myCentre.visible) {
-      const focused = hoverId === myCentre.userData.cardId || selectedId === myCentre.userData.cardId;
-      myCentre.scale.setScalar(myCentre.scale.x + (HAND_CARD_SCALE * (focused ? 1.5 : 1.35) - myCentre.scale.x) * ease);
+      const focused =
+        hoverId === myCentre.userData.cardId ||
+        selectedId === myCentre.userData.cardId;
+      myCentre.scale.setScalar(
+        myCentre.scale.x +
+          (HAND_CARD_SCALE * (focused ? 1.5 : 1.35) - myCentre.scale.x) * ease,
+      );
       myCentre.position.y = CENTRE_Y + Math.sin(now / 400) * 0.02;
-      myCentreGlow.material.opacity = myCentre.userData.playable ? pulse + 0.15 : 0;
+      myCentreGlow.material.opacity = myCentre.userData.playable
+        ? pulse + 0.15
+        : 0;
     }
     if (theirCentre.visible) {
       theirCentre.position.y = 0.85 + Math.sin(now / 400) * 0.03;
@@ -1643,11 +2294,16 @@ export function createUnoScene(canvas) {
 
   // ─── Public API ────────────────────────────────────────────────────
 
+  // Whether this screen is watching rather than playing.
+  let spectating = false;
+
   function setView(next) {
     const newGame = next.gameId !== gameId;
     gameId = next.gameId;
     view = next;
     me = next.you;
+    // No seat at the table. Sent by the host as a view with no hand in it.
+    spectating = next.spectating === true || next.you == null;
     playerCount = next.players.length;
     if (next.direction !== direction) pointArrows(next.direction);
     direction = next.direction;
@@ -1679,7 +2335,9 @@ export function createUnoScene(canvas) {
       updateBillboards();
       return;
     }
-    const fresh = next.events.filter((e) => lastEventId === null || e.id > lastEventId);
+    const fresh = next.events.filter(
+      (e) => lastEventId === null || e.id > lastEventId,
+    );
     lastEventId = next.events[next.events.length - 1]?.id ?? lastEventId;
     // The deck ran out: whatever happened before plays now, the pile is gathered back into the deck,
     // and everything after (the draws that needed it) waits until that's done.
@@ -1689,24 +2347,65 @@ export function createUnoScene(canvas) {
     // The reshuffle starts once whatever came before it has landed: a played card, then any cards drawn.
     const playedBefore = before.some((e) => e.type === 'play');
     const drawsBefore = before.filter((e) => e.type === 'draw');
-    const drawLanding = drawsBefore.reduce((longest, e) => Math.max(longest, e.reason === 'centre' ? 420 : (playedBefore && e.reason === 'hit' ? 450 : 0) + (Math.min(e.count, 6) - 1) * 90 + 440), 0);
-    const reshuffleAt = reshuffle ? Math.max(playedBefore ? 450 : 0, drawLanding) : 0;
+    const drawLanding = drawsBefore.reduce(
+      (longest, e) =>
+        Math.max(
+          longest,
+          e.reason === 'centre'
+            ? 420
+            : (playedBefore && e.reason === 'hit' ? 450 : 0) +
+                (Math.min(e.count, 6) - 1) * 90 +
+                440,
+        ),
+      0,
+    );
+    const reshuffleAt = reshuffle
+      ? Math.max(playedBefore ? 450 : 0, drawLanding)
+      : 0;
     // Only what comes after the reshuffle (draws that needed the new deck) waits for it.
-    const waitForDeck = reshuffle && after.length ? reshuffleAt + RESHUFFLE_MS : 0;
+    const waitForDeck =
+      reshuffle && after.length ? reshuffleAt + RESHUFFLE_MS : 0;
     const kept = fresh.some((e) => e.type === 'keep' && e.player === me);
-    const drewToCentre = fresh.some((e) => e.type === 'draw' && e.reason === 'centre');
+    const drewToCentre = fresh.some(
+      (e) => e.type === 'draw' && e.reason === 'centre',
+    );
     // A card straight into your hand shouldn't appear until the cards flying from the
-    // deck actually land there — otherwise you'd have it before you'd taken it.
-    const myDraw = fresh.find((e) => e.type === 'draw' && e.reason !== 'centre' && e.player === me);
+    // deck actually land there, or you'd have it before you'd taken it.
+    const myDraw = fresh.find(
+      (e) => e.type === 'draw' && e.reason !== 'centre' && e.player === me,
+    );
     const myDrawWaits = Boolean(myDraw) && after.includes(myDraw);
-    const drawnDelay = myDraw ? (myDrawWaits ? waitForDeck : 0) + (myDraw.reason === 'hit' && !myDrawWaits && fresh.some((e) => e.type === 'play') ? 450 : 0) + (Math.min(myDraw.count, 6) - 1) * 90 + 440 : 0;
-    syncHand(next, { kept, keptDelay: (drewToCentre ? 450 : 0) + (after.some((e) => e.type === 'draw' && e.reason === 'centre') ? waitForDeck : 0), drawnDelay });
+    const drawnDelay = myDraw
+      ? (myDrawWaits ? waitForDeck : 0) +
+        (myDraw.reason === 'hit' &&
+        !myDrawWaits &&
+        fresh.some((e) => e.type === 'play')
+          ? 450
+          : 0) +
+        (Math.min(myDraw.count, 6) - 1) * 90 +
+        440
+      : 0;
+    syncHand(next, {
+      kept,
+      keptDelay:
+        (drewToCentre ? 450 : 0) +
+        (after.some((e) => e.type === 'draw' && e.reason === 'centre')
+          ? waitForDeck
+          : 0),
+      drawnDelay,
+    });
     let playedTop = false;
-    for (const event of fresh) if (event.type === 'play' && event.card.id === next.top.id) playedTop = true;
+    for (const event of fresh)
+      if (event.type === 'play' && event.card.id === next.top.id)
+        playedTop = true;
     playEvents(before, true);
     if (reshuffle) {
       runReshuffle(reshuffleAt, reshuffle.count, next.drawPileCount);
-      if (after.length) tweens.add(1, () => {}, { delay: waitForDeck, done: () => playEvents(after, true) });
+      if (after.length)
+        tweens.add(1, () => {}, {
+          delay: waitForDeck,
+          done: () => playEvents(after, true),
+        });
     } else {
       setDeckLevel(next.drawPileCount);
     }
@@ -1715,10 +2414,15 @@ export function createUnoScene(canvas) {
     if (!playedTop) setTopCard(next.top);
     leftHand.clear();
 
-    const myTurn = next.turn === next.you && next.winner === null && next.swapPending === null;
+    const myTurn =
+      next.turn === next.you &&
+      next.winner === null &&
+      next.swapPending === null;
     if (myTurn && !wasMyTurn) {
       handFlash = 1;
-      shockwave(new Vector3(0, 0, TABLE_RADIUS - 0.8), '#F5C518', { size: 1.4 });
+      shockwave(new Vector3(0, 0, TABLE_RADIUS - 0.8), '#F5C518', {
+        size: 1.4,
+      });
     }
     wasMyTurn = myTurn;
     updateBillboards();
@@ -1740,7 +2444,13 @@ export function createUnoScene(canvas) {
       },
     });
     for (let i = 0; i < flying; i++) {
-      const from = PILE_POS.clone().add(new Vector3((Math.random() - 0.5) * 0.25, 0.06 + i * 0.004, (Math.random() - 0.5) * 0.25));
+      const from = PILE_POS.clone().add(
+        new Vector3(
+          (Math.random() - 0.5) * 0.25,
+          0.06 + i * 0.004,
+          (Math.random() - 0.5) * 0.25,
+        ),
+      );
       flyCard(null, from, deckAt, {
         faceUp: false,
         delay: delay + i * step,
@@ -1760,7 +2470,8 @@ export function createUnoScene(canvas) {
       Math.max(300, delay + RESHUFFLE_MS - gathered),
       (t) => {
         deck.rotation.y = Math.sin(t * Math.PI * 6) * 0.18 * (1 - t);
-        deck.position.y = DECK_POS.y + Math.abs(Math.sin(t * Math.PI * 3)) * 0.06 * (1 - t);
+        deck.position.y =
+          DECK_POS.y + Math.abs(Math.sin(t * Math.PI * 3)) * 0.06 * (1 - t);
       },
       {
         delay: gathered,
@@ -1778,7 +2489,10 @@ export function createUnoScene(canvas) {
   // player in turn, round after round. Your cards appear (and your fan opens up) as each one lands;
   // everyone else's cards show once the deal is done.
   function runDeal(next, deal) {
-    const { rounds, shuffleMs, stepMs, flyMs } = dealTiming(deal.players, deal.handSize);
+    const { rounds, shuffleMs, stepMs, flyMs } = dealTiming(
+      deal.players,
+      deal.handSize,
+    );
     const n = next.players.length;
     const start = performance.now();
     sfx('uno.deal');
@@ -1786,13 +2500,18 @@ export function createUnoScene(canvas) {
     for (let r = 0; r < rounds; r++) {
       for (let k = 0; k < n; k++) {
         const index = (me + 1 + k) % n;
-        flyCard(null, deckTop, handPoint(index), { faceUp: false, delay: shuffleMs + (r * n + k) * stepMs, sound: 'uno.dealCard' });
+        flyCard(null, deckTop, handPoint(index), {
+          faceUp: false,
+          delay: shuffleMs + (r * n + k) * stepMs,
+          sound: 'uno.dealCard',
+        });
       }
     }
     // You're dealt last in each round; with a big starting hand the rest arrive with the last round.
     handOrder.forEach((mesh, i) => {
       const round = Math.min(i, rounds - 1);
-      mesh.userData.holdUntil = start + shuffleMs + (round * n + n - 1) * stepMs + flyMs;
+      mesh.userData.holdUntil =
+        start + shuffleMs + (round * n + n - 1) * stepMs + flyMs;
       mesh.position.set(-handHalfWidth * 1.3, 0.4, 0);
       mesh.rotation.set(0, 0, 0.6);
       mesh.scale.setScalar(HAND_CARD_SCALE * 0.6);
@@ -1816,7 +2535,11 @@ export function createUnoScene(canvas) {
       myCentre.material.needsUpdate = true;
       myCentre.userData.cardId = next.drawn.id;
       myCentre.userData.playable = next.playable.includes(next.drawn.id);
-    } else if (next.drawnPending && next.winner === null && next.turn !== next.you) {
+    } else if (
+      next.drawnPending &&
+      next.winner === null &&
+      next.turn !== next.you
+    ) {
       centreWanted = 'theirs';
       theirCentre.position.copy(centrePoint(next.turn));
     } else {
@@ -1830,13 +2553,29 @@ export function createUnoScene(canvas) {
     if (!view) return;
     const ready = canDraw();
     const pending = view.pending;
-    const text = pending ? (pending.kind === 'draw' ? `Take ${pending.amount}` : 'Take the skip') : view.drewThisTurn ? 'Draw again' : 'Draw';
-    drawLabel.draw(`${ready}:${text}`, (ctx, w, h) => ready && drawBanner(ctx, w, h, text, '#FFD84D', INK));
+    const text = pending
+      ? pending.kind === 'draw'
+        ? `Take ${pending.amount}`
+        : 'Take the skip'
+      : view.drewThisTurn
+        ? 'Draw again'
+        : 'Draw';
+    drawLabel.draw(
+      `${ready}:${text}`,
+      (ctx, w, h) => ready && drawBanner(ctx, w, h, text, '#FFD84D', INK),
+    );
     drawLabel.sprite.visible = ready;
     const stacked = Boolean(pending) && view.winner === null;
     // Just the amount: who it's aimed at is on the turn marker and in the log.
-    const label = pending ? (pending.kind === 'draw' ? `+${pending.amount}` : 'Skip') : '';
-    stackLabel.draw(label, (ctx, w, h) => stacked && drawBanner(ctx, w, h, label, UNO_COLORS.red));
+    const label = pending
+      ? pending.kind === 'draw'
+        ? `+${pending.amount}`
+        : 'Skip'
+      : '';
+    stackLabel.draw(
+      label,
+      (ctx, w, h) => stacked && drawBanner(ctx, w, h, label, UNO_COLORS.red),
+    );
     stackLabel.sprite.visible = stacked;
   }
 
@@ -1851,8 +2590,16 @@ export function createUnoScene(canvas) {
   // Touch dragging turns the view directly (in fractions of the view's size).
   function dragLook(dx, dy) {
     // Like grabbing the world: drag right and the view turns left.
-    look.dragYaw = MathUtils.clamp(look.dragYaw + dx * 1.6, -LOOK_YAW, LOOK_YAW);
-    look.dragPitch = MathUtils.clamp(look.dragPitch + dy * 1.0, -LOOK_PITCH, LOOK_PITCH);
+    look.dragYaw = MathUtils.clamp(
+      look.dragYaw + dx * 1.6,
+      -LOOK_YAW,
+      LOOK_YAW,
+    );
+    look.dragPitch = MathUtils.clamp(
+      look.dragPitch + dy * 1.0,
+      -LOOK_PITCH,
+      LOOK_PITCH,
+    );
   }
 
   // ─── Gyroscope ──────────────────────────────────────────────────────
@@ -1870,8 +2617,18 @@ export function createUnoScene(canvas) {
   // on, so wherever you're facing counts as looking at the table.
   function setOrientation(alpha, beta, gamma, screenAngle = 0) {
     if (alpha === null || beta === null || gamma === null) return;
-    deviceEuler.set(MathUtils.degToRad(beta), MathUtils.degToRad(alpha), -MathUtils.degToRad(gamma), 'YXZ');
-    deviceQuat.setFromEuler(deviceEuler).multiply(screenTransform).multiply(turnQuat.setFromAxisAngle(zAxis, -MathUtils.degToRad(screenAngle)));
+    deviceEuler.set(
+      MathUtils.degToRad(beta),
+      MathUtils.degToRad(alpha),
+      -MathUtils.degToRad(gamma),
+      'YXZ',
+    );
+    deviceQuat
+      .setFromEuler(deviceEuler)
+      .multiply(screenTransform)
+      .multiply(
+        turnQuat.setFromAxisAngle(zAxis, -MathUtils.degToRad(screenAngle)),
+      );
     if (!gyro.reference) gyro.reference = deviceQuat.clone().invert();
     relativeQuat.copy(gyro.reference).multiply(deviceQuat);
     relativeEuler.setFromQuaternion(relativeQuat, 'YXZ');
@@ -1906,7 +2663,11 @@ export function createUnoScene(canvas) {
 
   // Another player's look: their avatar turns its head to match.
   function setLook(index, x, y) {
-    looks.set(index, { x: MathUtils.clamp(Number(x) || 0, -1, 1), y: MathUtils.clamp(Number(y) || 0, -1, 1), at: performance.now() });
+    looks.set(index, {
+      x: MathUtils.clamp(Number(x) || 0, -1, 1),
+      y: MathUtils.clamp(Number(y) || 0, -1, 1),
+      at: performance.now(),
+    });
   }
 
   // ─── Picking ────────────────────────────────────────────────────────
@@ -1920,20 +2681,45 @@ export function createUnoScene(canvas) {
     raycaster.setFromCamera(ndc, camera);
     if (colorWheel.visible) {
       const hit = raycaster.intersectObjects(colorPads, false)[0];
-      if (hit) return { type: 'color', color: hit.object.userData.color, playable: true };
+      if (hit)
+        return {
+          type: 'color',
+          color: hit.object.userData.color,
+          playable: true,
+        };
     }
     if (targetArrows.visible) {
       const hit = raycaster.intersectObjects(targetArrows.children, true)[0];
-      if (hit) return { type: 'target', index: hit.object.parent.userData.index, playable: true };
+      if (hit)
+        return {
+          type: 'target',
+          index: hit.object.parent.userData.index,
+          playable: true,
+        };
     }
-    if (myCentre.visible && raycaster.intersectObject(myCentre, false).length) return { type: 'drawn', id: myCentre.userData.cardId, playable: Boolean(myCentre.userData.playable) };
+    if (myCentre.visible && raycaster.intersectObject(myCentre, false).length)
+      return {
+        type: 'drawn',
+        id: myCentre.userData.cardId,
+        playable: Boolean(myCentre.userData.playable),
+      };
     const handHits = raycaster.intersectObjects([...handCards.values()], false);
     if (handHits.length) {
       // Cards overlap: the one drawn on top wins, not the nearest.
-      const top = handHits.reduce((best, hit) => (hit.object.renderOrder > best.object.renderOrder ? hit : best));
-      return { type: 'card', id: top.object.userData.cardId, playable: Boolean(top.object.userData.playable) };
+      const top = handHits.reduce((best, hit) =>
+        hit.object.renderOrder > best.object.renderOrder ? hit : best,
+      );
+      return {
+        type: 'card',
+        id: top.object.userData.cardId,
+        playable: Boolean(top.object.userData.playable),
+      };
     }
-    if (raycaster.intersectObjects([deckBox, deckTop, drawLabel.sprite], false).length) return { type: 'deck' };
+    if (
+      raycaster.intersectObjects([deckBox, deckTop, drawLabel.sprite], false)
+        .length
+    )
+      return { type: 'deck' };
     return null;
   }
 
@@ -1949,7 +2735,8 @@ export function createUnoScene(canvas) {
   // the players the arrows point at, and highlighting a colour or arrow as if hovered.
   function getHandIds() {
     const ids = handOrder.map((mesh) => mesh.userData.cardId);
-    if (myCentre.visible && myCentre.userData.cardId !== undefined) ids.push(myCentre.userData.cardId);
+    if (myCentre.visible && myCentre.userData.cardId !== undefined)
+      ids.push(myCentre.userData.cardId);
     return ids;
   }
 
@@ -1986,9 +2773,16 @@ export function createUnoScene(canvas) {
     camera.aspect = width / height;
     // Keep roughly 100° of the table in view across, however tall the screen is.
     const horizontal = MathUtils.degToRad(100);
-    camera.fov = MathUtils.clamp(MathUtils.radToDeg(2 * Math.atan(Math.tan(horizontal / 2) / camera.aspect)), 50, 84);
+    camera.fov = MathUtils.clamp(
+      MathUtils.radToDeg(
+        2 * Math.atan(Math.tan(horizontal / 2) / camera.aspect),
+      ),
+      50,
+      84,
+    );
     camera.updateProjectionMatrix();
-    const halfHeight = Math.tan(MathUtils.degToRad(camera.fov / 2)) * HAND_DEPTH;
+    const halfHeight =
+      Math.tan(MathUtils.degToRad(camera.fov / 2)) * HAND_DEPTH;
     handHalfWidth = halfHeight * camera.aspect;
     // The hand sits along the bottom of the view, and shrinks on narrow screens.
     const fit = MathUtils.clamp(handHalfWidth / 1.25, 0.55, 1);
@@ -1999,7 +2793,9 @@ export function createUnoScene(canvas) {
 
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);
-  const visibility = new IntersectionObserver(([entry]) => (visible = entry.isIntersecting));
+  const visibility = new IntersectionObserver(
+    ([entry]) => (visible = entry.isIntersecting),
+  );
   visibility.observe(canvas);
   resize();
 
@@ -2027,54 +2823,99 @@ export function createUnoScene(canvas) {
     let pitchGoal;
     if (autoAim) {
       // Locked: follow the game, glancing at whoever's move it is and back to the table on yours.
-      const focus = view?.choice?.player ?? view?.pending?.target ?? winner ?? turn;
-      const k = playerCount && focus !== null && focus !== undefined ? relative(focus) : 0;
+      const focus =
+        view?.choice?.player ?? view?.pending?.target ?? winner ?? turn;
+      const k =
+        playerCount && focus !== null && focus !== undefined
+          ? relative(focus)
+          : 0;
       if (k === 0 || view?.choice) {
         yawGoal = 0;
         pitchGoal = 0;
       } else {
         const { x, z } = seatPosition(k, playerCount);
-        yawGoal = MathUtils.clamp(Math.atan2(-(x - EYE.x), -(z - EYE.z)) * 0.75, -LOOK_YAW, LOOK_YAW);
+        yawGoal = MathUtils.clamp(
+          Math.atan2(-(x - EYE.x), -(z - EYE.z)) * 0.75,
+          -LOOK_YAW,
+          LOOK_YAW,
+        );
         pitchGoal = 0.04;
       }
     } else if (gyro.on) {
       yawGoal = gyro.yaw;
       pitchGoal = gyro.pitch;
     } else {
-      const edge = (v) => Math.sign(v) * Math.max(0, Math.abs(v) - 0.35) / 0.65;
-      yawGoal = MathUtils.clamp(look.dragYaw - (pointer.active ? edge(pointer.x) : 0) * LOOK_YAW, -LOOK_YAW, LOOK_YAW);
-      pitchGoal = MathUtils.clamp(look.dragPitch - (pointer.active ? Math.min(0, edge(pointer.y)) : 0) * LOOK_PITCH, -LOOK_PITCH, LOOK_PITCH);
+      const edge = (v) =>
+        (Math.sign(v) * Math.max(0, Math.abs(v) - 0.35)) / 0.65;
+      yawGoal = MathUtils.clamp(
+        look.dragYaw - (pointer.active ? edge(pointer.x) : 0) * LOOK_YAW,
+        -LOOK_YAW,
+        LOOK_YAW,
+      );
+      pitchGoal = MathUtils.clamp(
+        look.dragPitch -
+          (pointer.active ? Math.min(0, edge(pointer.y)) : 0) * LOOK_PITCH,
+        -LOOK_PITCH,
+        LOOK_PITCH,
+      );
     }
     const lookEase = 1 - Math.exp(-dt * (autoAim ? 2.5 : gyro.on ? 12 : 5));
     look.yaw += (yawGoal - look.yaw) * lookEase;
     look.pitch += (pitchGoal - look.pitch) * lookEase;
     shake = Math.max(0, shake - dt * 0.35);
-    if (shake > 0) shakeOffset.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, 0);
+    if (shake > 0)
+      shakeOffset.set(
+        (Math.random() - 0.5) * shake,
+        (Math.random() - 0.5) * shake,
+        0,
+      );
     else shakeOffset.set(0, 0, 0);
-    camera.position.copy(EYE).add(shakeOffset);
-    camera.rotation.set(basePitch + look.pitch, look.yaw, 0);
+    if (spectating) {
+      // A spectator has no seat to sit in, so the camera circles above the
+      // table instead. Looking down means no hand is ever edge-on to the
+      // camera, which is the angle a player's cards would be readable from.
+      const angle = (now / 1000) * SPECTATE_SPIN;
+      camera.position.set(
+        Math.sin(angle) * SPECTATE_RADIUS + shakeOffset.x,
+        SPECTATE_HEIGHT + shakeOffset.y,
+        Math.cos(angle) * SPECTATE_RADIUS,
+      );
+      camera.rotation.set(0, 0, 0);
+      camera.lookAt(0, 0.9, 0);
+    } else {
+      camera.position.copy(EYE).add(shakeOffset);
+      camera.rotation.set(basePitch + look.pitch, look.yaw, 0);
+    }
 
     updateHand(dt, now);
     animatePicker(now, dt);
 
     for (const [index, seat] of seats) {
       const t = now / 1000 + seat.phase;
-      const { body, head, face, faceOpen, faceClosed, antenna, robot } = seat.avatar.userData;
+      const { body, head, face, faceOpen, faceClosed, antenna, robot } =
+        seat.avatar.userData;
       body.scale.y = 1 + Math.sin(t * 2) * (robot ? 0.01 : 0.02);
       if (antenna) antenna.position.x = Math.sin(t * 3) * 0.02;
 
       const their = looks.get(index);
-      const goal = their && now - their.at < LOOK_STALE_MS ? { yaw: -their.x * HEAD_YAW, pitch: their.y * HEAD_PITCH } : autoLook(index, seat);
+      const goal =
+        their && now - their.at < LOOK_STALE_MS
+          ? { yaw: -their.x * HEAD_YAW, pitch: their.y * HEAD_PITCH }
+          : autoLook(index, seat);
       const headEase = 1 - Math.exp(-dt * 7);
       seat.yaw += (goal.yaw - seat.yaw) * headEase;
       seat.pitch += (goal.pitch - seat.pitch) * headEase;
       head.rotation.set(seat.pitch, seat.yaw, Math.sin(t * 1.3) * 0.05);
 
-      if (now > seat.blinkAt + 140) seat.blinkAt = now + 2000 + Math.random() * 3000;
+      if (now > seat.blinkAt + 140)
+        seat.blinkAt = now + 2000 + Math.random() * 3000;
       face.material = now > seat.blinkAt ? faceClosed : faceOpen;
       playEmote(seat, now);
       // Name tags bob gently, more when it's that player's turn.
-      seat.tag.sprite.position.y = seat.tag.homeY + Math.sin(t * (turn === index ? 5 : 1.5)) * (turn === index ? 0.05 : 0.015);
+      seat.tag.sprite.position.y =
+        seat.tag.homeY +
+        Math.sin(t * (turn === index ? 5 : 1.5)) *
+          (turn === index ? 0.05 : 0.015);
     }
 
     if (playerCount) {
@@ -2088,9 +2929,16 @@ export function createUnoScene(canvas) {
 
     animateDeck(dt);
     const ready = canDraw();
-    drawRing.material.opacity = ready ? 0.55 + Math.sin(now / 200) * 0.25 + (hoverDeck ? 0.2 : 0) : 0;
-    drawRing.scale.setScalar(ready ? 1 + Math.sin(now / 200) * 0.05 + (hoverDeck ? 0.08 : 0) : 1);
-    if (ready) drawLabel.setScale((1 + Math.sin(now / 200) * 0.05) * (hoverDeck ? 1.15 : 1));
+    drawRing.material.opacity = ready
+      ? 0.55 + Math.sin(now / 200) * 0.25 + (hoverDeck ? 0.2 : 0)
+      : 0;
+    drawRing.scale.setScalar(
+      ready ? 1 + Math.sin(now / 200) * 0.05 + (hoverDeck ? 0.08 : 0) : 1,
+    );
+    if (ready)
+      drawLabel.setScale(
+        (1 + Math.sin(now / 200) * 0.05) * (hoverDeck ? 1.15 : 1),
+      );
     stackLabel.setScale(1 + Math.sin(now / 150) * 0.06);
 
     if (feltFlash > 0) {
@@ -2136,10 +2984,18 @@ export function createUnoScene(canvas) {
       drawLabel.dispose();
       stackLabel.dispose();
       pickLabel.dispose();
-      for (const arrow of targetArrows.children) arrow.userData.material.dispose();
+      for (const arrow of targetArrows.children)
+        arrow.userData.material.dispose();
       disposeGroup(scene);
       scene.traverse((obj) => obj.isMesh && obj.geometry.dispose());
-      for (const geometry of [cardGeometry, popupGeometry, confettiGeometry, ringGeometry, glowGeometry]) geometry.dispose();
+      for (const geometry of [
+        cardGeometry,
+        popupGeometry,
+        confettiGeometry,
+        ringGeometry,
+        glowGeometry,
+      ])
+        geometry.dispose();
       feltMaterial.dispose();
       glow.dispose();
       kit.dispose();

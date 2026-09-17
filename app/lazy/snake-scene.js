@@ -1,8 +1,39 @@
-import { Group, Mesh, InstancedMesh, Object3D, SphereGeometry, BoxGeometry, CylinderGeometry, CircleGeometry, ShaderMaterial, MeshToonMaterial, MeshBasicMaterial, Color, Vector3, BackSide } from 'three';
+import {
+  Group,
+  Mesh,
+  InstancedMesh,
+  Object3D,
+  SphereGeometry,
+  BoxGeometry,
+  CylinderGeometry,
+  CircleGeometry,
+  ShaderMaterial,
+  MeshToonMaterial,
+  MeshBasicMaterial,
+  Color,
+  Vector3,
+  BackSide,
+} from 'three';
 import { buildAvatar, disposeAvatar, reachArms } from './avatar-model';
 import { sfx } from '../utils/sound';
 import { speedOf } from '../utils/snake';
-import { createStage, createSea, buildIsland, makeObstacle, Particles, Tweens, nameTag, startEmote, playEmote, blobShadow, cellToWorld, easeOutBack, Shockwaves, dizzyStars, INK } from './island-world';
+import {
+  createStage,
+  createSea,
+  buildIsland,
+  makeObstacle,
+  Particles,
+  Tweens,
+  nameTag,
+  startEmote,
+  playEmote,
+  blobShadow,
+  cellToWorld,
+  easeOutBack,
+  Shockwaves,
+  dizzyStars,
+  INK,
+} from './island-world';
 
 // Snake on a tropical island: every snake's body is an instanced string of
 // toon spheres that glide from square to square, with the player's avatar
@@ -15,12 +46,20 @@ const BODY_Y = 0.36;
 const RIDER_SCALE = 0.72;
 // How far (in squares) the drawn snake trails the real one, to smooth out uneven ticks.
 const GLIDE_BUFFER = 0.4;
-const DIR_YAW = { up: Math.PI, down: 0, left: -Math.PI / 2, right: Math.PI / 2 };
+const DIR_YAW = {
+  up: Math.PI,
+  down: 0,
+  left: -Math.PI / 2,
+  right: Math.PI / 2,
+};
 
 // The inverted-hull ink outline, for instanced meshes.
 function instancedOutline(thickness) {
   return new ShaderMaterial({
-    uniforms: { thickness: { value: thickness }, color: { value: new Color(INK) } },
+    uniforms: {
+      thickness: { value: thickness },
+      color: { value: new Color(INK) },
+    },
     vertexShader: `
       uniform float thickness;
       void main() {
@@ -34,12 +73,14 @@ function instancedOutline(thickness) {
         p.xyz += normalize(normalMatrix * n) * thickness;
         gl_Position = projectionMatrix * p;
       }`,
-    fragmentShader: 'uniform vec3 color; void main() { gl_FragColor = vec4(color, 1.0); }',
+    fragmentShader:
+      'uniform vec3 color; void main() { gl_FragColor = vec4(color, 1.0); }',
     side: BackSide,
   });
 }
 
-const lighten = (hex, amount) => `#${new Color(hex).lerp(new Color('#ffffff'), amount).getHexString()}`;
+const lighten = (hex, amount) =>
+  `#${new Color(hex).lerp(new Color('#ffffff'), amount).getHexString()}`;
 const angleLerp = (a, b, t) => {
   let d = b - a;
   while (d > Math.PI) d -= Math.PI * 2;
@@ -67,6 +108,9 @@ export function createSnakeScene(canvas) {
   const snakes = new Map(); // id -> visual
   const apples = new Map(); // "x,y" -> group
   let myId = null;
+  // Whose snake the camera rides. Normally yours; a spectator (or someone
+  // knocked out) follows whoever they chose instead.
+  let watchId = null;
   let avatars = new Map();
   let stepMs = 60;
   let lastTick = -1;
@@ -78,17 +122,37 @@ export function createSnakeScene(canvas) {
   // ─── The island ────────────────────────────────────────────────────
 
   function buildWorld(state) {
-    const key = `${state.size}|${state.map}|${state.wrap}|${JSON.stringify(state.obstacles)}`;
+    const key = `${state.size}|${state.map}|${state.wrap}|${(state.land ?? []).join('')}|${(state.water ?? []).join('')}|${JSON.stringify(state.obstacles)}`;
     if (world?.key === key) return;
     if (world) {
       world.group.removeFromParent();
       world.sea.mesh.removeFromParent();
+      world.sea.dispose();
     }
     const size = state.size;
-    const group = buildIsland(kit, { width: size, depth: size, theme: state.map, walls: !state.wrap, seed: size * 7 + state.map.length });
-    const sea = createSea((size + 5) / 2, (size + 5) / 2);
+    // Water squares are dug out of the terrain as ponds with the sea in them:
+    // a drawn level says where they are itself, a built-in map lists them
+    // among its obstacles.
+    const water = state.water
+      ? [...state.water]
+      : Array(size * size).fill(false);
+    for (const [x, y, kind] of state.obstacles)
+      if (kind === 'water') water[y * size + x] = true;
+    const group = buildIsland(kit, {
+      width: size,
+      depth: size,
+      theme: state.map,
+      walls: !state.wrap,
+      seed: size * 7 + state.map.length,
+      mask: state.mask,
+      land: state.land ?? state.mask,
+      water,
+    });
+    // The sea reads its shoreline from the island's own terrain.
+    const sea = createSea(group.userData.terrain);
     for (const [x, y, kind] of state.obstacles) {
       const thing = makeObstacle(kit, kind, x * 31 + y);
+      if (!thing) continue;
       const [wx, wz] = cellToWorld(size, size, x, y);
       thing.position.x = wx;
       thing.position.z = wz;
@@ -111,7 +175,11 @@ export function createSnakeScene(canvas) {
 
   function makeSnake(snake) {
     const color = SNAKE_COLORS[snake.color % SNAKE_COLORS.length];
-    const material = new MeshToonMaterial({ color: '#ffffff', gradientMap: kit.gradient, transparent: true });
+    const material = new MeshToonMaterial({
+      color: '#ffffff',
+      gradientMap: kit.gradient,
+      transparent: true,
+    });
     const group = new Group();
     const capacity = 64;
     const body = new InstancedMesh(sphere, material, capacity);
@@ -124,11 +192,20 @@ export function createSnakeScene(canvas) {
     group.add(outline, body);
 
     const head = new Group();
-    const skull = new Mesh(kit.geometry('snake-head', () => new SphereGeometry(1, 20, 14)), kit.toon(color));
+    const skull = new Mesh(
+      kit.geometry('snake-head', () => new SphereGeometry(1, 20, 14)),
+      kit.toon(color),
+    );
     skull.scale.set(0.5, 0.42, 0.56);
     head.add(withInk(skull));
-    const eyeWhite = kit.geometry('snake-eye', () => new SphereGeometry(0.13, 10, 8));
-    const pupil = kit.geometry('snake-pupil', () => new SphereGeometry(0.065, 8, 6));
+    const eyeWhite = kit.geometry(
+      'snake-eye',
+      () => new SphereGeometry(0.13, 10, 8),
+    );
+    const pupil = kit.geometry(
+      'snake-pupil',
+      () => new SphereGeometry(0.065, 8, 6),
+    );
     for (const side of [-1, 1]) {
       const eye = new Mesh(eyeWhite, kit.toon('#ffffff'));
       eye.position.set(side * 0.22, 0.24, 0.3);
@@ -137,7 +214,10 @@ export function createSnakeScene(canvas) {
       dot.position.set(side * 0.23, 0.26, 0.41);
       head.add(dot);
     }
-    const tongue = new Mesh(kit.geometry('snake-tongue', () => new BoxGeometry(0.06, 0.02, 0.3)), kit.toon('#e5484d'));
+    const tongue = new Mesh(
+      kit.geometry('snake-tongue', () => new BoxGeometry(0.06, 0.02, 0.3)),
+      kit.toon('#e5484d'),
+    );
     tongue.position.set(0, -0.05, 0.55);
     head.add(tongue);
     const shadow = blobShadow(kit, 0.55);
@@ -154,13 +234,17 @@ export function createSnakeScene(canvas) {
       head.add(avatar);
       rider = { avatar, emote: null, flung: null };
     }
-    const tag = nameTag(snake.id === myId ? 'You' : snake.name, color, { bot: snake.bot });
+    const tag = nameTag(snake.id === myId ? 'You' : snake.name, color, {
+      bot: snake.bot,
+    });
     tag.sprite.position.y = 1.9;
     tag.sprite.scale.multiplyScalar(1.1);
     group.add(tag.sprite);
     scene.add(group);
 
-    const positions = snake.body.map(([x, y]) => cellToWorld(world.size, world.size, x, y));
+    const positions = snake.body.map(([x, y]) =>
+      cellToWorld(world.size, world.size, x, y),
+    );
     return {
       id: snake.id,
       name: snake.name,
@@ -238,22 +322,33 @@ export function createSnakeScene(canvas) {
     const size = world.size;
     const next = snake.body.map(([x, y]) => cellToWorld(size, size, x, y));
     const old = visual.to;
-    const moved = next.length && old.length && (next[0][0] !== old[0][0] || next[0][1] !== old[0][1]);
+    const moved =
+      next.length &&
+      old.length &&
+      (next[0][0] !== old[0][0] || next[0][1] !== old[0][1]);
     if (moved) {
       // The new head square goes on the front of the trail; every segment is now one square further along it.
-      const jump = Math.abs(old[0][0] - next[0][0]) + Math.abs(old[0][1] - next[0][1]) > 1.5;
+      const jump =
+        Math.abs(old[0][0] - next[0][0]) + Math.abs(old[0][1] - next[0][1]) >
+        1.5;
       visual.trail = [[...next[0]], ...visual.trail].slice(0, next.length + 4);
       visual.lag = Math.min(visual.lag + 1, 3);
       if (jump) visual.lag = 0;
       visual.moveMs = stepMs / speedOf(state, snake);
     }
-    next.forEach((p, i) => (visual.trail[i] = [...p]));    visual.to = next;
+    next.forEach((p, i) => (visual.trail[i] = [...p]));
+    visual.to = next;
     // A turn waiting for the next square: the head looks that way straight away.
     visual.queued = snake.alive ? (snake.queue?.[0] ?? null) : null;
     visual.dir = snake.dir;
     const boosting = snake.boost > 0 && snake.alive;
     if (visual.boosting && !boosting && snake.alive) {
-      particles.emit(tmp.set(next[0][0], 0.5, next[0][1]), calm ? 3 : 10, ['#ffffff', visual.stripe], { speed: 1.4, up: 1.5, life: 0.5, size: 0.3 });
+      particles.emit(
+        tmp.set(next[0][0], 0.5, next[0][1]),
+        calm ? 3 : 10,
+        ['#ffffff', visual.stripe],
+        { speed: 1.4, up: 1.5, life: 0.5, size: 0.3 },
+      );
     }
     visual.boosting = boosting;
 
@@ -261,17 +356,36 @@ export function createSnakeScene(canvas) {
     if (snake.score > visual.score) {
       if (visual.rider) startEmote(visual.rider, 'joy');
       const [hx, hz] = next[0];
-      particles.emit(tmp.set(hx, 0.6, hz), calm ? 6 : 18, ['#ff5c5c', '#ffd84d', '#ffffff'], { speed: 2.2, up: 3, life: 0.7, size: 0.22 });
+      particles.emit(
+        tmp.set(hx, 0.6, hz),
+        calm ? 6 : 18,
+        ['#ff5c5c', '#ffd84d', '#ffffff'],
+        { speed: 2.2, up: 3, life: 0.7, size: 0.22 },
+      );
     }
     if ((snake.boosts ?? 0) > visual.boosts) {
       if (visual.rider) startEmote(visual.rider, 'shocked');
       // The sacrificed tail pops in a puff of its own colour, and a ring bursts out from the head.
       const tail = old[old.length - 1] ?? next[next.length - 1];
-      particles.emit(tmp.set(tail[0], 0.4, tail[1]), calm ? 6 : 22, [visual.color, visual.stripe, '#ffffff'], { speed: 3, up: 3, life: 0.7, size: 0.38 });
+      particles.emit(
+        tmp.set(tail[0], 0.4, tail[1]),
+        calm ? 6 : 22,
+        [visual.color, visual.stripe, '#ffffff'],
+        { speed: 3, up: 3, life: 0.7, size: 0.38 },
+      );
       const [hx, hz] = next[0];
       shockwaves.add(hx, 0.06, hz, '#ffffff', { size: 3.2, duration: 480 });
-      shockwaves.add(hx, 0.05, hz, visual.color, { size: 2.2, duration: 600, delay: 90 });
-      particles.emit(tmp.set(hx, 0.5, hz), calm ? 6 : 20, ['#fff3b0', '#ffd84d', '#ffffff'], { speed: 4, up: 1.2, life: 0.45, size: 0.22, gravity: 1 });
+      shockwaves.add(hx, 0.05, hz, visual.color, {
+        size: 2.2,
+        duration: 600,
+        delay: 90,
+      });
+      particles.emit(
+        tmp.set(hx, 0.5, hz),
+        calm ? 6 : 20,
+        ['#fff3b0', '#ffd84d', '#ffffff'],
+        { speed: 4, up: 1.2, life: 0.45, size: 0.22, gravity: 1 },
+      );
       if (snake.id === myId && !calm) {
         fovKick = 1;
         shake = Math.max(shake, 0.18);
@@ -291,7 +405,8 @@ export function createSnakeScene(canvas) {
     const b = trail[Math.min(i + 1, trail.length - 1)];
     const k = f - i;
     // Across a wrap-around edge the two squares are far apart: don't draw it sliding across the board.
-    if (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) > 1.5) return k < 0.5 ? a : b;
+    if (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) > 1.5)
+      return k < 0.5 ? a : b;
     return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k];
   }
   // A crashed snake is gone in a puff of smoke, leaving a dark snake-shaped scorch on the ground.
@@ -303,24 +418,44 @@ export function createSnakeScene(canvas) {
     const count = visual.to.length;
     for (let i = 0; i < count; i++) {
       const [x, z] = trailAt(visual, i + visual.lag);
-      const r = SEGMENT_R * Math.max(0.5, 1 - (i / Math.max(8, count)) * 0.55) * 1.15;
+      const r =
+        SEGMENT_R * Math.max(0.5, 1 - (i / Math.max(8, count)) * 0.55) * 1.15;
       spots.push([x, z, r]);
       if (i + 1 < count) {
         const [nx, nz] = trailAt(visual, i + 1 + visual.lag);
-        if (Math.abs(nx - x) + Math.abs(nz - z) < 1.3) spots.push([(x + nx) / 2, (z + nz) / 2, r]);
+        if (Math.abs(nx - x) + Math.abs(nz - z) < 1.3)
+          spots.push([(x + nx) / 2, (z + nz) / 2, r]);
       }
     }
-    const material = new MeshBasicMaterial({ color: '#2a2118', transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const material = new MeshBasicMaterial({
+      color: '#2a2118',
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
     const marks = new InstancedMesh(scorchGeometry, material, spots.length);
     marks.renderOrder = 3;
     marks.frustumCulled = false;
     spots.forEach(([x, z, r], i) => {
       dummy.position.set(x, 0.05, z);
       dummy.rotation.set(0, Math.random() * Math.PI, 0);
-      dummy.scale.set(r * (0.9 + Math.random() * 0.25), 1, r * (0.9 + Math.random() * 0.25));
+      dummy.scale.set(
+        r * (0.9 + Math.random() * 0.25),
+        1,
+        r * (0.9 + Math.random() * 0.25),
+      );
       dummy.updateMatrix();
       marks.setMatrixAt(i, dummy.matrix);
-      if (!calm && i % 2 === 0) particles.emit(tmp.set(x, 0.4, z), 3, ['#6e6e6e', '#9e9e9e', '#4a4a4a'], { speed: 0.6, up: 1.8, life: 0.9, size: 0.45, gravity: -0.5 });
+      if (!calm && i % 2 === 0)
+        particles.emit(
+          tmp.set(x, 0.4, z),
+          3,
+          ['#6e6e6e', '#9e9e9e', '#4a4a4a'],
+          { speed: 0.6, up: 1.8, life: 0.9, size: 0.45, gravity: -0.5 },
+        );
     });
     scene.add(marks);
     visual.scorch = marks;
@@ -330,7 +465,12 @@ export function createSnakeScene(canvas) {
 
   function crash(visual, snake) {
     const [hx, hz] = visual.to[0] ?? [0, 0];
-    particles.emit(tmp.set(hx, 0.5, hz), calm ? 10 : 36, ['#ffffff', '#cfd8dc', visual.color, '#ffd84d'], { speed: 3.5, up: 4, life: 0.9, size: 0.35 });
+    particles.emit(
+      tmp.set(hx, 0.5, hz),
+      calm ? 10 : 36,
+      ['#ffffff', '#cfd8dc', visual.color, '#ffd84d'],
+      { speed: 3.5, up: 4, life: 0.9, size: 0.35 },
+    );
     shockwaves.add(hx, 0.05, hz, '#ffffff', { size: 2.4, duration: 450 });
     if (snake.id === myId && !calm) shake = 0.5;
     const rider = visual.rider;
@@ -353,7 +493,18 @@ export function createSnakeScene(canvas) {
     const fx = Math.sin(yaw);
     const fz = Math.cos(yaw);
     const power = calm ? 0.4 : 1;
-    rider.fall = { vx: (fx * 2.4 + fz * side * 1.1) * power, vz: (fz * 2.4 - fx * side * 1.1) * power, vy: 5.5 * power, yaw, pitch: 0, roll: 0, flip: -8 * power, twist: side * 3 * power, bounces: 0, landed: false };
+    rider.fall = {
+      vx: (fx * 2.4 + fz * side * 1.1) * power,
+      vz: (fz * 2.4 - fx * side * 1.1) * power,
+      vy: 5.5 * power,
+      yaw,
+      pitch: 0,
+      roll: 0,
+      flip: -8 * power,
+      twist: side * 3 * power,
+      bounces: 0,
+      landed: false,
+    };
     avatar.rotation.set(0, yaw, 0, 'YXZ');
     startEmote(rider, 'shocked');
     rider.stars = dizzyStars(kit);
@@ -370,8 +521,14 @@ export function createSnakeScene(canvas) {
     const limit = world.size / 2 + 2;
     if (!fall.landed) {
       fall.vy -= 18 * dt;
-      avatar.position.x = Math.max(-limit, Math.min(limit, avatar.position.x + fall.vx * dt));
-      avatar.position.z = Math.max(-limit, Math.min(limit, avatar.position.z + fall.vz * dt));
+      avatar.position.x = Math.max(
+        -limit,
+        Math.min(limit, avatar.position.x + fall.vx * dt),
+      );
+      avatar.position.z = Math.max(
+        -limit,
+        Math.min(limit, avatar.position.z + fall.vz * dt),
+      );
       avatar.position.y += fall.vy * dt;
       fall.pitch += fall.flip * dt;
       fall.roll += fall.twist * dt;
@@ -381,13 +538,23 @@ export function createSnakeScene(canvas) {
         [-0.45, 0.9 + flail * 0.15, 0.1],
         [0.45, 0.9 - flail * 0.15, 0.1],
       ]);
-      avatar.userData.legs?.forEach((hip, i) => hip.rotation.set(flail * 0.6 * (i ? 1 : -1), 0, (i ? 1 : -1) * 0.3));
+      avatar.userData.legs?.forEach((hip, i) =>
+        hip.rotation.set(flail * 0.6 * (i ? 1 : -1), 0, (i ? 1 : -1) * 0.3),
+      );
       const ground = fall.bounces ? 0.14 : 0.1;
       if (avatar.position.y <= ground && fall.vy < 0) {
         avatar.position.y = ground;
         fall.bounces++;
-        particles.emit(tmp.set(avatar.position.x, 0.2, avatar.position.z), calm ? 5 : 18, ['#e9d5a0', '#ffffff', '#cdb784'], { speed: 2, up: 1.6, life: 0.6, size: 0.32 });
-        shockwaves.add(avatar.position.x, 0.04, avatar.position.z, '#fff7dd', { size: 1.4, duration: 380 });
+        particles.emit(
+          tmp.set(avatar.position.x, 0.2, avatar.position.z),
+          calm ? 5 : 18,
+          ['#e9d5a0', '#ffffff', '#cdb784'],
+          { speed: 2, up: 1.6, life: 0.6, size: 0.32 },
+        );
+        shockwaves.add(avatar.position.x, 0.04, avatar.position.z, '#fff7dd', {
+          size: 1.4,
+          duration: 380,
+        });
         if (fall.bounces === 1 && visual.id === myId) sfx('snake.thud');
         if (fall.bounces >= 2 || calm) {
           fall.landed = true;
@@ -412,7 +579,9 @@ export function createSnakeScene(canvas) {
         [-0.55, 0.75, 0.05],
         [0.55, 0.75, 0.05],
       ]);
-      avatar.userData.legs?.forEach((hip, i) => hip.rotation.set(0, 0, (i ? 1 : -1) * 0.35));
+      avatar.userData.legs?.forEach((hip, i) =>
+        hip.rotation.set(0, 0, (i ? 1 : -1) * 0.35),
+      );
       if (!rider.emote) startEmote(rider, 'stunned');
       avatar.userData.head.getWorldPosition(tmp);
       rider.stars.position.set(tmp.x, tmp.y + 0.28, tmp.z);
@@ -438,24 +607,41 @@ export function createSnakeScene(canvas) {
     // uneven timer, and that small buffer soaks it up so the body never stops and starts.
     // Further behind than the buffer it speeds up gently; closer, it eases off.
     if (visual.alive) {
-      const pace = Math.max(0.25, Math.min(2.5, 1 + (visual.lag - GLIDE_BUFFER) * 1.4));
-      visual.lag = Math.max(0, visual.lag - ((dt * 1000) / visual.moveMs) * pace);
-    }
-    else visual.lag = Math.max(0, visual.lag - dt * 8);
+      const pace = Math.max(
+        0.25,
+        Math.min(2.5, 1 + (visual.lag - GLIDE_BUFFER) * 1.4),
+      );
+      visual.lag = Math.max(
+        0,
+        visual.lag - ((dt * 1000) / visual.moveMs) * pace,
+      );
+    } else visual.lag = Math.max(0, visual.lag - dt * 8);
     const points = visual.to.map((_, i) => trailAt(visual, i + visual.lag));
     const color = new Color();
     let n = 0;
     const wiggle = visual.alive ? 1 : 0;
     const place = (x, z, r, i, stripe) => {
-      const y = BODY_Y * (r / SEGMENT_R) + Math.sin(now / 130 - i * 0.8) * 0.03 * wiggle;
+      const y =
+        BODY_Y * (r / SEGMENT_R) +
+        Math.sin(now / 130 - i * 0.8) * 0.03 * wiggle;
       dummy.position.set(x, y, z);
       dummy.scale.set(r, r * 0.9, r);
       dummy.updateMatrix();
       visual.body.setMatrixAt(n, dummy.matrix);
       visual.outline.setMatrixAt(n, dummy.matrix);
-      visual.body.setColorAt(n, color.set(stripe ? visual.stripe : visual.color));
+      visual.body.setColorAt(
+        n,
+        color.set(stripe ? visual.stripe : visual.color),
+      );
       // Boosting: a bright pulse runs down the body.
-      if (visual.boosting) visual.body.setColorAt(n, color.lerp(WHITE, 0.15 + 0.35 * Math.max(0, Math.sin(now / 45 - i * 0.9))));
+      if (visual.boosting)
+        visual.body.setColorAt(
+          n,
+          color.lerp(
+            WHITE,
+            0.15 + 0.35 * Math.max(0, Math.sin(now / 45 - i * 0.9)),
+          ),
+        );
       n++;
     };
     for (let i = count - 1; i >= 1; i--) {
@@ -464,11 +650,17 @@ export function createSnakeScene(canvas) {
       place(x, z, r, i, i % 3 === 0);
       // Boosting: sparks stream off the back half of the body.
       if (visual.boosting && !calm && i > count / 2 && Math.random() < 0.25) {
-        particles.emit(tmp.set(x, BODY_Y + 0.1, z), 1, ['#ffffff', '#fff3b0', visual.stripe], { speed: 0.4, up: 0.6, life: 0.4, size: 0.22, gravity: 0 });
+        particles.emit(
+          tmp.set(x, BODY_Y + 0.1, z),
+          1,
+          ['#ffffff', '#fff3b0', visual.stripe],
+          { speed: 0.4, up: 0.6, life: 0.4, size: 0.22, gravity: 0 },
+        );
       }
       // Fill the gap to the segment in front, so the body reads as one tube.
       const [px, pz] = points[i - 1];
-      if (Math.abs(px - x) + Math.abs(pz - z) < 1.3) place((x + px) / 2, (z + pz) / 2, r * 0.97, i - 0.5, false);
+      if (Math.abs(px - x) + Math.abs(pz - z) < 1.3)
+        place((x + px) / 2, (z + pz) / 2, r * 0.97, i - 0.5, false);
     }
     visual.body.count = n;
     visual.outline.count = n;
@@ -481,12 +673,15 @@ export function createSnakeScene(canvas) {
     visual.head.position.set(hx, 0.4, hz);
     const target = headingOf(visual);
     const previousYaw = visual.yaw;
-    if (visual.alive) visual.yaw = angleLerp(visual.yaw, target, Math.min(1, dt * 22));
+    if (visual.alive)
+      visual.yaw = angleLerp(visual.yaw, target, Math.min(1, dt * 22));
     visual.head.rotation.y = visual.yaw;
     visual.tongue.scale.z = visual.alive && Math.sin(now / 90) > 0.6 ? 1 : 0.2;
     visual.shadow.position.set(hx, 0.06, hz);
     visual.tag.sprite.position.set(hx, 1.95, hz);
-    visual.tag.draw(visual.alive ? String(visual.score) : `${visual.score} · out`);
+    visual.tag.draw(
+      visual.alive ? String(visual.score) : `${visual.score} · out`,
+    );
 
     const rider = visual.rider;
     if (!rider) return;
@@ -496,12 +691,18 @@ export function createSnakeScene(canvas) {
     } else {
       // Sat astride, holding on, leaning into turns and hunched forward while boosting.
       const turnRate = (visual.yaw - previousYaw) / Math.max(dt, 0.001);
-      avatar.userData.legs?.forEach((hip, i) => hip.rotation.set(-1.25, 0, (i === 0 ? -1 : 1) * 0.55));
+      avatar.userData.legs?.forEach((hip, i) =>
+        hip.rotation.set(-1.25, 0, (i === 0 ? -1 : 1) * 0.55),
+      );
       reachArms(avatar, [
         [-0.2, 0.42, 0.34],
         [0.2, 0.42, 0.34],
       ]);
-      avatar.rotation.set(visual.boosting ? 0.45 : 0.08, 0, Math.max(-0.4, Math.min(0.4, -turnRate * 0.05)));
+      avatar.rotation.set(
+        visual.boosting ? 0.45 : 0.08,
+        0,
+        Math.max(-0.4, Math.min(0.4, -turnRate * 0.05)),
+      );
       const hop = playEmote(rider, kit, now);
       avatar.position.x = 0;
       avatar.position.y = 0.28 + Math.abs(Math.sin(now / 110)) * 0.035 + hop;
@@ -509,20 +710,37 @@ export function createSnakeScene(canvas) {
         // A puff of dust kicked up behind the head.
         if (Math.random() < 0.7) {
           const tail = points[count - 1];
-          particles.emit(tmp.set(tail[0], 0.3, tail[1]), 1, ['#ffffff', '#fff3b0'], { speed: 0.6, up: 0.8, life: 0.5, size: 0.4, gravity: 0 });
-          particles.emit(tmp.set(hx, 0.15, hz), 1, ['#e9d5a0', '#ffffff'], { speed: 1.2, up: 1, life: 0.35, size: 0.26, gravity: 2 });
+          particles.emit(
+            tmp.set(tail[0], 0.3, tail[1]),
+            1,
+            ['#ffffff', '#fff3b0'],
+            { speed: 0.6, up: 0.8, life: 0.5, size: 0.4, gravity: 0 },
+          );
+          particles.emit(tmp.set(hx, 0.15, hz), 1, ['#e9d5a0', '#ffffff'], {
+            speed: 1.2,
+            up: 1,
+            life: 0.35,
+            size: 0.26,
+            gravity: 2,
+          });
         }
       }
     }
   }
 
-  const OPPOSITE_YAW = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) > 2.5;
+  const OPPOSITE_YAW = (a, b) =>
+    Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) > 2.5;
 
   function headingOf(visual) {
     // Faces the direction the game says it's actually travelling, with an early turn
     // (yours, or one already queued) shown right away instead of waiting on the glide.
     const base = DIR_YAW[visual.dir] ?? visual.yaw;
-    if (visual.queued && visual.alive && !OPPOSITE_YAW(DIR_YAW[visual.queued], base)) return DIR_YAW[visual.queued];
+    if (
+      visual.queued &&
+      visual.alive &&
+      !OPPOSITE_YAW(DIR_YAW[visual.queued], base)
+    )
+      return DIR_YAW[visual.queued];
     return base;
   }
 
@@ -530,14 +748,29 @@ export function createSnakeScene(canvas) {
 
   function makeApple() {
     const apple = new Group();
-    const fruit = new Mesh(kit.geometry('apple', () => new SphereGeometry(0.3, 16, 12)), kit.toon('#ef4444'));
+    const fruit = new Mesh(
+      kit.geometry('apple', () => new SphereGeometry(0.3, 16, 12)),
+      kit.toon('#ef4444'),
+    );
     fruit.scale.set(1, 0.92, 1);
     fruit.add(new Mesh(fruit.geometry, kit.outlineThin));
-    const shine = new Mesh(kit.geometry('apple-shine', () => new SphereGeometry(0.07, 8, 6)), kit.toon('#ffd0d0'));
+    const shine = new Mesh(
+      kit.geometry('apple-shine', () => new SphereGeometry(0.07, 8, 6)),
+      kit.toon('#ffd0d0'),
+    );
     shine.position.set(-0.12, 0.13, 0.2);
-    const stem = new Mesh(kit.geometry('apple-stem', () => new CylinderGeometry(0.025, 0.03, 0.18, 5)), kit.toon('#6b4424'));
+    const stem = new Mesh(
+      kit.geometry(
+        'apple-stem',
+        () => new CylinderGeometry(0.025, 0.03, 0.18, 5),
+      ),
+      kit.toon('#6b4424'),
+    );
     stem.position.y = 0.32;
-    const leaf = new Mesh(kit.geometry('apple-leaf', () => new SphereGeometry(1, 8, 5)), kit.toon('#4cba57'));
+    const leaf = new Mesh(
+      kit.geometry('apple-leaf', () => new SphereGeometry(1, 8, 5)),
+      kit.toon('#4cba57'),
+    );
     leaf.scale.set(0.12, 0.03, 0.07);
     leaf.position.set(0.09, 0.36, 0);
     leaf.rotation.z = -0.5;
@@ -575,7 +808,8 @@ export function createSnakeScene(canvas) {
       const grow = Math.min(1, (now - apple.userData.born) / 350);
       const body = apple.userData.body;
       body.scale.setScalar(calm ? 1 : easeOutBack(grow));
-      body.position.y = 0.38 + Math.sin(now / 300 + apple.userData.phase) * 0.07;
+      body.position.y =
+        0.38 + Math.sin(now / 300 + apple.userData.phase) * 0.07;
       body.rotation.y = now / 700 + apple.userData.phase;
     }
   }
@@ -595,7 +829,20 @@ export function createSnakeScene(canvas) {
     if (winner) {
       const [hx, hz] = winner.to[0] ?? [0, 0];
       for (let i = 0; i < (calm ? 1 : 4); i++) {
-        tweens.add(1, () => {}, { delay: 300 + i * 350, done: () => particles.emit(tmp.set(hx + (Math.random() - 0.5) * 2, 2.5, hz + (Math.random() - 0.5) * 2), 40, ['#ff6b81', '#ffd84d', '#7ed957', '#4d8ff0', '#ffffff'], { speed: 3, up: 5, life: 1.4, size: 0.28, gravity: 5 }) });
+        tweens.add(1, () => {}, {
+          delay: 300 + i * 350,
+          done: () =>
+            particles.emit(
+              tmp.set(
+                hx + (Math.random() - 0.5) * 2,
+                2.5,
+                hz + (Math.random() - 0.5) * 2,
+              ),
+              40,
+              ['#ff6b81', '#ffd84d', '#7ed957', '#4d8ff0', '#ffffff'],
+              { speed: 3, up: 5, life: 1.4, size: 0.28, gravity: 5 },
+            ),
+        });
       }
     }
   }
@@ -604,15 +851,17 @@ export function createSnakeScene(canvas) {
 
   stage.onFrame((dt, now) => {
     tweens.tick(now);
-    world?.sea.update(now / 1000);
+    world?.sea.update(now / 1000, camera);
     drawApples(now);
     for (const visual of snakes.values()) drawSnake(visual, now, dt);
     particles.tick(dt, camera, stage.renderer);
-    for (const child of world?.group.children ?? []) if (child.userData.water) child.position.y = 0.04 + Math.sin(now / 500 + child.position.x) * 0.01;
+    for (const child of world?.group.children ?? [])
+      if (child.userData.water)
+        child.position.y = 0.04 + Math.sin(now / 500 + child.position.x) * 0.01;
 
     if (world) {
       // Mostly the whole island, drifting a little towards your own snake.
-      const mine = snakes.get(myId);
+      const mine = snakes.get(watchId ?? myId);
       const head = mine?.alive ? mine.head.position : null;
       // Closer in while you're riding (following you), the whole island otherwise.
       const pull = head ? 0.8 : 0;
@@ -648,19 +897,25 @@ export function createSnakeScene(canvas) {
     setGame(state, options = {}) {
       if (!state) return;
       myId = options.myId ?? myId;
+      // null is meaningful here: back to following yourself.
+      if ('watchId' in options) watchId = options.watchId ?? null;
       avatars = options.avatars ?? avatars;
       stepMs = options.stepMs ?? stepMs;
       const now = performance.now();
-      const fresh = state.tick < lastTick || [...snakes.keys()].join() !== state.snakes.map((s) => s.id).join();
+      const fresh =
+        state.tick < lastTick ||
+        [...snakes.keys()].join() !== state.snakes.map((s) => s.id).join();
       lastTick = state.tick;
       buildWorld(state);
       if (fresh) {
         for (const visual of snakes.values()) removeSnake(visual);
         snakes.clear();
-        for (const snake of state.snakes) snakes.set(snake.id, makeSnake(snake));
+        for (const snake of state.snakes)
+          snakes.set(snake.id, makeSnake(snake));
         overShown = false;
       }
-      for (const snake of state.snakes) syncSnake(snakes.get(snake.id), snake, now, state);
+      for (const snake of state.snakes)
+        syncSnake(snakes.get(snake.id), snake, now, state);
       syncApples(state);
       if (state.status === 'over' && !overShown) {
         overShown = true;
@@ -674,7 +929,14 @@ export function createSnakeScene(canvas) {
       for (const v of snakes.values()) {
         if (v.id === myId || !v.alive) continue;
         const point = v.head.position.clone().setY(0.9).project(camera);
-        out.push({ id: v.id, name: v.name, color: v.color, x: point.x, y: point.y, behind: point.z > 1 });
+        out.push({
+          id: v.id,
+          name: v.name,
+          color: v.color,
+          x: point.x,
+          y: point.y,
+          behind: point.z > 1,
+        });
       }
       return out;
     },

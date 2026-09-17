@@ -31,14 +31,21 @@ export function filesFromClipboard(data, { text = false } = {}) {
 function typing(target) {
   if (!target) return false;
   const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+  return (
+    tag === 'INPUT' ||
+    tag === 'TEXTAREA' ||
+    tag === 'SELECT' ||
+    target.isContentEditable
+  );
 }
 
 export const acceptPastedFiles = modifier((element, [handler], named = {}) => {
   const onPaste = (event) => {
     if (!handler || !element.isConnected) return;
     const data = event.clipboardData;
-    const hasFile = [...(data?.items ?? [])].some((item) => item.kind === 'file');
+    const hasFile = [...(data?.items ?? [])].some(
+      (item) => item.kind === 'file',
+    );
     if (typing(event.target) && !hasFile) return;
     const files = filesFromClipboard(data, { text: named.text ?? false });
     if (!files.length) return;

@@ -13,8 +13,21 @@
   },
   "vars": {
     "TURN_KEY_ID": "2900fc412b4c30e1bdc49baf7079dc59"
+  },
+  // Worker logs, including one log per invocation, visible in the Cloudflare dashboard.
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
   }
   // Secrets, set with `npx wrangler secret put <NAME>` (never committed):
-  //   TURN_KEY_ID          the Cloudflare Realtime TURN key id
-  //   TURN_KEY_API_TOKEN   that key's API token
+  //   TURN_KEY_ID           the Cloudflare Realtime TURN key id
+  //   TURN_KEY_API_TOKEN    that key's API token
+  //
+  // Optional, for the Grammar Checker and Paraphraser (they fall back to the
+  // free public LanguageTool if none of these are set):
+  //   LANGUAGETOOL_URL       a self-hosted LanguageTool's check endpoint
+  //   LANGUAGETOOL_USERNAME  a LanguageTool Premium account, if you have one
+  //   LANGUAGETOOL_API_KEY   that account's key
 }

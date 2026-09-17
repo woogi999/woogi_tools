@@ -1,4 +1,10 @@
-import { parse, evaluate, variablesIn, formatNumber, MathError } from './math-expr';
+import {
+  parse,
+  evaluate,
+  variablesIn,
+  formatNumber,
+  MathError,
+} from './math-expr';
 
 // ─── Polynomials ─────────────────────────────────────────────────────────
 // A polynomial is a Map from a monomial key ("" for constants, "x^2*y") to
@@ -27,7 +33,8 @@ function powersOf(key) {
   return powers;
 }
 
-const degreeOfKey = (key) => Object.values(powersOf(key)).reduce((a, b) => a + b, 0);
+const degreeOfKey = (key) =>
+  Object.values(powersOf(key)).reduce((a, b) => a + b, 0);
 
 function clean(poly) {
   for (const [k, c] of poly) if (Math.abs(c) < EPS) poly.delete(k);
@@ -48,7 +55,8 @@ function mul(a, b) {
     const pa = powersOf(ka);
     for (const [kb, cb] of b) {
       const powers = { ...pa };
-      for (const [v, p] of Object.entries(powersOf(kb))) powers[v] = (powers[v] ?? 0) + p;
+      for (const [v, p] of Object.entries(powersOf(kb)))
+        powers[v] = (powers[v] ?? 0) + p;
       const key = keyOf(powers);
       out.set(key, (out.get(key) ?? 0) + ca * cb);
     }
@@ -56,7 +64,8 @@ function mul(a, b) {
   return clean(out);
 }
 
-const scale = (poly, s) => clean(new Map([...poly].map(([k, c]) => [k, c * s])));
+const scale = (poly, s) =>
+  clean(new Map([...poly].map(([k, c]) => [k, c * s])));
 const isConstant = (poly) => [...poly.keys()].every((k) => k === '');
 const constantValue = (poly) => poly.get('') ?? 0;
 
@@ -83,7 +92,8 @@ export function toPolynomial(node) {
       if (node.op === '-') return add(left, right, -1);
       if (node.op === '*') return mul(left, right);
       if (!isConstant(right)) throw new NotPolynomial();
-      if (near(constantValue(right), 0, EPS)) throw new MathError('Division by zero');
+      if (near(constantValue(right), 0, EPS))
+        throw new MathError('Division by zero');
       return scale(left, 1 / constantValue(right));
     }
     default:
@@ -132,7 +142,8 @@ function formatMonomial(key) {
 }
 
 const SUPERSCRIPT = '⁰¹²³⁴⁵⁶⁷⁸⁹';
-const toSuperscript = (digits) => [...digits].map((d) => SUPERSCRIPT[+d]).join('');
+const toSuperscript = (digits) =>
+  [...digits].map((d) => SUPERSCRIPT[+d]).join('');
 
 export function formatPolynomial(poly) {
   const terms = [...poly]
@@ -164,7 +175,8 @@ function cDiv(a, b) {
 function allRoots(coeffs) {
   const monic = coeffs.map((c) => c / coeffs[0]);
   const n = monic.length - 1;
-  const evalAt = (z) => monic.reduce((acc, c) => cAdd(cMul(acc, z), [c, 0]), [0, 0]);
+  const evalAt = (z) =>
+    monic.reduce((acc, c) => cAdd(cMul(acc, z), [c, 0]), [0, 0]);
   let roots = Array.from({ length: n }, (_, i) => {
     const angle = (2 * Math.PI * i) / n + 0.4;
     return [0.9 * Math.cos(angle), 0.9 * Math.sin(angle)];
@@ -184,7 +196,10 @@ function allRoots(coeffs) {
     });
     if (moved < 1e-14) break;
   }
-  return roots.map(([re, im]) => [near(re, 0, 1e-9) ? 0 : re, near(im, 0, 1e-7) ? 0 : im]);
+  return roots.map(([re, im]) => [
+    near(re, 0, 1e-9) ? 0 : re,
+    near(im, 0, 1e-7) ? 0 : im,
+  ]);
 }
 
 function formatComplex([re, im]) {
@@ -215,7 +230,8 @@ function splitSquare(n) {
 
 // Exact form for quadratics with whole-number coefficients, e.g. "(−2 ± 3√2) / 4".
 function exactQuadratic(a, b, c, variable) {
-  if (![a, b, c].every((n) => Number.isInteger(n) && Math.abs(n) < 1e9)) return null;
+  if (![a, b, c].every((n) => Number.isInteger(n) && Math.abs(n) < 1e9))
+    return null;
   const disc = b * b - 4 * a * c;
   if (!disc) return null;
   const [outside, inside] = splitSquare(Math.abs(disc));
@@ -269,7 +285,8 @@ function splitEquation(line) {
   const sides = line.split('=');
   if (sides.length > 2) throw new MathError('Use a single "=" per equation');
   const left = parse(sides[0]);
-  const right = sides.length === 2 ? parse(sides[1]) : { type: 'num', value: 0 };
+  const right =
+    sides.length === 2 ? parse(sides[1]) : { type: 'num', value: 0 };
   return { left, right, tree: { type: 'bin', op: '-', left, right } };
 }
 
@@ -277,10 +294,14 @@ export function simplify(text) {
   const tree = parse(text);
   try {
     const poly = toPolynomial(tree);
-    return { result: formatPolynomial(poly), note: isConstant(poly) ? null : `Degree ${polyDegree(poly)} polynomial` };
+    return {
+      result: formatPolynomial(poly),
+      note: isConstant(poly) ? null : `Degree ${polyDegree(poly)} polynomial`,
+    };
   } catch (error) {
     if (!(error instanceof NotPolynomial)) throw error;
-    if (variablesIn(tree).size) throw new MathError('Only polynomial expressions can be expanded');
+    if (variablesIn(tree).size)
+      throw new MathError('Only polynomial expressions can be expanded');
     return { result: formatNumber(evaluate(tree)), note: null };
   }
 }
@@ -289,17 +310,20 @@ export function simplify(text) {
 export function factor(text) {
   const tree = parse(text);
   const vars = [...variablesIn(tree)];
-  if (vars.length !== 1) throw new MathError('Factoring works on one variable, like x² − 5x + 6');
+  if (vars.length !== 1)
+    throw new MathError('Factoring works on one variable, like x² − 5x + 6');
   const [v] = vars;
   let poly;
   try {
     poly = toPolynomial(tree);
   } catch (error) {
-    if (error instanceof NotPolynomial) throw new MathError('Only polynomials can be factored');
+    if (error instanceof NotPolynomial)
+      throw new MathError('Only polynomials can be factored');
     throw error;
   }
   let coeffs = coefficients(poly, v);
-  if (!coeffs.every((c) => near(c, Math.round(c)))) throw new MathError('Factoring needs whole-number coefficients');
+  if (!coeffs.every((c) => near(c, Math.round(c))))
+    throw new MathError('Factoring needs whole-number coefficients');
   coeffs = coeffs.map(Math.round);
 
   let content = coeffs.reduce((g, c) => gcd(g, c), 0) || 1;
@@ -313,7 +337,8 @@ export function factor(text) {
     coeffs.pop();
     zeros++;
   }
-  if (zeros) factors.push(zeros === 1 ? v : `${v}${toSuperscript(String(zeros))}`);
+  if (zeros)
+    factors.push(zeros === 1 ? v : `${v}${toSuperscript(String(zeros))}`);
 
   const divisors = (n) => {
     const out = [];
@@ -354,15 +379,28 @@ export function factor(text) {
     counts.set(label, (counts.get(label) ?? 0) + 1);
     coeffs = [1];
   }
-  for (const [label, count] of counts) factors.push(count > 1 ? `${label}${toSuperscript(String(count))}` : label);
+  for (const [label, count] of counts)
+    factors.push(count > 1 ? `${label}${toSuperscript(String(count))}` : label);
 
-  const rest = new Map(coeffs.map((c, i) => [keyOf({ [v]: coeffs.length - 1 - i }), c]));
+  const rest = new Map(
+    coeffs.map((c, i) => [keyOf({ [v]: coeffs.length - 1 - i }), c]),
+  );
   const restText = formatPolynomial(clean(rest));
-  if (restText !== '1') factors.push(coeffs.length > 1 && factors.length ? `(${restText})` : restText);
+  if (restText !== '1')
+    factors.push(
+      coeffs.length > 1 && factors.length ? `(${restText})` : restText,
+    );
 
-  const prefix = content === 1 ? '' : content === -1 ? '−' : formatValue(content);
+  const prefix =
+    content === 1 ? '' : content === -1 ? '−' : formatValue(content);
   const result = `${prefix}${factors.join('')}` || '1';
-  return { result, note: counts.size || zeros || coeffs.length < 3 ? null : 'No rational factors found' };
+  return {
+    result,
+    note:
+      counts.size || zeros || coeffs.length < 3
+        ? null
+        : 'No rational factors found',
+  };
 
   function linearLabel(a, b) {
     return `(${a === 1 ? '' : a}${v} ${b < 0 ? '−' : '+'} ${Math.abs(b)})`;
@@ -390,11 +428,19 @@ function solveOne(line) {
 
   if (!vars.length) {
     const value = evaluate(tree);
-    return { heading: near(value, 0) ? 'True' : 'False', lines: [near(value, 0) ? 'Both sides are equal.' : 'Both sides are not equal.'] };
+    return {
+      heading: near(value, 0) ? 'True' : 'False',
+      lines: [
+        near(value, 0) ? 'Both sides are equal.' : 'Both sides are not equal.',
+      ],
+    };
   }
 
   if (vars.length > 1) {
-    if (!poly) throw new MathError('With several variables, only polynomial equations can be rearranged');
+    if (!poly)
+      throw new MathError(
+        'With several variables, only polynomial equations can be rearranged',
+      );
     return rearrange(poly, vars);
   }
 
@@ -402,10 +448,17 @@ function solveOne(line) {
   if (!poly) {
     const f = (x) => evaluate(tree, { vars: { [v]: x } });
     const roots = numericRealRoots(f);
-    const shown = [...roots].sort((a, b) => Math.abs(a) - Math.abs(b)).slice(0, MAX_NUMERIC_ROOTS).sort((a, b) => a - b);
+    const shown = [...roots]
+      .sort((a, b) => Math.abs(a) - Math.abs(b))
+      .slice(0, MAX_NUMERIC_ROOTS)
+      .sort((a, b) => a - b);
     return {
-      heading: roots.length ? `${roots.length} real solution${roots.length > 1 ? 's' : ''} found` : 'No real solutions found',
-      lines: shown.map((r) => `${v} ${Number.isInteger(r) ? '=' : '≈'} ${formatValue(r)}`),
+      heading: roots.length
+        ? `${roots.length} real solution${roots.length > 1 ? 's' : ''} found`
+        : 'No real solutions found',
+      lines: shown.map(
+        (r) => `${v} ${Number.isInteger(r) ? '=' : '≈'} ${formatValue(r)}`,
+      ),
       note: `Solved numerically between −100 and 100${roots.length > shown.length ? `, showing the ${shown.length} closest to 0` : ''}.`,
     };
   }
@@ -415,7 +468,10 @@ function solveOne(line) {
   if (degree === 0) {
     return near(coeffs[0], 0)
       ? { heading: 'Infinitely many solutions', lines: ['Every value works.'] }
-      : { heading: 'No solution', lines: ['The equation simplifies to a contradiction.'] };
+      : {
+          heading: 'No solution',
+          lines: ['The equation simplifies to a contradiction.'],
+        };
   }
 
   const lines = [];
@@ -429,24 +485,43 @@ function solveOne(line) {
   const exact = degree === 2 ? exactQuadratic(...coeffs, v) : null;
   if (exact) lines.push(exact);
   const unique = [];
-  for (const root of roots) if (!unique.some((u) => near(u[0], root[0], 1e-7) && near(u[1], root[1], 1e-7))) unique.push(root);
-  unique.sort((a, b) => (a[1] ? 1 : 0) - (b[1] ? 1 : 0) || a[0] - b[0] || a[1] - b[1]);
+  for (const root of roots)
+    if (
+      !unique.some(
+        (u) => near(u[0], root[0], 1e-7) && near(u[1], root[1], 1e-7),
+      )
+    )
+      unique.push(root);
+  unique.sort(
+    (a, b) => (a[1] ? 1 : 0) - (b[1] ? 1 : 0) || a[0] - b[0] || a[1] - b[1],
+  );
   for (const root of unique) {
     const text = formatComplex(root);
     lines.push(`${v} ${text.includes('.') ? '≈' : '='} ${text}`);
   }
   const names = { 2: 'Quadratic', 3: 'Cubic', 4: 'Quartic' };
   const real = unique.filter((r) => !r[1]).length;
-  return { heading: `${names[degree] ?? `Degree ${degree}`} equation · ${real} real solution${real === 1 ? '' : 's'}`, lines, note };
+  return {
+    heading: `${names[degree] ?? `Degree ${degree}`} equation · ${real} real solution${real === 1 ? '' : 's'}`,
+    lines,
+    note,
+  };
 }
 
 function quadraticRoots(a, b, c) {
   const disc = b * b - 4 * a * c;
   if (near(disc, 0, 1e-12)) return [[-b / (2 * a), 0]];
-  if (disc > 0) return [[(-b - Math.sqrt(disc)) / (2 * a), 0], [(-b + Math.sqrt(disc)) / (2 * a), 0]];
+  if (disc > 0)
+    return [
+      [(-b - Math.sqrt(disc)) / (2 * a), 0],
+      [(-b + Math.sqrt(disc)) / (2 * a), 0],
+    ];
   const re = -b / (2 * a);
   const im = Math.sqrt(-disc) / (2 * Math.abs(a));
-  return [[re, -im], [re, im]];
+  return [
+    [re, -im],
+    [re, im],
+  ];
 }
 
 // "y = 2x + 3" style: solve for each variable the equation is linear in.
@@ -469,13 +544,21 @@ function rearrange(poly, vars) {
     coefficient = clean(coefficient);
     rest = clean(rest);
     if (isConstant(coefficient)) {
-      lines.push(`${v} = ${formatPolynomial(scale(rest, -1 / constantValue(coefficient)))}`);
+      lines.push(
+        `${v} = ${formatPolynomial(scale(rest, -1 / constantValue(coefficient)))}`,
+      );
     } else {
-      lines.push(`${v} = ${formatPolynomial(scale(rest, -1))} / (${formatPolynomial(coefficient)})`);
+      lines.push(
+        `${v} = ${formatPolynomial(scale(rest, -1))} / (${formatPolynomial(coefficient)})`,
+      );
     }
   }
   if (!lines.length) throw new MathError('Could not isolate any variable');
-  return { heading: 'Rearranged', lines, note: `From ${formatPolynomial(poly)} = 0` };
+  return {
+    heading: 'Rearranged',
+    lines,
+    note: `From ${formatPolynomial(poly)} = 0`,
+  };
 }
 
 function solveSystem(lines) {
@@ -483,22 +566,30 @@ function solveSystem(lines) {
     try {
       return toPolynomial(splitEquation(line).tree);
     } catch (error) {
-      if (error instanceof NotPolynomial) throw new MathError('Systems must be linear, like 2x + y = 5');
+      if (error instanceof NotPolynomial)
+        throw new MathError('Systems must be linear, like 2x + y = 5');
       throw error;
     }
   });
-  if (polys.some((p) => polyDegree(p) > 1)) throw new MathError('Systems must be linear, like 2x + y = 5');
-  const vars = [...new Set(polys.flatMap((p) => [...p.keys()].filter(Boolean)))].sort();
+  if (polys.some((p) => polyDegree(p) > 1))
+    throw new MathError('Systems must be linear, like 2x + y = 5');
+  const vars = [
+    ...new Set(polys.flatMap((p) => [...p.keys()].filter(Boolean))),
+  ].sort();
   if (!vars.length) throw new MathError('No variables to solve for');
 
   // Augmented matrix [A | b] from a·vars + c = 0  ->  a·vars = −c
-  const rows = polys.map((p) => [...vars.map((v) => p.get(v) ?? 0), -(p.get('') ?? 0)]);
+  const rows = polys.map((p) => [
+    ...vars.map((v) => p.get(v) ?? 0),
+    -(p.get('') ?? 0),
+  ]);
   const n = vars.length;
   let pivotRow = 0;
   const pivotCols = [];
   for (let col = 0; col < n && pivotRow < rows.length; col++) {
     let best = pivotRow;
-    for (let r = pivotRow + 1; r < rows.length; r++) if (Math.abs(rows[r][col]) > Math.abs(rows[best][col])) best = r;
+    for (let r = pivotRow + 1; r < rows.length; r++)
+      if (Math.abs(rows[r][col]) > Math.abs(rows[best][col])) best = r;
     if (near(rows[best][col], 0, 1e-12)) continue;
     [rows[pivotRow], rows[best]] = [rows[best], rows[pivotRow]];
     const pivot = rows[pivotRow][col];
@@ -512,7 +603,10 @@ function solveSystem(lines) {
     pivotRow++;
   }
   if (rows.slice(pivotRow).some((row) => !near(row[n], 0, 1e-9))) {
-    return { heading: 'No solution', lines: ['The equations contradict each other.'] };
+    return {
+      heading: 'No solution',
+      lines: ['The equations contradict each other.'],
+    };
   }
   if (pivotCols.length < n) {
     const free = vars.filter((_, i) => !pivotCols.includes(i));
@@ -528,6 +622,8 @@ function solveSystem(lines) {
   }
   return {
     heading: `System of ${lines.length} equations`,
-    lines: pivotCols.map((col, r) => `${vars[col]} = ${formatValue(rows[r][n])}`),
+    lines: pivotCols.map(
+      (col, r) => `${vars[col]} = ${formatValue(rows[r][n])}`,
+    ),
   };
 }

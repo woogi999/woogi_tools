@@ -10,14 +10,53 @@
 // character, "Items"); the groups under it are listed with it as their parent.
 
 export const TABS = [
-  { id: 'sounds', label: 'Sounds', source: 'ALL JJS Sounds', hint: 'Every sound ID, by item, M1 set and character. Speeds like 1.2x are the playback speed to set.' },
-  { id: 'emotes', label: 'Emote music', source: 'Emotes', hint: 'Music and sound IDs used by emotes.' },
-  { id: 'punches', label: 'Punches', source: 'Punches + Direction', hint: 'Which arm each move punches with, and which way.' },
-  { id: 'kicks', label: 'Kicks', source: 'Kicks + Direction', hint: 'Which leg each move kicks with, and which way.' },
-  { id: 'flips', label: 'Flips', source: 'Flips + Direction', hint: 'Animations with a flip in them, and which way they flip.' },
-  { id: 'movement', label: 'Run & walk', source: 'Run/Walk Anim', hint: 'Move and emote animations that work as runs, walks and slides.' },
-  { id: 'startups', label: 'Startups', source: 'Moves Startup', hint: 'Seconds from pressing a move to it coming out, for timing your own.' },
-  { id: 'presets', label: 'Presets', hint: 'Skill Builder presets. Copy one and import it in the game.' },
+  {
+    id: 'sounds',
+    label: 'Sounds',
+    source: 'ALL JJS Sounds',
+    hint: 'Every sound ID, by item, M1 set and character. Speeds like 1.2x are the playback speed to set.',
+  },
+  {
+    id: 'emotes',
+    label: 'Emote music',
+    source: 'Emotes',
+    hint: 'Music and sound IDs used by emotes.',
+  },
+  {
+    id: 'punches',
+    label: 'Punches',
+    source: 'Punches + Direction',
+    hint: 'Which arm each move punches with, and which way.',
+  },
+  {
+    id: 'kicks',
+    label: 'Kicks',
+    source: 'Kicks + Direction',
+    hint: 'Which leg each move kicks with, and which way.',
+  },
+  {
+    id: 'flips',
+    label: 'Flips',
+    source: 'Flips + Direction',
+    hint: 'Animations with a flip in them, and which way they flip.',
+  },
+  {
+    id: 'movement',
+    label: 'Run & walk',
+    source: 'Run/Walk Anim',
+    hint: 'Move and emote animations that work as runs, walks and slides.',
+  },
+  {
+    id: 'startups',
+    label: 'Startups',
+    source: 'Moves Startup',
+    hint: 'Seconds from pressing a move to it coming out, for timing your own.',
+  },
+  {
+    id: 'presets',
+    label: 'Presets',
+    hint: 'Skill Builder presets. Copy one and import it in the game.',
+  },
 ];
 
 const SOUND = /^(\d{6,})\s*(?:\((\d+(?:\.\d+)?x)\))?\s*-?\s*(.*)$/;
@@ -26,14 +65,20 @@ const SOUND_AFTER = /^(\D.*?)\s*-?\s+(\d{6,})$/;
 const STARTUP = /^(.*?):?\s+(\d+\.\d+)~\s*(.*)$/;
 const SPEED = /\s*\((\d+(?:\.\d+)?x)\)/i;
 const BOLD_HEADING = /^\*\*(.+?)\*\*\s*(.*)$/;
-const PLAIN_CATEGORIES = /^(melee (punches|kicks)|running animations|walking animations)$/i;
+const PLAIN_CATEGORIES =
+  /^(melee (punches|kicks)|running animations|walking animations)$/i;
 // Legend and credit lines at the top of a tab, before the moves start.
 const NOTE_LINE = /=|credit|\bby\b|^\(\?\)|key:/i;
 
 const stripBold = (text) => text.replace(/\*\*/g, '');
 const isCaps = (text) => /[A-Z]/.test(text) && !/[a-z]/.test(text);
 // "HONORED ONE" -> "Honored One", but acronyms like TNT and RB1 stay as written.
-const titleCase = (text) => text.replace(/\p{L}[\p{L}\d']*/gu, (word) => (/\d/.test(word) || /^(TNT|JSD|VFX|AI)$/.test(word) ? word : word[0] + word.slice(1).toLowerCase()));
+const titleCase = (text) =>
+  text.replace(/\p{L}[\p{L}\d']*/gu, (word) =>
+    /\d/.test(word) || /^(TNT|JSD|VFX|AI)$/.test(word)
+      ? word
+      : word[0] + word.slice(1).toLowerCase(),
+  );
 
 // Reads one line as a heading, or null. `dash` marks "— Finisher" style sub-headings.
 function heading(line) {
@@ -41,21 +86,38 @@ function heading(line) {
   if (bold && !/^\d/.test(bold[2])) {
     const raw = bold[1].trim();
     const dash = /^[—–-]/.test(raw);
-    const title = raw.replace(/^[—–-]+\s*/, '').replace(/:$/, '').trim();
+    const title = raw
+      .replace(/^[—–-]+\s*/, '')
+      .replace(/:$/, '')
+      .trim();
     return title ? { title, note: stripBold(bold[2]).trim(), dash } : null;
   }
   if (/\d/.test(line) || line.length > 40) return null;
-  if (PLAIN_CATEGORIES.test(line)) return { title: line, note: '', dash: false };
-  if (isCaps(line) && line.length > 2) return { title: line.replace(/:$/, ''), note: '', dash: false };
-  if (/^[^:]{2,30}:$/.test(line) && line.split(/\s+/).length <= 4) return { title: line.slice(0, -1), note: '', dash: false };
+  if (PLAIN_CATEGORIES.test(line))
+    return { title: line, note: '', dash: false };
+  if (isCaps(line) && line.length > 2)
+    return { title: line.replace(/:$/, ''), note: '', dash: false };
+  if (/^[^:]{2,30}:$/.test(line) && line.split(/\s+/).length <= 4)
+    return { title: line.slice(0, -1), note: '', dash: false };
   return null;
 }
 
 function row(line) {
   // "-Beam", "-2:": a sub-heading written without bold.
-  if (/^-[^-\d]|^-\d+:?$/.test(line) && line.length < 30) return { kind: 'sub', text: line.replace(/^-\s*/, '').replace(/:$/, ''), note: '' };
+  if (/^-[^-\d]|^-\d+:?$/.test(line) && line.length < 30)
+    return {
+      kind: 'sub',
+      text: line.replace(/^-\s*/, '').replace(/:$/, ''),
+      note: '',
+    };
   const after = SOUND_AFTER.exec(line);
-  if (after) return { kind: 'sound', id: after[2], label: stripBold(after[1]).trim(), speed: null };
+  if (after)
+    return {
+      kind: 'sound',
+      id: after[2],
+      label: stripBold(after[1]).trim(),
+      speed: null,
+    };
   const sound = SOUND.exec(line);
   if (sound) {
     let label = stripBold(sound[3]).trim();
@@ -68,7 +130,13 @@ function row(line) {
     return { kind: 'sound', id: sound[1], label, speed };
   }
   const startup = STARTUP.exec(line);
-  if (startup) return { kind: 'startup', name: stripBold(startup[1]).trim(), time: startup[2], note: stripBold(startup[3]).trim() };
+  if (startup)
+    return {
+      kind: 'startup',
+      name: stripBold(startup[1]).trim(),
+      time: startup[2],
+      note: stripBold(startup[3]).trim(),
+    };
   return { kind: 'text', text: stripBold(line) };
 }
 
@@ -138,7 +206,11 @@ export function parseNotes(text) {
   return { intro, groups: groups.filter((g) => g.rows.length) };
 }
 
-const rowText = (r) => [r.id, r.label, r.speed, r.name, r.time, r.note, r.text].filter(Boolean).join(' ').toLowerCase();
+const rowText = (r) =>
+  [r.id, r.label, r.speed, r.name, r.time, r.note, r.text]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 
 // Every word has to appear somewhere. A group whose title matches keeps all
 // its rows; otherwise only the matching rows stay.

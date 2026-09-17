@@ -177,10 +177,42 @@ import {
   Captions,
   SpellCheck,
   BookOpen,
+  Aperture,
+  ScanFace,
+  Circle,
+  MonitorPlay,
+  Barcode,
+  Shapes,
+  Coins,
+  Dice6,
+  Gauge,
+  Radio,
+  Globe,
+  Highlighter,
+  LayoutTemplate,
+  Blend,
+  Frame,
+  Antenna,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
 const ICONS = {
+  aperture: Aperture,
+  'scan-face': ScanFace,
+  circle: Circle,
+  'monitor-play': MonitorPlay,
+  barcode: Barcode,
+  shapes: Shapes,
+  coins: Coins,
+  'dice-6': Dice6,
+  gauge: Gauge,
+  radio: Radio,
+  globe: Globe,
+  highlighter: Highlighter,
+  'layout-template': LayoutTemplate,
+  blend: Blend,
+  frame: Frame,
+  antenna: Antenna,
   printer: Printer,
   scissors: Scissors,
   stamp: Stamp,
@@ -361,8 +393,11 @@ const ICONS = {
 
 function svg(name, size = 16, fill = 'none') {
   const node = ICONS[name];
-  if (!node) throw new Error(`Unknown icon "${name}", import it in components/icon.gjs`);
-  return htmlSafe(createElement(node, { width: size, height: size, fill }).outerHTML);
+  if (!node)
+    throw new Error(`Unknown icon "${name}", import it in components/icon.gjs`);
+  return htmlSafe(
+    createElement(node, { width: size, height: size, fill }).outerHTML,
+  );
 }
 
 <template>

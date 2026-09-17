@@ -13,19 +13,64 @@
 export class MathError extends Error {}
 
 const FUNCTIONS = {
-  sin: 1, cos: 1, tan: 1, asin: 1, acos: 1, atan: 1,
-  sinh: 1, cosh: 1, tanh: 1, asinh: 1, acosh: 1, atanh: 1,
-  sec: 1, csc: 1, cot: 1,
-  sqrt: 1, cbrt: 1, abs: 1, exp: 1, ln: 1, log: 1, log2: 1,
-  floor: 1, ceil: 1, round: 1, sign: 1,
-  nroot: 2, logb: 2, mod: 2, min: 2, max: 2, ncr: 2, npr: 2,
+  sin: 1,
+  cos: 1,
+  tan: 1,
+  asin: 1,
+  acos: 1,
+  atan: 1,
+  sinh: 1,
+  cosh: 1,
+  tanh: 1,
+  asinh: 1,
+  acosh: 1,
+  atanh: 1,
+  sec: 1,
+  csc: 1,
+  cot: 1,
+  sqrt: 1,
+  cbrt: 1,
+  abs: 1,
+  exp: 1,
+  ln: 1,
+  log: 1,
+  log2: 1,
+  floor: 1,
+  ceil: 1,
+  round: 1,
+  sign: 1,
+  nroot: 2,
+  logb: 2,
+  mod: 2,
+  min: 2,
+  max: 2,
+  ncr: 2,
+  npr: 2,
 };
-const CONSTANTS = { pi: Math.PI, e: Math.E, tau: Math.PI * 2, phi: (1 + Math.sqrt(5)) / 2 };
+const CONSTANTS = {
+  pi: Math.PI,
+  e: Math.E,
+  tau: Math.PI * 2,
+  phi: (1 + Math.sqrt(5)) / 2,
+};
 
 // Longest names first so "sinh" beats "sin" and "log2" beats "log".
-const KNOWN_NAMES = [...Object.keys(FUNCTIONS), ...Object.keys(CONSTANTS), 'ans'].sort((a, b) => b.length - a.length);
+const KNOWN_NAMES = [
+  ...Object.keys(FUNCTIONS),
+  ...Object.keys(CONSTANTS),
+  'ans',
+].sort((a, b) => b.length - a.length);
 
-const SYMBOLS = { '×': '*', '÷': '/', '−': '-', '·': '*', 'π': 'pi', '√': 'sqrt', '²': '^2', '³': '^3' };
+const SYMBOLS = {
+  '×': '*',
+  '÷': '/',
+  '−': '-',
+  '·': '*',
+  π: 'pi',
+  '√': 'sqrt',
+  '²': '^2',
+  '³': '^3',
+};
 
 export function tokenize(text) {
   const src = [...text].map((ch) => SYMBOLS[ch] ?? ch).join('');
@@ -46,8 +91,13 @@ export function tokenize(text) {
       let rest = word;
       while (rest) {
         const known = KNOWN_NAMES.find((name) => rest.startsWith(name));
-        const piece = known ?? (/^[a-z]/.test(rest) ? rest[0] : /^\d+/.exec(rest)[0]);
-        tokens.push(/^\d/.test(piece) ? { type: 'num', value: +piece } : { type: 'name', value: piece });
+        const piece =
+          known ?? (/^[a-z]/.test(rest) ? rest[0] : /^\d+/.exec(rest)[0]);
+        tokens.push(
+          /^\d/.test(piece)
+            ? { type: 'num', value: +piece }
+            : { type: 'name', value: piece },
+        );
         rest = rest.slice(piece.length);
       }
       i += word.length;
@@ -152,7 +202,10 @@ export function parse(text) {
             args.push(expr());
           }
           expect(')');
-          if (args.length !== arity) throw new MathError(`${t.value} takes ${arity} value${arity > 1 ? 's' : ''}`);
+          if (args.length !== arity)
+            throw new MathError(
+              `${t.value} takes ${arity} value${arity > 1 ? 's' : ''}`,
+            );
           return { type: 'call', name: t.value, args };
         }
         if (arity !== 1) throw new MathError(`${t.value} needs brackets`);
@@ -179,7 +232,8 @@ export function parse(text) {
   }
 
   const tree = expr();
-  if (pos < tokens.length) throw new MathError(`Unexpected "${tokens[pos].value}"`);
+  if (pos < tokens.length)
+    throw new MathError(`Unexpected "${tokens[pos].value}"`);
   return tree;
 }
 
@@ -187,7 +241,11 @@ export function parse(text) {
 function gamma(z) {
   if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
   const g = 7;
-  const c = [0.9999999999998099, 676.5203681218851, -1259.1392167224028, 771.3234287776531, -176.61503916999186, 12.507343278686905, -0.13857109526572012, 9.984369578019572e-6, 1.5056327351493116e-7];
+  const c = [
+    0.9999999999998099, 676.5203681218851, -1259.1392167224028,
+    771.3234287776531, -176.61503916999186, 12.507343278686905,
+    -0.13857109526572012, 9.984369578019572e-6, 1.5056327351493116e-7,
+  ];
   z -= 1;
   let x = c[0];
   for (let i = 1; i < g + 2; i++) x += c[i] / (z + i);
@@ -220,7 +278,8 @@ export function evaluate(node, { vars = {}, degrees = false } = {}) {
       case 'const':
         return CONSTANTS[n.name];
       case 'var':
-        if (!(n.name in vars)) throw new MathError(`Unknown variable "${n.name}"`);
+        if (!(n.name in vars))
+          throw new MathError(`Unknown variable "${n.name}"`);
         return vars[n.name];
       case 'neg':
         return -ev(n.arg);
@@ -236,46 +295,83 @@ export function evaluate(node, { vars = {}, degrees = false } = {}) {
         // Real odd roots of negatives: (-8)^(1/3) = -2
         if (a < 0 && !Number.isInteger(b)) {
           const inv = 1 / b;
-          if (Math.abs(inv - Math.round(inv)) < 1e-9 && Math.round(inv) % 2 !== 0) return -((-a) ** b);
+          if (
+            Math.abs(inv - Math.round(inv)) < 1e-9 &&
+            Math.round(inv) % 2 !== 0
+          )
+            return -((-a) ** b);
         }
         return a ** b;
       }
       case 'call': {
         const [a, b] = n.args.map(ev);
         switch (n.name) {
-          case 'sin': return tidy(Math.sin(toRad(a)));
-          case 'cos': return tidy(Math.cos(toRad(a)));
-          case 'tan': return tidy(Math.tan(toRad(a)));
-          case 'sec': return 1 / tidy(Math.cos(toRad(a)));
-          case 'csc': return 1 / tidy(Math.sin(toRad(a)));
-          case 'cot': return 1 / tidy(Math.tan(toRad(a)));
-          case 'asin': return fromRad(Math.asin(a));
-          case 'acos': return fromRad(Math.acos(a));
-          case 'atan': return fromRad(Math.atan(a));
-          case 'sinh': return Math.sinh(a);
-          case 'cosh': return Math.cosh(a);
-          case 'tanh': return Math.tanh(a);
-          case 'asinh': return Math.asinh(a);
-          case 'acosh': return Math.acosh(a);
-          case 'atanh': return Math.atanh(a);
-          case 'sqrt': return Math.sqrt(a);
-          case 'cbrt': return Math.cbrt(a);
-          case 'nroot': return b < 0 && a % 2 !== 0 ? -((-b) ** (1 / a)) : b ** (1 / a);
-          case 'abs': return Math.abs(a);
-          case 'exp': return Math.exp(a);
-          case 'ln': return Math.log(a);
-          case 'log': return Math.log10(a);
-          case 'log2': return Math.log2(a);
-          case 'logb': return Math.log(b) / Math.log(a);
-          case 'floor': return Math.floor(a);
-          case 'ceil': return Math.ceil(a);
-          case 'round': return Math.round(a);
-          case 'sign': return Math.sign(a);
-          case 'mod': return ((a % b) + b) % b;
-          case 'min': return Math.min(a, b);
-          case 'max': return Math.max(a, b);
-          case 'ncr': return Math.round(factorial(a) / (factorial(b) * factorial(a - b)));
-          case 'npr': return Math.round(factorial(a) / factorial(a - b));
+          case 'sin':
+            return tidy(Math.sin(toRad(a)));
+          case 'cos':
+            return tidy(Math.cos(toRad(a)));
+          case 'tan':
+            return tidy(Math.tan(toRad(a)));
+          case 'sec':
+            return 1 / tidy(Math.cos(toRad(a)));
+          case 'csc':
+            return 1 / tidy(Math.sin(toRad(a)));
+          case 'cot':
+            return 1 / tidy(Math.tan(toRad(a)));
+          case 'asin':
+            return fromRad(Math.asin(a));
+          case 'acos':
+            return fromRad(Math.acos(a));
+          case 'atan':
+            return fromRad(Math.atan(a));
+          case 'sinh':
+            return Math.sinh(a);
+          case 'cosh':
+            return Math.cosh(a);
+          case 'tanh':
+            return Math.tanh(a);
+          case 'asinh':
+            return Math.asinh(a);
+          case 'acosh':
+            return Math.acosh(a);
+          case 'atanh':
+            return Math.atanh(a);
+          case 'sqrt':
+            return Math.sqrt(a);
+          case 'cbrt':
+            return Math.cbrt(a);
+          case 'nroot':
+            return b < 0 && a % 2 !== 0 ? -((-b) ** (1 / a)) : b ** (1 / a);
+          case 'abs':
+            return Math.abs(a);
+          case 'exp':
+            return Math.exp(a);
+          case 'ln':
+            return Math.log(a);
+          case 'log':
+            return Math.log10(a);
+          case 'log2':
+            return Math.log2(a);
+          case 'logb':
+            return Math.log(b) / Math.log(a);
+          case 'floor':
+            return Math.floor(a);
+          case 'ceil':
+            return Math.ceil(a);
+          case 'round':
+            return Math.round(a);
+          case 'sign':
+            return Math.sign(a);
+          case 'mod':
+            return ((a % b) + b) % b;
+          case 'min':
+            return Math.min(a, b);
+          case 'max':
+            return Math.max(a, b);
+          case 'ncr':
+            return Math.round(factorial(a) / (factorial(b) * factorial(a - b)));
+          case 'npr':
+            return Math.round(factorial(a) / factorial(a - b));
         }
       }
     }
@@ -286,7 +382,8 @@ export function evaluate(node, { vars = {}, degrees = false } = {}) {
 
 export function variablesIn(node, found = new Set()) {
   if (node.type === 'var') found.add(node.name);
-  for (const child of [node.arg, node.left, node.right, ...(node.args ?? [])]) if (child) variablesIn(child, found);
+  for (const child of [node.arg, node.left, node.right, ...(node.args ?? [])])
+    if (child) variablesIn(child, found);
   return found;
 }
 
@@ -305,7 +402,9 @@ export function formatNumber(n, digits = 12) {
   const rounded = parseFloat(n.toPrecision(digits));
   const abs = Math.abs(rounded);
   if (abs !== 0 && (abs >= 1e15 || abs < 1e-9)) {
-    return rounded.toExponential(Math.min(digits - 1, 10)).replace(/\.?0+e/, 'e');
+    return rounded
+      .toExponential(Math.min(digits - 1, 10))
+      .replace(/\.?0+e/, 'e');
   }
   return String(rounded);
 }

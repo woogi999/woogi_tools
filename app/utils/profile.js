@@ -8,11 +8,22 @@ export const NAME_LENGTH = 20;
 export function loadProfile() {
   try {
     const saved = JSON.parse(localStorage.getItem(PROFILE_KEY));
-    if (saved?.name) return { name: String(saved.name).slice(0, NAME_LENGTH), avatar: playerAvatar(saved.avatar), pose: normalisePose(saved.pose), look: typeof saved.look === 'string' ? saved.look : null };
+    if (saved?.name)
+      return {
+        name: String(saved.name).slice(0, NAME_LENGTH),
+        avatar: playerAvatar(saved.avatar),
+        pose: normalisePose(saved.pose),
+        look: typeof saved.look === 'string' ? saved.look : null,
+      };
   } catch {
     // nothing saved, or storage blocked
   }
-  return { name: `Player ${Math.floor(100 + Math.random() * 900)}`, avatar: { ...DEFAULT_AVATAR }, pose: normalisePose(null), look: null };
+  return {
+    name: `Player ${Math.floor(100 + Math.random() * 900)}`,
+    avatar: { ...DEFAULT_AVATAR },
+    pose: normalisePose(null),
+    look: null,
+  };
 }
 
 export function saveProfile(profile) {

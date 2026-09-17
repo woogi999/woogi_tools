@@ -4,7 +4,14 @@ import { on } from '@ember/modifier';
 import ToolPage from './tool-page';
 import { fn } from '@ember/helper';
 import CopyButton from './copy-button';
-import { CODECS, FORMATS, TEXT_CODECS, compress, decompress } from '../utils/codec';
+import {
+  CODECS,
+  FORMATS,
+  TEXT_CODECS,
+  compress,
+  decompress,
+} from '../utils/codec';
+import { keepState } from '../utils/tool-state';
 
 const eq = (a, b) => a === b;
 
@@ -22,6 +29,11 @@ export default class DataCodecPage extends Component {
   @tracked busy = false;
   runId = 0;
 
+  constructor(owner, args) {
+    super(owner, args);
+    keepState(this, 'data-codec', ['mode', 'codecId', 'input']);
+  }
+
   get codec() {
     return CODECS.find((c) => c.id === this.codecId);
   }
@@ -36,8 +48,14 @@ export default class DataCodecPage extends Component {
 
   get stats() {
     if (!this.isCompress || !this.input || !this.output) return null;
-    const plain = new TextEncoder().encode(this.isEncode ? this.input : this.output).length;
-    const packed = Math.floor(((this.isEncode ? this.output : this.input).replace(/[\s=]/g, '').length * 3) / 4);
+    const plain = new TextEncoder().encode(
+      this.isEncode ? this.input : this.output,
+    ).length;
+    const packed = Math.floor(
+      ((this.isEncode ? this.output : this.input).replace(/[\s=]/g, '').length *
+        3) /
+        4,
+    );
     return `${plain} B plain · ${packed} B compressed · ${Math.round((packed / plain) * 100)}%`;
   }
 
@@ -55,21 +73,28 @@ export default class DataCodecPage extends Component {
         this.error = null;
       } catch (error) {
         this.output = '';
-        const reason = error instanceof TypeError || error.name === 'InvalidCharacterError' ? "This doesn't look like valid input for this format" : error.message;
+        const reason =
+          error instanceof TypeError || error.name === 'InvalidCharacterError'
+            ? "This doesn't look like valid input for this format"
+            : error.message;
         this.error = `Couldn't decode: ${reason}`;
       }
       return;
     }
     this.busy = true;
     try {
-      const result = isEncode ? await compress(input, codec.id, level) : await decompress(input, codec.id);
+      const result = isEncode
+        ? await compress(input, codec.id, level)
+        : await decompress(input, codec.id);
       if (id !== this.runId) return;
       this.output = result;
       this.error = null;
     } catch {
       if (id !== this.runId) return;
       this.output = '';
-      this.error = isEncode ? 'Compression failed.' : `Couldn't decompress: expected base64 ${codec.label} data.`;
+      this.error = isEncode
+        ? 'Compression failed.'
+        : `Couldn't decompress: expected base64 ${codec.label} data.`;
     } finally {
       if (id === this.runId) this.busy = false;
     }
@@ -99,22 +124,43 @@ export default class DataCodecPage extends Component {
   };
 
   <template>
-    <ToolPage @route="data-codec" @subtitle="Compress it, encode it, decode it: Base64, URLs, hex, binary, Morse and more. Nothing leaves your browser.">
+    <ToolPage
+      @route="data-codec"
+      @subtitle="Compress it, encode it, decode it: Base64, URLs, hex, binary, Morse and more. Nothing leaves your browser."
+    >
       <section class="tool-panel pop-in">
         <div class="tool-controls">
           <div class="mode-toggle" role="group" aria-label="Mode">
-            <button type="button" class="btn {{if this.isEncode 'active'}}" {{on "click" (fn this.setMode "encode")}}>Encode</button>
-            <button type="button" class="btn {{if this.isEncode '' 'active'}}" {{on "click" (fn this.setMode "decode")}}>Decode</button>
+            <button
+              type="button"
+              class="btn {{if this.isEncode 'active'}}"
+              {{on "click" (fn this.setMode "encode")}}
+            >Encode</button>
+            <button
+              type="button"
+              class="btn {{if this.isEncode '' 'active'}}"
+              {{on "click" (fn this.setMode "decode")}}
+            >Decode</button>
           </div>
-          <select class="select" aria-label="Format" {{on "change" this.setCodec}}>
+          <select
+            class="select"
+            aria-label="Format"
+            {{on "change" this.setCodec}}
+          >
             <optgroup label="Compression">
               {{#each this.compressFormats as |f|}}
-                <option value={{f.id}} selected={{eq f.id this.codecId}}>{{f.label}}</option>
+                <option
+                  value={{f.id}}
+                  selected={{eq f.id this.codecId}}
+                >{{f.label}}</option>
               {{/each}}
             </optgroup>
             <optgroup label="Text encoding">
               {{#each this.textFormats as |f|}}
-                <option value={{f.id}} selected={{eq f.id this.codecId}}>{{f.label}}</option>
+                <option
+                  value={{f.id}}
+                  selected={{eq f.id this.codecId}}
+                >{{f.label}}</option>
               {{/each}}
             </optgroup>
           </select>
@@ -135,14 +181,34 @@ export default class DataCodecPage extends Component {
           </div>
         {{/if}}
 
-        <label class="field-label" for="codec-input">{{if this.isEncode "Text" this.codec.label}}</label>
-        <textarea id="codec-input" class="textarea" spellcheck="false" value={{this.input}} {{on "input" this.onInput}}></textarea>
+        <label class="field-label" for="codec-input">{{if
+            this.isEncode
+            "Text"
+            this.codec.label
+          }}</label>
+        <textarea
+          id="codec-input"
+          class="textarea"
+          spellcheck="false"
+          value={{this.input}}
+          {{on "input" this.onInput}}
+        ></textarea>
 
         <div class="field-head">
-          <label class="field-label" for="codec-output">{{if this.isEncode this.codec.label "Text"}}</label>
+          <label class="field-label" for="codec-output">{{if
+              this.isEncode
+              this.codec.label
+              "Text"
+            }}</label>
           <CopyButton @value={{this.output}} />
         </div>
-        <textarea id="codec-output" class="textarea" readonly spellcheck="false" value={{this.output}}></textarea>
+        <textarea
+          id="codec-output"
+          class="textarea"
+          readonly
+          spellcheck="false"
+          value={{this.output}}
+        ></textarea>
 
         {{#if this.error}}
           <p class="tool-error">{{this.error}}</p>

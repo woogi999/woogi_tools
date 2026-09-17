@@ -7,19 +7,37 @@ import { loadFFmpeg } from './converters/engines';
 let queue = Promise.resolve();
 
 const bytesOf = async (blob) => new Uint8Array(await blob.arrayBuffer());
-const extOf = (name) => (name.split('.').pop() || 'bin').toLowerCase().replaceAll(/[^a-z0-9]/g, '');
+const extOf = (name) =>
+  (name.split('.').pop() || 'bin').toLowerCase().replaceAll(/[^a-z0-9]/g, '');
 export const baseName = (name) => name.replace(/\.[^.]+$/, '') || 'file';
 
 // Runs one FFmpeg command over `file`.
 //   build(input, output) -> the arguments, so a tool can put its own in
+//   extras: [{ name, data }] other files the command needs (a subtitle, a font)
 // Gives back a Blob of the output.
-export function runFFmpeg(file, { out = 'mp4', type = '', build, onProgress, onStatus, duration = 0 }) {
-  const job = queue.then(() => execute(file, { out, type, build, onProgress, onStatus, duration }));
+export function runFFmpeg(
+  file,
+  {
+    out = 'mp4',
+    type = '',
+    build,
+    onProgress,
+    onStatus,
+    duration = 0,
+    extras = [],
+  },
+) {
+  const job = queue.then(() =>
+    execute(file, { out, type, build, onProgress, onStatus, duration, extras }),
+  );
   queue = job.catch(() => {});
   return job;
 }
 
-async function execute(file, { out, type, build, onProgress, onStatus, duration }) {
+async function execute(
+  file,
+  { out, type, build, onProgress, onStatus, duration, extras },
+) {
   onStatus?.('Starting the audio/video engine…');
   const ffmpeg = await loadFFmpeg();
   const stamp = Date.now();
@@ -33,7 +51,8 @@ async function execute(file, { out, type, build, onProgress, onStatus, duration 
   // FFmpeg's own progress is unreliable when a command only copies streams, so
   // tools that know the length work it out from the time it reports instead.
   const progress = ({ progress: p, time }) => {
-    if (duration && time) onProgress?.(Math.max(0, Math.min(1, time / 1e6 / duration)));
+    if (duration && time)
+      onProgress?.(Math.max(0, Math.min(1, time / 1e6 / duration)));
     else onProgress?.(Math.max(0, Math.min(1, p)));
   };
   ffmpeg.on('log', onLog);
@@ -41,11 +60,24 @@ async function execute(file, { out, type, build, onProgress, onStatus, duration 
   try {
     onStatus?.('Reading the file…');
     await ffmpeg.writeFile(input, await bytesOf(file));
+    for (const extra of extras)
+      await ffmpeg.writeFile(
+        extra.name,
+        extra.data instanceof Blob ? await bytesOf(extra.data) : extra.data,
+      );
     onStatus?.('Working…');
     const code = await ffmpeg.exec([...build(input, output), '-y', output]);
     if (code !== 0) {
-      const reason = logs.reverse().find((line) => /error|invalid|not found|does not contain|no such/i.test(line));
-      throw new Error(reason ? `FFmpeg: ${reason.trim()}` : 'FFmpeg couldn’t handle this file');
+      const reason = logs
+        .reverse()
+        .find((line) =>
+          /error|invalid|not found|does not contain|no such/i.test(line),
+        );
+      throw new Error(
+        reason
+          ? `FFmpeg: ${reason.trim()}`
+          : 'FFmpeg couldn’t handle this file',
+      );
     }
     const data = await ffmpeg.readFile(output);
     onProgress?.(1);
@@ -55,6 +87,8 @@ async function execute(file, { out, type, build, onProgress, onStatus, duration 
     ffmpeg.off('progress', progress);
     await ffmpeg.deleteFile(input).catch(() => {});
     await ffmpeg.deleteFile(output).catch(() => {});
+    for (const extra of extras)
+      await ffmpeg.deleteFile(extra.name).catch(() => {});
   }
 }
 
@@ -63,7 +97,9 @@ async function execute(file, { out, type, build, onProgress, onStatus, duration 
 export function mediaInfo(file) {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
-    const video = file.type.startsWith('audio/') ? document.createElement('audio') : document.createElement('video');
+    const video = file.type.startsWith('audio/')
+      ? document.createElement('audio')
+      : document.createElement('video');
     const done = (info) => {
       URL.revokeObjectURL(url);
       resolve(info);
@@ -75,9 +111,12 @@ export function mediaInfo(file) {
         width: video.videoWidth || 0,
         height: video.videoHeight || 0,
         // Only Firefox and Chrome expose these, so "no idea" is a real answer.
-        hasAudio: video.mozHasAudio ?? (video.webkitAudioDecodedByteCount > 0 || undefined),
+        hasAudio:
+          video.mozHasAudio ??
+          (video.webkitAudioDecodedByteCount > 0 || undefined),
       });
-    video.onerror = () => done({ duration: 0, width: 0, height: 0, hasAudio: undefined });
+    video.onerror = () =>
+      done({ duration: 0, width: 0, height: 0, hasAudio: undefined });
     video.src = url;
   });
 }

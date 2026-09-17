@@ -14,7 +14,12 @@ export function loadSaves() {
     return saves
       .filter((s) => s?.avatar?.type !== 'robot')
       .slice(0, MAX_SAVES)
-      .map((s, i) => ({ id: String(s?.id ?? i), label: String(s?.label ?? 'Look').slice(0, 24), avatar: playerAvatar(s?.avatar), pose: normalisePose(s?.pose) }));
+      .map((s, i) => ({
+        id: String(s?.id ?? i),
+        label: String(s?.label ?? 'Look').slice(0, 24),
+        avatar: playerAvatar(s?.avatar),
+        pose: normalisePose(s?.pose),
+      }));
   } catch {
     return [];
   }

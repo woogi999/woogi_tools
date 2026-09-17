@@ -9,7 +9,14 @@ import Icon from './icon';
 import ColourField from './colour-field';
 import { compileFunction, formatNumber } from '../utils/math-expr';
 
-const PALETTE = ['#E5484D', '#3E63DD', '#30A46C', '#F76B15', '#8E4EC6', '#12A594'];
+const PALETTE = [
+  '#E5484D',
+  '#3E63DD',
+  '#30A46C',
+  '#F76B15',
+  '#8E4EC6',
+  '#12A594',
+];
 const DEFAULT_VIEW = { cx: 0, cy: 0, scale: 40 }; // scale = pixels per unit
 const MIN_SCALE = 1e-4;
 const MAX_SCALE = 1e6;
@@ -17,7 +24,12 @@ const MAX_SCALE = 1e6;
 const dotStyle = (color) => htmlSafe(`background:${color};`);
 
 let nextFnId = 1;
-const newFunction = (expr, index) => ({ id: nextFnId++, expr, color: PALETTE[index % PALETTE.length], visible: true });
+const newFunction = (expr, index) => ({
+  id: nextFnId++,
+  expr,
+  color: PALETTE[index % PALETTE.length],
+  visible: true,
+});
 
 // Grid steps snap to 1, 2 or 5 × 10ⁿ so labels stay round at any zoom.
 function niceStep(raw) {
@@ -27,10 +39,17 @@ function niceStep(raw) {
   return { step: nice * power, minor: (nice * power) / (nice === 2 ? 4 : 5) };
 }
 
-const label = (value, step) => formatNumber(Math.abs(value) < step / 1e6 ? 0 : parseFloat(value.toPrecision(12)), 8);
+const label = (value, step) =>
+  formatNumber(
+    Math.abs(value) < step / 1e6 ? 0 : parseFloat(value.toPrecision(12)),
+    8,
+  );
 
 export default class GraphCalculatorPage extends Component {
-  @tracked functions = [newFunction('sin(x)', 0), newFunction('x^2 / 4 - 2', 1)];
+  @tracked functions = [
+    newFunction('sin(x)', 0),
+    newFunction('x^2 / 4 - 2', 1),
+  ];
   @tracked view = DEFAULT_VIEW;
   @tracked hover = null; // { px, py } in CSS pixels
 
@@ -67,14 +86,19 @@ export default class GraphCalculatorPage extends Component {
     const y = this.toWorldY(this.hover.py);
     const { step } = niceStep(80 / this.view.scale);
     const digits = Math.max(2, -Math.floor(Math.log10(step)) + 2);
-    const round = (v) => formatNumber(parseFloat(v.toFixed(Math.min(digits, 12))));
+    const round = (v) =>
+      formatNumber(parseFloat(v.toFixed(Math.min(digits, 12))));
     return {
       point: `(${round(x)}, ${round(y)})`,
       values: this.compiled
         .filter((f) => f.fn && f.visible)
         .map((f) => {
           const value = f.fn(x);
-          return { id: f.id, color: f.color, text: Number.isFinite(value) ? round(value) : 'undefined' };
+          return {
+            id: f.id,
+            color: f.color,
+            text: Number.isFinite(value) ? round(value) : 'undefined',
+          };
         }),
     };
   }
@@ -93,7 +117,10 @@ export default class GraphCalculatorPage extends Component {
     });
     resize.observe(canvas);
     const theme = new MutationObserver(() => this.sizeVersion++);
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
     return () => {
       resize.disconnect();
       theme.disconnect();
@@ -127,12 +154,20 @@ export default class GraphCalculatorPage extends Component {
 
     const lines = (spacing, stroke, lineWidth) => {
       ctx.beginPath();
-      for (let x = Math.ceil(left / spacing) * spacing; x <= right; x += spacing) {
+      for (
+        let x = Math.ceil(left / spacing) * spacing;
+        x <= right;
+        x += spacing
+      ) {
         const px = Math.round(this.toPx(x)) + 0.5;
         ctx.moveTo(px, 0);
         ctx.lineTo(px, h);
       }
-      for (let y = Math.ceil(bottom / spacing) * spacing; y <= top; y += spacing) {
+      for (
+        let y = Math.ceil(bottom / spacing) * spacing;
+        y <= top;
+        y += spacing
+      ) {
         const py = Math.round(this.toPy(y)) + 0.5;
         ctx.moveTo(0, py);
         ctx.lineTo(w, py);
@@ -196,7 +231,10 @@ export default class GraphCalculatorPage extends Component {
           continue;
         }
         const py = Math.max(-1e5, Math.min(1e5, this.toPy(y)));
-        const jump = penDown && Math.abs(py - prevPy) > h * 2 && (py < 0 || py > h || prevPy < 0 || prevPy > h);
+        const jump =
+          penDown &&
+          Math.abs(py - prevPy) > h * 2 &&
+          (py < 0 || py > h || prevPy < 0 || prevPy > h);
         if (!penDown || jump) ctx.moveTo(px, py);
         else ctx.lineTo(px, py);
         penDown = true;
@@ -246,7 +284,11 @@ export default class GraphCalculatorPage extends Component {
     this.dragging = true;
     const move = (e) => {
       const { scale, cx, cy } = start.view;
-      this.view = { scale, cx: cx - (e.clientX - start.x) / scale, cy: cy + (e.clientY - start.y) / scale };
+      this.view = {
+        scale,
+        cx: cx - (e.clientX - start.x) / scale,
+        cy: cy + (e.clientY - start.y) / scale,
+      };
     };
     const up = () => {
       this.dragging = false;
@@ -268,8 +310,15 @@ export default class GraphCalculatorPage extends Component {
   zoomAt(factor, px = this.width / 2, py = this.height / 2) {
     const wx = this.toWorldX(px);
     const wy = this.toWorldY(py);
-    const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, this.view.scale * factor));
-    this.view = { scale, cx: wx - (px - this.width / 2) / scale, cy: wy + (py - this.height / 2) / scale };
+    const scale = Math.min(
+      MAX_SCALE,
+      Math.max(MIN_SCALE, this.view.scale * factor),
+    );
+    this.view = {
+      scale,
+      cx: wx - (px - this.width / 2) / scale,
+      cy: wy + (py - this.height / 2) / scale,
+    };
   }
 
   wheelZoom = (event) => {
@@ -284,15 +333,27 @@ export default class GraphCalculatorPage extends Component {
 
   // ─── Function list ───────────────────────────────────────────────────
 
-  updateFunction = (id, patch) => (this.functions = this.functions.map((f) => (f.id === id ? { ...f, ...patch } : f)));
-  setExpr = (id, event) => this.updateFunction(id, { expr: event.target.value });
+  updateFunction = (id, patch) =>
+    (this.functions = this.functions.map((f) =>
+      f.id === id ? { ...f, ...patch } : f,
+    ));
+  setExpr = (id, event) =>
+    this.updateFunction(id, { expr: event.target.value });
   setColor = (id, hex) => this.updateFunction(id, { color: hex });
   toggleVisible = (f) => this.updateFunction(f.id, { visible: !f.visible });
-  removeFunction = (id) => (this.functions = this.functions.filter((f) => f.id !== id));
-  addFunction = () => (this.functions = [...this.functions, newFunction('', this.functions.length)]);
+  removeFunction = (id) =>
+    (this.functions = this.functions.filter((f) => f.id !== id));
+  addFunction = () =>
+    (this.functions = [
+      ...this.functions,
+      newFunction('', this.functions.length),
+    ]);
 
   <template>
-    <ToolPage @route="graph-calculator" @subtitle="Type some functions of x and watch them plot. Drag to pan, scroll to zoom, hover to trace.">
+    <ToolPage
+      @route="graph-calculator"
+      @subtitle="Type some functions of x and watch them plot. Drag to pan, scroll to zoom, hover to trace."
+    >
       <div class="graph pop-in">
         <section class="math-card graph-side">
           <h3 class="qr-heading">Functions</h3>
@@ -301,19 +362,51 @@ export default class GraphCalculatorPage extends Component {
               <li class="graph-fn {{unless f.visible 'is-hidden'}}">
                 <div class="graph-fn-main">
                   <span class="graph-fn-prefix">y =</span>
-                  <input type="text" class="graph-fn-input" aria-label="Function" placeholder="e.g. 2x + 1" spellcheck="false" value={{f.expr}} {{on "input" (fn this.setExpr f.id)}} />
-                  <button type="button" class="fs-remove" aria-label={{if f.visible "Hide" "Show"}} {{on "click" (fn this.toggleVisible f)}}><Icon @name={{if f.visible "eye" "eye-off"}} @size={{14}} /></button>
-                  <button type="button" class="fs-remove" aria-label="Remove function" {{on "click" (fn this.removeFunction f.id)}}><Icon @name="x" @size={{14}} /></button>
+                  <input
+                    type="text"
+                    class="graph-fn-input"
+                    aria-label="Function"
+                    placeholder="e.g. 2x + 1"
+                    spellcheck="false"
+                    value={{f.expr}}
+                    {{on "input" (fn this.setExpr f.id)}}
+                  />
+                  <button
+                    type="button"
+                    class="fs-remove"
+                    aria-label={{if f.visible "Hide" "Show"}}
+                    {{on "click" (fn this.toggleVisible f)}}
+                  ><Icon
+                      @name={{if f.visible "eye" "eye-off"}}
+                      @size={{14}}
+                    /></button>
+                  <button
+                    type="button"
+                    class="fs-remove"
+                    aria-label="Remove function"
+                    {{on "click" (fn this.removeFunction f.id)}}
+                  ><Icon @name="x" @size={{14}} /></button>
                 </div>
                 <div class="graph-fn-meta">
-                  <ColourField @label="Line colour" @value={{f.color}} @onChange={{fn this.setColor f.id}} />
-                  {{#if f.error}}<span class="tool-error">{{f.error}}</span>{{/if}}
+                  <ColourField
+                    @label="Line colour"
+                    @value={{f.color}}
+                    @onChange={{fn this.setColor f.id}}
+                  />
+                  {{#if f.error}}<span
+                      class="tool-error"
+                    >{{f.error}}</span>{{/if}}
                 </div>
               </li>
             {{/each}}
           </ul>
-          <button type="button" class="btn math-use" {{on "click" this.addFunction}}><Icon @name="plus" @size={{13}} /> Add function</button>
-          <p class="tool-hint">Try sin(x)/x, abs(x) - 2, sqrt(9 - x^2), 1/x, e^(-x^2) or floor(x). Angles are in radians.</p>
+          <button
+            type="button"
+            class="btn math-use"
+            {{on "click" this.addFunction}}
+          ><Icon @name="plus" @size={{13}} /> Add function</button>
+          <p class="tool-hint">Try sin(x)/x, abs(x) - 2, sqrt(9 - x^2), 1/x,
+            e^(-x^2) or floor(x). Angles are in radians.</p>
         </section>
 
         <section class="math-card graph-plot">
@@ -322,23 +415,49 @@ export default class GraphCalculatorPage extends Component {
               class="graph-canvas"
               aria-label="Graph"
               {{this.setupCanvas}}
-              {{this.redraw this.compiled this.view this.hover this.sizeVersion}}
+              {{this.redraw
+                this.compiled
+                this.view
+                this.hover
+                this.sizeVersion
+              }}
               {{on "pointerdown" this.startPan}}
               {{on "pointermove" this.trackHover}}
               {{on "pointerleave" this.clearHover}}
               {{on "wheel" this.wheelZoom passive=false}}
             ></canvas>
             <div class="graph-tools">
-              <button type="button" class="editor-tool" aria-label="Zoom in" title="Zoom in" {{on "click" this.zoomIn}}><Icon @name="zoom-in" @size={{15}} /></button>
-              <button type="button" class="editor-tool" aria-label="Zoom out" title="Zoom out" {{on "click" this.zoomOut}}><Icon @name="zoom-out" @size={{15}} /></button>
-              <button type="button" class="editor-tool" aria-label="Reset view" title="Reset view" {{on "click" this.resetView}}><Icon @name="locate-fixed" @size={{15}} /></button>
+              <button
+                type="button"
+                class="editor-tool"
+                aria-label="Zoom in"
+                title="Zoom in"
+                {{on "click" this.zoomIn}}
+              ><Icon @name="zoom-in" @size={{15}} /></button>
+              <button
+                type="button"
+                class="editor-tool"
+                aria-label="Zoom out"
+                title="Zoom out"
+                {{on "click" this.zoomOut}}
+              ><Icon @name="zoom-out" @size={{15}} /></button>
+              <button
+                type="button"
+                class="editor-tool"
+                aria-label="Reset view"
+                title="Reset view"
+                {{on "click" this.resetView}}
+              ><Icon @name="locate-fixed" @size={{15}} /></button>
             </div>
           </div>
           <div class="graph-readout">
             {{#if this.readout}}
               <span class="graph-point">{{this.readout.point}}</span>
               {{#each this.readout.values as |v|}}
-                <span class="graph-value"><span class="graph-dot" style={{dotStyle v.color}}></span>{{v.text}}</span>
+                <span class="graph-value"><span
+                    class="graph-dot"
+                    style={{dotStyle v.color}}
+                  ></span>{{v.text}}</span>
               {{/each}}
             {{else}}
               <span class="tool-hint">Hover the graph to trace</span>

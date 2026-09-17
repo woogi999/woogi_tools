@@ -19,12 +19,33 @@ export const CARD_TYPES = [
   { id: 'reverse', label: 'Reverse', hint: 'Play turns the other way.' },
   { id: 'draw2', label: 'Draw Two', hint: 'The next player draws 2.' },
   { id: 'wild', label: 'Wild', hint: 'Pick the colour.' },
-  { id: 'wild4', label: 'Wild Draw Four', hint: 'Pick the colour, and the next player draws 4.' },
-  { id: 'target2', label: 'Targeted Draw Two', hint: 'You choose who draws 2.' },
-  { id: 'target4', label: 'Targeted Wild Draw Four', hint: 'Pick the colour, and choose who draws 4.' },
+  {
+    id: 'wild4',
+    label: 'Wild Draw Four',
+    hint: 'Pick the colour, and the next player draws 4.',
+  },
+  {
+    id: 'target2',
+    label: 'Targeted Draw Two',
+    hint: 'You choose who draws 2.',
+  },
+  {
+    id: 'target4',
+    label: 'Targeted Wild Draw Four',
+    hint: 'Pick the colour, and choose who draws 4.',
+  },
   { id: 'draw99', label: 'Wild Draw 99', hint: 'One per deck. Good luck.' },
 ];
-export const DEFAULT_CARDS = { skip: true, reverse: true, draw2: true, wild: true, wild4: true, target2: true, target4: true, draw99: false };
+export const DEFAULT_CARDS = {
+  skip: true,
+  reverse: true,
+  draw2: true,
+  wild: true,
+  wild4: true,
+  target2: true,
+  target4: true,
+  draw99: false,
+};
 
 // House rules, all set in the lobby.
 export const DEFAULT_RULES = {
@@ -56,12 +77,22 @@ export const TURN_TIMES = [0, 10, 15, 30, 60];
 // A failed challenge costs the challenger this many cards on top of the draw.
 export const CHALLENGE_EXTRA = 2;
 
-const LABELS = { skip: 'Skip', reverse: 'Reverse', draw2: 'Draw Two', wild: 'Wild', wild4: 'Wild Draw Four', target2: 'Targeted Draw Two', target4: 'Targeted Wild Draw Four', draw99: 'Wild Draw 99' };
+const LABELS = {
+  skip: 'Skip',
+  reverse: 'Reverse',
+  draw2: 'Draw Two',
+  wild: 'Wild',
+  wild4: 'Wild Draw Four',
+  target2: 'Targeted Draw Two',
+  target4: 'Targeted Wild Draw Four',
+  draw99: 'Wild Draw 99',
+};
 const capitalise = (s) => s[0].toUpperCase() + s.slice(1);
 const DRAW_AMOUNT = { draw2: 2, wild4: 4, target2: 2, target4: 4, draw99: 99 };
 
 export const drawAmount = (card) => DRAW_AMOUNT[card?.value] ?? 0;
-export const isTargeted = (card) => card?.value === 'target2' || card?.value === 'target4';
+export const isTargeted = (card) =>
+  card?.value === 'target2' || card?.value === 'target4';
 const isWildDraw = (card) => !card.color && drawAmount(card) > 0;
 
 export function cardName(card) {
@@ -75,7 +106,9 @@ export const PENALTY_RANGE = [0, 10];
 // A whole number within [min, max], or the fallback when it isn't a number at all.
 export function clampInt(value, [min, max], fallback) {
   const n = Math.round(Number(value));
-  return Number.isFinite(n) && String(value).trim() !== '' ? Math.min(max, Math.max(min, n)) : fallback;
+  return Number.isFinite(n) && String(value).trim() !== ''
+    ? Math.min(max, Math.max(min, n))
+    : fallback;
 }
 
 export function normaliseRules(rules) {
@@ -92,7 +125,12 @@ export function normaliseRules(rules) {
     challenge: Boolean(r.challenge),
     defense: Boolean(r.defense),
     drawBalancing: Boolean(r.drawBalancing),
-    cards: Object.fromEntries(CARD_TYPES.map(({ id }) => [id, typeof r.cards?.[id] === 'boolean' ? r.cards[id] : DEFAULT_CARDS[id]])),
+    cards: Object.fromEntries(
+      CARD_TYPES.map(({ id }) => [
+        id,
+        typeof r.cards?.[id] === 'boolean' ? r.cards[id] : DEFAULT_CARDS[id],
+      ]),
+    ),
   };
 }
 
@@ -110,7 +148,21 @@ export function buildDeck(copies = 1, cards = DEFAULT_CARDS) {
   for (let copy = 0; copy < copies; copy++) {
     for (const color of COLORS) {
       add(color, '0');
-      for (const value of ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'skip', 'reverse', 'draw2']) add(color, value, 2);
+      for (const value of [
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        'skip',
+        'reverse',
+        'draw2',
+      ])
+        add(color, value, 2);
       add(color, 'target2');
     }
     add(null, 'wild', 4);
@@ -139,9 +191,19 @@ export function createGame(players, rules = DEFAULT_RULES) {
     rules: r,
     // uno: 'none' | 'armed' (pressed with two cards, said on the next play) | 'said'.
     // exposed: down to one card without saying it, so anyone can call them out.
-    players: players.map((p) => ({ ...p, hand: [], uno: 'none', exposed: false })),
+    players: players.map((p) => ({
+      ...p,
+      hand: [],
+      uno: 'none',
+      exposed: false,
+    })),
     // Enough decks that the deal leaves at least ~40 cards to draw from.
-    drawPile: shuffle(buildDeck(Math.max(1, Math.ceil((players.length * r.handSize + 40) / perDeck)), r.cards)),
+    drawPile: shuffle(
+      buildDeck(
+        Math.max(1, Math.ceil((players.length * r.handSize + 40) / perDeck)),
+        r.cards,
+      ),
+    ),
     discard: [],
     color: null,
     turn: Math.floor(Math.random() * players.length),
@@ -162,14 +224,19 @@ export function createGame(players, rules = DEFAULT_RULES) {
     events: [],
     seq: 0,
   };
-  for (let round = 0; round < r.handSize; round++) for (const player of state.players) player.hand.push(state.drawPile.pop());
+  for (let round = 0; round < r.handSize; round++)
+    for (const player of state.players) player.hand.push(state.drawPile.pop());
   // The first face-up card is always a plain number, so no one starts with an effect.
   const first = state.drawPile.findIndex((card) => /^\d$/.test(card.value));
   const [top] = state.drawPile.splice(first, 1);
   state.discard.push(top);
   state.color = top.color;
   note(state, `Game on. First card: ${cardName(top)}.`);
-  emit(state, { type: 'deal', players: state.players.length, handSize: r.handSize });
+  emit(state, {
+    type: 'deal',
+    players: state.players.length,
+    handSize: r.handSize,
+  });
   return state;
 }
 
@@ -182,7 +249,10 @@ function note(state, text) {
 // Things that happened, for the table to animate. Public information only.
 function emit(state, event) {
   if (state.sim) return;
-  state.events = [...state.events.slice(-(EVENT_HISTORY - 1)), { id: ++state.seq, ...event }];
+  state.events = [
+    ...state.events.slice(-(EVENT_HISTORY - 1)),
+    { id: ++state.seq, ...event },
+  ];
 }
 
 export const topCard = (state) => state.discard[state.discard.length - 1];
@@ -200,12 +270,17 @@ export function canAnswer(state, card) {
   const rules = state.rules;
   if (!pending) return false;
   // Anything that isn't the same card as the attack still has to follow the colour.
-  const followsColour = !card.color || card.color === state.color || card.value === topCard(state).value;
-  if (rules.defense && (card.value === 'skip' || card.value === 'reverse')) return followsColour;
+  const followsColour =
+    !card.color ||
+    card.color === state.color ||
+    card.value === topCard(state).value;
+  if (rules.defense && (card.value === 'skip' || card.value === 'reverse'))
+    return followsColour;
   const amount = drawAmount(card);
   if (pending.kind !== 'draw' || !amount) return false;
   // A coloured draw card worth something different still has to follow the colour.
-  if (card.color && amount !== pending.value && card.color !== state.color) return false;
+  if (card.color && amount !== pending.value && card.color !== state.color)
+    return false;
   switch (rules.stacking) {
     case 'same':
       return amount === pending.value;
@@ -221,46 +296,94 @@ export function canAnswer(state, card) {
 // An exact copy of the top card, which Jump-In lets anyone play at any time.
 function isJumpIn(state, card) {
   const top = topCard(state);
-  return state.rules.jumpIn && Boolean(top.color) && card.color === top.color && card.value === top.value;
+  return (
+    state.rules.jumpIn &&
+    Boolean(top.color) &&
+    card.color === top.color &&
+    card.value === top.value
+  );
 }
 
-const handPlayable = (state, index) => state.players[index].hand.some((c) => canPlay(state, c));
+const handPlayable = (state, index) =>
+  state.players[index].hand.some((c) => canPlay(state, c));
 
 export function playableIds(state, index) {
-  if (state.winner !== null || state.swapPending !== null || state.choice) return [];
+  if (state.winner !== null || state.swapPending !== null || state.choice)
+    return [];
   const hand = state.players[index].hand;
-  if (state.pending) return state.pending.target === index ? hand.filter((c) => canAnswer(state, c)).map((c) => c.id) : [];
-  if (state.turn !== index) return state.drawn ? [] : hand.filter((c) => isJumpIn(state, c)).map((c) => c.id);
+  if (state.pending)
+    return state.pending.target === index
+      ? hand.filter((c) => canAnswer(state, c)).map((c) => c.id)
+      : [];
+  if (state.turn !== index)
+    return state.drawn
+      ? []
+      : hand.filter((c) => isJumpIn(state, c)).map((c) => c.id);
   if (state.drawn) return canPlay(state, state.drawn) ? [state.drawn.id] : [];
   return hand.filter((c) => canPlay(state, c)).map((c) => c.id);
 }
 
 // Draw from the deck: to take a pending draw, for your turn's first card, or (drawing until you can play) another.
 export function canDrawNow(state, index) {
-  if (state.winner !== null || state.swapPending !== null || state.choice || state.turn !== index || state.drawn) return false;
+  if (
+    state.winner !== null ||
+    state.swapPending !== null ||
+    state.choice ||
+    state.turn !== index ||
+    state.drawn
+  )
+    return false;
   if (state.pending) return state.pending.target === index;
   if (!state.drewThisTurn) return true;
   // Drawing until you can play, you can keep drawing even after keeping a playable card, until one goes down.
-  return state.rules.drawUntilPlayable && state.drewThisTurn < DRAW_UNTIL_LIMIT && state.drawPile.length + state.discard.length > 1;
+  return (
+    state.rules.drawUntilPlayable &&
+    state.drewThisTurn < DRAW_UNTIL_LIMIT &&
+    state.drawPile.length + state.discard.length > 1
+  );
 }
 
 // After drawing, you can pass. Drawing until you can play, you can't: a card has to go down
 // (unless the deck has run dry with nothing to play).
 export function canPassNow(state, index) {
-  if (state.winner !== null || state.choice || state.turn !== index || state.pending || state.drawn || !state.drewThisTurn || canDrawNow(state, index)) return false;
+  if (
+    state.winner !== null ||
+    state.choice ||
+    state.turn !== index ||
+    state.pending ||
+    state.drawn ||
+    !state.drewThisTurn ||
+    canDrawNow(state, index)
+  )
+    return false;
   return !state.rules.drawUntilPlayable || !handPlayable(state, index);
 }
 
 export function canChallengeNow(state, index) {
   const pending = state.pending;
-  return state.winner === null && !state.choice && Boolean(pending) && pending.kind === 'draw' && pending.offender !== null && pending.target === index;
+  return (
+    state.winner === null &&
+    !state.choice &&
+    Boolean(pending) &&
+    pending.kind === 'draw' &&
+    pending.offender !== null &&
+    pending.target === index
+  );
 }
 
 // Woono can be pressed ahead with two cards left, only when one of them can go down right now.
 export function canArmUno(state, index) {
   const player = state.players[index];
-  if (state.winner !== null || !player || player.hand.length !== 2 || player.uno !== 'none') return false;
-  return playableIds(state, index).some((id) => player.hand.some((c) => c.id === id));
+  if (
+    state.winner !== null ||
+    !player ||
+    player.hand.length !== 2 ||
+    player.uno !== 'none'
+  )
+    return false;
+  return playableIds(state, index).some((id) =>
+    player.hand.some((c) => c.id === id),
+  );
 }
 
 export const nextIndex = (state, steps = 1, from = state.turn) => {
@@ -290,7 +413,8 @@ function takeFromPile(state, who = null) {
     state.drawPile = shuffle(state.discard);
     state.discard = [top];
     // The table gathers the pile back into the deck before any card is drawn from it.
-    if (state.drawPile.length) emit(state, { type: 'reshuffle', count: state.drawPile.length });
+    if (state.drawPile.length)
+      emit(state, { type: 'reshuffle', count: state.drawPile.length });
   }
   const pile = state.drawPile;
   if (!state.rules.drawBalancing || !who || pile.length < 2) return pile.pop();
@@ -322,14 +446,16 @@ const isPower = (card) => !/^\d$/.test(card.value);
 function balancedPick(state, { index, reason, streak = 0 }) {
   const players = state.players;
   const hand = players[index].hand;
-  const average = players.reduce((sum, p) => sum + p.hand.length, 0) / players.length;
+  const average =
+    players.reduce((sum, p) => sum + p.hand.length, 0) / players.length;
   // Positive when behind (more cards than the table's average), negative when ahead.
   const behind = hand.length - average;
   const powerBoost = Math.max(0.35, Math.min(2.6, 1 + behind * 0.12));
   const numberBoost = Math.max(0.6, Math.min(1.5, 1 - behind * 0.04));
   const top = topCard(state);
   const heldColors = new Set(hand.map((c) => c.color).filter(Boolean));
-  const penalty = reason === 'hit' || reason === 'challenge' || reason === 'callout';
+  const penalty =
+    reason === 'hit' || reason === 'challenge' || reason === 'callout';
   const rules = state.rules;
 
   const weights = state.drawPile.map((card) => {
@@ -337,10 +463,23 @@ function balancedPick(state, { index, reason, streak = 0 }) {
     if (card.value === 'draw99') return behind > 0 ? 1 : 0.5;
     w *= isPower(card) ? powerBoost : numberBoost;
     // Drawing until something fits: every extra draw leans towards the top card's colour or number.
-    if (streak > 0 && top && (card.color === state.color || card.value === top.value)) w *= 1 + streak * 0.35;
+    if (
+      streak > 0 &&
+      top &&
+      (card.color === state.color || card.value === top.value)
+    )
+      w *= 1 + streak * 0.35;
     // A big hit: something to fight back with next time.
-    if (penalty && ((rules.defense && (card.value === 'skip' || card.value === 'reverse')) || (rules.stacking !== 'off' && drawAmount(card) > 0 && drawAmount(card) < 99))) w *= 1.35;
-    if (card.color && !heldColors.has(card.color) && hand.length <= 12) w *= 1.25;
+    if (
+      penalty &&
+      ((rules.defense && (card.value === 'skip' || card.value === 'reverse')) ||
+        (rules.stacking !== 'off' &&
+          drawAmount(card) > 0 &&
+          drawAmount(card) < 99))
+    )
+      w *= 1.35;
+    if (card.color && !heldColors.has(card.color) && hand.length <= 12)
+      w *= 1.25;
     return Math.max(WEIGHT_RANGE[0], Math.min(WEIGHT_RANGE[1], w));
   });
 
@@ -385,11 +524,21 @@ export function debugDraw(state, index, count) {
   return drawCards(state, index, count, 'debug');
 }
 
-export { buildDeck as debugBuildDeck, shuffle as debugShuffle, emit as debugEmit, note as debugNote, setTurn as debugSetTurn };
+export {
+  buildDeck as debugBuildDeck,
+  shuffle as debugShuffle,
+  emit as debugEmit,
+  note as debugNote,
+  setTurn as debugSetTurn,
+};
 
 // Each action returns true if it was allowed.
 
-const validTarget = (state, target) => target !== null && target !== undefined && target !== '' && Boolean(state.players[Number(target)]);
+const validTarget = (state, target) =>
+  target !== null &&
+  target !== undefined &&
+  target !== '' &&
+  Boolean(state.players[Number(target)]);
 
 // Plays a card. A wild card's colour and a targeted card's target can come
 // with it (the computer players do that) or be picked afterwards, once the
@@ -398,11 +547,15 @@ export function play(state, index, cardId, chosenColor, chosenTarget) {
   if (!playableIds(state, index).includes(cardId)) return false;
   const player = state.players[index];
   const fromCentre = state.drawn?.id === cardId;
-  const card = fromCentre ? state.drawn : player.hand.find((c) => c.id === cardId);
+  const card = fromCentre
+    ? state.drawn
+    : player.hand.find((c) => c.id === cardId);
   const answering = state.pending;
   // Whether a wild draw card was played while holding the colour in play (which a challenge catches).
   const prevColor = state.color;
-  const hadMatch = isWildDraw(card) && player.hand.some((c) => c.id !== card.id && c.color === prevColor);
+  const hadMatch =
+    isWildDraw(card) &&
+    player.hand.some((c) => c.id !== card.id && c.color === prevColor);
 
   if (!answering && state.turn !== index) {
     note(state, `${player.name} jumped in!`);
@@ -414,7 +567,13 @@ export function play(state, index, cardId, chosenColor, chosenTarget) {
   state.discard.push(card);
   if (card.color) state.color = card.color;
   note(state, `${player.name} played ${cardName(card)}.`);
-  emit(state, { type: 'play', player: index, card, color: card.color, fromCentre });
+  emit(state, {
+    type: 'play',
+    player: index,
+    card,
+    color: card.color,
+    fromCentre,
+  });
 
   if (!player.hand.length) {
     state.winner = index;
@@ -442,7 +601,13 @@ export function play(state, index, cardId, chosenColor, chosenTarget) {
   const color = COLORS.includes(chosenColor) ? chosenColor : null;
   const target = validTarget(state, chosenTarget) ? Number(chosenTarget) : null;
   if ((!card.color && !color) || (isTargeted(card) && target === null)) {
-    state.choice = { player: index, card, color: card.color ? null : color, target, ...context };
+    state.choice = {
+      player: index,
+      card,
+      color: card.color ? null : color,
+      target,
+      ...context,
+    };
     return true;
   }
   resolvePlay(state, index, card, color, target, context);
@@ -460,7 +625,12 @@ export function choose(state, index, { color, target } = {}) {
     changed = pickedColor = true;
   }
   const colorDone = choice.card.color || choice.color;
-  if (colorDone && isTargeted(choice.card) && choice.target === null && validTarget(state, target)) {
+  if (
+    colorDone &&
+    isTargeted(choice.card) &&
+    choice.target === null &&
+    validTarget(state, target)
+  ) {
     choice.target = Number(target);
     changed = true;
   }
@@ -477,28 +647,60 @@ export function choose(state, index, { color, target } = {}) {
 }
 
 // What a card does once it's down (and its colour and target are known).
-function resolvePlay(state, index, card, chosenColor, target, { answering, hadMatch, prevColor }) {
+function resolvePlay(
+  state,
+  index,
+  card,
+  chosenColor,
+  target,
+  { answering, hadMatch, prevColor },
+) {
   const player = state.players[index];
   if (!card.color) {
     state.color = chosenColor;
     note(state, `${player.name} chose ${chosenColor}.`);
     emit(state, { type: 'color', player: index, color: chosenColor });
   }
-  if (isTargeted(card)) note(state, `${player.name} aimed it at ${target === index ? 'themselves' : name(state, target)}.`);
+  if (isTargeted(card))
+    note(
+      state,
+      `${player.name} aimed it at ${target === index ? 'themselves' : name(state, target)}.`,
+    );
   const rules = state.rules;
   if (answering) {
     if (rules.defense && card.value === 'skip') {
       state.pending = null;
       note(state, `${player.name} blocked it.`);
       emit(state, { type: 'block', player: index, from: answering.from });
-      setTurn(state, answering.resume !== index ? answering.resume : nextIndex(state, 1, index));
+      setTurn(
+        state,
+        answering.resume !== index
+          ? answering.resume
+          : nextIndex(state, 1, index),
+      );
       return true;
     }
     if (rules.defense && card.value === 'reverse') {
       state.direction *= -1;
-      state.pending = { ...answering, from: index, target: answering.from, resume: nextIndex(state, 1, index), offender: null, hadMatch: false };
-      note(state, `${player.name} sent it back to ${name(state, answering.from)}!`);
-      emit(state, { type: 'reflect', player: index, target: answering.from, kind: answering.kind, amount: answering.amount });
+      state.pending = {
+        ...answering,
+        from: index,
+        target: answering.from,
+        resume: nextIndex(state, 1, index),
+        offender: null,
+        hadMatch: false,
+      };
+      note(
+        state,
+        `${player.name} sent it back to ${name(state, answering.from)}!`,
+      );
+      emit(state, {
+        type: 'reflect',
+        player: index,
+        target: answering.from,
+        kind: answering.kind,
+        amount: answering.amount,
+      });
       setTurn(state, answering.from);
       autoResolve(state);
       return true;
@@ -511,7 +713,16 @@ function resolvePlay(state, index, card, chosenColor, target, { answering, hadMa
   if (card.value === 'skip') {
     const victim = nextIndex(state, 1, index);
     if (rules.defense) {
-      state.pending = { kind: 'skip', amount: 0, value: 0, from: index, target: victim, resume: nextIndex(state, 1, victim), offender: null, hadMatch: false };
+      state.pending = {
+        kind: 'skip',
+        amount: 0,
+        value: 0,
+        from: index,
+        target: victim,
+        resume: nextIndex(state, 1, victim),
+        offender: null,
+        hadMatch: false,
+      };
       setTurn(state, victim);
       autoResolve(state);
     } else {
@@ -521,7 +732,8 @@ function resolvePlay(state, index, card, chosenColor, target, { answering, hadMa
     }
   } else if (card.value === 'reverse') {
     emit(state, { type: 'reverse', player: index });
-    if (twoPlayers) advance(state, 2); // with two players, Reverse works like Skip
+    if (twoPlayers)
+      advance(state, 2); // with two players, Reverse works like Skip
     else {
       state.direction *= -1;
       advance(state);
@@ -548,7 +760,17 @@ function attack(state, index, card, chosenTarget, { hadMatch, prevColor }) {
   const total = (state.pending?.amount ?? 0) + amount;
   const victim = isTargeted(card) ? chosenTarget : nextIndex(state, 1, index);
   const challengeable = rules.challenge && isWildDraw(card);
-  const pending = { kind: 'draw', amount: total, value: amount, from: index, target: victim, resume: nextIndex(state, 1, index), offender: challengeable ? index : null, hadMatch, prevColor };
+  const pending = {
+    kind: 'draw',
+    amount: total,
+    value: amount,
+    from: index,
+    target: victim,
+    resume: nextIndex(state, 1, index),
+    offender: challengeable ? index : null,
+    hadMatch,
+    prevColor,
+  };
   emit(state, { type: 'attack', player: index, target: victim, amount: total });
   state.pending = pending;
   if (rules.stacking === 'off' && !rules.defense && !challengeable) {
@@ -566,19 +788,26 @@ function takePending(state) {
   const victim = pending.target;
   if (pending.kind === 'draw') {
     const drew = drawCards(state, victim, pending.amount, 'hit');
-    note(state, `${name(state, victim)} draws ${drew}${pending.resume === victim ? ' and is skipped' : ''}.`);
+    note(
+      state,
+      `${name(state, victim)} draws ${drew}${pending.resume === victim ? ' and is skipped' : ''}.`,
+    );
   } else {
     note(state, `${name(state, victim)} is skipped.`);
     emit(state, { type: 'skip', player: victim, from: pending.from });
   }
-  setTurn(state, pending.resume !== victim ? pending.resume : nextIndex(state, 1, victim));
+  setTurn(
+    state,
+    pending.resume !== victim ? pending.resume : nextIndex(state, 1, victim),
+  );
 }
 
 // An attack its target can't answer (no card to stack, block or reflect with, nothing to challenge) lands straight away.
 function autoResolve(state) {
   while (state.pending && state.winner === null) {
     const target = state.pending.target;
-    if (state.pending.offender !== null || playableIds(state, target).length) return;
+    if (state.pending.offender !== null || playableIds(state, target).length)
+      return;
     takePending(state);
   }
 }
@@ -589,12 +818,16 @@ function rotateHands(state) {
     p.hand = hands[nextIndex(state, -1, i)];
     resetUno(p);
   });
-  note(state, `Everyone passes their hand ${state.direction === 1 ? 'to the left' : 'to the right'}.`);
+  note(
+    state,
+    `Everyone passes their hand ${state.direction === 1 ? 'to the left' : 'to the right'}.`,
+  );
   emit(state, { type: 'rotate', direction: state.direction });
 }
 
 export function swapWith(state, index, target) {
-  if (state.swapPending !== index || target === index || !state.players[target]) return false;
+  if (state.swapPending !== index || target === index || !state.players[target])
+    return false;
   const me = state.players[index];
   const them = state.players[target];
   [me.hand, them.hand] = [them.hand, me.hand];
@@ -615,7 +848,11 @@ export function draw(state, index) {
     takePending(state);
     return true;
   }
-  const card = takeFromPile(state, { index, reason: 'centre', streak: state.drewThisTurn });
+  const card = takeFromPile(state, {
+    index,
+    reason: 'centre',
+    streak: state.drewThisTurn,
+  });
   if (!card) {
     note(state, `${player.name} can't draw: the deck is empty.`);
     advance(state);
@@ -664,21 +901,46 @@ export function challenge(state, index) {
   state.pending = null;
   if (pending.hadMatch) {
     drawCards(state, pending.offender, pending.amount, 'challenge');
-    note(state, `${challenger.name} challenged and was right! ${offender.name} draws ${pending.amount}.`);
-    emit(state, { type: 'challenge', player: index, offender: pending.offender, success: true, count: pending.amount });
+    note(
+      state,
+      `${challenger.name} challenged and was right! ${offender.name} draws ${pending.amount}.`,
+    );
+    emit(state, {
+      type: 'challenge',
+      player: index,
+      offender: pending.offender,
+      success: true,
+      count: pending.amount,
+    });
     setTurn(state, index);
   } else {
     const count = pending.amount + CHALLENGE_EXTRA;
     drawCards(state, index, count, 'challenge');
-    note(state, `${challenger.name} challenged and was wrong, and draws ${count}.`);
-    emit(state, { type: 'challenge', player: index, offender: pending.offender, success: false, count });
-    setTurn(state, pending.resume !== index ? pending.resume : nextIndex(state, 1, index));
+    note(
+      state,
+      `${challenger.name} challenged and was wrong, and draws ${count}.`,
+    );
+    emit(state, {
+      type: 'challenge',
+      player: index,
+      offender: pending.offender,
+      success: false,
+      count,
+    });
+    setTurn(
+      state,
+      pending.resume !== index ? pending.resume : nextIndex(state, 1, index),
+    );
   }
   return true;
 }
 
 // Whoever has to act right now.
-export const actorIndex = (state) => state.choice?.player ?? state.swapPending ?? state.pending?.target ?? state.turn;
+export const actorIndex = (state) =>
+  state.choice?.player ??
+  state.swapPending ??
+  state.pending?.target ??
+  state.turn;
 
 // Out of time: the game moves for you, as gently as it can. Picks someone
 // at random to swap with, takes an attack, keeps a drawn card, or draws and passes.
@@ -691,13 +953,22 @@ export function timeOut(state) {
   if (state.choice) {
     // A colour at random, and a target at random (never yourself).
     const others = state.players.map((_, i) => i).filter((i) => i !== index);
-    choose(state, index, { color: COLORS[Math.floor(Math.random() * COLORS.length)] });
-    if (state.choice) choose(state, index, { target: others[Math.floor(Math.random() * others.length)] });
+    choose(state, index, {
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    });
+    if (state.choice)
+      choose(state, index, {
+        target: others[Math.floor(Math.random() * others.length)],
+      });
     return true;
   }
   if (state.swapPending !== null) {
     const others = state.players.map((_, i) => i).filter((i) => i !== index);
-    return swapWith(state, index, others[Math.floor(Math.random() * others.length)]);
+    return swapWith(
+      state,
+      index,
+      others[Math.floor(Math.random() * others.length)],
+    );
   }
   if (state.pending) {
     takePending(state);
@@ -732,9 +1003,13 @@ export function callUno(state, index) {
 // Someone's down to one card and hasn't said Woono: they draw the penalty.
 export function callOut(state, index, target) {
   const caught = state.players[target];
-  if (state.winner !== null || target === index || !caught?.exposed) return false;
+  if (state.winner !== null || target === index || !caught?.exposed)
+    return false;
   caught.exposed = false;
-  note(state, `${name(state, index)} called out ${caught.name} for not saying Woono!`);
+  note(
+    state,
+    `${name(state, index)} called out ${caught.name} for not saying Woono!`,
+  );
   emit(state, { type: 'callout', player: index, target });
   drawCards(state, target, state.rules.unoPenalty, 'callout');
   return true;
@@ -749,7 +1024,10 @@ export function act(state, index, action) {
       done = play(state, index, action.cardId, action.color, action.target);
       break;
     case 'choose':
-      done = choose(state, index, { color: action.color, target: action.target });
+      done = choose(state, index, {
+        color: action.color,
+        target: action.target,
+      });
       break;
     case 'draw':
       done = draw(state, index);
@@ -787,19 +1065,28 @@ export function legalActions(state, index) {
   if (state.choice) {
     if (state.choice.player !== index) return out;
     const { card, color } = state.choice;
-    if (!card.color && !color) for (const c of COLORS) out.push({ type: 'choose', color: c });
-    else state.players.forEach((_, target) => out.push({ type: 'choose', target }));
+    if (!card.color && !color)
+      for (const c of COLORS) out.push({ type: 'choose', color: c });
+    else
+      state.players.forEach((_, target) =>
+        out.push({ type: 'choose', target }),
+      );
     return out;
   }
   if (state.swapPending !== null) {
-    if (state.swapPending === index) for (const target of others) out.push({ type: 'swap', target });
+    if (state.swapPending === index)
+      for (const target of others) out.push({ type: 'swap', target });
     return out;
   }
   const hand = state.players[index].hand;
   for (const id of playableIds(state, index)) {
-    const card = state.drawn?.id === id ? state.drawn : hand.find((c) => c.id === id);
+    const card =
+      state.drawn?.id === id ? state.drawn : hand.find((c) => c.id === id);
     for (const color of card.color ? [null] : COLORS) {
-      for (const target of isTargeted(card) ? state.players.map((_, i) => i) : [null]) out.push({ type: 'play', cardId: id, color, target });
+      for (const target of isTargeted(card)
+        ? state.players.map((_, i) => i)
+        : [null])
+        out.push({ type: 'play', cardId: id, color, target });
     }
   }
   if (canDrawNow(state, index)) out.push({ type: 'draw' });
@@ -819,15 +1106,41 @@ export function handToBot(state, id) {
 }
 
 // Roughly how long the table takes to animate these events, so no one acts while cards are still flying.
-const EVENT_MS = { color: 700, play: 900, draw: 700, keep: 550, skip: 900, reverse: 900, swap: 1000, rotate: 900, challenge: 1500, uno: 700, callout: 1100, block: 1000, reflect: 1100, attack: 500, timeout: 600, deal: 600 };
+const EVENT_MS = {
+  color: 700,
+  play: 900,
+  draw: 700,
+  keep: 550,
+  skip: 900,
+  reverse: 900,
+  swap: 1000,
+  rotate: 900,
+  challenge: 1500,
+  uno: 700,
+  callout: 1100,
+  block: 1000,
+  reflect: 1100,
+  attack: 500,
+  timeout: 600,
+  deal: 600,
+};
 
 // The opening deal: a quick riffle, then cards flicked out one at a time round the table.
 // Shared by the table animation and the host, so no one can move before their cards arrive.
 export function dealTiming(players, handSize) {
   const rounds = Math.min(handSize, 7);
   const shuffleMs = 900;
-  const stepMs = Math.max(35, Math.min(110, 1700 / Math.max(1, rounds * players)));
-  return { rounds, shuffleMs, stepMs, flyMs: 440, totalMs: shuffleMs + rounds * players * stepMs + 440 + 150 };
+  const stepMs = Math.max(
+    35,
+    Math.min(110, 1700 / Math.max(1, rounds * players)),
+  );
+  return {
+    rounds,
+    shuffleMs,
+    stepMs,
+    flyMs: 440,
+    totalMs: shuffleMs + rounds * players * stepMs + 440 + 150,
+  };
 }
 
 // How long gathering the pile back into the deck takes on the table.
@@ -838,13 +1151,17 @@ export function settleMs(events) {
   let played = false;
   for (const event of events) {
     let ms = EVENT_MS[event.type] ?? 0;
-    if (event.type === 'draw') ms = event.reason === 'centre' ? 750 : 550 + 90 * Math.min(event.count, 6);
-    if (event.type === 'deal' && event.players) ms = dealTiming(event.players, event.handSize).totalMs;
+    if (event.type === 'draw')
+      ms =
+        event.reason === 'centre' ? 750 : 550 + 90 * Math.min(event.count, 6);
+    if (event.type === 'deal' && event.players)
+      ms = dealTiming(event.players, event.handSize).totalMs;
     if (event.type === 'play') played = true;
     longest = Math.max(longest, ms);
   }
   // Cards drawn because of a card just played start flying once it lands.
-  if (played && events.some((e) => e.type === 'draw' && e.reason !== 'centre')) longest += 450;
+  if (played && events.some((e) => e.type === 'draw' && e.reason !== 'centre'))
+    longest += 450;
   // Everything after a reshuffle waits for the cards to be gathered back into the deck.
   if (events.some((e) => e.type === 'reshuffle')) longest += RESHUFFLE_MS;
   return longest;
@@ -858,7 +1175,15 @@ export function viewFor(state, index) {
     gameId: state.gameId,
     you: index,
     rules: state.rules,
-    players: state.players.map((p) => ({ id: p.id, name: p.name, kind: p.kind, avatar: p.avatar, count: p.hand.length, said: p.uno === 'said', exposed: p.exposed })),
+    players: state.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      kind: p.kind,
+      avatar: p.avatar,
+      count: p.hand.length,
+      said: p.uno === 'said',
+      exposed: p.exposed,
+    })),
     hand: me.hand,
     playable: playableIds(state, index),
     top: topCard(state),
@@ -869,7 +1194,14 @@ export function viewFor(state, index) {
     drawn: state.turn === index ? state.drawn : null,
     drawnPending: Boolean(state.drawn),
     drewThisTurn: state.turn === index ? state.drewThisTurn : 0,
-    pending: pending ? { kind: pending.kind, amount: pending.amount, from: pending.from, target: pending.target } : null,
+    pending: pending
+      ? {
+          kind: pending.kind,
+          amount: pending.amount,
+          from: pending.from,
+          target: pending.target,
+        }
+      : null,
     pendingDraw: pending?.kind === 'draw' ? pending.amount : 0,
     choosingSwap: state.swapPending === index,
     swapPending: state.swapPending,
@@ -877,12 +1209,92 @@ export function viewFor(state, index) {
     canKeep: state.turn === index && Boolean(state.drawn),
     canPass: canPassNow(state, index),
     canChallenge: canChallengeNow(state, index),
-    canTake: Boolean(pending) && pending.target === index && state.winner === null && !state.choice,
+    canTake:
+      Boolean(pending) &&
+      pending.target === index &&
+      state.winner === null &&
+      !state.choice,
     // Someone just played a wild or targeted card and is picking its colour or target.
-    choice: state.choice ? { player: state.choice.player, needs: !state.choice.card.color && !state.choice.color ? 'color' : 'target', amount: drawAmount(state.choice.card) } : null,
+    choice: state.choice
+      ? {
+          player: state.choice.player,
+          needs:
+            !state.choice.card.color && !state.choice.color
+              ? 'color'
+              : 'target',
+          amount: drawAmount(state.choice.card),
+        }
+      : null,
     turnId: state.turnId,
     unoArmed: me.uno === 'armed',
-    canCallUno: state.winner === null && (canArmUno(state, index) || me.exposed),
+    canCallUno:
+      state.winner === null && (canArmUno(state, index) || me.exposed),
+    drawPileCount: state.drawPile.length,
+    winner: state.winner,
+    log: state.log,
+    events: state.events,
+  };
+}
+
+// What someone watching sees. Deliberately not `viewFor` with a made-up seat:
+// a spectator must never be sent anybody's cards, or a player could open a
+// second window, watch, and read the table. Only what is already public goes in
+// — how many cards each player holds, the discard, whose turn it is — and there
+// is no hand, no playable list and nothing they could act on.
+export function spectatorView(state) {
+  return {
+    gameId: state.gameId,
+    // No seat at the table: the page and the scene both key off this.
+    you: null,
+    spectating: true,
+    rules: state.rules,
+    players: state.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      kind: p.kind,
+      avatar: p.avatar,
+      count: p.hand.length,
+      said: p.uno === 'said',
+      exposed: p.exposed,
+    })),
+    hand: [],
+    playable: [],
+    top: topCard(state),
+    color: state.color,
+    turn: state.turn,
+    direction: state.direction,
+    drawn: null,
+    drawnPending: Boolean(state.drawn),
+    drewThisTurn: 0,
+    pending: state.pending
+      ? {
+          kind: state.pending.kind,
+          amount: state.pending.amount,
+          from: state.pending.from,
+          target: state.pending.target,
+        }
+      : null,
+    pendingDraw: state.pending?.kind === 'draw' ? state.pending.amount : 0,
+    choosingSwap: false,
+    swapPending: state.swapPending,
+    canDraw: false,
+    canKeep: false,
+    canPass: false,
+    canChallenge: false,
+    canTake: false,
+    choice: state.choice
+      ? {
+          player: state.choice.player,
+          needs:
+            !state.choice.card.color && !state.choice.color
+              ? 'color'
+              : 'target',
+          amount: drawAmount(state.choice.card),
+        }
+      : null,
+    turnId: state.turnId,
+    unoArmed: false,
+    canCallUno: false,
     drawPileCount: state.drawPile.length,
     winner: state.winner,
     log: state.log,
@@ -892,8 +1304,20 @@ export function viewFor(state, index) {
 
 // A computer player holding an exact copy of the top card, who might jump in.
 export function botJumpIn(state) {
-  if (!state.rules.jumpIn || state.winner !== null || state.swapPending !== null || state.pending || state.drawn) return null;
-  const candidates = state.players.map((p, i) => ({ p, i })).filter(({ p, i }) => p.kind === 'bot' && i !== state.turn && playableIds(state, i).length);
+  if (
+    !state.rules.jumpIn ||
+    state.winner !== null ||
+    state.swapPending !== null ||
+    state.pending ||
+    state.drawn
+  )
+    return null;
+  const candidates = state.players
+    .map((p, i) => ({ p, i }))
+    .filter(
+      ({ p, i }) =>
+        p.kind === 'bot' && i !== state.turn && playableIds(state, i).length,
+    );
   if (!candidates.length) return null;
   const { i } = candidates[Math.floor(Math.random() * candidates.length)];
   return { index: i, cardId: playableIds(state, i)[0] };

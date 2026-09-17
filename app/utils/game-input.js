@@ -17,11 +17,16 @@ export function listenForActions(game, { active, onAction }) {
     // A dialog on top (hold to confirm, the command palette) has the keyboard.
     if (document.querySelector('dialog[open]')) return;
     const action = actionForKey(game, event);
-    if (action && onAction(action, { repeat: event.repeat, source: 'key', event }) !== false) event.preventDefault();
+    if (
+      action &&
+      onAction(action, { repeat: event.repeat, source: 'key', event }) !== false
+    )
+      event.preventDefault();
   };
   window.addEventListener('keydown', onKey);
   const release = pushPadHandler((button, { down, repeat }) => {
-    if (!down || !active() || document.querySelector('dialog[open]')) return false;
+    if (!down || !active() || document.querySelector('dialog[open]'))
+      return false;
     const action = actionForPad(game, button);
     if (!action) return false;
     return onAction(action, { repeat, source: 'pad' }) !== false;
@@ -33,12 +38,16 @@ export function listenForActions(game, { active, onAction }) {
 }
 
 // Whether a game's element is really on screen (not minimised to a picture-in-picture pill).
-export const onScreen = (element) => Boolean(element?.isConnected) && element.offsetParent !== null;
+export const onScreen = (element) =>
+  Boolean(element?.isConnected) && element.offsetParent !== null;
 
 // Opens a game's floating chat and puts the cursor in it.
 export function openChat(root = document) {
   const chat = root.querySelector('.game-chat.is-floating');
   if (!chat) return;
-  if (!chat.classList.contains('is-open')) chat.querySelector('.game-chat-toggle')?.click();
-  requestAnimationFrame(() => chat.querySelector('.game-chat-form input')?.focus());
+  if (!chat.classList.contains('is-open'))
+    chat.querySelector('.game-chat-toggle')?.click();
+  requestAnimationFrame(() =>
+    chat.querySelector('.game-chat-form input')?.focus(),
+  );
 }

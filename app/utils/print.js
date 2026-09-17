@@ -8,13 +8,25 @@ const TEXT = /^(text\/|application\/(json|xml|javascript|x-yaml))/i;
 // What we can put in front of a printer: images, PDFs and plain text.
 export function canPrint(type = '', name = '') {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (IMAGE.test(type) || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', 'svg'].includes(ext)) return true;
+  if (
+    IMAGE.test(type) ||
+    ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'avif', 'svg'].includes(ext)
+  )
+    return true;
   if (type === 'application/pdf' || ext === 'pdf') return true;
-  if (TEXT.test(type) || ['txt', 'json', 'csv', 'md', 'xml', 'html', 'svg'].includes(ext)) return true;
+  if (
+    TEXT.test(type) ||
+    ['txt', 'json', 'csv', 'md', 'xml', 'html', 'svg'].includes(ext)
+  )
+    return true;
   return false;
 }
 
-const escapeHtml = (text) => text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const escapeHtml = (text) =>
+  text.replace(
+    /[&<>]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c],
+  );
 
 const PAGE_CSS = `@page{margin:12mm}html,body{margin:0;padding:0;font-family:system-ui,sans-serif;color:#000;background:#fff}
 img{max-width:100%;max-height:100vh;object-fit:contain;display:block;margin:0 auto}
@@ -25,11 +37,14 @@ export async function printFile(blob, { name = '' } = {}) {
   const type = blob?.type ?? '';
   if (!blob || !canPrint(type, name)) return false;
   const pdf = type === 'application/pdf' || name.toLowerCase().endsWith('.pdf');
-  const image = IMAGE.test(type) || /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i.test(name);
+  const image =
+    IMAGE.test(type) || /\.(png|jpe?g|webp|gif|bmp|avif|svg)$/i.test(name);
   const url = URL.createObjectURL(blob);
   let source = url;
   if (!pdf) {
-    const body = image ? `<img src="${url}" alt="${escapeHtml(name)}">` : `<pre>${escapeHtml(await blob.text())}</pre>`;
+    const body = image
+      ? `<img src="${url}" alt="${escapeHtml(name)}">`
+      : `<pre>${escapeHtml(await blob.text())}</pre>`;
     const html = `<!doctype html><meta charset="utf-8"><title>${escapeHtml(name || 'Print')}</title><style>${PAGE_CSS}</style>${body}`;
     source = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
   }
@@ -48,7 +63,8 @@ function openAndPrint(source, urls) {
   return new Promise((resolve) => {
     const frame = document.createElement('iframe');
     frame.setAttribute('aria-hidden', 'true');
-    frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0';
+    frame.style.cssText =
+      'position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;border:0';
     const cleanUp = () => {
       frame.remove();
       for (const url of urls) URL.revokeObjectURL(url);
