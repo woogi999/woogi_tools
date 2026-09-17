@@ -37,7 +37,7 @@ export const TOOLS = [
     label: 'Colour Picker',
     route: 'color-picker',
     icon: 'paint-bucket',
-    category: 'Design',
+    category: 'Colour & Design',
     description:
       'Found the perfect colour? Grab its HEX, RGB and HSL in one click.',
     keywords: [
@@ -59,7 +59,7 @@ export const TOOLS = [
     label: 'Contrast Checker',
     route: 'contrast-checker',
     icon: 'contrast',
-    category: 'Design',
+    category: 'Colour & Design',
     description:
       'Can people actually read your text? Check the contrast (WCAG) and get a colour that passes.',
     keywords: [
@@ -81,7 +81,7 @@ export const TOOLS = [
     label: 'Pixel Eyedropper',
     route: 'pixel-eyedropper',
     icon: 'pipette',
-    category: 'Design',
+    category: 'Colour & Design',
     description:
       'Steal a colour from any image. Upload it, click a pixel, done.',
     keywords: [
@@ -101,7 +101,7 @@ export const TOOLS = [
     label: 'Background Remover',
     route: 'background-remover',
     icon: 'eraser',
-    category: 'Design',
+    category: 'Images',
     description:
       'Poof, background gone. Cut the subject out of any photo, right in your browser.',
     keywords: [
@@ -127,7 +127,7 @@ export const TOOLS = [
     label: 'Data Codec',
     route: 'data-codec',
     icon: 'file-archive',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Squish data with gzip, brotli or zstd, or encode and decode Base64, URLs, hex, Morse and friends.',
     keywords: [
@@ -191,7 +191,7 @@ export const TOOLS = [
     label: 'JSON Formatter',
     route: 'json-formatter',
     icon: 'braces',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Messy JSON? Make it pretty, minify it, sort it, or find out where it broke.',
     keywords: [
@@ -213,7 +213,7 @@ export const TOOLS = [
     label: 'Hash Generator',
     route: 'hash-generator',
     icon: 'fingerprint',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Turn text or files into MD5, SHA and CRC-32 hashes, and check if a download is legit.',
     keywords: [
@@ -236,7 +236,7 @@ export const TOOLS = [
     label: 'UUID Generator',
     route: 'uuid-generator',
     icon: 'hash',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Need a unique ID? Or a thousand? UUID v4 and v7, ULIDs and Nano IDs on tap.',
     keywords: [
@@ -259,7 +259,7 @@ export const TOOLS = [
     label: 'JWT Decoder',
     route: 'jwt-decoder',
     icon: 'shield-check',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Peek inside a JSON Web Token: see the claims, check if it expired, verify the signature.',
     keywords: [
@@ -282,7 +282,7 @@ export const TOOLS = [
     label: 'Regex Tester',
     route: 'regex-tester',
     icon: 'regex',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Regex looks like a cat walked on the keyboard. Test yours live and see what it matches.',
     keywords: [
@@ -303,7 +303,7 @@ export const TOOLS = [
     label: 'Timestamp Converter',
     route: 'timestamp-converter',
     icon: 'clock',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Unix timestamps to real dates and back, across time zones, plus Discord timestamp codes.',
     keywords: [
@@ -329,7 +329,7 @@ export const TOOLS = [
     label: 'Number Base Converter',
     route: 'number-base',
     icon: 'binary',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Binary, hex, octal, decimal or any base up to 36. Convert between them, however big.',
     keywords: [
@@ -352,7 +352,7 @@ export const TOOLS = [
     label: 'User Agent Parser',
     route: 'user-agent-parser',
     icon: 'monitor-smartphone',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'That weird browser string? Find out which browser, OS and device it really is.',
     keywords: [
@@ -372,7 +372,7 @@ export const TOOLS = [
     label: 'Cron Expression Builder',
     route: 'cron-builder',
     icon: 'calendar-clock',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Cron expressions, in plain English, with the next few times it’ll actually run.',
     keywords: [
@@ -392,7 +392,7 @@ export const TOOLS = [
     label: '.gitignore Generator',
     route: 'gitignore-generator',
     icon: 'file-code',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Pick your stack and get a .gitignore that keeps node_modules out of your commits.',
     keywords: [
@@ -410,7 +410,7 @@ export const TOOLS = [
     label: 'Favicon Generator',
     route: 'favicon-generator',
     icon: 'app-window',
-    category: 'Dev',
+    category: 'Images',
     description:
       'One picture in, every favicon size out, plus the HTML to paste into your site.',
     keywords: [
@@ -429,7 +429,7 @@ export const TOOLS = [
     label: 'File Converter',
     route: 'file-converter',
     icon: 'file-symlink',
-    category: 'Files',
+    category: 'Files & Documents',
     description:
       'Convert pretty much anything: images, RAW photos, audio, video, documents, archives and fonts. No uploads.',
     keywords: [
@@ -612,7 +612,7 @@ export const TOOLS = [
     label: 'PDF Merge & Split',
     route: 'pdf-tools',
     icon: 'file-stack',
-    category: 'Files',
+    category: 'Files & Documents',
     description:
       'Glue PDFs together, pull out the pages you want, or split one into pieces.',
     keywords: [
@@ -646,7 +646,7 @@ export const TOOLS = [
     label: 'File Compressor',
     route: 'file-compressor',
     icon: 'package',
-    category: 'Files',
+    category: 'Files & Documents',
     description:
       'Make files smaller with gzip, deflate, brotli or zstd, or unpack them again.',
     keywords: [
@@ -686,7 +686,7 @@ export const TOOLS = [
     label: 'Image Resizer',
     route: 'image-resizer',
     icon: 'scaling',
-    category: 'Design',
+    category: 'Images',
     description: 'Pictures too big? Resize and compress a whole bunch at once.',
     keywords: [
       'resize image',
@@ -714,7 +714,7 @@ export const TOOLS = [
     label: 'Image Cropper',
     route: 'image-cropper',
     icon: 'crop',
-    category: 'Design',
+    category: 'Images',
     description:
       'Crop photos to the perfect size, with presets for profile pics, posts and banners.',
     keywords: [
@@ -735,7 +735,7 @@ export const TOOLS = [
     label: 'Image Slicer',
     route: 'image-slicer',
     icon: 'grid-3x3',
-    category: 'Design',
+    category: 'Images',
     description:
       'Chop one photo into an Instagram carousel or a big profile grid.',
     keywords: [
@@ -763,7 +763,7 @@ export const TOOLS = [
     label: 'Calculator',
     route: 'calculator',
     icon: 'calculator',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'A proper scientific calculator: trig, logs, factorials, and a history of your sums.',
     keywords: [
@@ -788,7 +788,7 @@ export const TOOLS = [
     label: 'Graph Calculator',
     route: 'graph-calculator',
     icon: 'chart-spline',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Draw graphs of functions, then pan, zoom and trace along the curves.',
     keywords: [
@@ -811,7 +811,7 @@ export const TOOLS = [
     label: 'Algebra Calculator',
     route: 'algebra-calculator',
     icon: 'variable',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Stuck on homework? Solve equations and systems, expand and factor polynomials.',
     keywords: [
@@ -838,7 +838,7 @@ export const TOOLS = [
     label: 'Time & Date Calculator',
     route: 'date-calculator',
     icon: 'calendar-clock',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'How many days until…? Count the time between dates, add or subtract time, total durations.',
     keywords: [
@@ -862,7 +862,7 @@ export const TOOLS = [
     label: 'Age Calculator',
     route: 'age-calculator',
     icon: 'cake',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'How old are you, exactly? Years, months, days, and how long until your birthday cake.',
     keywords: [
@@ -883,7 +883,7 @@ export const TOOLS = [
     label: 'Winrate Calculator',
     route: 'winrate-calculator',
     icon: 'trophy',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Check your win rate and how many wins in a row it takes to hit your goal. Copium not included.',
     keywords: [
@@ -906,7 +906,7 @@ export const TOOLS = [
     label: 'Unit Converter',
     route: 'unit-converter',
     icon: 'ruler',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description: 'Miles to km, pounds to kg, °F to °C, and loads more units.',
     keywords: [
       'unit',
@@ -938,7 +938,7 @@ export const TOOLS = [
     label: 'Currency Converter',
     route: 'currency-converter',
     icon: 'wallet',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Convert currencies at today’s rates and see how a pair moved over the last 30 days.',
     keywords: [
@@ -961,7 +961,7 @@ export const TOOLS = [
     label: 'Wage Calculator',
     route: 'wage-calculator',
     icon: 'wallet',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Turn your pay into hourly, daily, weekly, monthly and yearly money, with a rough tax guess.',
     keywords: [
@@ -986,7 +986,7 @@ export const TOOLS = [
     label: 'Percentage Calculator',
     route: 'percentage-calculator',
     icon: 'percent',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Percent of a number, discounts, increases and percentage change, with the working shown.',
     keywords: [
@@ -1008,7 +1008,7 @@ export const TOOLS = [
     label: 'Aspect Ratio Calculator',
     route: 'aspect-ratio',
     icon: 'proportions',
-    category: 'Math',
+    category: 'Colour & Design',
     description:
       'Figure out a screen’s aspect ratio, or resize without stretching things.',
     keywords: [
@@ -1029,7 +1029,7 @@ export const TOOLS = [
     label: 'Word Counter',
     route: 'word-counter',
     icon: 'whole-word',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Count words, characters and sentences, and see how long it takes to read.',
     keywords: [
@@ -1051,7 +1051,7 @@ export const TOOLS = [
     label: 'Text Case Converter',
     route: 'text-case',
     icon: 'case-sensitive',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'UPPER, lower, Title, camelCase, snake_case… flip your text into any case.',
     keywords: [
@@ -1074,7 +1074,7 @@ export const TOOLS = [
     label: 'Text Diff',
     route: 'text-diff',
     icon: 'diff',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Spot the difference between two texts: what was added, what got removed.',
     keywords: [
@@ -1094,7 +1094,7 @@ export const TOOLS = [
     label: 'Line Tools',
     route: 'line-tools',
     icon: 'list-filter',
-    category: 'Text',
+    category: 'Text & Writing',
     description: 'Sort, dedupe, shuffle and tidy lists, plus find and replace.',
     keywords: [
       'sort lines',
@@ -1116,7 +1116,7 @@ export const TOOLS = [
     label: 'QR Code Generator',
     route: 'qr-code',
     icon: 'qr-code',
-    category: 'Other',
+    category: 'Colour & Design',
     description:
       'Make QR codes for links, text, WiFi or contacts, and make them look good too.',
     keywords: [
@@ -1165,7 +1165,7 @@ export const TOOLS = [
     label: 'P2P File Share',
     route: 'file-share',
     icon: 'share-2',
-    category: 'Other',
+    category: 'Files & Documents',
     description:
       'Send a file straight to another device with a code. No uploads, no accounts.',
     keywords: [
@@ -1201,7 +1201,7 @@ export const TOOLS = [
     label: 'Password Generator',
     route: 'password-generator',
     icon: 'key-round',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'Make a strong random password, or find out how long yours would last against hackers.',
     keywords: [
@@ -1222,7 +1222,7 @@ export const TOOLS = [
     label: 'Lorem Ipsum Generator',
     route: 'lorem-ipsum',
     icon: 'type',
-    category: 'Other',
+    category: 'Text & Writing',
     description:
       'Fake Latin filler text for when the real words aren’t written yet.',
     keywords: [
@@ -1241,7 +1241,7 @@ export const TOOLS = [
     label: 'Pomodoro Timer',
     route: 'pomodoro-timer',
     icon: 'timer',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'Focus for a bit, break for a bit, repeat. Your procrastination’s worst enemy.',
     keywords: [
@@ -1262,7 +1262,7 @@ export const TOOLS = [
     label: 'Spin the Wheel',
     route: 'spin-the-wheel',
     icon: 'dices',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'Can’t decide? Spin a wheel, draw a name, or make random teams.',
     keywords: [
@@ -1285,7 +1285,7 @@ export const TOOLS = [
     label: 'Quick Notes',
     route: 'quick-notes',
     icon: 'notebook-pen',
-    category: 'Other',
+    category: 'Text & Writing',
     description:
       'Sticky notes you can type, doodle and slap stickers on, sorted into folders.',
     keywords: [
@@ -1309,7 +1309,7 @@ export const TOOLS = [
     label: 'Image Stitcher',
     route: 'image-stitcher',
     icon: 'layout-grid',
-    category: 'Design',
+    category: 'Images',
     description:
       'Stick images together into one sheet: spritesheets, flipbook frames or a plain grid.',
     keywords: [
@@ -1333,7 +1333,7 @@ export const TOOLS = [
     label: 'Watermarker',
     route: 'watermarker',
     icon: 'stamp',
-    category: 'Design',
+    category: 'Images',
     description:
       'Stamp your name, a logo or a “DRAFT” across your pictures, one or a hundred at a time.',
     keywords: [
@@ -1362,7 +1362,7 @@ export const TOOLS = [
     label: 'Screen Recorder',
     route: 'screen-recorder',
     icon: 'monitor',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Record your screen, a window or a tab, with its sound and your microphone.',
     keywords: [
@@ -1383,7 +1383,7 @@ export const TOOLS = [
     label: 'Cipher Decoder',
     route: 'cipher-decoder',
     icon: 'key',
-    category: 'Dev',
+    category: 'Developer',
     description:
       'Decode (or write) Caesar, Vigenère, Atbash, rail fence, Morse and friends, or let it crack the message for you.',
     keywords: [
@@ -1409,7 +1409,7 @@ export const TOOLS = [
     label: 'Audio Extractor',
     route: 'audio-extractor',
     icon: 'music',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Pull the sound out of a video and save it as MP3, M4A, WAV and more.',
     keywords: [
@@ -1437,7 +1437,7 @@ export const TOOLS = [
     label: 'Video Muter',
     route: 'video-muter',
     icon: 'volume-x',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Take the sound off a video and keep the picture exactly as it was.',
     keywords: [
@@ -1464,7 +1464,7 @@ export const TOOLS = [
     label: 'Trimmer',
     route: 'trimmer',
     icon: 'scissors',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       "Cut a piece out of a video or a song, with a preview of exactly what you're keeping.",
     keywords: [
@@ -1493,7 +1493,7 @@ export const TOOLS = [
     label: 'Metadata Editor',
     route: 'metadata-editor',
     icon: 'shield',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       "See what's hidden inside your photos and media (camera, software, even where you stood) and strip it out.",
     keywords: [
@@ -1524,7 +1524,7 @@ export const TOOLS = [
     label: 'Auto Subtitle',
     route: 'auto-subtitle',
     icon: 'captions',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Writes the subtitles for a video or a recording, with timings, without uploading a thing.',
     keywords: [
@@ -1561,7 +1561,7 @@ export const TOOLS = [
     label: 'Audio Normalizer',
     route: 'audio-normalizer',
     icon: 'volume-2',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Make a pile of clips all sit at the same volume, at the levels streaming services expect.',
     keywords: [
@@ -1591,7 +1591,7 @@ export const TOOLS = [
     label: 'Grammar Checker',
     route: 'grammar-checker',
     icon: 'spell-check',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Spelling, grammar, punctuation and style, checked by LanguageTool as you write.',
     keywords: [
@@ -1622,7 +1622,7 @@ export const TOOLS = [
     label: 'Paraphraser',
     route: 'paraphraser',
     icon: 'wand',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Say the same thing another way: plainer, more formal, shorter or friendlier.',
     keywords: [
@@ -1658,7 +1658,7 @@ export const TOOLS = [
     label: 'Text to Braille',
     route: 'text-braille',
     icon: 'book-open',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Words to braille and back, as Unicode cells you can copy anywhere.',
     keywords: [
@@ -1679,7 +1679,7 @@ export const TOOLS = [
     label: 'Text to IPA',
     route: 'text-ipa',
     icon: 'languages',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'English spelling turned into IPA, in American or British English.',
     keywords: [
@@ -1701,7 +1701,7 @@ export const TOOLS = [
     label: 'Text to Morse',
     route: 'text-morse',
     icon: 'audio-lines',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Words to Morse code and back, played out loud at the speed you pick.',
     keywords: [
@@ -1723,7 +1723,7 @@ export const TOOLS = [
     label: 'Archive Opener',
     route: 'archive-opener',
     icon: 'package',
-    category: 'Files',
+    category: 'Files & Documents',
     description:
       "Look inside a ZIP, 7z, RAR, TAR or ISO: see what's there, preview it, pull out what you need.",
     keywords: [
@@ -1762,7 +1762,7 @@ export const TOOLS = [
     label: 'Chess',
     route: 'chess',
     icon: 'chess-knight',
-    category: 'Fun',
+    category: 'Games',
     description:
       'Outsmart the computer or a friend. Clocks, Chess960, premoves and drag-and-drop included.',
     keywords: [
@@ -1800,7 +1800,7 @@ export const TOOLS = [
     label: 'Snake',
     route: 'snake',
     icon: 'worm',
-    category: 'Fun',
+    category: 'Games',
     description:
       'Ride your avatar on a snake across tropical islands. Eat apples, boost, and beat the high score.',
     keywords: [
@@ -1837,7 +1837,7 @@ export const TOOLS = [
     label: 'Minesweeper',
     route: 'minesweeper',
     icon: 'bomb',
-    category: 'Fun',
+    category: 'Games',
     description:
       'Drop onto a 3D minefield with friends. Walk around, dig and flag, and score the most without blowing up.',
     keywords: [
@@ -1873,7 +1873,7 @@ export const TOOLS = [
     label: 'Woono',
     route: 'woono',
     icon: 'layers',
-    category: 'Fun',
+    category: 'Games',
     description:
       'Do you want your friendships to end? Our take on Uno, around a 3D table with up to 8 players.',
     keywords: [
@@ -1930,7 +1930,7 @@ export const TOOLS = [
     label: 'Avatar Editor',
     route: 'avatar-editor',
     icon: 'person-standing',
-    category: 'Fun',
+    category: 'Games',
     description:
       'Make yourself, your OC, or something cursed. Dress them up, pose them, snap a picture.',
     keywords: [
@@ -1966,7 +1966,7 @@ export const TOOLS = [
     label: 'JJS Stuff',
     route: 'jjs-stuff',
     icon: 'swords',
-    category: 'Fun',
+    category: 'Games',
     description:
       'Jujutsu Shenanigans Skill Builder cheat sheet: sound IDs, emotes, animations, startups and presets.',
     keywords: [
@@ -2022,7 +2022,7 @@ export const TOOLS = [
     label: 'Subtitle Baker',
     route: 'subtitle-baker',
     icon: 'film',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Burn subtitles into a video for good, so they show in every player.',
     keywords: [
@@ -2037,7 +2037,7 @@ export const TOOLS = [
       'embed',
     ],
     madeWith:
-      "FFmpeg's subtitles filter (libass), running in WebAssembly through ffmpeg.wasm. Liberation Sans is packed with the site so the text renders without a font lookup; your size, colour, outline and position are passed as an ASS style. The video is re-encoded with x264 and never leaves your device. Auto Subtitle hands its lines straight over.",
+      "FFmpeg's subtitles filter (libass), running in WebAssembly through ffmpeg.wasm. Ten open-licensed fonts are packed with the site (or bring your own .ttf) so the text renders without a font lookup; your font, size, colour, outline and position are passed as an ASS style. The video is re-encoded with x264 and never leaves your device. Auto Subtitle hands its lines straight over.",
     credits: [
       {
         name: 'ffmpeg.wasm',
@@ -2051,13 +2051,25 @@ export const TOOLS = [
         license: 'SIL OFL 1.1',
         url: 'https://github.com/liberationfonts/liberation-fonts',
       },
+      {
+        name: 'Open Sans, Poppins, Oswald, Comic Neue, Bangers, Lobster, Courier Prime, Press Start 2P',
+        author: 'their designers, via Google Fonts',
+        license: 'SIL OFL 1.1',
+        url: 'https://github.com/google/fonts',
+      },
+      {
+        name: 'Roboto Slab',
+        author: 'Christian Robertson, via Google Fonts',
+        license: 'Apache-2.0',
+        url: 'https://github.com/google/fonts',
+      },
     ],
   },
   {
     label: 'Dice Roll',
     route: 'dice-roll',
     icon: 'dice-6',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'Roll a d6, a d20 or anything up to a d120, one or a handful at a time.',
     keywords: [
@@ -2081,7 +2093,7 @@ export const TOOLS = [
     label: 'Coin Toss',
     route: 'coin-toss',
     icon: 'coins',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'Heads or tails, with a coin that really flips and a tally that keeps count.',
     keywords: [
@@ -2102,7 +2114,7 @@ export const TOOLS = [
     label: 'Geometry Calculator',
     route: 'geometry-calculator',
     icon: 'shapes',
-    category: 'Math',
+    category: 'Calculators & Converters',
     description:
       'Area, perimeter, volume and surface area for the everyday shapes, with a sketch.',
     keywords: [
@@ -2127,7 +2139,7 @@ export const TOOLS = [
     label: 'Image Editor',
     route: 'image-editor',
     icon: 'aperture',
-    category: 'Design',
+    category: 'Images',
     description:
       'A Lightroom-style darkroom: light, colour, detail and effects, plus dither and pixelate.',
     keywords: [
@@ -2155,7 +2167,7 @@ export const TOOLS = [
     label: 'Image Censor',
     route: 'image-censor',
     icon: 'eye-off',
-    category: 'Design',
+    category: 'Images',
     description:
       'Blur, pixelate or black out parts of a picture with a box, an oval or a brush.',
     keywords: [
@@ -2178,7 +2190,7 @@ export const TOOLS = [
     label: 'Video Censor',
     route: 'video-censor',
     icon: 'scan-face',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Blur faces and plates out of a video, with tracking that follows them as they move.',
     keywords: [
@@ -2209,7 +2221,7 @@ export const TOOLS = [
     label: 'Barcode Generator',
     route: 'barcode-generator',
     icon: 'barcode',
-    category: 'Design',
+    category: 'Colour & Design',
     description:
       'Real, scannable barcodes: Code 128, EAN-13, UPC-A, Code 39, ITF-14 and more.',
     keywords: [
@@ -2233,7 +2245,7 @@ export const TOOLS = [
     label: 'Emoji Picker',
     route: 'emoji-picker',
     icon: 'smile',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Every emoji people actually use, searchable by name, one tap to copy.',
     keywords: [
@@ -2254,7 +2266,7 @@ export const TOOLS = [
     label: 'ASCII Art',
     route: 'ascii-art',
     icon: 'terminal',
-    category: 'Text',
+    category: 'Text & Writing',
     description:
       'Big block letters from words, or a whole picture redrawn in characters.',
     keywords: [
@@ -2275,7 +2287,7 @@ export const TOOLS = [
     label: 'Video Player',
     route: 'video-player',
     icon: 'monitor-play',
-    category: 'Files',
+    category: 'Audio & Video',
     description:
       'Play local videos and music with a playlist, speed, frame stepping and an A-B loop.',
     keywords: [
@@ -2301,7 +2313,7 @@ export const TOOLS = [
     label: 'Mockup Preview',
     route: 'mockup-preview',
     icon: 'layout-template',
-    category: 'Design',
+    category: 'Colour & Design',
     description:
       'See a post the way it will look on Facebook, X, Instagram, YouTube, TikTok and more.',
     keywords: [
@@ -2328,7 +2340,7 @@ export const TOOLS = [
     label: 'Online Ruler',
     route: 'online-ruler',
     icon: 'ruler',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'A ruler on your screen that is really the right size, calibrated with a card or a coin.',
     keywords: [
@@ -2351,7 +2363,7 @@ export const TOOLS = [
     label: 'Document Redacter',
     route: 'document-redacter',
     icon: 'highlighter',
-    category: 'Files',
+    category: 'Files & Documents',
     description:
       'Black out text in a PDF or Word file so it is really gone, not just covered.',
     keywords: [
@@ -2393,7 +2405,7 @@ export const TOOLS = [
     label: 'World Radio',
     route: 'world-radio',
     icon: 'radio',
-    category: 'Fun',
+    category: 'Audio & Video',
     description:
       'Spin a globe and listen to live radio from wherever the crosshair lands.',
     keywords: [
@@ -2435,7 +2447,7 @@ export const TOOLS = [
     label: 'Speed Test',
     route: 'speed-test',
     icon: 'gauge',
-    category: 'Other',
+    category: 'Everyday',
     description:
       'Ping, jitter, download and upload, measured against a server near you.',
     keywords: [
@@ -2459,6 +2471,67 @@ export const TOOLS = [
         author: 'Cloudflare',
         license: 'Public service',
         url: 'https://speed.cloudflare.com',
+      },
+    ],
+  },
+  {
+    label: 'Typing Speed Test',
+    route: 'typing-speed-test',
+    icon: 'keyboard',
+    category: 'Everyday',
+    description:
+      'See how fast and how accurately you type: word runs, timed runs or a quote, with a graph of your progress.',
+    keywords: [
+      'typing test',
+      'wpm',
+      'words per minute',
+      'typing speed',
+      'keyboard',
+      'monkeytype',
+      'typeracer',
+      'accuracy',
+      'touch typing',
+    ],
+    madeWith:
+      'A hidden text box takes your keystrokes while the words above are re-coloured character by character. Speed is the standard five characters per word, counting only characters that match; the graphs are single SVG paths. Word runs draw from the two hundred most common English words, the same bank the popular typing sites use.',
+    credits: [],
+  },
+  {
+    label: 'GitHub Repo Checker',
+    route: 'github-repo-checker',
+    icon: 'folder-git-2',
+    category: 'Developer',
+    description:
+      'The numbers behind any GitHub repository: stars, commits, contributors, languages, lines of code, licence, size and the latest release.',
+    keywords: [
+      'github',
+      'repository',
+      'repo',
+      'lines of code',
+      'loc',
+      'stars',
+      'commits',
+      'contributors',
+      'git',
+      'open source',
+      'author',
+      'licence',
+      'license',
+    ],
+    madeWith:
+      "Everything comes from GitHub's public REST API: the repository record, its language byte counts, contributors, the file tree and the latest release. Commit and contributor totals are read from the page count GitHub returns when asked for one item per page. The line estimate divides language bytes by a typical line length; the exact count reads every source file straight from GitHub in the browser and classifies each line as blank, comment or code with a JavaScript rewrite of cloc's counting method, no server or repository clone involved.",
+    credits: [
+      {
+        name: 'GitHub REST API',
+        author: 'GitHub',
+        license: 'Public API, 60 anonymous requests an hour',
+        url: 'https://docs.github.com/rest',
+      },
+      {
+        name: 'cloc',
+        author: 'Al Danial',
+        license: 'GPL-2.0 (method only; no code reused)',
+        url: 'https://github.com/AlDanial/cloc',
       },
     ],
   },
@@ -2546,6 +2619,26 @@ export function searchTools(query) {
     .map((r) => r.tool);
 }
 
+// The order the categories are shown in, in the sidebar and on the home page.
+export const CATEGORY_ORDER = [
+  'Images',
+  'Colour & Design',
+  'Audio & Video',
+  'Files & Documents',
+  'Text & Writing',
+  'Developer',
+  'Calculators & Converters',
+  'Everyday',
+  'Games',
+];
+
+// Pages without a category (Home, Settings, Updates) sit above everything.
+const categoryRank = (name) => {
+  if (!name) return -1;
+  const at = CATEGORY_ORDER.indexOf(name);
+  return at < 0 ? CATEGORY_ORDER.length : at;
+};
+
 export function groupTools(tools) {
   const groups = new Map();
   for (const tool of tools) {
@@ -2553,5 +2646,7 @@ export function groupTools(tools) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(tool);
   }
-  return [...groups].map(([name, items]) => ({ name, items }));
+  return [...groups]
+    .map(([name, items]) => ({ name, items }))
+    .sort((a, b) => categoryRank(a.name) - categoryRank(b.name));
 }

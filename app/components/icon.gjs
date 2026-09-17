@@ -193,6 +193,7 @@ import {
   Blend,
   Frame,
   Antenna,
+  FolderGit2,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -389,6 +390,7 @@ const ICONS = {
   keyboard: Keyboard,
   terminal: Terminal,
   bug: Bug,
+  'folder-git-2': FolderGit2,
 };
 
 function svg(name, size = 16, fill = 'none') {

@@ -9,10 +9,18 @@ import Icon from './icon';
 import FavouriteStar from './favourite-star';
 import CreditList from './credit-list';
 import CardHand from './card-hand';
-import { TOOLS, SITE_CREDITS, searchTools, fuzzyScore } from '../tools';
+import {
+  TOOLS,
+  SITE_CREDITS,
+  CATEGORY_ORDER,
+  searchTools,
+  fuzzyScore,
+} from '../tools';
 
 const CARDS = TOOLS.filter((t) => t.category);
-const CATEGORIES = [...new Set(CARDS.map((t) => t.category))].sort();
+const CATEGORIES = [...new Set(CARDS.map((t) => t.category))].sort(
+  (a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b),
+);
 
 const MATCH_MODES = [
   { id: 'all', label: 'Everything' },

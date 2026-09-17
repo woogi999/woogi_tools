@@ -119,6 +119,8 @@ module('Acceptance | smoke', function (hooks) {
       ['/online-ruler', 'Online Ruler'],
       ['/document-redacter', 'Document Redacter'],
       ['/speed-test', 'Speed Test'],
+      ['/typing-speed-test', 'Typing Speed Test'],
+      ['/github-repo-checker', 'GitHub Repo Checker'],
     ]) {
       await visit(url);
       assert.dom('.hero-title span').hasText(title);

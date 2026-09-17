@@ -89,6 +89,8 @@ Router.map(function () {
   this.route('document-redacter');
   this.route('world-radio');
   this.route('speed-test');
+  this.route('typing-speed-test');
+  this.route('github-repo-checker');
   this.route('jjs-stuff');
   this.route('settings');
   this.route('updates');

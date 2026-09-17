@@ -4195,3 +4195,267 @@ video.media-preview {
     font-size: 0.9rem;
   }
 }
+
+.sb-font-tab {
+  font-size: 0.85rem;
+}
+
+// ─── Typing Speed Test ──────────────────────────────────────────────────
+
+.tt-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tt-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.tt-live {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.tt-live strong {
+  color: var(--text);
+}
+
+.tt-clock {
+  min-width: 3ch;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tt-text {
+  position: relative;
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  line-height: 1.7;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+  cursor: text;
+  user-select: none;
+  padding: 10px 4px;
+  max-height: 11.5em;
+  overflow: hidden;
+  transition: filter 0.2s;
+  will-change: filter;
+}
+
+.tt-text:not(.is-focused) {
+  filter: blur(3px);
+}
+
+.tt-word {
+  display: inline-block;
+  white-space: pre;
+}
+
+.tt-char.is-ok {
+  color: var(--text);
+}
+
+.tt-char.is-bad {
+  color: #d93025;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+.tt-char.is-cursor {
+  box-shadow: -2px 0 0 var(--text);
+  animation: tt-blink 1s steps(2, start) infinite;
+}
+
+@keyframes tt-blink {
+  to {
+    box-shadow: none;
+  }
+}
+
+.tt-focus-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  color: var(--text);
+  filter: none;
+}
+
+.tt-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.tt-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tt-graph {
+  width: 100%;
+  height: 90px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tt-graph path {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.tt-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+// ─── GitHub Repo Checker ────────────────────────────────────────────────
+
+.gh-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gh-form {
+  display: flex;
+  gap: 8px;
+}
+
+.gh-form .math-input {
+  flex: 1;
+}
+
+.gh-token {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.gh-token .tool-controls {
+  align-self: stretch;
+}
+
+.gh-token .math-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.gh-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.gh-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gh-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.gh-name {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.gh-desc {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.gh-link {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.gh-topic {
+  color: var(--text-dim);
+}
+
+.gh-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px 28px;
+}
+
+.gh-grid section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.gh-langs,
+.gh-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gh-lang-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.gh-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-elevated-2);
+  overflow: hidden;
+}
+
+.gh-bar-fill {
+  height: 100%;
+  background: var(--text);
+}
+
+.gh-people li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.gh-people img {
+  border-radius: 50%;
+}
+
+.gh-people .tool-hint {
+  margin-left: auto;
+}
+
+.gh-release {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

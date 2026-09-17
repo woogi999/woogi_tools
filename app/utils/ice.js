@@ -7,10 +7,10 @@ import config from 'woogi-tools/config/environment';
 //
 // Nearby play (utils/lan-link.js) is the exception: it's a direct link on the
 // same Wi-Fi or hotspot with no internet, where there is nothing to relay through.
-// File Share and device-to-device data transfer are the other exception: relaying
-// big files is slow, so they connect directly where they can and warn that the
-// other side can see your IP address; the relay is only their fallback
-// (`directOrRelayedPeerOptions`).
+// File Share and device-to-device data transfer are the other exception: they
+// connect directly where they can (and warn that the other side can see your IP
+// address), and fall back to a public volunteer relay, never Cloudflare's, so
+// big transfers don't run up the site's bill (`directOrRelayedPeerOptions`).
 
 // Public STUN servers only find your own address; no traffic goes through them.
 const DIRECT_RTC = {
@@ -23,23 +23,42 @@ export function directPeerOptions() {
   return { config: DIRECT_RTC };
 }
 
-// Direct where it can be, relayed where it can't: two people behind strict
-// (symmetric) NATs never manage a straight link, and that was the "sometimes
-// it just won't connect" in File Share. With the TURN servers listed as well,
-// the browser still prefers the direct route and only relays as a last
-// resort. Falls back to STUN alone if the credentials can't be fetched.
-export async function directOrRelayedPeerOptions() {
-  try {
-    const rtc = await rtcConfig();
-    if (!rtc) return directPeerOptions();
-    return {
-      config: {
-        iceServers: [...DIRECT_RTC.iceServers, ...rtc.iceServers],
-      },
-    };
-  } catch {
-    return directPeerOptions();
-  }
+// Direct where it can be, and relayed through a public volunteer server
+// where it can't. Two people behind strict (symmetric) NATs never manage a
+// straight link, and that was the "sometimes it just won't connect" in File
+// Share. The browser gathers candidates from every server listed and still
+// prefers the direct route; the relay is only used as a last resort, and it
+// is the Open Relay Project's free TURN service rather than the site's own
+// Cloudflare account, so a gigabyte of holiday photos costs the site nothing.
+const PUBLIC_RELAYS = [
+  { urls: 'stun:openrelay.metered.ca:80' },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+      'turns:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
+const MORE_STUN = [
+  { urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] },
+  { urls: 'stun:stun.stunprotocol.org:3478' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+];
+
+export function directOrRelayedPeerOptions() {
+  return {
+    config: {
+      iceServers: [...DIRECT_RTC.iceServers, ...MORE_STUN, ...PUBLIC_RELAYS],
+      // Every candidate type is tried at once, so a direct route is found
+      // as quickly as before and the relay only wins when nothing else does.
+      iceCandidatePoolSize: 4,
+    },
+  };
 }
 
 // Fetch fresh credentials well before the ones handed out expire.

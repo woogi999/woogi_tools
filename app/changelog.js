@@ -15,6 +15,30 @@ export const CHANGELOG = [
     changes: [
       {
         type: 'new',
+        text: 'Typing Speed Test: word runs, timed runs or a quote, live speed and accuracy, a graph of the run and a record of your last twenty.',
+      },
+      {
+        type: 'new',
+        text: 'GitHub Repo Checker: paste a repository link for its stars, commits, contributors, languages, lines of code, size, licence and latest release.',
+      },
+      {
+        type: 'fixed',
+        text: 'Home, Settings and Updates sit at the top of the sidebar again.',
+      },
+      {
+        type: 'improved',
+        text: "GitHub Repo Checker's exact line count no longer depends on a third-party service: it reads each source file straight from GitHub and counts it in the browser with a JavaScript rewrite of cloc's method.",
+      },
+      {
+        type: 'improved',
+        text: "The sidebar search hides itself while the homepage's own search box is on screen, and slides back in once you scroll past it.",
+      },
+      {
+        type: 'fixed',
+        text: 'Typing Speed Test no longer lags mid-run (the word display was rebuilding itself on every clock tick) and no longer slightly overstates WPM on timed runs.',
+      },
+      {
+        type: 'new',
         text: 'Image Editor: a Lightroom-style darkroom with light, colour, detail and effects sliders, presets, and the fun stuff (dither, pixelate, posterize, threshold). What you see is what you save.',
       },
       {
@@ -51,7 +75,15 @@ export const CHANGELOG = [
       },
       {
         type: 'fixed',
-        text: 'File Share and device-to-device transfer now fall back to a Cloudflare relay when a direct link between the two devices can’t be made, which was the “sometimes it just won’t connect” case. Direct is still tried first.',
+        text: 'File Share and device-to-device transfer now fall back to a public relay (the Open Relay Project) when a direct link between the two devices can’t be made, which was the “sometimes it just won’t connect” case. Direct is still tried first. A share also keeps the tab awake and unthrottled, reads the first pieces of your files ahead of time so sending starts the instant someone joins, and paces itself off the connection rather than a timer.',
+      },
+      {
+        type: 'new',
+        text: 'Subtitle Baker has ten fonts to pick from, or bring your own .ttf or .otf.',
+      },
+      {
+        type: 'improved',
+        text: 'The tools are sorted into categories that mean something: Images, Colour & Design, Audio & Video, Files & Documents, Text & Writing, Developer, Calculators & Converters, Everyday and Games.',
       },
       {
         type: 'fixed',
