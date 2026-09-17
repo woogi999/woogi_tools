@@ -4487,3 +4487,421 @@ video.media-preview {
   flex-direction: column;
   gap: 2px;
 }
+
+// ─── IP Address Lookup ──────────────────────────────────────────────────
+// The map is the page, with the search box, the address and the map's own
+// controls floating over it, and the long list of facts in a panel that
+// slides in from the right. Same idea as World Radio's globe, but drawn with
+// this site's ordinary solid panels rather than a translucent glass effect,
+// since a map full of colour needs a plain, readable surface to float on.
+
+.ipl-stage {
+  position: relative;
+  width: 100%;
+  height: calc(100dvh - 53px);
+  overflow: hidden;
+  background: var(--bg-elevated-2);
+}
+
+.pip-window .ipl-stage,
+.tool-body.is-fullscreen .ipl-stage {
+  height: 100%;
+}
+
+// A z-index of its own, which is the whole point: Leaflet gives its panes and
+// controls z-indexes from 200 up to 1000, and without a stacking context here
+// those would compete with the panels floating over the map and win. With one,
+// the map's own layers are sealed inside it and a z-index of 1 on a panel is
+// enough to sit in front.
+.ipl-map {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+// Leaflet's own attribution strip, restyled to sit quietly in the corner
+// rather than as a bright white box on a dark theme.
+.ipl-map .leaflet-control-attribution {
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  border-top-left-radius: var(--radius-control);
+}
+
+.ipl-map .leaflet-control-attribution a {
+  color: var(--text);
+}
+
+// Floating furniture, all drawn as the site's ordinary solid panels: no
+// blur, no translucency, just a border and a background that matches the
+// rest of the site in both themes.
+.ipl-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  width: min(420px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2;
+}
+
+.ipl-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+}
+
+.ipl-search input,
+.ipl-search input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.ipl-search input:focus,
+.ipl-search input[type="text"]:focus {
+  border: none;
+  outline: none;
+}
+
+.ipl-go {
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ipl-go:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ipl-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ipl-chip-btn:hover {
+  background: var(--bg-elevated-2);
+}
+
+.ipl-recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ipl-chip {
+  padding: 4px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.ipl-chip:hover {
+  background: var(--bg-elevated-2);
+}
+
+.ipl-chip.is-quiet {
+  color: var(--text-dim);
+}
+
+.ipl-error {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated);
+  color: var(--card-red);
+  font-size: 0.82rem;
+}
+
+.ipl-views {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  flex-wrap: wrap;
+  max-width: calc(100% - 28px);
+}
+
+// With the details open, the view buttons move out from under them.
+.ipl-stage:has(.ipl-panel.is-open) .ipl-views {
+  right: calc(min(340px, 100%) + 14px);
+}
+
+.ipl-view {
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ipl-view:hover {
+  color: var(--text);
+  background: var(--bg-elevated-2);
+}
+
+.ipl-view.is-on {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+}
+
+.ipl-zoom {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 4px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border-color);
+}
+
+.ipl-card {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 2;
+  width: min(460px, calc(100% - 28px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated);
+}
+
+.ipl-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ipl-flag {
+  font-size: 1.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ipl-card-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.ipl-card-title h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+.ipl-card-title p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.ipl-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ipl-card-actions .btn,
+.ipl-card-actions .ipl-chip {
+  padding: 4px 11px;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.ipl-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ipl-tag {
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  font-size: 0.76rem;
+  color: var(--text);
+}
+
+.ipl-tag b {
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.ipl-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  width: min(340px, 100%);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+  transform: translateX(101%);
+  transition: transform 0.2s ease;
+}
+
+.ipl-panel.is-open {
+  transform: none;
+}
+
+.ipl-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ipl-panel-head h3 {
+  margin: 0;
+  flex: 1;
+  font-size: 1rem;
+}
+
+.ipl-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.ipl-panel-body h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.ipl-panel-body dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ipl-panel-body dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.84rem;
+}
+
+.ipl-panel-body dl > div:last-child {
+  border-bottom: none;
+}
+
+.ipl-panel-body dt {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.ipl-panel-body dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.ipl-note {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text-faint);
+}
+
+.ipl-panel-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 56px;
+  transform: translateY(-50%);
+  border: 1px solid var(--border-color);
+  border-right: none;
+  border-radius: var(--radius-card) 0 0 var(--radius-card);
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+}
+
+@media (width <= 720px) {
+  .ipl-views {
+    top: auto;
+    bottom: calc(50% + 10px);
+    right: 14px;
+    left: 14px;
+    justify-content: center;
+    max-width: none;
+  }
+
+  .ipl-card {
+    width: calc(100% - 28px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ipl-panel {
+    transition: none;
+  }
+}

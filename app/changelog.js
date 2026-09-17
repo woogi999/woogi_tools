@@ -9,6 +9,25 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.8',
+    date: '2026-09-18',
+    title: 'Two new tools: an address lookup and a chat nobody hosts',
+    changes: [
+      {
+        type: 'new',
+        text: 'IP Address Lookup: type an address, a hostname or nothing at all for your own. The map fills the page, with road, satellite, hybrid and terrain views, and the address, its provider, its network and its local time sit over it; everything else is one panel away. The lookup goes straight from your browser to the geolocation service.',
+      },
+      {
+        type: 'new',
+        text: 'Messages takes the whole page, the way the games do, and sends files as well: up to half a gigabyte, device to device, with anyone who has a copy able to hand it over.',
+      },
+      {
+        type: 'new',
+        text: 'Messages: group chat with voice calls, video calls and screen sharing. Nobody hosts it and nothing is uploaded: every device that was invited keeps the whole conversation, and any two that are online fill in what the other missed, so it works whether or not the person who started the chat is around. Pictures, replies, reactions, editing and taking a message back are all in there.',
+      },
+    ],
+  },
+  {
     version: '1.0.7',
     date: '2026-09-17',
     title: 'Sixteen new tools, from a darkroom to a radio',

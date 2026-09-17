@@ -194,6 +194,15 @@ import {
   Antenna,
   FolderGit2,
   LoaderPinwheel,
+  MapPin,
+  Network,
+  Phone,
+  PhoneOff,
+  Mic,
+  MicOff,
+  VideoOff,
+  ScreenShare,
+  ScreenShareOff,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -391,6 +400,15 @@ const ICONS = {
   terminal: Terminal,
   bug: Bug,
   'folder-git-2': FolderGit2,
+  'map-pin': MapPin,
+  network: Network,
+  phone: Phone,
+  'phone-off': PhoneOff,
+  mic: Mic,
+  'mic-off': MicOff,
+  'video-off': VideoOff,
+  'screen-share': ScreenShare,
+  'screen-share-off': ScreenShareOff,
 };
 
 function svg(name, size = 16, fill = 'none') {
