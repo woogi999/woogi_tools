@@ -10,6 +10,7 @@ import {
   Sprite,
   SpriteMaterial,
   BoxGeometry,
+  Float32BufferAttribute,
   SphereGeometry,
   ConeGeometry,
   CylinderGeometry,
@@ -28,6 +29,7 @@ import {
   MathUtils,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import config from 'woogi-tools/config/environment';
 import { avatarKey } from '../utils/avatar';
 import { rendererOptions, createGovernor, tabHidden } from './perf';
@@ -882,6 +884,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
   ]);
   board.position.y = 0;
   scene.add(withOutline(board, kit, true));
+  for (const fixed of [table, leg, shadow, board]) settle(fixed);
   // The site's doodle lands on the board once it has loaded.
   const art = new Image();
   art.onload = () => {
@@ -919,12 +922,23 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
     from + Math.atan2(Math.sin(to - from), Math.cos(to - from));
 
   // Where the camera wants to be this frame, before the pointer's nudge.
+  const DICE = { pitch: 1.15, radius: 5.6 };
   function aimCamera() {
     if (cameraMode === 'map') {
       targetGoal.set(0, 0, 0.3);
       orbitGoal.yaw = nearestYaw(orbit.yaw, mapYaw + nudge.yaw);
       orbitGoal.pitch = MathUtils.clamp(MAP.pitch + nudge.pitch, 0.5, 1.5);
       orbitGoal.radius = MathUtils.clamp(MAP.radius + nudge.radius, 6, 20);
+      return;
+    }
+    // The dice tumble in the middle of the board; pan there and look down on
+    // them from the same angle every time, then ease back onto whoever is
+    // walking once they land.
+    if (diceRoll) {
+      targetGoal.set(0, 0.2, 1.5);
+      orbitGoal.yaw = nearestYaw(orbit.yaw, nudge.yaw);
+      orbitGoal.pitch = MathUtils.clamp(DICE.pitch + nudge.pitch, 0.5, 1.5);
+      orbitGoal.radius = MathUtils.clamp(DICE.radius + nudge.radius, 3.5, 12);
       return;
     }
     // Follow whoever is walking, else whoever the game is waiting on.
@@ -1070,6 +1084,71 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
     mesh.rotation.y = sides === 4 ? Math.PI / 4 : 0;
     return withOutline(mesh, kit, true);
   };
+
+  // Static scenery is drawn in a handful of calls rather than hundreds: every
+  // mesh in the group is merged into one geometry per material (and one ink
+  // hull for the lot), with the little groups thrown away afterwards.
+  const baked = new Set();
+  function bake(group) {
+    group.updateMatrixWorld(true);
+    const byMaterial = new Map();
+    group.traverse((node) => {
+      if (!node.isMesh) return;
+      const m = node.material;
+      if (m === kit.outline || m === kit.outlineThin) return;
+      const piece = (
+        node.geometry.index
+          ? node.geometry.toNonIndexed()
+          : node.geometry.clone()
+      ).applyMatrix4(node.matrixWorld);
+      // Merging needs the same attributes everywhere; these shapes carry nothing beyond position, normal and uv.
+      for (const name of Object.keys(piece.attributes))
+        if (!['position', 'normal', 'uv'].includes(name))
+          piece.deleteAttribute(name);
+      if (!piece.attributes.uv)
+        piece.setAttribute(
+          'uv',
+          new Float32BufferAttribute(piece.attributes.position.count * 2, 2),
+        );
+      if (!byMaterial.has(m)) byMaterial.set(m, []);
+      byMaterial.get(m).push(piece);
+    });
+    const out = new Group();
+    const shells = [];
+    for (const [material, pieces] of byMaterial) {
+      const merged = mergeGeometries(pieces, false);
+      for (const piece of pieces) piece.dispose();
+      if (!merged) continue;
+      baked.add(merged);
+      out.add(new Mesh(merged, material));
+      shells.push(merged);
+    }
+    const hull = mergeGeometries(shells, false);
+    if (hull) {
+      baked.add(hull);
+      const ink = new Mesh(hull, kit.outlineThin);
+      ink.raycast = () => {};
+      out.add(ink);
+    }
+    return out;
+  }
+  // Scenery that never moves keeps its matrices as they are, and nothing on the
+  // board is worth frustum-testing one mesh at a time.
+  function settle(object) {
+    object.updateMatrixWorld(true);
+    object.traverse((node) => {
+      node.matrixAutoUpdate = false;
+      node.frustumCulled = false;
+    });
+    return object;
+  }
+  function unbake(group) {
+    group.traverse((node) => {
+      if (!node.isMesh || !baked.has(node.geometry)) return;
+      node.geometry.dispose();
+      baked.delete(node.geometry);
+    });
+  }
 
   // Where a lot's building stands, facing the road: { x, z, rot }.
   function lotFrame(index) {
@@ -1310,7 +1389,6 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
     return g;
   }
   const park = new Group();
-  scene.add(park);
   // The same layout every game: a simple seeded pattern.
   let seed = 7;
   const rand = () => {
@@ -1338,10 +1416,10 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
   fountain.position.set(0, BOARD_Y, 0);
   fountain.scale.setScalar(0.9);
   park.add(fountain);
+  scene.add(settle(bake(park)));
 
   // Buildings that never change: stations, utilities and the corners.
   const fixtures = new Group();
-  scene.add(fixtures);
   BOARD.forEach((space, index) => {
     let building = null;
     if (space.type === 'station') building = stationBuilding();
@@ -1353,6 +1431,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
     building.rotation.y = rot;
     fixtures.add(building);
   });
+  scene.add(settle(bake(fixtures)));
 
   // The streets' buildings and the owner markers, rebuilt whenever a deed changes hands or a house goes up.
   const markerGeometry = new CylinderGeometry(0.13, 0.13, 0.04, 20);
@@ -1387,7 +1466,11 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
     if (key === buildingsKey) return;
     buildingsKey = key;
     // Geometry and materials are shared through the kit, so a rebuild just swaps groups.
-    for (const child of [...buildings.children]) buildings.remove(child);
+    for (const child of [...buildings.children]) {
+      buildings.remove(child);
+      unbake(child);
+    }
+    const lots = new Group();
     for (const child of [...markers.children]) {
       markers.remove(child);
       child.material.dispose();
@@ -1406,7 +1489,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
         const { x, z, rot } = lotFrame(index);
         building.position.set(x, BOARD_Y, z);
         building.rotation.y = rot;
-        buildings.add(building);
+        lots.add(building);
       }
       if (prop.owner === null) continue;
       const player = view.players[prop.owner];
@@ -1423,6 +1506,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
       marker.position.set(mx, BOARD_Y + 0.02, mz);
       markers.add(withOutline(marker, kit, true));
     }
+    buildings.add(settle(bake(lots)));
   }
 
   // ── Tokens ──
@@ -1667,6 +1751,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
         token.group.remove(token.avatar);
         token.avatar = buildAvatar(player.avatar, kit);
         token.avatar.scale.setScalar(AVATAR_SCALE);
+        token.avatar.traverse((node) => (node.frustumCulled = false));
         token.group.add(token.avatar);
         token.key = key;
       }
@@ -1679,6 +1764,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
           standingSpot(player.pos, slotOf(next, index), player.inJail),
         );
         group.rotation.y = facing(player.pos);
+        group.traverse((node) => (node.frustumCulled = false));
         scene.add(group);
         const tag = new Label(360, 140, 0.55);
         scene.add(tag.sprite);
@@ -1896,7 +1982,12 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
   let lastFrame = performance.now();
   const bob = new Vector3();
 
+  // Frames are capped near 60 a second: a 144Hz or 165Hz screen would otherwise
+  // have the scene graph walked and 300 draw calls issued three times as often
+  // for no visible gain, and the main thread needs the room for the game itself.
+  const FRAME_MS = 1000 / 60 - 2;
   function frame(now) {
+    if (now - lastFrame < FRAME_MS) return;
     const gap = now - lastFrame;
     const dt = Math.min(0.1, gap / 1000);
     lastFrame = now;
@@ -2108,6 +2199,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
       boardTexture.dispose();
       shadow.material.map.dispose();
       shadow.material.dispose();
+      for (const g of baked) g.dispose();
       scene.traverse((o) => o.geometry?.dispose?.());
       kit.dispose();
       renderer.dispose();

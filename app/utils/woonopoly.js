@@ -419,8 +419,10 @@ export const SHARE_RANGE = [10, 100];
 export const HOUSES_RANGE = [1, 60];
 export const WIN_MONEY_RANGE = [10000, 5000000];
 export const JAIL_TERM_RANGE = [1, 10];
-// Times a player can commit arson in one game.
+// Times a player can commit arson in one game, and the share of the property's
+// price the arsonist owes its owner.
 export const ARSON_USES = 2;
+export const ARSON_SHARE = 0.25;
 
 export const clampInt = (value, [min, max], fallback) => {
   const n = Math.round(Number(value));
@@ -743,8 +745,7 @@ function land(state, index, rentTimes) {
     default: {
       const prop = state.props[player.pos];
       if (prop.owner === null) {
-        if (state.rules.auctionOnly && startAuction(state, player.pos, true))
-          return;
+        if (state.rules.auctionOnly && startAuction(state, player.pos)) return;
         state.phase = 'buy';
         return;
       }
@@ -855,11 +856,12 @@ function arson(state, index) {
   state.pending = null;
   state.phase = 'turn';
   event(state, { type: 'arson', player: index, space, owner });
+  const owed = Math.round(info.price * ARSON_SHARE);
   note(
     state,
-    `${player.name} set fire to ${info.name}! They owe ${nameOf(state, owner)} ${money(info.price)} and are off to jail.`,
+    `${player.name} set fire to ${info.name}! They owe ${nameOf(state, owner)} ${money(owed)} and are off to jail.`,
   );
-  charge(state, index, info.price, owner, 'arson');
+  charge(state, index, owed, owner, 'arson');
   goToJail(state, index);
 }
 
@@ -1226,19 +1228,19 @@ function unmortgage(state, index, space) {
 
 // ─── Auctions ──────────────────────────────────────────────────────────
 
-function startAuction(state, space, withCurrent = false) {
+function startAuction(state, space) {
+  // Everyone with cash bids, the player who landed there included: passing on
+  // the list price doesn't rule out a bargain.
   const bidders = alive(state).filter(
     (i) =>
       state.players[i].money > 0 &&
-      (withCurrent || i !== state.turn) &&
       !(state.rules.jailFreeze && state.players[i].inJail),
   );
   if (bidders.length < 2) return false;
-  // Bidding goes round from the player after the one who passed on it (or from
-  // them, when everything goes to auction).
+  // Bidding starts with the player after the one who passed on it.
   const order = [
-    ...bidders.filter((i) => (withCurrent ? i >= state.turn : i > state.turn)),
-    ...bidders.filter((i) => (withCurrent ? i < state.turn : i <= state.turn)),
+    ...bidders.filter((i) => i > state.turn),
+    ...bidders.filter((i) => i <= state.turn),
   ];
   state.auction = { space, bid: 0, bidder: null, bidders: order, at: 0 };
   state.phase = 'auction';
