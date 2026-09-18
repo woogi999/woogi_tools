@@ -38,6 +38,7 @@ import {
   WIN_MONEY_RANGE,
   JAIL_TERM_RANGE,
   ARSON_USES,
+  ARSON_SHARE,
   canRepair,
   canRelist,
   repairCost,
@@ -153,7 +154,7 @@ const SWITCH_RULES = [
   {
     key: 'arson',
     label: 'Arson',
-    hint: `Land on the biggest landlord’s property and torch it instead of paying rent. You go to jail owing them its price; they repair it or hand it back. ${ARSON_USES} matches per game, and never while the owner is standing there.`,
+    hint: `Land on the biggest landlord’s property and torch it instead of paying rent. You go to jail owing them a quarter of its price; they repair it or hand it back. ${ARSON_USES} matches per game, and never while the owner is standing there.`,
   },
   {
     key: 'doubleGo',
@@ -923,10 +924,17 @@ export default class WoonopolyPage extends Component {
   }
 
   get debtDialog() {
+    if (this.settling) return null;
     if (!this.myDebt) return null;
     if (this.deed || this.portfolio || this.tradeBuilder || this.offer)
       return null;
     return this.myDebt;
+  }
+
+  // The involuntary auction popup: hidden while the board is still animating
+  // to it, so it doesn't give away what you landed on before you see it.
+  get showAuction() {
+    return !this.settling && Boolean(this.view?.canBid || this.view?.auction);
   }
 
   get portfolio() {
@@ -976,7 +984,7 @@ export default class WoonopolyPage extends Component {
     const left = ARSON_USES - (this.me?.arsons ?? 0);
     const ok = await askConfirm({
       title: 'Strike the match?',
-      message: `${BOARD[p.space].name} burns. You go straight to jail owing ${this.view.players[p.owner].name} ${money(BOARD[p.space].price)}. You have ${left} match${left === 1 ? '' : 'es'} left.`,
+      message: `${BOARD[p.space].name} burns. You go straight to jail owing ${this.view.players[p.owner].name} ${money(BOARD[p.space].price * ARSON_SHARE)}. You have ${left} match${left === 1 ? '' : 'es'} left.`,
       confirmLabel: 'Hold to burn it',
       cancelLabel: 'Pay the rent instead',
     });
@@ -1644,75 +1652,78 @@ export default class WoonopolyPage extends Component {
                         Trade</button>
                     {{/if}}
                   {{/if}}
-                  {{#if this.view.canUseJailCard}}
-                    <button
-                      type="button"
-                      class="btn"
-                      disabled={{this.locked}}
-                      {{on "click" this.useJailCard}}
-                    ><Icon @name="ticket" @size={{13}} /> Use jail card</button>
-                  {{/if}}
-                  {{#if this.view.canPayFine}}
-                    <button
-                      type="button"
-                      class="btn"
-                      disabled={{this.locked}}
-                      {{on "click" this.payFine}}
-                    >Pay {{money this.view.rules.jailFine}}</button>
-                  {{/if}}
-                  {{#if this.view.canRoll}}
-                    <button
-                      type="button"
-                      class="btn active poly-roll"
-                      disabled={{this.locked}}
-                      {{on "click" this.roll}}
-                    ><Icon @name="dices" @size={{14}} />
-                      {{if this.me.inJail "Roll for doubles" "Roll"}}</button>
-                  {{/if}}
-                  {{#if this.view.canBuy}}
-                    <button
-                      type="button"
-                      class="btn active"
-                      disabled={{this.locked}}
-                      {{on "click" this.buy}}
-                    >Buy for {{money (spacePrice this.view)}}</button>
-                  {{/if}}
-                  {{#if this.view.canDecline}}
-                    <button
-                      type="button"
-                      class="btn"
-                      disabled={{this.locked}}
-                      {{on "click" this.decline}}
-                    >{{if
-                        this.view.rules.auctions
-                        "Auction it"
-                        "Pass"
-                      }}</button>
-                  {{/if}}
-                  {{#if this.view.canPayRent}}
-                    <button
-                      type="button"
-                      class="btn active"
-                      disabled={{this.locked}}
-                      {{on "click" this.payRent}}
-                    >Pay {{money this.view.pending.amount}} rent</button>
-                  {{/if}}
-                  {{#if this.view.canArson}}
-                    <button
-                      type="button"
-                      class="btn poly-danger"
-                      disabled={{this.locked}}
-                      {{on "click" this.commitArson}}
-                    ><Icon @name="flame" @size={{13}} /> Commit arson</button>
-                  {{/if}}
-                  {{#if this.view.canEnd}}
-                    <button
-                      type="button"
-                      class="btn active"
-                      disabled={{this.locked}}
-                      {{on "click" this.endTurn}}
-                    ><Icon @name="check" @size={{13}} /> End turn</button>
-                  {{/if}}
+                  {{#unless this.settling}}
+                    {{#if this.view.canUseJailCard}}
+                      <button
+                        type="button"
+                        class="btn"
+                        disabled={{this.locked}}
+                        {{on "click" this.useJailCard}}
+                      ><Icon @name="ticket" @size={{13}} />
+                        Use jail card</button>
+                    {{/if}}
+                    {{#if this.view.canPayFine}}
+                      <button
+                        type="button"
+                        class="btn"
+                        disabled={{this.locked}}
+                        {{on "click" this.payFine}}
+                      >Pay {{money this.view.rules.jailFine}}</button>
+                    {{/if}}
+                    {{#if this.view.canRoll}}
+                      <button
+                        type="button"
+                        class="btn active poly-roll"
+                        disabled={{this.locked}}
+                        {{on "click" this.roll}}
+                      ><Icon @name="dices" @size={{14}} />
+                        {{if this.me.inJail "Roll for doubles" "Roll"}}</button>
+                    {{/if}}
+                    {{#if this.view.canBuy}}
+                      <button
+                        type="button"
+                        class="btn active"
+                        disabled={{this.locked}}
+                        {{on "click" this.buy}}
+                      >Buy for {{money (spacePrice this.view)}}</button>
+                    {{/if}}
+                    {{#if this.view.canDecline}}
+                      <button
+                        type="button"
+                        class="btn"
+                        disabled={{this.locked}}
+                        {{on "click" this.decline}}
+                      >{{if
+                          this.view.rules.auctions
+                          "Auction it"
+                          "Pass"
+                        }}</button>
+                    {{/if}}
+                    {{#if this.view.canPayRent}}
+                      <button
+                        type="button"
+                        class="btn active"
+                        disabled={{this.locked}}
+                        {{on "click" this.payRent}}
+                      >Pay {{money this.view.pending.amount}} rent</button>
+                    {{/if}}
+                    {{#if this.view.canArson}}
+                      <button
+                        type="button"
+                        class="btn poly-danger"
+                        disabled={{this.locked}}
+                        {{on "click" this.commitArson}}
+                      ><Icon @name="flame" @size={{13}} /> Commit arson</button>
+                    {{/if}}
+                    {{#if this.view.canEnd}}
+                      <button
+                        type="button"
+                        class="btn active"
+                        disabled={{this.locked}}
+                        {{on "click" this.endTurn}}
+                      ><Icon @name="check" @size={{13}} /> End turn</button>
+                    {{/if}}
+                  {{/unless}}
                 {{/if}}
               </div>
             {{/unless}}
@@ -1922,7 +1933,7 @@ export default class WoonopolyPage extends Component {
               </div>
             {{/if}}
 
-            {{#if (or this.view.canBid this.view.auction)}}
+            {{#if this.showAuction}}
               {{#if this.bidInfo}}
                 <div
                   class="poly-dialog poly-auction pop-in"
@@ -2306,9 +2317,9 @@ export default class WoonopolyPage extends Component {
                     <li>Land on the biggest landlord’s property and you can
                       <strong>commit arson</strong>
                       instead of paying rent: the buildings burn, you go to jail
-                      owing them the property’s price, and they repair it or
-                      hand it back. Two matches per game, and never while the
-                      owner is standing on it.</li>
+                      owing them a quarter of the property’s price, and they
+                      repair it or hand it back. Two matches per game, and never
+                      while the owner is standing on it.</li>
                   {{/if}}
                   <li><strong>Drag</strong>
                     the board to look round it,
