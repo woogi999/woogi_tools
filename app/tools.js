@@ -1963,6 +1963,45 @@ export const TOOLS = [
     ],
   },
   {
+    label: 'Pose Reference',
+    route: 'pose-reference',
+    icon: 'person-standing',
+    category: 'Colour & Design',
+    description:
+      'A 3D mannequin to draw from: pose it, light it, pick a lens, and save the picture. Clay, toon, wireframe or X-ray.',
+    keywords: [
+      'pose',
+      'reference',
+      'mannequin',
+      'figure drawing',
+      'anatomy',
+      'drawing',
+      'wireframe',
+      'art',
+      'sketch',
+      'model',
+      '3d',
+      'justsketchme',
+      'magic poser',
+    ],
+    madeWith:
+      'The figure is Mannequiny, the open rigged mannequin GDQuest made for the Godot engine, loaded as a glTF file with its animations stripped out and posed here by turning its bones: every joint is a few angles in degrees measured from the T-pose it was bound in, worked into the bone’s own frame so a bend rides along with whatever the limb above it is doing. Dragging a body part raycasts into the skinned mesh and reads which bone carries most of the triangle you hit, so a finger grabs the hand and a shoulder the chest. The camera is three.js’s orbit control. The clay look is a rough standard material under a key light with soft shadow maps, the toon look a three-step gradient, and wireframe is the same mesh with its edges drawn. Left and right limbs share one set of angles, mirrored by side, so the same numbers make the same pose on either arm. Pictures are rendered off screen at whatever size you ask for, with the joint dots hidden and the background left out if you want it transparent. Poses are saved in your browser.',
+    credits: [
+      {
+        name: 'Mannequiny',
+        author: 'GDQuest, modelled by Luciano Muñoz',
+        license: 'CC-BY 4.0',
+        url: 'https://github.com/gdquest-demos/godot-3d-mannequin',
+      },
+      {
+        name: 'three.js',
+        author: 'mrdoob & contributors',
+        license: 'MIT',
+        url: 'https://threejs.org',
+      },
+    ],
+  },
+  {
     label: 'JJS Stuff',
     route: 'jjs-stuff',
     icon: 'swords',

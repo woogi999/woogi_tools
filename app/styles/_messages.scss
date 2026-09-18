@@ -293,6 +293,7 @@
 // ─── The conversation ───────────────────────────────────────────────────
 
 .msgr-main {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1006,6 +1007,171 @@
 .msgr-invite-row {
   display: flex;
   gap: 6px;
+}
+
+// ─── Avatars and photos ─────────────────────────────────────────────────
+
+.msgr-avatar.has-portrait,
+.msgr-avatar.has-photo {
+  overflow: hidden;
+  background: none;
+}
+
+.msgr-avatar.has-portrait .avatar-portrait {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.msgr-avatar.has-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.msgr-me-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.msgr-me-row .msgr-input {
+  flex: 1;
+}
+
+.msgr-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.msgr-photo-big {
+  width: 72px;
+  height: 72px;
+  font-size: 1.3rem;
+}
+
+.msgr-photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.msgr-photo-actions .msgr-icon-btn {
+  position: relative;
+  width: auto;
+  height: auto;
+  gap: 6px;
+}
+
+// ─── Dropping files on the conversation ─────────────────────────────────
+
+.msgr-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--text-dim);
+  border-radius: var(--radius-card);
+  background: color-mix(in oklab, var(--bg-elevated) 88%, transparent);
+  color: var(--text);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.msgr-attached-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.msgr-attached-list .msgr-attached {
+  max-width: 100%;
+}
+
+.msgr-attached-list .msgr-attached span {
+  flex: 0 1 auto;
+  max-width: 240px;
+}
+
+// ─── Markdown in a message ──────────────────────────────────────────────
+
+.msgr-text {
+  white-space: normal;
+}
+
+.msgr-text > :first-child {
+  margin-top: 0;
+}
+
+.msgr-text > :last-child {
+  margin-bottom: 0;
+}
+
+.msgr-text p,
+.msgr-text ul,
+.msgr-text ol,
+.msgr-text blockquote,
+.msgr-text pre,
+.msgr-text h1,
+.msgr-text h2,
+.msgr-text h3 {
+  margin: 0.35em 0;
+}
+
+.msgr-text ul,
+.msgr-text ol {
+  padding-left: 1.4em;
+}
+
+.msgr-text h1 {
+  font-size: 1.25em;
+}
+
+.msgr-text h2 {
+  font-size: 1.12em;
+}
+
+.msgr-text h3 {
+  font-size: 1em;
+}
+
+.msgr-text code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: color-mix(in oklab, currentcolor 14%, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.86em;
+}
+
+.msgr-text pre {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in oklab, currentcolor 10%, transparent);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.msgr-text pre code {
+  padding: 0;
+  background: none;
+}
+
+.msgr-text blockquote {
+  padding-left: 10px;
+  border-left: 3px solid color-mix(in oklab, currentcolor 35%, transparent);
+  opacity: 0.85;
+}
+
+.msgr-text a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 // ─── Narrow screens ─────────────────────────────────────────────────────

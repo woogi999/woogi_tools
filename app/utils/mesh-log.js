@@ -20,6 +20,9 @@
 // highest seq we hold. Send that, and the other side can answer with exactly
 // the events above each mark rather than a list of everything it has.
 
+import { playerAvatar } from './avatar';
+import { normalisePose } from './pose';
+
 const DB_NAME = 'woogi-messages';
 const DB_VERSION = 2;
 const STORE = 'events';
@@ -276,6 +279,10 @@ export function buildView(log) {
   const messages = new Map();
   let topic = '';
   let topicClock = -1;
+  // The chat's picture, kept apart from its name so changing one never
+  // undoes the other.
+  let photo = '';
+  let photoClock = -1;
 
   for (const event of log.ordered()) {
     const author = event.author;
@@ -284,9 +291,16 @@ export function buildView(log) {
       case 'join':
       case 'name': {
         const existing = members.get(author);
+        // A member's look travels with their name, so the same avatar they
+        // wear in games shows up beside what they say here.
+        const avatar = data.avatar && typeof data.avatar === 'object';
         members.set(author, {
           id: author,
           name: clean(data.name, 40) || existing?.name || 'Someone',
+          avatar: avatar
+            ? playerAvatar(data.avatar)
+            : (existing?.avatar ?? null),
+          pose: avatar ? normalisePose(data.pose) : (existing?.pose ?? null),
           joinedAt: existing?.joinedAt ?? event.at,
           left: event.kind === 'join' ? false : Boolean(existing?.left),
         });
@@ -298,9 +312,13 @@ export function buildView(log) {
         break;
       }
       case 'topic': {
-        if (event.clock >= topicClock) {
+        if (typeof data.name === 'string' && event.clock >= topicClock) {
           topic = clean(data.name, 60);
           topicClock = event.clock;
+        }
+        if (typeof data.photo === 'string' && event.clock >= photoClock) {
+          photo = isImageUrl(data.photo) ? data.photo : '';
+          photoClock = event.clock;
         }
         break;
       }
@@ -356,8 +374,13 @@ export function buildView(log) {
   const list = [...messages.values()].sort(
     (a, b) => a.clock - b.clock || a.at - b.at,
   );
-  return { members, messages: list, topic };
+  return { members, messages: list, topic, photo };
 }
+
+// A chat's photo is a data URL made by the page that set it; anything else
+// (a link to somewhere, say) is not a picture this log will carry.
+const isImageUrl = (value) =>
+  value === '' || /^data:image\/(png|jpeg|webp);base64,/.test(value);
 
 // A file offer as it sits in the log: what the file is, not the file itself.
 // Anything malformed becomes no offer at all rather than a half-drawn one.

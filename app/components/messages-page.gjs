@@ -8,7 +8,11 @@ import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import CopyButton from './copy-button';
+import AvatarPortrait from './avatar-portrait';
+import AvatarPicker from './avatar-picker';
 import MeshChat, { MAX_MESSAGE, MAX_IMAGE_BYTES } from '../utils/mesh-chat';
+import { NAME_LENGTH } from '../utils/profile';
+import { renderMarkdown } from '../utils/markdown';
 import MeshCall from '../utils/mesh-call';
 import MeshFiles, { MAX_FILE_BYTES, formatBytes } from '../utils/mesh-files';
 import { groupReactions } from '../utils/mesh-log';
@@ -31,6 +35,8 @@ const GROUP_MS = 5 * 60 * 1000;
 const IMAGE_MAX_EDGE = 1280;
 // A picture larger than this is treated as a file rather than shrunk.
 const IMAGE_SOURCE_LIMIT = 24 * 1024 * 1024;
+// A chat's photo is small: it is in every member's log for good.
+const PHOTO_EDGE = 192;
 
 const stickToBottom = modifier((list, [signal]) => {
   void signal;
@@ -41,7 +47,11 @@ const stickToBottom = modifier((list, [signal]) => {
   if (nearBottom) list.scrollTop = list.scrollHeight;
 });
 
-const playStream = modifier((element, [stream]) => {
+const playStream = modifier((element, [stream, muted]) => {
+  // Your own tile is muted through the property, not the attribute: a
+  // `muted` attribute set after the element exists is ignored by browsers,
+  // which is how you end up hearing your own voice a beat late.
+  element.muted = Boolean(muted);
   element.srcObject = stream ?? null;
   return () => (element.srcObject = null);
 });
@@ -96,15 +106,19 @@ const hueOf = (id) => {
   return hash;
 };
 const tint = (id) => htmlSafe(`--who-hue: ${hueOf(id)}`);
+const markdown = (text) => htmlSafe(renderMarkdown(text));
+const hasFiles = (event) =>
+  [...(event.dataTransfer?.types ?? [])].includes('Files');
 const barWidth = (done, size) =>
   htmlSafe(`width: ${Math.min(100, Math.round((done / (size || 1)) * 100))}%`);
 
-async function shrinkImage(file) {
+async function shrinkImage(
+  file,
+  edge = IMAGE_MAX_EDGE,
+  limit = MAX_IMAGE_BYTES,
+) {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(
-    1,
-    IMAGE_MAX_EDGE / Math.max(bitmap.width, bitmap.height),
-  );
+  const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -113,20 +127,85 @@ async function shrinkImage(file) {
   for (const quality of [0.72, 0.6, 0.45, 0.3]) {
     const url = canvas.toDataURL('image/jpeg', quality);
     // A data URL carries three bytes in every four characters.
-    if (url.length * 0.75 <= MAX_IMAGE_BYTES) return url;
+    if (url.length * 0.75 <= limit) return url;
   }
   return '';
 }
 
+// A chat's photo is cropped square, the way every chat app draws them.
+async function squarePhoto(file) {
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = PHOTO_EDGE;
+  canvas
+    .getContext('2d')
+    .drawImage(
+      bitmap,
+      (bitmap.width - side) / 2,
+      (bitmap.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      PHOTO_EDGE,
+      PHOTO_EDGE,
+    );
+  bitmap.close?.();
+  return canvas.toDataURL('image/jpeg', 0.8);
+}
+
+// A member drawn as their avatar when the log knows it, or their initials
+// until it does.
+const Face = <template>
+  <span
+    class="msgr-avatar {{if @member.avatar 'has-portrait'}} {{@class}}"
+    aria-hidden="true"
+  >
+    {{#if @member.avatar}}
+      <AvatarPortrait
+        @avatar={{@member.avatar}}
+        @pose={{@member.pose}}
+        @size={{@size}}
+      />
+    {{else}}
+      {{initials @member.name}}
+    {{/if}}
+  </span>
+</template>;
+
+// A chat drawn as its photo when it has one, or its initials.
+const ChatFace = <template>
+  <span
+    class="msgr-avatar msgr-avatar-chat
+      {{if @chat.photo 'has-photo'}}
+      {{@class}}"
+    aria-hidden="true"
+  >
+    {{#if @chat.photo}}
+      <img src={{@chat.photo}} alt="" />
+    {{else}}
+      {{initials @chat.label}}
+    {{/if}}
+  </span>
+</template>;
+
 export default class MessagesPage extends Component {
   maxLength = MAX_MESSAGE;
+  nameLength = NAME_LENGTH;
   reactions = QUICK_REACTIONS;
   maxFile = formatBytes(MAX_FILE_BYTES);
 
   @tracked draft = '';
-  @tracked attachment = '';
-  @tracked pendingFile = null;
+  // What is attached and not yet sent: [{ key, image } | { key, file, label }].
+  @tracked pending = [];
+  @tracked dragging = false;
   @tracked attachError = '';
+  @tracked photoError = '';
+  @tracked pickingAvatar = false;
+  // The rename field in the details panel, and which chat it was typed for.
+  @tracked chatName = '';
+  @tracked chatNameFor = '';
   @tracked replyTo = '';
   @tracked editingId = '';
   @tracked editDraft = '';
@@ -155,7 +234,12 @@ export default class MessagesPage extends Component {
       if (this.isDestroying || this.isDestroyed) return;
       this.mesh.start().catch(() => {});
     });
+    // Coming back from the Avatar Editor or Settings in another tab: use the
+    // profile saved there.
+    const onFocus = () => this.mesh.reloadProfile();
+    window.addEventListener('focus', onFocus);
     registerDestructor(this, () => {
+      window.removeEventListener('focus', onFocus);
       this.files.destroy();
       this.call.destroy();
       this.mesh.destroy();
@@ -200,6 +284,15 @@ export default class MessagesPage extends Component {
     }));
   }
 
+  get me() {
+    return this.mesh.device;
+  }
+
+  get profile() {
+    const { name, avatar, pose } = this.mesh.device;
+    return { name, avatar, pose, look: null };
+  }
+
   get onlineCount() {
     return this.members.filter((member) => member.online).length;
   }
@@ -227,6 +320,7 @@ export default class MessagesPage extends Component {
       return {
         ...message,
         name,
+        author: author ?? { id: message.author, name },
         mine: message.author === selfId,
         grouped,
         dayLabel,
@@ -284,7 +378,7 @@ export default class MessagesPage extends Component {
   }
 
   get canSend() {
-    return Boolean(this.draft.trim() || this.attachment || this.pendingFile);
+    return Boolean(this.draft.trim() || this.pending.length);
   }
 
   get presence() {
@@ -313,6 +407,7 @@ export default class MessagesPage extends Component {
     this.replyTo = '';
     this.editingId = '';
     this.showChats = false;
+    this.photoError = '';
     this.revision++;
   };
 
@@ -321,6 +416,8 @@ export default class MessagesPage extends Component {
   openPane = (which) => {
     this.pane = this.pane === which ? '' : which;
     this.joinError = '';
+    this.pickingAvatar = false;
+    if (this.pane === 'me') this.myName = this.mesh.device.name;
     // The panes live in the chat list, which is slid off screen on a phone,
     // so opening one has to bring the list with it.
     if (this.pane) this.showChats = true;
@@ -356,16 +453,59 @@ export default class MessagesPage extends Component {
 
   saveMyName = async (event) => {
     event.preventDefault();
-    await this.mesh.setDisplayName(this.myName);
+    const name = this.myName.trim();
+    if (name) await this.mesh.setProfile({ name });
     this.myName = this.mesh.device.name;
     this.pane = '';
+    this.pickingAvatar = false;
   };
 
+  toggleAvatarPicker = () => (this.pickingAvatar = !this.pickingAvatar);
+  pickAvatar = (look) => this.mesh.setProfile(look);
+
+  // The name in the title bar saves as soon as you leave it.
   renameChat = (event) => {
     const name = event.target.value.trim();
     if (name && this.active && name !== this.active.label)
       this.mesh.rename(this.active.id, name);
   };
+
+  get chatNameDraft() {
+    return this.chatNameFor === this.active?.id
+      ? this.chatName
+      : (this.active?.label ?? '');
+  }
+
+  setChatName = (event) => {
+    this.chatName = event.target.value;
+    this.chatNameFor = this.active?.id ?? '';
+  };
+
+  saveChatName = (event) => {
+    event.preventDefault();
+    const name = this.chatNameDraft.trim();
+    if (name && this.active && name !== this.active.label)
+      this.mesh.rename(this.active.id, name);
+    this.chatNameFor = '';
+  };
+
+  setPhoto = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    this.photoError = '';
+    if (!file || !this.active) return;
+    if (!file.type.startsWith('image/')) {
+      this.photoError = 'Choose a picture for the chat photo.';
+      return;
+    }
+    try {
+      await this.mesh.setPhoto(this.active.id, await squarePhoto(file));
+    } catch {
+      this.photoError = "Couldn't read that picture.";
+    }
+  };
+
+  removePhoto = () => this.active && this.mesh.setPhoto(this.active.id, '');
 
   leaveChat = async () => {
     const chat = this.active;
@@ -398,42 +538,58 @@ export default class MessagesPage extends Component {
     }
   };
 
+  // The text and the first attachment go as one message, so a caption sits
+  // with its picture; every attachment after that is a message of its own.
   send = async (event) => {
     event.preventDefault();
     if (!this.canSend || !this.active) return;
+    const chatId = this.active.id;
     const body = this.draft;
-    const image = this.attachment;
-    const file = this.pendingFile;
+    const pending = this.pending;
     const replyTo = this.replyTo;
     this.draft = '';
-    this.attachment = '';
-    this.pendingFile = null;
+    this.pending = [];
     this.replyTo = '';
-    let offer = null;
-    if (file) {
-      try {
-        offer = await this.files.offer(this.active.id, file);
-      } catch (error) {
-        this.attachError = error.message;
-        return;
+    const parts = pending.length ? pending : [{}];
+    for (const [index, part] of parts.entries()) {
+      let offer = null;
+      if (part.file) {
+        try {
+          offer = await this.files.offer(chatId, part.file);
+        } catch (error) {
+          this.attachError = error.message;
+          continue;
+        }
       }
+      await this.mesh.send(
+        index === 0 ? body : '',
+        part.image ?? '',
+        index === 0 ? replyTo : '',
+        offer,
+      );
     }
-    await this.mesh.send(body, image, replyTo, offer);
     this.revision++;
   };
 
   // One button for everything: a picture becomes a picture in the
   // conversation, and anything else becomes a file the others can save.
   attach = async (event) => {
-    const file = event.target.files?.[0];
+    const files = [...(event.target.files ?? [])];
     event.target.value = '';
+    await this.takeFiles(files);
+  };
+
+  async takeFiles(files) {
     this.attachError = '';
-    if (!file) return;
+    for (const file of files) await this.takeFile(file);
+  }
+
+  async takeFile(file) {
+    const key = `${file.name}:${file.size}:${Date.now()}:${Math.random()}`;
     if (file.type.startsWith('image/') && file.size <= IMAGE_SOURCE_LIMIT) {
-      const url = await shrinkImage(file);
-      if (url) {
-        this.attachment = url;
-        this.pendingFile = null;
+      const image = await shrinkImage(file).catch(() => '');
+      if (image) {
+        this.pending = [...this.pending, { key, image }];
         return;
       }
     }
@@ -441,19 +597,45 @@ export default class MessagesPage extends Component {
       this.attachError = `${file.name} is ${formatBytes(file.size)}. Files up to ${this.maxFile} can be sent.`;
       return;
     }
-    this.pendingFile = file;
-    this.attachment = '';
-  };
-
-  get pendingFileLabel() {
-    const file = this.pendingFile;
-    return file ? `${file.name} (${formatBytes(file.size)})` : '';
+    this.pending = [
+      ...this.pending,
+      { key, file, label: `${file.name} (${formatBytes(file.size)})` },
+    ];
   }
 
-  clearAttachment = () => {
-    this.attachment = '';
-    this.pendingFile = null;
+  clearAttachment = (part) => {
+    this.pending = this.pending.filter((other) => other !== part);
     this.attachError = '';
+  };
+
+  // Files dragged from the desktop land in the composer, ready to send.
+  dragOver = (event) => {
+    if (!hasFiles(event) || !this.active) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    this.dragging = true;
+  };
+
+  dragLeave = (event) => {
+    // Leaving a child still counts as being over the drop zone.
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    this.dragging = false;
+  };
+
+  drop = async (event) => {
+    if (!hasFiles(event)) return;
+    event.preventDefault();
+    this.dragging = false;
+    if (!this.active) return;
+    await this.takeFiles([...event.dataTransfer.files]);
+  };
+
+  // Pasting a screenshot works the way dropping one does.
+  paste = async (event) => {
+    const files = [...(event.clipboardData?.files ?? [])];
+    if (!files.length) return;
+    event.preventDefault();
+    await this.takeFiles(files);
   };
 
   download = (row) => this.files.download(this.active.id, row.file);
@@ -602,10 +784,7 @@ export default class MessagesPage extends Component {
                   style={{tint chat.id}}
                   {{on "click" (fn this.pick chat.id)}}
                 >
-                  <span
-                    class="msgr-avatar msgr-avatar-chat"
-                    aria-hidden="true"
-                  >{{initials chat.label}}</span>
+                  <ChatFace @chat={{chat}} />
                   <span class="msgr-chat-body">
                     <span class="msgr-chat-top">
                       <span class="msgr-chat-name">{{chat.label}}</span>
@@ -629,15 +808,34 @@ export default class MessagesPage extends Component {
           <div class="msgr-me">
             {{#if (eq this.pane "me")}}
               <form class="msgr-pane" {{on "submit" this.saveMyName}}>
-                <input
-                  type="text"
-                  class="msgr-input"
-                  maxlength="40"
-                  aria-label="Your name"
-                  value={{this.myName}}
-                  {{on "input" this.setMyName}}
-                  {{focusMe}}
-                />
+                <div class="msgr-me-row" style={{tint this.mesh.selfId}}>
+                  <Face @member={{this.me}} @size={{40}} />
+                  <input
+                    type="text"
+                    class="msgr-input"
+                    maxlength={{this.nameLength}}
+                    aria-label="Your name"
+                    value={{this.myName}}
+                    {{on "input" this.setMyName}}
+                    {{focusMe}}
+                  />
+                </div>
+                <p class="msgr-side-hint">This is your name and avatar from the
+                  games, so changing them here changes them there too.</p>
+                <button
+                  type="button"
+                  class="btn {{if this.pickingAvatar 'active'}}"
+                  aria-expanded={{if this.pickingAvatar "true" "false"}}
+                  {{on "click" this.toggleAvatarPicker}}
+                ><Icon @name="shirt" @size={{13}} />
+                  {{if this.pickingAvatar "Done" "Change avatar"}}</button>
+                {{#if this.pickingAvatar}}
+                  <AvatarPicker
+                    @profile={{this.profile}}
+                    @onPick={{this.pickAvatar}}
+                    @size={{44}}
+                  />
+                {{/if}}
                 <button type="submit" class="btn active">Save</button>
               </form>
             {{else}}
@@ -647,9 +845,7 @@ export default class MessagesPage extends Component {
                 style={{tint this.mesh.selfId}}
                 {{on "click" (fn this.openPane "me")}}
               >
-                <span class="msgr-avatar" aria-hidden="true">{{initials
-                    this.mesh.device.name
-                  }}</span>
+                <Face @member={{this.me}} @size={{40}} />
                 <span class="msgr-me-body">
                   <span class="msgr-chat-name">{{this.mesh.device.name}}</span>
                   <span class="msgr-chat-last">{{if
@@ -666,7 +862,19 @@ export default class MessagesPage extends Component {
         </aside>
 
         {{! ─── The conversation ──────────────────────────────────── }}
-        <section class="msgr-main">
+        <section
+          class="msgr-main {{if this.dragging 'is-dragging'}}"
+          {{on "dragenter" this.dragOver}}
+          {{on "dragover" this.dragOver}}
+          {{on "dragleave" this.dragLeave}}
+          {{on "drop" this.drop}}
+        >
+          {{#if this.dragging}}
+            <div class="msgr-drop" aria-hidden="true">
+              <Icon @name="upload" @size={{28}} />
+              <span>Drop to send</span>
+            </div>
+          {{/if}}
           {{#if this.active}}
             <header class="msgr-head">
               <button
@@ -675,11 +883,9 @@ export default class MessagesPage extends Component {
                 aria-label="Chats"
                 {{on "click" this.toggleChats}}
               ><Icon @name="menu" @size={{17}} /></button>
-              <span
-                class="msgr-avatar msgr-avatar-chat"
-                style={{tint this.active.id}}
-                aria-hidden="true"
-              >{{initials this.active.label}}</span>
+              <span style={{tint this.active.id}}>
+                <ChatFace @chat={{this.active}} @class="msgr-head-face" />
+              </span>
               <div class="msgr-head-name">
                 <input
                   type="text"
@@ -762,15 +968,18 @@ export default class MessagesPage extends Component {
                         autoplay
                         muted
                         playsinline
-                        {{playStream this.call.localStream}}
+                        {{playStream this.call.localStream true}}
                       ></video>
                     {{/if}}
                     {{#unless this.call.camOn}}
                       {{#unless this.call.sharing}}
-                        <span
-                          class="msgr-avatar msgr-tile-avatar"
-                          style={{tint this.mesh.selfId}}
-                        >{{initials this.mesh.device.name}}</span>
+                        <span style={{tint this.mesh.selfId}}>
+                          <Face
+                            @member={{this.me}}
+                            @size={{48}}
+                            @class="msgr-tile-avatar"
+                          />
+                        </span>
                       {{/unless}}
                     {{/unless}}
                     <span class="msgr-tile-name">You{{#unless this.call.micOn}}
@@ -783,7 +992,7 @@ export default class MessagesPage extends Component {
                         class="msgr-video"
                         autoplay
                         playsinline
-                        {{playStream person.stream}}
+                        {{playStream person.stream false}}
                       ></video>
                       <span class="msgr-tile-name">{{person.name}}</span>
                     </div>
@@ -860,10 +1069,18 @@ export default class MessagesPage extends Component {
                     style={{row.tint}}
                   >
                     {{#unless row.mine}}
-                      <span
-                        class="msgr-avatar msgr-row-avatar"
-                        aria-hidden="true"
-                      >{{unless row.grouped row.initials}}</span>
+                      {{#if row.grouped}}
+                        <span
+                          class="msgr-avatar msgr-row-avatar"
+                          aria-hidden="true"
+                        ></span>
+                      {{else}}
+                        <Face
+                          @member={{row.author}}
+                          @size={{30}}
+                          @class="msgr-row-avatar"
+                        />
+                      {{/if}}
                     {{/unless}}
                     <div class="msgr-bubble-wrap">
                       {{#unless row.grouped}}
@@ -972,7 +1189,9 @@ export default class MessagesPage extends Component {
                               </span>
                             {{/if}}
                             {{#if row.text}}
-                              <span class="msgr-text">{{row.text}}</span>
+                              <span class="msgr-text">{{markdown
+                                  row.text
+                                }}</span>
                             {{/if}}
                             {{#if row.editedAt}}
                               <span class="msgr-edited">edited</span>
@@ -1074,27 +1293,24 @@ export default class MessagesPage extends Component {
               {{#if this.attachError}}
                 <p class="tool-error">{{this.attachError}}</p>
               {{/if}}
-              {{#if this.attachment}}
-                <div class="msgr-attached">
-                  <img src={{this.attachment}} alt="Attached, not yet sent" />
-                  <button
-                    type="button"
-                    class="msgr-tool"
-                    aria-label="Remove the picture"
-                    {{on "click" this.clearAttachment}}
-                  ><Icon @name="x" @size={{14}} /></button>
-                </div>
-              {{/if}}
-              {{#if this.pendingFile}}
-                <div class="msgr-attached">
-                  <Icon @name="file" @size={{16}} />
-                  <span>{{this.pendingFileLabel}}</span>
-                  <button
-                    type="button"
-                    class="msgr-tool"
-                    aria-label="Remove the file"
-                    {{on "click" this.clearAttachment}}
-                  ><Icon @name="x" @size={{14}} /></button>
+              {{#if this.pending.length}}
+                <div class="msgr-attached-list">
+                  {{#each this.pending key="key" as |part|}}
+                    <div class="msgr-attached">
+                      {{#if part.image}}
+                        <img src={{part.image}} alt="Attached, not yet sent" />
+                      {{else}}
+                        <Icon @name="file" @size={{16}} />
+                        <span>{{part.label}}</span>
+                      {{/if}}
+                      <button
+                        type="button"
+                        class="msgr-tool"
+                        aria-label="Remove this attachment"
+                        {{on "click" (fn this.clearAttachment part)}}
+                      ><Icon @name="x" @size={{14}} /></button>
+                    </div>
+                  {{/each}}
                 </div>
               {{/if}}
               {{#each this.sending key="tid" as |transfer|}}
@@ -1117,6 +1333,7 @@ export default class MessagesPage extends Component {
                   <input
                     type="file"
                     class="msgr-file-input"
+                    multiple
                     aria-label="Send a picture or a file"
                     {{on "change" this.attach}}
                   />
@@ -1124,12 +1341,13 @@ export default class MessagesPage extends Component {
                 <textarea
                   class="msgr-draft"
                   rows="1"
-                  placeholder="Write a message"
+                  placeholder="Write a message (markdown works)"
                   maxlength={{this.maxLength}}
                   aria-label="Message"
                   value={{this.draft}}
                   {{on "input" this.setDraft}}
                   {{on "keydown" this.onKey}}
+                  {{on "paste" this.paste}}
                 ></textarea>
                 <button
                   type="submit"
@@ -1177,6 +1395,48 @@ export default class MessagesPage extends Component {
               ><Icon @name="x" @size={{16}} /></button>
             </div>
             <div class="msgr-people-body">
+              <h4 class="msgr-side-title">Name and photo</h4>
+              <div class="msgr-photo-row" style={{tint this.active.id}}>
+                <ChatFace @chat={{this.active}} @class="msgr-photo-big" />
+                <div class="msgr-photo-actions">
+                  <span class="msgr-icon-btn btn" title="Choose a chat photo">
+                    <Icon @name="image-plus" @size={{14}} />
+                    Choose a photo
+                    <input
+                      type="file"
+                      class="msgr-file-input"
+                      accept="image/*"
+                      aria-label="Choose a chat photo"
+                      {{on "change" this.setPhoto}}
+                    />
+                  </span>
+                  {{#if this.active.photo}}
+                    <button
+                      type="button"
+                      class="btn"
+                      {{on "click" this.removePhoto}}
+                    ><Icon @name="x" @size={{13}} /> Remove the photo</button>
+                  {{/if}}
+                </div>
+              </div>
+              {{#if this.photoError}}
+                <p class="tool-error">{{this.photoError}}</p>
+              {{/if}}
+              <form class="msgr-invite-row" {{on "submit" this.saveChatName}}>
+                <input
+                  type="text"
+                  class="msgr-input"
+                  maxlength="60"
+                  aria-label="Rename this chat"
+                  placeholder="Chat name"
+                  value={{this.chatNameDraft}}
+                  {{on "input" this.setChatName}}
+                />
+                <button type="submit" class="btn active">Rename</button>
+              </form>
+              <p class="msgr-side-hint">The name and photo are shared: everyone
+                in the chat sees the change.</p>
+
               <h4 class="msgr-side-title">Invite link</h4>
               <p class="msgr-side-hint">Anyone with this link can read and write
                 in this chat, so send it the way you would a key. The secret is
@@ -1196,10 +1456,7 @@ export default class MessagesPage extends Component {
               <ul class="msgr-member-list">
                 {{#each this.members key="id" as |member|}}
                   <li style={{member.tint}}>
-                    <span
-                      class="msgr-avatar"
-                      aria-hidden="true"
-                    >{{member.initials}}</span>
+                    <Face @member={{member}} @size={{34}} />
                     <span class="msgr-member-body">
                       <span class="msgr-chat-name">{{member.name}}{{#if
                           member.you

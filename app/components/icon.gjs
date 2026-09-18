@@ -203,10 +203,14 @@ import {
   VideoOff,
   ScreenShare,
   ScreenShareOff,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
 const ICONS = {
+  'panel-right-close': PanelRightClose,
+  'panel-right-open': PanelRightOpen,
   aperture: Aperture,
   'scan-face': ScanFace,
   circle: Circle,
