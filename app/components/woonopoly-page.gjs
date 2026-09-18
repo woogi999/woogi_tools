@@ -341,14 +341,14 @@ export default class WoonopolyPage extends Component {
     this.room.setSettings({
       bots: Math.min(
         this.settings.bots + 1,
-        MAX_PLAYERS - this.room.members.length,
+        MAX_PLAYERS - this.room.players.length,
       ),
     });
   removeBot = () =>
     this.room.setSettings({
       bots: Math.max(
         0,
-        Math.min(this.settings.bots, MAX_PLAYERS - this.room.members.length) -
+        Math.min(this.settings.bots, MAX_PLAYERS - this.room.players.length) -
           1,
       ),
     });
@@ -1606,7 +1606,7 @@ export default class WoonopolyPage extends Component {
                     {{#unless this.room.allReady}}
                       <span
                         class="poly-hud-chip"
-                      >{{this.room.readyCount}}/{{this.room.members.length}}
+                      >{{this.room.readyCount}}/{{this.room.players.length}}
                         ready</span>
                       <button
                         type="button"

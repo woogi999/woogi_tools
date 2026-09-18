@@ -207,7 +207,7 @@ export default class ChessPage extends Component {
 
   // The seat is only offered back when there is actually room for it.
   get canAddBot() {
-    return this.settings.noBot && this.room.members.length < 2;
+    return this.settings.noBot && this.room.players.length < 2;
   }
 
   addBot = () => this.setRule('noBot', false);
@@ -247,7 +247,7 @@ export default class ChessPage extends Component {
   }
 
   get vsBotInLobby() {
-    return this.room.members.length < 2 && !this.settings.noBot;
+    return this.room.players.length < 2 && !this.settings.noBot;
   }
 
   // Chess needs two players. Without the computer and without a second person

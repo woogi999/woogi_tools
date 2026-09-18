@@ -9,6 +9,34 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.9',
+    date: '2026-09-19',
+    title:
+      'A new front page, an assistant that lives in your browser, and a tidier offline copy',
+    changes: [
+      {
+        type: 'new',
+        text: 'Ask the home page a question: end it with a question mark and a small language model answers right there, running on your own device (it downloads once, about 270 MB, and nothing you ask leaves the browser). It points you at the tools that fit.',
+      },
+      {
+        type: 'new',
+        text: 'Drop a file on the home search bar (or pick one with the paperclip) and you get every tool that can take that sort of file, the best fit first. Typing narrows them down further.',
+      },
+      {
+        type: 'improved',
+        text: 'The home page opens on the search alone and the tools wait below; the cards are dealt onto the page as you scroll down to them and slip away as they leave.',
+      },
+      {
+        type: 'fixed',
+        text: 'The offline copy no longer piles up old versions: a new build clears every older one, a download that fails part way clears up after itself, and files the build precaches are not kept twice.',
+      },
+      {
+        type: 'fixed',
+        text: 'Games: watching a room no longer takes up a seat, so a four-player game with a spectator still fits four players. A spectator can only come back to play while a seat is free.',
+      },
+    ],
+  },
+  {
     version: '1.0.8',
     date: '2026-09-18',
     title:

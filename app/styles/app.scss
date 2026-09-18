@@ -1316,6 +1316,215 @@ main {
   text-align: center;
 }
 
+// Before anything is typed, the search takes the whole first screen; the
+// tools wait below it and come into view as you scroll.
+.home-search.is-hero {
+  min-height: calc(100svh - 1.75rem);
+  padding-bottom: 0;
+}
+
+// The logo and bar sit in the middle of the screen, the scroll hint at its foot.
+.home-search.is-hero .home-search-logo {
+  margin-top: auto;
+}
+
+@media (max-width: 720px) {
+  .home-search.is-hero {
+    min-height: calc(100svh - 50px - 1.75rem);
+  }
+}
+
+.home-search-hint.is-tips {
+  max-width: 44ch;
+  font-size: 0.72rem;
+}
+
+.home-scroll-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.home-scroll-hint:hover {
+  color: var(--text);
+}
+
+@keyframes nudge-down {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 5px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .home-scroll-hint .icon {
+    animation: nudge-down 1.6s ease-in-out infinite;
+  }
+}
+
+// A file dropped on the bar, shown as a chip in front of the text.
+.home-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 40%;
+  padding: 2px 4px 2px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated-2);
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.home-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-attach {
+  cursor: pointer;
+}
+
+.home.is-dragging .home-search-form {
+  border-color: var(--text);
+  border-style: dashed;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--text) 12%, transparent);
+}
+
+.home-drop-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
+
+.home-ask-btn .icon {
+  color: #f5c518;
+}
+
+// ─── The assistant's answer ─────────────────────────────────────────────
+
+.home-ask {
+  width: min(680px, 100%);
+  margin: 0 auto 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home-ask-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-ask-head .icon {
+  color: #f5c518;
+}
+
+.home-ask-question {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.95rem;
+}
+
+.home-ask-answer {
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.home-ask-answer p {
+  margin: 0 0 0.6em;
+}
+
+.home-ask-answer > :last-child {
+  margin-bottom: 0;
+}
+
+// A blinking caret while the answer is still arriving.
+.home-ask-answer.is-typing > :last-child::after {
+  content: "▍";
+  margin-left: 1px;
+  color: var(--text-faint);
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.home-ask-status {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.home-ask-status.is-error {
+  color: var(--card-red);
+}
+
+.home-ask-status.is-note {
+  color: var(--text-faint);
+  font-size: 0.72rem;
+}
+
+.home-ask .home-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+
+// ─── Cards dealt in and out as the page scrolls ─────────────────────────
+
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .scroll-card {
+    opacity: 0;
+    translate: 0 28px;
+    rotate: 2deg;
+    scale: 0.94;
+    transition:
+      opacity 0.4s ease,
+      translate 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      rotate 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      scale 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+      background-color 0.15s ease;
+  }
+
+  :root:not([data-motion="reduce"]) .scroll-card.is-above {
+    translate: 0 -28px;
+    rotate: -2deg;
+  }
+
+  :root:not([data-motion="reduce"]) .scroll-card.is-in {
+    opacity: 1;
+    translate: 0 0;
+    rotate: 0deg;
+    scale: 1;
+  }
+}
+
 // ─── Card hand (search results) ──────────────────────────────────────────
 
 .home-results {

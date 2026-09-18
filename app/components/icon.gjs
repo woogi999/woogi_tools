@@ -213,6 +213,8 @@ import {
   ScrollText,
   Landmark,
   Map as MapIcon,
+  Paperclip,
+  ChevronDown,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -429,6 +431,8 @@ const ICONS = {
   'video-off': VideoOff,
   'screen-share': ScreenShare,
   'screen-share-off': ScreenShareOff,
+  paperclip: Paperclip,
+  'chevron-down': ChevronDown,
 };
 
 function svg(name, size = 16, fill = 'none') {

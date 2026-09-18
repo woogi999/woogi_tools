@@ -188,10 +188,16 @@ export default class GameRoom {
     return Boolean(this.spectatorIds[this.selfId]);
   }
 
+  // True when every seat is taken, so a spectator can't come back to play.
+  get seatsFull() {
+    return this.players.length >= this.maxPlayers;
+  }
+
   // Host or guest: watch instead of play. Ignored once a game is under way.
   setSpectating(on) {
     const id = this.selfId;
     if (Boolean(this.spectatorIds[id]) === Boolean(on)) return;
+    if (!on && this.seatsFull) return;
     if (this.role === 'guest') {
       // Shown straight away; the host's next lobby message confirms it.
       this.spectatorIds = withFlag(this.spectatorIds, id, on);
@@ -206,6 +212,7 @@ export default class GameRoom {
   // Host: put someone back in the game, or out of it.
   setSpectatingFor(id, on) {
     if (!this.isHost) return;
+    if (!on && this.seatsFull) return;
     this.spectatorIds = withFlag(this.spectatorIds, id, on);
     this.broadcastLobby();
   }
@@ -422,7 +429,7 @@ export default class GameRoom {
     return {
       code: this.code,
       host: this.wireProfile().name,
-      players: this.members.length,
+      players: this.players.length,
       max: this.maxPlayers,
       locked: this.locked,
       password: Boolean(this.password),
@@ -542,7 +549,8 @@ export default class GameRoom {
   admit(conn) {
     conn.on('data', (message) => {
       if (message?.t === 'hello') {
-        const full = this.guests.length + 1 >= this.maxPlayers;
+        // Spectators sit outside the game, so only the people playing fill seats.
+        const full = this.players.length >= this.maxPlayers;
         const wrongPassword =
           this.password && message.password !== this.password;
         if (full || this.locked || wrongPassword) {
@@ -597,6 +605,11 @@ export default class GameRoom {
           Boolean(this.spectatorIds[conn.peer]) === Boolean(message.on)
         )
           return;
+        // No seat left to come back to: the next lobby message puts them right.
+        if (!message.on && this.seatsFull) {
+          this.broadcastLobby();
+          return;
+        }
         this.spectatorIds = withFlag(this.spectatorIds, conn.peer, message.on);
         this.broadcastLobby();
       } else if (message?.t === 'command') {
