@@ -306,6 +306,8 @@ h3 {
   flex-shrink: 0;
 }
 
+// Pops in with a little bounce as the homepage snaps to its tools, and folds
+// away again as it snaps back to its own logo and search box.
 .brand-logo-wrap {
   position: relative;
   width: 100%;
@@ -315,15 +317,17 @@ h3 {
   opacity: 1;
   overflow: hidden;
   transition:
-    max-height 0.22s ease,
-    opacity 0.16s ease,
-    margin 0.22s ease;
+    max-height 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s ease,
+    margin 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    scale 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .brand-logo-wrap.is-collapsed {
   max-height: 0;
   opacity: 0;
   margin: 0;
+  scale: 0.85;
   pointer-events: none;
 }
 
@@ -540,10 +544,11 @@ h3 {
   opacity: 1;
   overflow: hidden;
   transition:
-    max-height 0.22s ease,
-    opacity 0.16s ease,
-    margin 0.22s ease,
-    padding 0.22s ease;
+    max-height 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s ease,
+    margin 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    padding 0.32s cubic-bezier(0.34, 1.56, 0.64, 1),
+    translate 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .sidebar-search.is-collapsed {
@@ -551,6 +556,7 @@ h3 {
   opacity: 0;
   margin: 0 0.6rem;
   padding: 0 0.55rem;
+  translate: -12px 0;
   pointer-events: none;
 }
 
@@ -1334,11 +1340,6 @@ main {
   }
 }
 
-.home-search-hint.is-tips {
-  max-width: 44ch;
-  font-size: 0.72rem;
-}
-
 .home-scroll-hint {
   display: flex;
   flex-direction: column;
@@ -1420,7 +1421,7 @@ main {
   color: #f5c518;
 }
 
-// ─── The assistant's answer ─────────────────────────────────────────────
+// ─── The chat with Woogi ────────────────────────────────────────────────
 
 .home-ask {
   width: min(680px, 100%);
@@ -1440,15 +1441,78 @@ main {
   color: #f5c518;
 }
 
-.home-ask-question {
+.home-ask-title {
   flex: 1;
   min-width: 0;
   font-size: 0.95rem;
 }
 
-.home-ask-answer {
+// Messages as bubbles: yours on the right in ink, Woogi's on the left with a face.
+.home-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 16px;
   font-size: 0.9rem;
-  line-height: 1.55;
+  line-height: 1.5;
+  animation: bubble-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.home-bubble.is-user {
+  align-self: flex-end;
+  background: var(--text);
+  color: var(--bg);
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.home-bubble.is-woogi {
+  align-self: flex-start;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-left: 8px;
+  border: 1px solid var(--border-color);
+  border-bottom-left-radius: 4px;
+  background: var(--bg-elevated);
+}
+
+.home-bubble.is-status {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.home-bubble.is-error {
+  color: var(--card-red);
+  border-color: var(--card-red);
+}
+
+.home-bubble-avatar {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-top: 1px;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    scale: 0.92;
+  }
+}
+
+.home-ask-answer {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .home-ask-answer p {
@@ -1479,10 +1543,6 @@ main {
   font-size: 0.8rem;
 }
 
-.home-ask-status.is-error {
-  color: var(--card-red);
-}
-
 .home-ask-status.is-note {
   color: var(--text-faint);
   font-size: 0.72rem;
@@ -1495,26 +1555,76 @@ main {
   text-decoration: none;
 }
 
+// Links and charts inside the assistant's answer.
+.home-ask-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--card-red);
+  text-underline-offset: 2px;
+}
+
+.ask-chart {
+  display: block;
+  width: min(420px, 100%);
+  height: auto;
+  margin: 6px 0;
+  color: var(--text);
+  font-size: 10px;
+}
+
+.ask-chart-title {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--text);
+}
+
+.ask-chart-label {
+  fill: var(--text-dim);
+}
+
+.ask-chart-grid {
+  stroke: var(--border-color);
+  stroke-width: 1;
+}
+
+.ask-chart-axis {
+  stroke: var(--text-faint);
+  stroke-width: 1;
+}
+
 // ─── Cards dealt in and out as the page scrolls ─────────────────────────
+//
+// Quick and springy: a card flicks up into place with a little overshoot as
+// it enters, and flips back out the way it came when it leaves.
 
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="reduce"]) .scroll-card {
     opacity: 0;
-    translate: 0 28px;
-    rotate: 2deg;
-    scale: 0.94;
+    translate: 0 48px;
+    rotate: 6deg;
+    scale: 0.8;
     transition:
-      opacity 0.4s ease,
-      translate 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-      rotate 0.55s cubic-bezier(0.22, 1, 0.36, 1),
-      scale 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.18s ease-out,
+      translate 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+      rotate 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
+      scale 0.38s cubic-bezier(0.34, 1.56, 0.64, 1),
       transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
       background-color 0.15s ease;
   }
 
+  // Neighbours in a row lean the other way, so a grid ripples rather than marches.
+  :root:not([data-motion="reduce"]) .scroll-card:nth-child(even) {
+    rotate: -6deg;
+  }
+
   :root:not([data-motion="reduce"]) .scroll-card.is-above {
-    translate: 0 -28px;
-    rotate: -2deg;
+    translate: 0 -48px;
+    rotate: -6deg;
+  }
+
+  :root:not([data-motion="reduce"]) .scroll-card.is-above:nth-child(even) {
+    rotate: 6deg;
   }
 
   :root:not([data-motion="reduce"]) .scroll-card.is-in {
@@ -1898,8 +2008,10 @@ main {
   gap: 6px;
 }
 
+// Room above the categories, which land at the top of the screen after the snap.
 .home-categories {
   margin-bottom: 10px;
+  padding-top: 28px;
 }
 
 .home-count {

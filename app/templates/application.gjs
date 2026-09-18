@@ -19,6 +19,7 @@ export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
   @service offline;
   @service router;
+  @service handoff;
   @tracked navOpen = false;
   @tracked homeSearchVisible = true;
 
@@ -26,6 +27,13 @@ export default class Application extends Component {
     super(owner, args);
     installUiSounds();
     installGamepad();
+    // A file brought along from the home page goes into the tool once it has rendered.
+    this.router.on('routeDidChange', () => {
+      if (!this.handoff.file) return;
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => this.handoff.feed()),
+      );
+    });
   }
 
   toggleNav = () => (this.navOpen = !this.navOpen);
@@ -40,6 +48,13 @@ export default class Application extends Component {
   // eslint-disable-next-line no-unused-vars
   watchScroll = modifier((element, [route]) => {
     const update = () => {
+      // While the homepage snaps between its search and its tools, it says
+      // which one it's heading for, so the sidebar swaps in step with the snap.
+      const view = document.documentElement.dataset.homeView;
+      if (view) {
+        this.homeSearchVisible = view === 'hero';
+        return;
+      }
       const home = document.querySelector('.home-search');
       this.homeSearchVisible = home
         ? home.getBoundingClientRect().bottom > 0
@@ -48,9 +63,11 @@ export default class Application extends Component {
     update();
     window.addEventListener('scroll', update, { passive: true });
     window.addEventListener('resize', update, { passive: true });
+    window.addEventListener('woogi:home-view', update);
     return () => {
       window.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
+      window.removeEventListener('woogi:home-view', update);
     };
   });
 
