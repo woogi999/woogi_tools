@@ -7,17 +7,22 @@ import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
-import { formatTime } from '../utils/media-jobs';
+import { formatTime, runFFmpeg } from '../utils/media-jobs';
 
 // Records your screen, a window or a tab, with the sound from it and/or your
 // microphone. The browser does the recording; nothing is sent anywhere.
+// Recordings always come out as MP4: straight from the recorder where the
+// browser can write one (Chrome, Edge, Safari), otherwise recorded as WebM
+// and turned into MP4 by FFmpeg afterwards.
 
-// In the browser's own order of preference: whatever it supports first.
+// MP4 first, then whatever the browser supports.
 const TYPES = [
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4;codecs=avc1,opus',
+  'video/mp4',
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
   'video/webm',
-  'video/mp4',
 ];
 const QUALITY = [
   { id: 'high', label: 'High', bits: 8_000_000 },
@@ -34,18 +39,25 @@ export default class ScreenRecorderPage extends Component {
   // While this is true, leaving the page floats the tool in a PiP window
   // instead of tearing it down, so the work carries on (see services/pip.js).
   get pipBusy() {
-    return this.state === 'recording' || this.state === 'paused';
+    return (
+      this.state === 'recording' ||
+      this.state === 'paused' ||
+      this.state === 'converting'
+    );
   }
 
   get pipWarning() {
     return 'Close the Screen Recorder? The recording in progress will be lost.';
   }
-  @tracked state = 'idle'; // 'idle' | 'recording' | 'paused' | 'done'
+  @tracked state = 'idle'; // 'idle' | 'recording' | 'paused' | 'converting' | 'done'
+  @tracked convertStatus = '';
+  @tracked convertProgress = 0;
   @tracked seconds = 0;
   @tracked size = 0;
   @tracked error = null;
   @tracked resultUrl = null;
   @tracked resultSize = 0;
+  @tracked resultType = '';
   @tracked withSystemAudio = true;
   @tracked withMic = false;
   @tracked quality = 'normal';
@@ -58,6 +70,7 @@ export default class ScreenRecorderPage extends Component {
   streams = [];
   ticker = null;
   liveVideo = null;
+  mixer = null;
 
   constructor(owner, args) {
     super(owner, args);
@@ -87,11 +100,16 @@ export default class ScreenRecorderPage extends Component {
       .toISOString()
       .slice(0, 19)
       .replaceAll(/[:T]/g, '-');
-    return `screen-${stamp}.${supportedType().includes('mp4') ? 'mp4' : 'webm'}`;
+    return `screen-${stamp}.${this.resultType.includes('mp4') ? 'mp4' : 'webm'}`;
   }
 
   // The live picture while you record, so you can see what's being caught.
+  // It has to stay silent: the `muted` attribute is ignored once the element
+  // exists, so the property is set here, or the screen's own sound would play
+  // back out of the speakers and be caught again as an echo.
   showLive = modifier((element) => {
+    element.muted = true;
+    element.volume = 0;
     this.liveVideo = element;
     return () => (this.liveVideo = null);
   });
@@ -100,7 +118,24 @@ export default class ScreenRecorderPage extends Component {
     for (const stream of this.streams)
       for (const track of stream.getTracks()) track.stop();
     this.streams = [];
+    this.mixer?.close().catch(() => {});
+    this.mixer = null;
     if (this.liveVideo) this.liveVideo.srcObject = null;
+  }
+
+  // A recorder only keeps one sound track, so the screen's sound and the
+  // microphone are mixed into a single track first.
+  mixAudio(streams) {
+    const withSound = streams.filter((s) => s.getAudioTracks().length);
+    if (withSound.length < 2) return withSound[0]?.getAudioTracks() ?? [];
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (!Context) return withSound[0].getAudioTracks();
+    const context = new Context();
+    const out = context.createMediaStreamDestination();
+    for (const stream of withSound)
+      context.createMediaStreamSource(stream).connect(out);
+    this.mixer = context;
+    return out.stream.getAudioTracks();
   }
 
   toggle = (key, event) => (this[key] = event.target.checked);
@@ -117,23 +152,26 @@ export default class ScreenRecorderPage extends Component {
         audio: this.withSystemAudio,
       });
       this.streams = [display];
-      let tracks = [...display.getVideoTracks(), ...display.getAudioTracks()];
       // A microphone is a second stream, mixed in beside the screen's own sound.
       if (this.withMic) {
         try {
           const mic = await navigator.mediaDevices.getUserMedia({
-            audio: true,
+            audio: { echoCancellation: true, noiseSuppression: true },
           });
           this.streams.push(mic);
-          tracks = [...tracks, ...mic.getAudioTracks()];
         } catch {
           this.error =
             'Couldn’t use the microphone, so it’s recording without it.';
         }
       }
-      const stream = new MediaStream(tracks);
+      const stream = new MediaStream([
+        ...display.getVideoTracks(),
+        ...this.mixAudio(this.streams),
+      ]);
       if (this.liveVideo) {
-        this.liveVideo.srcObject = display;
+        // Picture only: the sound is never played back here.
+        this.liveVideo.muted = true;
+        this.liveVideo.srcObject = new MediaStream(display.getVideoTracks());
         this.liveVideo.play?.().catch(() => {});
       }
       const type = supportedType();
@@ -187,15 +225,52 @@ export default class ScreenRecorderPage extends Component {
     this.recorder?.stop();
   };
 
-  finish(type) {
+  async finish(type) {
     clearInterval(this.ticker);
     this.ticker = null;
     this.stopTracks();
-    const blob = new Blob(this.chunks, { type: type || 'video/webm' });
+    let blob = new Blob(this.chunks, { type: type || 'video/webm' });
     this.chunks = [];
     this.recorder = null;
+    if (!blob.type.includes('mp4')) {
+      // The browser could only write WebM, so FFmpeg makes the MP4.
+      this.state = 'converting';
+      this.convertProgress = 0;
+      this.convertStatus = 'Starting the audio/video engine…';
+      try {
+        blob = await runFFmpeg(new File([blob], 'recording.webm'), {
+          out: 'mp4',
+          type: 'video/mp4',
+          duration: this.seconds,
+          build: (input) => [
+            '-i',
+            input,
+            '-c:v',
+            'libx264',
+            '-preset',
+            'veryfast',
+            '-crf',
+            '23',
+            '-pix_fmt',
+            'yuv420p',
+            '-c:a',
+            'aac',
+            '-b:a',
+            '160k',
+            '-movflags',
+            '+faststart',
+          ],
+          onStatus: (status) => (this.convertStatus = status),
+          onProgress: (progress) => (this.convertProgress = progress),
+        });
+      } catch (error) {
+        // The WebM is still a perfectly good recording; hand that over instead.
+        this.error = `Couldn’t convert to MP4 (${error?.message ?? 'unknown error'}), so here it is as WebM.`;
+      }
+    }
     this.resultUrl = URL.createObjectURL(blob);
     this.resultSize = blob.size;
+    this.resultType = blob.type;
     this.state = 'done';
   }
 
@@ -332,8 +407,16 @@ export default class ScreenRecorderPage extends Component {
             {{/unless}}
 
             {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
+            {{#if (eq this.state "converting")}}
+              <div class="rec-convert" aria-live="polite">
+                <Icon @name="loader-pinwheel" @size={{16}} />
+                <span>{{this.convertStatus}}</span>
+                <progress max="1" value={{this.convertProgress}}></progress>
+              </div>
+            {{/if}}
             <p class="tool-hint">You pick what to share when you press start.
-              Recordings come out as WebM (MP4 in Safari), and the Trimmer and
+              Recordings come out as MP4 (straight from the browser where it
+              can, otherwise converted here after you stop), and the Trimmer and
               the file converter can take it from there.</p>
           {{else}}
             <p class="tool-error">This browser can't record the screen. Chrome,

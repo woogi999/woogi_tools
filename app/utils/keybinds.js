@@ -71,6 +71,36 @@ export const GAME_CONTROLS = [
     ],
   },
   {
+    game: 'woonopoly',
+    label: 'Woonopoly',
+    actions: [
+      {
+        id: 'roll',
+        label: 'Roll the dice',
+        keys: ['Space', 'KeyR'],
+        pad: ['A'],
+      },
+      {
+        id: 'end',
+        label: 'End your turn',
+        keys: ['Enter', 'KeyE'],
+        pad: ['Y'],
+      },
+      { id: 'buy', label: 'Buy the property', keys: ['KeyB'], pad: ['X'] },
+      {
+        id: 'decline',
+        label: 'Pass on it (or pass in an auction)',
+        keys: ['KeyN'],
+        pad: ['B'],
+      },
+      { id: 'trade', label: 'Offer a trade', keys: ['KeyG'], pad: ['LB'] },
+      { id: 'portfolio', label: 'My deeds', keys: ['KeyM'], pad: ['RB'] },
+      { id: 'close', label: 'Close the panel', keys: ['Escape'], pad: [] },
+      { id: 'chat', label: 'Open chat', keys: ['KeyT'], pad: ['Back'] },
+      { id: 'help', label: 'How to play', keys: ['KeyI'], pad: ['Start'] },
+    ],
+  },
+  {
     game: 'chess',
     label: 'Chess',
     actions: [

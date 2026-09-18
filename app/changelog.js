@@ -11,8 +11,17 @@ export const CHANGELOG = [
   {
     version: '1.0.8',
     date: '2026-09-18',
-    title: 'Two new tools: an address lookup and a chat nobody hosts',
+    title:
+      'Woonopoly, an address lookup, a mannequin poser, and a chat nobody hosts',
     changes: [
+      {
+        type: 'new',
+        text: 'Woonopoly: our take on the property-trading board game, on a 3D city board with your avatars walking round it as the tokens, buildings that grow as you build, and a camera that follows the action or pulls up to a map. Up to eight players, online or against the computer, with auctions, trades, mortgages, houses and hotels, jail, Chance and Treasure Chest cards, and Woobux counted in pesos. The lobby sets the starting money, the GO salary, a round limit, a turn timer and the usual house rules (Free Parking jackpot, double salary on GO, a housing shortage, quick start).',
+      },
+      {
+        type: 'improved',
+        text: 'Screen Recorder saves MP4 everywhere (recorded directly where the browser can, converted in the page where it can’t), mixes your microphone into the screen’s sound properly, and no longer plays the sound it is recording back out of your speakers.',
+      },
       {
         type: 'new',
         text: 'Pose Reference: a rigged 3D mannequin to draw from, laid out like the games with the controls over the picture. Drag its limbs into a pose or start from a preset, orbit and light it, choose the lens, and save a picture. Clay, toon, wireframe or x-ray.',
