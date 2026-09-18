@@ -124,7 +124,7 @@ export default class NearbyPanel extends Component {
   // A rough count of seats spoken for: everyone already in, plus invites still pending an answer.
   get roomFull() {
     return (
-      this.room.members.length + this.room.lanInvites.length >=
+      this.room.players.length + this.room.lanInvites.length >=
       this.room.maxPlayers
     );
   }

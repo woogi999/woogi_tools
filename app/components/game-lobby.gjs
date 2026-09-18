@@ -120,7 +120,8 @@ export default class GameLobby extends Component {
     // players go at each other is a reasonable thing to want. The only rule is
     // that somebody has to be left on the field, and a computer player counts,
     // so a lone host can drop out as long as they have added one.
-    if (this.iAmSpectating) return true;
+    // Coming back needs a free seat, or the room would be over its limit.
+    if (this.iAmSpectating) return !this.room.seatsFull;
     return this.seatCount > 1;
   }
 
@@ -440,7 +441,12 @@ export default class GameLobby extends Component {
                         type="button"
                         class="qr-icon-btn"
                         aria-label="Put {{seat.name}} back in the game"
-                        title="Back in the game"
+                        title={{if
+                          this.room.seatsFull
+                          "No free seat"
+                          "Back in the game"
+                        }}
+                        disabled={{this.room.seatsFull}}
                         {{on "click" (fn this.unspectate seat.id)}}
                       ><Icon @name="users" @size={{14}} /></button>
                     {{/unless}}
@@ -745,7 +751,7 @@ export default class GameLobby extends Component {
           {{#if this.room.allReady}}
             <p class="tool-hint">Everyone’s ready. Start when you are.</p>
           {{else}}
-            <p class="tool-hint">Waiting for everyone to press Ready ({{this.room.readyCount}}/{{this.room.members.length}}).</p>
+            <p class="tool-hint">Waiting for everyone to press Ready ({{this.room.readyCount}}/{{this.room.players.length}}).</p>
           {{/if}}
         {{else if this.room.iAmReady}}
           <p class="tool-hint">You’re ready. Waiting for the host to start the

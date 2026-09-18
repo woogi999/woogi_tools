@@ -26,6 +26,18 @@ const MODELS = {
     id: 'Xenova/flan-t5-small',
     label: 'Writing model (~120 MB)',
   },
+  // A small chat model for the home page's "ask" box. 4-bit weights keep the
+  // download to about a quarter of a gigabyte; it runs on the GPU where the
+  // browser offers one, and in WebAssembly otherwise.
+  chat: {
+    task: 'text-generation',
+    id: 'HuggingFaceTB/SmolLM2-360M-Instruct',
+    label: 'Chat model (~270 MB)',
+    dtype: 'q4',
+    device: navigator.gpu ? 'webgpu' : 'wasm',
+    // A GPU driver that can't run 4-bit weights gets the plain 8-bit build instead.
+    fallback: { dtype: 'q8', device: 'wasm' },
+  },
 };
 
 const loaded = new Map();
@@ -39,14 +51,26 @@ export async function loadModel(key, { onProgress } = {}) {
   if (!spec) throw new Error(`No such model: ${key}`);
   const job = (async () => {
     const { pipeline } = await import('@huggingface/transformers');
-    return pipeline(spec.task, spec.id, {
-      dtype: spec.dtype ?? 'q8',
-      progress_callback: (event) => {
-        if (event.status === 'progress' && event.total)
-          onProgress?.({ file: event.file, ratio: event.loaded / event.total });
-        else if (event.status === 'ready') onProgress?.({ ratio: 1 });
-      },
-    });
+    const load = ({ dtype = 'q8', device } = {}) =>
+      pipeline(spec.task, spec.id, {
+        dtype,
+        ...(device ? { device } : {}),
+        progress_callback: (event) => {
+          if (event.status === 'progress' && event.total)
+            onProgress?.({
+              file: event.file,
+              ratio: event.loaded / event.total,
+            });
+          else if (event.status === 'ready') onProgress?.({ ratio: 1 });
+        },
+      });
+    try {
+      return await load(spec);
+    } catch (error) {
+      if (!spec.fallback) throw error;
+      console.warn(`${key}: falling back to ${spec.fallback.dtype}`, error);
+      return load(spec.fallback);
+    }
   })();
   loaded.set(key, job);
   try {
@@ -92,4 +116,40 @@ export async function ask(model, prompt, { max = 160 } = {}) {
     ? (out[0]?.generated_text ?? '')
     : (out?.generated_text ?? '');
   return String(text).trim();
+}
+
+// Streams one answer from the chat model. `onText` gets the answer so far as
+// it grows. The returned promise resolves with the finished text and carries a
+// `stop()` that cuts the answer short.
+export function chat(model, messages, { onText, max = 220 } = {}) {
+  let stopping = null;
+  const job = (async () => {
+    const { TextStreamer, InterruptableStoppingCriteria } =
+      await import('@huggingface/transformers');
+    stopping = new InterruptableStoppingCriteria();
+    let text = '';
+    const streamer = new TextStreamer(model.tokenizer, {
+      skip_prompt: true,
+      skip_special_tokens: true,
+      callback_function: (piece) => {
+        text += piece;
+        onText?.(text);
+      },
+    });
+    const out = await model(messages, {
+      max_new_tokens: max,
+      do_sample: false,
+      repetition_penalty: 1.1,
+      return_full_text: false,
+      streamer,
+      stopping_criteria: stopping,
+    });
+    const last = Array.isArray(out)
+      ? out[0]?.generated_text
+      : out?.generated_text;
+    const final = Array.isArray(last) ? last.at(-1)?.content : last;
+    return String(final ?? text).trim() || text.trim();
+  })();
+  job.stop = () => stopping?.interrupt();
+  return job;
 }
