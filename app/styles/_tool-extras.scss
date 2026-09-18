@@ -2379,6 +2379,22 @@
   aspect-ratio: auto;
 }
 
+.rec-convert {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+
+  progress {
+    flex: 1;
+    min-width: 120px;
+    height: 6px;
+    accent-color: var(--accent);
+  }
+}
+
 .rec-dot {
   position: absolute;
   top: 10px;

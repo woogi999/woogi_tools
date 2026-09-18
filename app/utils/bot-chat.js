@@ -110,6 +110,53 @@ const LINES = {
     'Ping… pong!',
   ],
   swap: ['Swapsies, {name}! Hot-swapping hands.', 'Let’s trade data, {name}.'],
+  // Woonopoly.
+  bought: [
+    'Acquired {name}. Adding it to my portfolio.json.',
+    '{name} is mine now. Real estate, but make it binary.',
+    'Bought {name}. My accountant is a spreadsheet.',
+  ],
+  rentIn: [
+    'Thanks for the rent, {name}. Payment processed.',
+    'Ka-ching. That’s what I call passive income, {name}.',
+    'Rent received from {name}. Transaction complete.',
+  ],
+  rentOut: [
+    'Ouch, {name}. My wallet just threw an exception.',
+    'Paying {name}. Filing this under “bad luck”.',
+    'That rent hurt more than a null pointer.',
+  ],
+  auctionWin: [
+    'Sold to the robot in the back! {name} is mine.',
+    'Won the auction for {name}. Bidding bots always win.',
+  ],
+  jailed: [
+    'Jail?! I demand a lawyer. A robot lawyer.',
+    'Straight to jail. My alibi was airtight.',
+    'In jail again. At least the Wi-Fi is free.',
+  ],
+  hotel: [
+    'A hotel on {name}! Five stars, zero mercy.',
+    'Hotel built on {name}. Book early, pay dearly.',
+  ],
+  broke: [
+    'Bankrupt. Powering down… with dignity.',
+    'Out of Woobux. Someone reboot my finances.',
+    'Bankruptcy.exe has finished running.',
+  ],
+  ruined: [
+    'Sorry {name}. It was just business. Beep.',
+    'Thanks for the estate, {name}. I’ll take good care of it.',
+  ],
+  tradeYes: [
+    'Deal, {name}. Pleasure doing business.',
+    'Accepted. My valuation model approves.',
+  ],
+  tradeNo: [
+    'No thanks, {name}. My algorithm says that’s a scam.',
+    'Declined. Nice try though, {name}.',
+    'I ran the numbers, {name}. The numbers said no.',
+  ],
 
   chessHello: [
     'Let’s play. I’ve read every opening. Twice.',

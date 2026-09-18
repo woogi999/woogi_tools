@@ -142,6 +142,25 @@ const SOUNDS = {
   'uno.tick': S(one('ui/tick-1.ogg'), 0.35, 0.03),
   'uno.win': S(one('jingles/woono-win.ogg'), 0.5, 0),
   'uno.lose': S(one('jingles/woono-lose.ogg'), 0.45, 0),
+
+  // Woonopoly: dice, footsteps round the board, and money changing hands.
+  'poly.start': S(one('jingles/start.ogg'), 0.4, 0),
+  'poly.dice': S(takes('chess', 'move', 5), 0.8, 0.12, 1.25),
+  'poly.step': S(CARD_SLIDE, 0.18, 0.15, 1.5),
+  'poly.land': S(one('cards/land.ogg'), 0.5, 0.08),
+  'poly.card': S(CARD_FAN, 0.7, 0.04),
+  'poly.jail': S(one('cards/slam.ogg'), 0.7, 0.04, 0.8),
+  'poly.receive': S(one('ui/confirm.ogg'), 0.45, 0.04),
+  'poly.pay': S(CARD_SHOVE, 0.55, 0.06, 0.9),
+  'poly.buy': S(one('cards/cards-pack-open-1.ogg'), 0.7),
+  'poly.build': S(takes('chess', 'capture', 5), 0.6, 0.08),
+  'poly.bid': S(one('ui/select.ogg'), 0.45, 0.05),
+  'poly.offer': S(one('ui/chat.ogg'), 0.5),
+  'poly.bankrupt': S(one('jingles/woono-skipped.ogg'), 0.5, 0),
+  'poly.myturn': S(one('ui/select.ogg'), 0.4, 0),
+  'poly.tick': S(one('ui/tick-1.ogg'), 0.35, 0.03),
+  'poly.win': S(one('jingles/woono-win.ogg'), 0.5, 0),
+  'poly.lose': S(one('jingles/woono-lose.ogg'), 0.45, 0),
 };
 
 export const SOUND_NAMES = Object.keys(SOUNDS);
@@ -212,6 +231,13 @@ export const SOUND_GROUPS = [
     sample: 'uno.play',
   },
   {
+    id: 'woonopoly',
+    label: 'Woonopoly',
+    hint: 'Dice, footsteps, deeds and Woobux.',
+    icon: 'landmark',
+    sample: 'poly.dice',
+  },
+  {
     id: 'music',
     label: 'Jingles',
     hint: 'Short music stings: wins, losses, reverses, skips and hits.',
@@ -226,6 +252,8 @@ const ALERTS = new Set([
   'ui.leave',
   'uno.myturn',
   'uno.tick',
+  'poly.myturn',
+  'poly.tick',
   'chess.tick',
 ]);
 
@@ -239,6 +267,7 @@ function groupOf(name, sound) {
   if (name.startsWith('chess.')) return 'chess';
   if (name.startsWith('snake.')) return 'snake';
   if (name.startsWith('mines.')) return 'mines';
+  if (name.startsWith('poly.')) return 'woonopoly';
   return 'woono';
 }
 

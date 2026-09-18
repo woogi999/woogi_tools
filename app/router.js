@@ -74,6 +74,7 @@ Router.map(function () {
   this.route('snake');
   this.route('minesweeper');
   this.route('woono');
+  this.route('woonopoly');
   this.route('avatar-editor');
   this.route('uno');
   this.route('geometry-calculator');

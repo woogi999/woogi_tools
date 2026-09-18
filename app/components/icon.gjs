@@ -205,12 +205,24 @@ import {
   ScreenShareOff,
   PanelRightClose,
   PanelRightOpen,
+  Gavel,
+  CircleParking,
+  Ticket,
+  ScrollText,
+  Landmark,
+  Map as MapIcon,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
 const ICONS = {
   'panel-right-close': PanelRightClose,
   'panel-right-open': PanelRightOpen,
+  gavel: Gavel,
+  'circle-parking': CircleParking,
+  ticket: Ticket,
+  'scroll-text': ScrollText,
+  landmark: Landmark,
+  map: MapIcon,
   aperture: Aperture,
   'scan-face': ScanFace,
   circle: Circle,

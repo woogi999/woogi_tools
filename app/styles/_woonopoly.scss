@@ -1,0 +1,729 @@
+// ─── Woonopoly ───────────────────────────────────────────────────────────
+// The 3D board with the HUD over it, laid out like Woono's table: a 16:9
+// stage as big as fits, players top left, the log top right, your moves
+// bottom right and the chat bottom left.
+
+.poly-shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+// The board takes the whole page under the header, 16:9, like the other games.
+.poly-stage {
+  position: relative;
+  width: min(100%, calc((100dvh - 52px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  margin-inline: auto;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse 70% 60% at 50% 40%,
+      color-mix(in oklab, var(--text) 7%, transparent),
+      transparent 70%
+    ),
+    var(--bg-elevated);
+  isolation: isolate;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .poly-stage {
+    width: 100%;
+    height: clamp(460px, calc(100dvh - 120px), 900px);
+    aspect-ratio: auto;
+  }
+}
+
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 600px) {
+  .poly-stage {
+    width: min(100%, calc((100dvh - 8px) * 16 / 9));
+  }
+}
+
+.poly-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.poly-canvas.is-pointing {
+  cursor: pointer;
+}
+
+.poly-fallback {
+  position: absolute;
+  inset: 40% 20% auto;
+  z-index: 4;
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.poly-timer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  height: 4px;
+  background: var(--text-dim);
+  transform-origin: left center;
+  transition: transform 0.25s linear;
+  pointer-events: none;
+}
+
+.poly-timer.is-mine {
+  background: #f5c518;
+}
+
+.poly-rotate-hint {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  z-index: 6;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 12px;
+  translate: -50% 0;
+  background: var(--text);
+  border-radius: var(--radius-pill);
+  color: var(--bg);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: uno-hint 6s ease forwards;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  .poly-rotate-hint {
+    display: inline-flex;
+  }
+}
+
+// ─── Overlays ────────────────────────────────────────────────────────────
+
+.poly-overlay {
+  position: absolute;
+  z-index: 5;
+}
+
+.poly-top-left {
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 34%;
+}
+
+.poly-top-right {
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 30%;
+}
+
+.poly-top-right .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+}
+
+.poly-players {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poly-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 10px 3px 4px;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.poly-player:hover,
+.poly-player.is-open {
+  border-color: var(--text);
+}
+
+.poly-player.is-turn {
+  background: color-mix(in oklab, #f5c518 22%, var(--bg));
+  border-color: #f5c518;
+}
+
+.poly-player.is-actor {
+  box-shadow: 0 0 0 2px color-mix(in oklab, #f5c518 60%, transparent);
+}
+
+.poly-player.is-out {
+  opacity: 0.55;
+}
+
+.poly-player-swatch {
+  display: inline-block;
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--text);
+  border-radius: 50%;
+}
+
+.poly-player-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.poly-player-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 140px;
+  overflow: hidden;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.poly-player-cash {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.poly-player-count {
+  color: var(--text-dim);
+  font-family: inherit;
+}
+
+.poly-hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.poly-hud-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+}
+
+.poly-hud-chip.is-alert {
+  background: #e5484d;
+  border-color: #e5484d;
+  color: #fff;
+  font-weight: 700;
+  animation: uno-pulse 1.2s ease-in-out infinite;
+}
+
+.poly-status {
+  top: 12px;
+  left: 50%;
+  max-width: min(40%, 420px);
+  margin: 0;
+  padding: 4px 14px;
+  translate: -50% 0;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 0.8rem;
+  text-align: center;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.poly-status.is-over {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.poly-views {
+  bottom: 14px;
+  left: 50%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  max-width: 30%;
+  translate: -50% 0;
+}
+
+.poly-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: color-mix(in oklab, var(--bg) 85%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.poly-chip:hover,
+.poly-chip.is-active {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.poly-chip.is-active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.poly-actions {
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 34%;
+}
+
+.poly-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg);
+  font-size: 0.85rem;
+}
+
+.poly-actions .btn.active,
+.poly-deed-actions .btn.active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.btn.poly-roll {
+  font-weight: 800;
+}
+
+.btn.poly-icon-btn {
+  padding: 8px 10px;
+}
+
+.btn.poly-danger {
+  border-color: #e5484d;
+  color: #e5484d;
+}
+
+.game-chat.poly-chat {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  max-width: calc(100% - 28px);
+  max-height: calc(100% - 28px);
+  box-sizing: border-box;
+}
+
+.game-chat.poly-chat .game-chat-list {
+  min-height: 0;
+}
+
+.poly-log {
+  margin: 0;
+  padding: 6px 10px;
+  background: color-mix(in oklab, var(--bg) 80%, transparent);
+  border-radius: var(--radius-card);
+  list-style: none;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  text-align: right;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.poly-log li:last-child {
+  color: var(--text);
+}
+
+.poly-history {
+  width: min(360px, 40vw);
+  max-height: min(50vh, 420px);
+  margin: 0;
+  padding: 8px 12px;
+  overflow-y: auto;
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  list-style: none;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  text-align: right;
+  backdrop-filter: blur(6px);
+}
+
+.poly-history li:last-child {
+  color: var(--text);
+}
+
+// ─── Panels ──────────────────────────────────────────────────────────────
+
+.poly-dialog {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100% - 32px));
+  max-height: calc(100% - 40px);
+  overflow-y: auto;
+  padding: 14px;
+  translate: -50% -50%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 40%);
+  font-size: 0.82rem;
+}
+
+.poly-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.poly-dialog-head .qr-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.poly-deed {
+  padding: 0;
+  overflow: hidden;
+}
+
+.poly-debt-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, #e5484d 45%, var(--border-color));
+  border-radius: var(--radius-input);
+  background: color-mix(in srgb, #e5484d 12%, var(--bg-elevated));
+  color: var(--text-primary);
+}
+
+.poly-debt-line .btn {
+  margin-left: auto;
+  padding: 4px 10px;
+}
+
+.poly-deed-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 2px solid var(--text);
+  color: #141414;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.poly-deed-band .btn {
+  background: rgb(255 255 255 / 70%);
+  color: #141414;
+}
+
+.poly-deed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 14px;
+}
+
+.poly-deed-owner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.poly-deed-rents {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  margin: 0;
+}
+
+.poly-deed-rents dt {
+  color: var(--text-dim);
+}
+
+.poly-deed-rents dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.poly-deed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.poly-deed-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.poly-deed-actions .tool-hint {
+  width: 100%;
+  margin: 0;
+}
+
+.poly-deed-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poly-deed-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.poly-deed-chip:hover,
+.poly-deed-chip.is-active {
+  border-color: var(--text);
+}
+
+.poly-deed-chip.is-active {
+  background: color-mix(in oklab, var(--text) 12%, var(--bg));
+}
+
+.poly-deed-chip.is-mortgaged {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.poly-deed-dot {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--text);
+  border-radius: 3px;
+}
+
+.poly-auction-high {
+  margin: 0;
+}
+
+.poly-bid-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.poly-bid-row .lobby-number {
+  width: 90px;
+}
+
+.poly-trade {
+  width: min(560px, calc(100% - 32px));
+}
+
+.poly-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.poly-trade-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.poly-trade-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+}
+
+.poly-trade-side .poly-deed-chip {
+  cursor: default;
+}
+
+.poly-trade-side button.poly-deed-chip {
+  cursor: pointer;
+}
+
+.poly-trade-money {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+}
+
+.poly-trade-money .lobby-number {
+  width: 110px;
+}
+
+.poly-help {
+  position: absolute;
+  right: 14px;
+  bottom: 64px;
+  z-index: 7;
+  width: min(320px, calc(100% - 28px));
+  max-height: calc(100% - 90px);
+  overflow-y: auto;
+  padding: 10px 14px 12px;
+  background: var(--bg);
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-card);
+  font-size: 0.8rem;
+}
+
+.poly-help ul {
+  margin: 6px 0 8px;
+  padding-left: 18px;
+  line-height: 1.55;
+}
+
+.poly-help .tool-hint {
+  margin: 0;
+}
+
+.poly-help-bind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+}
+
+// ─── Phones ──────────────────────────────────────────────────────────────
+
+@media (pointer: coarse) {
+  .poly-actions {
+    gap: 6px;
+    max-width: 44%;
+  }
+
+  .poly-actions .btn {
+    min-height: 40px;
+    padding: 8px 14px;
+  }
+
+  .btn.poly-icon-btn {
+    min-width: 40px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px), (max-height: 500px) {
+  .poly-log,
+  .poly-views,
+  .poly-player-count {
+    display: none;
+  }
+
+  .poly-player-name {
+    max-width: 90px;
+  }
+
+  .poly-top-left {
+    max-width: 46%;
+  }
+
+  .poly-status {
+    top: auto;
+    bottom: 60px;
+    max-width: min(70%, 420px);
+    font-size: 0.72rem;
+  }
+
+  .poly-actions {
+    right: 8px;
+    bottom: 8px;
+  }
+
+  .game-chat.poly-chat {
+    left: 8px;
+    bottom: 8px;
+  }
+
+  .poly-help {
+    right: 8px;
+    bottom: 56px;
+  }
+
+  .poly-trade-sides {
+    grid-template-columns: 1fr;
+  }
+}
