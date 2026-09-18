@@ -16,15 +16,15 @@ export const CHANGELOG = [
     changes: [
       {
         type: 'new',
-        text: 'Ask the home page a question: end it with a question mark and a small language model answers right there, running on your own device (it downloads once, about 270 MB, and nothing you ask leaves the browser). It points you at the tools that fit.',
+        text: 'Chat with Woogi from the home page: end a question with a question mark and a chat opens right there, a small language model running on your own device (it downloads quietly in the background the first time, about 400 MB, and nothing you type leaves the browser). It runs off the main thread so the page stays smooth, replies link straight to the tools that fit, and it can draw a bar, line or pie chart, or plot a function, when a picture helps.',
       },
       {
         type: 'new',
-        text: 'Drop a file on the home search bar (or pick one with the paperclip) and you get every tool that can take that sort of file, the best fit first. Typing narrows them down further.',
+        text: 'Drop a file on the home search bar (or pick one with the paperclip) and you get every tool that can take that sort of file, the best fit first. Typing narrows them down further, and the tool you pick opens with the file already loaded.',
       },
       {
         type: 'improved',
-        text: 'The home page opens on the search alone and the tools wait below; the cards are dealt onto the page as you scroll down to them and slip away as they leave.',
+        text: 'The home page opens on the search alone and snaps to the tools when you scroll, with the sidebar logo and search box popping in step; the cards are dealt onto the page as you scroll down to them and slip away as they leave.',
       },
       {
         type: 'fixed',
