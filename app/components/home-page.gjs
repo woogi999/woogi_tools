@@ -5,7 +5,6 @@ import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { LinkTo } from '@ember/routing';
 import { modifier } from 'ember-modifier';
-import { htmlSafe } from '@ember/template';
 import Icon from './icon';
 import FavouriteStar from './favourite-star';
 import CreditList from './credit-list';
@@ -18,9 +17,7 @@ import {
   fuzzyScore,
 } from '../tools';
 import { toolsForFile } from '../utils/file-tools';
-import { loadModel, chat, isLoaded } from '../utils/ai-models';
-import { renderMarkdown } from '../utils/markdown';
-import { chartSvg, parseChartSpec } from '../utils/ask-charts';
+import { startGravity } from '../utils/gravity';
 
 const CARDS = TOOLS.filter((t) => t.category);
 const CATEGORIES = [...new Set(CARDS.map((t) => t.category))].sort(
@@ -41,23 +38,21 @@ const JOKER = { rank: 'JK', suit: { symbol: '★', black: true } };
 
 // One of these greets you under the search bar, picked fresh each visit.
 const TAGLINES = [
-  'Small tools, no bloat. No accounts, no tracking. Just me, Woogi.',
-  'I made all of these so I would stop opening forty tabs. Now you can too.',
-  'Everything runs in your browser. Your files never leave home. I checked.',
-  'No sign up, no newsletter, no "wait, before you go". Just tools.',
-  'Free, offline-friendly and made with a suspicious amount of doodles.',
-  'It is a website of small things. The small things are the whole point.',
-  'Pick a card, any card. They are all tools, so you cannot lose.',
-  'Built by one person with a laptop, a to-do list and too much coffee.',
+  'Everything you need, free of charge. Maybe not everything, but we do have lots of tools!',
+  'I made all of these so I would stop opening forty tabs. I still do, but because of Youtube.',
+  'Did you know you can Ctrl + F to pull the search bar immediately from this site anywhere?',
+  'Free, offline-friendly, and made with a generous amount of doodles.',
+  'A collection of various tools that are supposed to be free.',
+  'Shut up and keep your money!',
+  'We also have games here for your friends!',
   'Nothing to install and nothing to pay for. I would know, I forgot to add a shop.',
-  'Drag a file in, ask a question, or just have a wander. I am not going anywhere.',
+  'Drag a file in, or just have a wander!',
   'Hand-drawn, hand-coded, occasionally hand-wringing. Enjoy.',
   'If a tool is missing, it is probably on my list. The list is long. Sorry.',
+  'Type "Gravity" in the search bar and click "I\'m Feeling Lucky" and see what happens.',
 ];
 
 const eq = (a, b) => a === b;
-const and = (a, b) => Boolean(a && b);
-const not = (a) => !a;
 const includes = (list, item) => list.includes(item);
 
 // Publishes the sticky search bar's height (plus any sticky header above it)
@@ -80,6 +75,35 @@ const measureSearchBar = modifier((section) => {
   };
 });
 
+// Coming back from the results, the search grows to a full screen again over
+// its height transition; the container is `is-settling` until that's done, so
+// the tools below don't show through in the meantime.
+const settleHero = modifier((section, [searching]) => {
+  const container = section.parentElement;
+  const was = section.dataset.searching === 'true';
+  section.dataset.searching = String(Boolean(searching));
+  if (searching || !was) return;
+  container.classList.add('is-settling');
+  let timer = null;
+  const done = () => {
+    clearTimeout(timer);
+    section.removeEventListener('transitionend', onEnd);
+    container.classList.remove('is-settling');
+  };
+  const onEnd = (event) => {
+    if (event.target === section && event.propertyName === 'min-height') done();
+  };
+  section.addEventListener('transitionend', onEnd);
+  // Reduced motion (or a browser that skips the transition) never fires the event.
+  timer = setTimeout(done, 600);
+  return done;
+});
+
+// A search result in gravity: handed to the sim the moment it's on the page.
+const dropIn = modifier((el, [engine, order]) => {
+  engine?.drop(el, order);
+});
+
 // Only where a keyboard is likely: focusing on touch would pop the on-screen keyboard.
 const autofocusOnDesktop = modifier((input) => {
   if (window.matchMedia('(pointer: fine)').matches) input.focus();
@@ -98,6 +122,8 @@ const revealOnScroll = modifier((card, [enabled]) => {
   cardObserver ??= new IntersectionObserver(
     (entries) => {
       for (const { target, isIntersecting, boundingClientRect } of entries) {
+        // A card in a hidden part of the page keeps its state for when it's back.
+        if (!boundingClientRect.width && !boundingClientRect.height) continue;
         target.classList.toggle('is-in', isIntersecting);
         target.classList.toggle(
           'is-above',
@@ -121,6 +147,9 @@ const SNAP_MS = 650;
 const snapHero = modifier((section, [searching]) => {
   // While searching the section is a sticky bar over the results, and the page scrolls as normal.
   if (searching) return;
+  // Back from the results (or fresh on the page): start on the search screen,
+  // wherever the results had been scrolled to.
+  if (window.scrollY > 0) window.scrollTo(0, 0);
   let locked = 0;
   let settle = null;
   let lastY = window.scrollY;
@@ -182,157 +211,6 @@ const snapHero = modifier((section, [searching]) => {
   };
 });
 
-const ROUTES = new Map(TOOLS.map((t) => [t.route, t]));
-// Longest names first, so "Image Resizer" isn't half-linked as "Image".
-const LINKABLE = [...TOOLS]
-  .filter((t) => t.category)
-  .sort((a, b) => b.label.length - a.label.length);
-const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// Private-use markers carry links and charts through the markdown renderer untouched.
-const LINK_OPEN = '\uE100';
-const LINK_MID = '\uE101';
-const LINK_CLOSE = '\uE102';
-const CHART_OPEN = '\uE110';
-const CHART_CLOSE = '\uE111';
-
-// The answer as HTML: markdown, with tool names turned into links to the
-// tools and ```chart blocks drawn as pictures.
-function renderAnswer(text) {
-  const charts = [];
-  const draw = (body, fallback) => {
-    const spec = parseChartSpec(body);
-    if (
-      !spec ||
-      !(spec.values || spec.series || spec.data || spec.fn || spec.function)
-    )
-      return fallback;
-    const svg = chartSvg(spec);
-    if (!svg) return fallback;
-    charts.push(svg);
-    return `\n${CHART_OPEN}${charts.length - 1}${CHART_CLOSE}\n`;
-  };
-  // A chart spec in any fenced block, or a bare JSON object on its own lines:
-  // the model doesn't always remember the ```chart label.
-  let source = text
-    .replace(/```\w*[ \t]*\n([\s\S]*?)```/g, (m, body) => draw(body, m))
-    .replace(/^\{[^]*?\}[ \t]*$/gm, (m) => draw(m, m));
-  // Links the model wrote itself, kept when the route is real.
-  source = source.replace(
-    /\[([^\]\n]+)\]\(\/?([a-z0-9-]+)\)/g,
-    (m, label, route) =>
-      ROUTES.has(route)
-        ? `${LINK_OPEN}${route}${LINK_MID}${label}${LINK_CLOSE}`
-        : label,
-  );
-  // Tool names mentioned in passing become links too, the first mention of each.
-  const parts = source.split(
-    new RegExp(`(${LINK_OPEN}[^${LINK_CLOSE}]*${LINK_CLOSE}|\`[^\`\n]*\`)`),
-  );
-  const linked = new Set();
-  for (let i = 0; i < parts.length; i += 2) {
-    for (const tool of LINKABLE) {
-      if (linked.has(tool.route)) continue;
-      const re = new RegExp(
-        `(?<![\\w-])${escapeRe(tool.label)}(?![\\w-])`,
-        'i',
-      );
-      if (!re.test(parts[i])) continue;
-      parts[i] = parts[i].replace(
-        re,
-        (hit) => `${LINK_OPEN}${tool.route}${LINK_MID}${hit}${LINK_CLOSE}`,
-      );
-      linked.add(tool.route);
-    }
-  }
-  const html = renderMarkdown(parts.join(''))
-    .replace(
-      new RegExp(`${LINK_OPEN}([a-z0-9-]+)${LINK_MID}(.*?)${LINK_CLOSE}`, 'g'),
-      (_, route, label) =>
-        `<a href="/${route}" class="home-ask-link">${label}</a>`,
-    )
-    .replace(
-      new RegExp(`${CHART_OPEN}(\\d+)${CHART_CLOSE}`, 'g'),
-      (_, i) => charts[Number(i)] ?? '',
-    );
-  return htmlSafe(html);
-}
-const percent = (ratio) => Math.round((ratio ?? 0) * 100);
-
-// Woogi types in lowercase, like a chat message. The model doesn't always
-// remember, so sentence-initial capitals come off here, except on names
-// (tools, Woogi Tools), on shouted words (WHAT???) and on acronyms.
-const PROPER = [...LINKABLE.map((t) => t.label), 'Woogi'];
-function casual(text) {
-  return text
-    .replace(
-      /(^|[.!?:]\s+|\n\s*(?:[-*]\s+|\d+\.\s+)?|\[)([A-Z])(?=[a-z'])/g,
-      (m, before, letter, offset) => {
-        const rest = text.slice(offset + before.length);
-        if (PROPER.some((name) => rest.startsWith(name))) return m;
-        return before + letter.toLowerCase();
-      },
-    )
-    .replace(/\bI(?=['\s,.!?])/g, 'i');
-}
-
-// The tools the assistant is told about: the few that best match the
-// question. A whole sentence rarely matches anything, so each word is looked
-// up on its own and the tools that keep turning up win.
-const STOP_WORDS = new Set(
-  'a an the i me my you your it its is are was be can do does how what which where why when to of in on for with from and or not this that there some any make get tool tools site website use using want need help please one thing'.split(
-    ' ',
-  ),
-);
-function relevantTools(question) {
-  const tally = new Map();
-  const words = question
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-  // "crops" and "cropping" should find the cropper as well as "crop" does.
-  const stems = (word) =>
-    [...new Set([word, word.replace(/(ing|ed|es|s)$/, '')])].filter(
-      (w) => w.length > 2,
-    );
-  for (const word of words) {
-    const seen = new Set();
-    for (const stem of stems(word))
-      searchTools(stem)
-        .filter((t) => t.category && !seen.has(t))
-        .slice(0, 8)
-        .forEach((tool, i) => {
-          seen.add(tool);
-          tally.set(tool, (tally.get(tool) ?? 0) + (8 - i));
-        });
-  }
-  return [...tally]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([tool]) => tool);
-}
-
-function systemPrompt(tools) {
-  const list = tools
-    .map((t) => `- [${t.label}](/${t.route}): ${t.description}`)
-    .join('\n');
-  return [
-    "You are Woogi: the one person who drew, coded and runs Woogi Tools, a website of small free tools (image, video, audio, text, developer and calculator tools, plus a few games) that run entirely in the visitor's browser. Nothing is uploaded, no account, no tracking. Speak as yourself in the first person: casual, friendly, a little deadpan, with a dry joke when it fits, like texting a friend. Keep it to one to three short sentences, or a short list. No em dashes.",
-    "Type in lowercase, the way you would in a chat: no capital letters at the start of sentences, and 'i' rather than 'I'. Use capitals only for names (Woogi Tools, a tool's name, PNG) or to shout a word, like WHAT??? for surprise.",
-    "You have not seen the tools' screens, so never describe buttons or steps inside one; say which tool to open and what it does. Only mention tools from the list below, written exactly as markdown links like [Image Resizer](/image-resizer). If nothing on the site fits, say so and answer the question anyway.",
-    'You can draw pictures. When someone asks for a chart, a graph or a plot, or numbers would be clearer drawn, write a short sentence and then a block that starts with ```chart and holds JSON. The block is shown in the chat as a picture, so never mention JSON, blocks or code, and never send people elsewhere to see it. Numbers to compare:\n```chart\n{"type":"bar","title":"Coffee per day","labels":["Mon","Tue","Wed"],"values":[2,3,5]}\n```\nTypes are bar, line and pie. A function of x:\n```chart\n{"type":"plot","fn":"sin(x)","from":-6.3,"to":6.3}\n```',
-    list ? `Tools that may fit the question:\n${list}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
-}
-
-// Whether to fetch the chat model quietly in the background: not on a metered
-// connection, not when the visitor asked for less data, and only once online.
-const canPreloadModel = () => {
-  const conn = navigator.connection;
-  return navigator.onLine && !conn?.saveData && conn?.type !== 'cellular';
-};
-
 // Every word has to fuzzy-match the tool's name.
 function matchesName(query, tool) {
   return query
@@ -376,19 +254,13 @@ export default class HomePage extends Component {
   toolCount = CARDS.length;
   tagline = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
 
-  constructor() {
-    super(...arguments);
-    // The chat model is fetched in the background once the page has settled,
-    // so the first question doesn't start with a download.
-    if (!isLoaded('chat') && canPreloadModel())
-      setTimeout(() => {
-        if (!this.isDestroying) loadModel('chat').catch(() => {});
-      }, 2500);
-  }
   matchModes = MATCH_MODES;
   sorts = SORTS;
 
   @tracked query = '';
+  // What the results are for: empty until Enter is pressed, so typing on the
+  // hero changes nothing on the page; from then on it tracks the box.
+  @tracked committed = '';
   // Advanced search filters.
   @tracked showFilters = false;
   @tracked filterCategories = [];
@@ -402,10 +274,13 @@ export default class HomePage extends Component {
   // A file dropped on the search bar: { name, kind, label, routes }.
   @tracked droppedFile = null;
   @tracked dragging = false;
-  // The chat with Woogi, or null when it isn't open:
-  // { messages: [{ role, content }], status, error, busy, tools }.
-  @tracked ask = null;
-  askJob = null;
+  // The gravity easter egg: while it's on, the first screen is a pile of
+  // rubble at the foot of the window and searches rain down from above.
+  @tracked gravity = false;
+  gravityEngine = null;
+  // Search results dropped in so far: { id, order, card } or { id, order, note }.
+  @tracked fallen = [];
+  fallenSeq = 0;
   @service handoff;
 
   @cached
@@ -429,39 +304,32 @@ export default class HomePage extends Component {
     );
   }
 
-  // Typing, a dropped file, a question or a narrowing filter switches the page to results.
+  get isGravityWord() {
+    return this.query.trim().toLowerCase() === 'gravity';
+  }
+
+  // A submitted search, a dropped file or a narrowing filter switches the page to results.
   get isSearching() {
+    if (this.gravity) return false;
     return (
-      Boolean(this.ask) ||
-      Boolean(this.query.trim()) ||
+      Boolean(this.committed) ||
       Boolean(this.droppedFile) ||
       this.filterCategories.length > 0 ||
       this.favouritesOnly
     );
   }
 
-  // A question mark at the end is for Woogi, not the tool list; once the
-  // chat is open, everything typed is part of it.
-  get isQuestion() {
-    return Boolean(this.ask) || this.query.trim().endsWith('?');
-  }
-
-  get chatMessages() {
-    return this.ask?.messages ?? [];
-  }
-
   get placeholder() {
-    if (this.ask) return 'Say something to Woogi…';
     if (this.droppedFile) return 'Narrow these down…';
-    return 'Search tools, drop a file, or ask a question…';
+    return 'Search tools or drop a file…';
   }
 
   // Read many times per render (the hand, the grid, counts), so worth caching.
   @cached
   get results() {
-    if (!this.isSearching || this.ask) return [];
+    if (!this.isSearching) return [];
     const byRoute = new Map(this.cards.map((card) => [card.tool.route, card]));
-    const query = this.query.trim();
+    const query = this.committed;
     let tools;
     if (!query) tools = TOOLS;
     else if (this.matchMode === 'names')
@@ -502,10 +370,6 @@ export default class HomePage extends Component {
     return results;
   }
 
-  get askTools() {
-    return this.ask?.tools ?? [];
-  }
-
   get showHand() {
     return this.settings.handSearch && this.results.length > 0;
   }
@@ -534,13 +398,23 @@ export default class HomePage extends Component {
   updateQuery = (event) => {
     this.query = event.target.value;
     this.activeRoute = null;
+    // Once the results are up they follow every keystroke; emptying the box
+    // takes them away again.
+    if (this.committed) this.committed = this.query.trim();
   };
 
-  // Enter opens the lifted card, or else the best match. A question goes to the assistant.
+  // Enter shows the results for what was typed; with them up, Enter opens the
+  // lifted card, or else the best match.
   submit = (event) => {
     event.preventDefault();
-    if (this.isQuestion) {
-      this.askAssistant();
+    if (this.gravity) {
+      this.dropResults();
+      return;
+    }
+    const query = this.query.trim();
+    if (query !== this.committed) {
+      this.committed = query;
+      this.activeRoute = null;
       return;
     }
     const route = this.activeRoute ?? this.results[0]?.tool.route;
@@ -558,10 +432,12 @@ export default class HomePage extends Component {
   };
 
   onKeydown = (event) => {
-    if (
-      event.key === 'Escape' &&
-      (this.query || this.droppedFile || this.ask)
-    ) {
+    if (event.key === 'Escape' && this.gravity) {
+      event.preventDefault();
+      this.stopGravity();
+      return;
+    }
+    if (event.key === 'Escape' && (this.query || this.droppedFile)) {
       event.preventDefault();
       this.clear();
     }
@@ -569,9 +445,9 @@ export default class HomePage extends Component {
 
   clear = () => {
     this.query = '';
+    this.committed = '';
     this.activeRoute = null;
     this.droppedFile = null;
-    this.closeAsk();
   };
 
   // ─── Dropped files ─────────────────────────────────────────────────
@@ -609,98 +485,9 @@ export default class HomePage extends Component {
   useFile(file) {
     this.droppedFile = { file, name: file.name, ...toolsForFile(file) };
     this.activeRoute = null;
-    this.closeAsk();
   }
 
   clearFile = () => (this.droppedFile = null);
-
-  // ─── The assistant ─────────────────────────────────────────────────
-
-  askAssistant = async () => {
-    const text = this.query.trim();
-    if (!text || this.ask?.busy) return;
-    const question = text.replace(/\?+$/, '').trim();
-    const history = this.ask?.messages ?? [];
-    // The tools are picked from the whole conversation so far, latest first.
-    const tools = relevantTools(
-      [
-        question,
-        ...history.filter((m) => m.role === 'user').map((m) => m.content),
-      ]
-        .reverse()
-        .join(' '),
-    );
-    let messages = [
-      ...history,
-      { role: 'user', content: text },
-      { role: 'assistant', content: '' },
-    ];
-    this.query = '';
-    this.ask = {
-      messages,
-      error: null,
-      busy: true,
-      tools,
-      status: isLoaded('chat')
-        ? 'thinking…'
-        : 'downloading the chat model (about 400 MB, once)…',
-    };
-    let current = messages;
-    const update = (patch) => {
-      if (this.isDestroying || this.ask?.messages !== current) return;
-      this.ask = { ...this.ask, ...patch };
-    };
-    const reply = (content) => {
-      messages = [...messages.slice(0, -1), { role: 'assistant', content }];
-      update({ messages });
-      current = messages;
-    };
-    try {
-      const model = await loadModel('chat', {
-        onProgress: ({ ratio }) =>
-          update({
-            status: `downloading the chat model… ${percent(ratio)}%`,
-          }),
-      });
-      update({ status: 'thinking…' });
-      // The last few turns are enough context for a small model.
-      const recent = messages.slice(-7, -1).filter((m) => m.content);
-      const job = chat(
-        model,
-        [{ role: 'system', content: systemPrompt(tools) }, ...recent],
-        {
-          onText: (answer) => {
-            reply(casual(answer));
-            update({ status: '' });
-          },
-          max: 160,
-        },
-      );
-      this.askJob = job;
-      reply(casual(await job));
-    } catch (error) {
-      update({ error: error?.message ?? 'i could not answer that one.' });
-    } finally {
-      update({ busy: false, status: '' });
-      this.askJob = null;
-    }
-  };
-
-  stopAsk = () => this.askJob?.stop();
-
-  // Tool links in the answer are plain <a> tags; route them without a reload.
-  onAnswerClick = (event) => {
-    const link = event.target.closest('a.home-ask-link');
-    if (!link) return;
-    event.preventDefault();
-    this.router.transitionTo(link.getAttribute('href'));
-  };
-
-  closeAsk = () => {
-    this.askJob?.stop();
-    this.askJob = null;
-    this.ask = null;
-  };
 
   scrollToTools = () => {
     document
@@ -709,12 +496,67 @@ export default class HomePage extends Component {
   };
 
   feelingLucky = () => {
+    if (this.isGravityWord) {
+      this.startGravity();
+      return;
+    }
     const pool = this.cards;
     if (pool.length)
       this.router.transitionTo(
         pool[Math.floor(Math.random() * pool.length)].tool.route,
       );
   };
+
+  // ─── Gravity ───────────────────────────────────────────────────────
+
+  startGravity = async () => {
+    if (this.gravity || this.gravityEngine) return;
+    this.query = '';
+    this.committed = '';
+    // Positions are taken with the page at the top, so the first screen is the room.
+    window.scrollTo(0, 0);
+    const section = document.querySelector('.home-search');
+    // The physics engine is a separate download, fetched only for this.
+    this.gravityEngine = await startGravity(
+      [...section.children].filter((el) => !el.matches('.home-drop-hint')),
+    );
+    if (this.isDestroying) this.gravityEngine.stop();
+    else this.gravity = true;
+  };
+
+  stopGravity = () => {
+    this.gravityEngine?.stop();
+    this.gravityEngine = null;
+    this.fallen = [];
+    this.gravity = false;
+  };
+
+  // In gravity, Enter doesn't open anything: the matching tools fall in from
+  // the sky as cards, still clickable once they've landed.
+  dropResults() {
+    const query = this.query.trim();
+    if (!query) return;
+    const cards = searchTools(query)
+      .map((tool) => this.cards.find((card) => card.tool.route === tool.route))
+      .filter(Boolean)
+      .slice(0, 10);
+    this.query = '';
+    const drops = cards.length
+      ? cards.map((card, order) => ({ id: ++this.fallenSeq, order, card }))
+      : [
+          {
+            id: ++this.fallenSeq,
+            order: 0,
+            note: `Nothing matches “${query}”.`,
+          },
+        ];
+    this.fallen = [...this.fallen, ...drops];
+  }
+
+  willDestroy() {
+    super.willDestroy(...arguments);
+    if (this.gravity) this.stopGravity();
+  }
 
   toggleFilters = () => (this.showFilters = !this.showFilters);
   toggleFilterCategory = (category) => {
@@ -738,7 +580,9 @@ export default class HomePage extends Component {
 
   <template>
     <div
-      class="container home {{if this.dragging 'is-dragging'}}"
+      class="container home
+        {{if this.dragging 'is-dragging'}}
+        {{if this.gravity 'is-gravity'}}"
       {{on "dragover" this.onDragOver}}
       {{on "dragleave" this.onDragLeave}}
       {{on "drop" this.onDrop}}
@@ -747,11 +591,13 @@ export default class HomePage extends Component {
         class="home-search {{if this.isSearching 'is-searching' 'is-hero'}}"
         {{measureSearchBar}}
         {{snapHero this.isSearching}}
+        {{settleHero this.isSearching}}
       >
         <img
           src="/icon_expanded.gif"
           alt="Woogi Tools"
           class="home-search-logo"
+          draggable="false"
         />
         <form
           class="home-search-form"
@@ -774,14 +620,14 @@ export default class HomePage extends Component {
             type="search"
             class="home-search-input"
             placeholder={{this.placeholder}}
-            aria-label="Search tools or ask a question"
+            aria-label="Search tools"
             autocomplete="off"
             value={{this.query}}
             {{on "input" this.updateQuery}}
             {{on "keydown" this.onKeydown}}
             {{autofocusOnDesktop}}
           />
-          {{#if (and this.query (not this.ask))}}
+          {{#if this.query}}
             <button
               type="button"
               class="qr-icon-btn"
@@ -789,31 +635,14 @@ export default class HomePage extends Component {
               {{on "click" this.clear}}
             ><Icon @name="x" @size={{14}} /></button>
           {{/if}}
-          {{#if this.isQuestion}}
-            <button
-              type="button"
-              class="home-filter-btn home-ask-btn"
-              title="Send to Woogi"
-              disabled={{this.ask.busy}}
-              {{on "click" this.askAssistant}}
-            >
-              <Icon @name="sparkles" @size={{14}} />
-              <span>{{if this.ask "Send" "Ask"}}</span>
-            </button>
-          {{else}}
-            <label
-              class="qr-icon-btn home-attach"
-              title="Show me the tools for a file"
-            >
-              <Icon @name="paperclip" @size={{15}} />
-              <span class="sr-only">Show me the tools for a file</span>
-              <input
-                type="file"
-                class="sr-only"
-                {{on "change" this.pickFile}}
-              />
-            </label>
-          {{/if}}
+          <label
+            class="qr-icon-btn home-attach"
+            title="Show me the tools for a file"
+          >
+            <Icon @name="paperclip" @size={{15}} />
+            <span class="sr-only">Show me the tools for a file</span>
+            <input type="file" class="sr-only" {{on "change" this.pickFile}} />
+          </label>
           <button
             type="button"
             class="home-filter-btn {{if this.showFilters 'active'}}"
@@ -925,84 +754,18 @@ export default class HomePage extends Component {
         {{/if}}
       </section>
 
-      {{#if this.ask}}
-        <section class="home-ask pop-in" aria-label="Chat with Woogi">
-          <div class="home-ask-head">
-            <Icon @name="sparkles" @size={{16}} />
-            <strong class="home-ask-title">Woogi</strong>
-            {{#if this.ask.busy}}
-              <button
-                type="button"
-                class="btn math-use"
-                {{on "click" this.stopAsk}}
-              >Stop</button>
-            {{/if}}
-            <button
-              type="button"
-              class="qr-icon-btn"
-              aria-label="Close the chat"
-              {{on "click" this.closeAsk}}
-            ><Icon @name="x" @size={{14}} /></button>
-          </div>
-          {{! template-lint-disable no-invalid-interactive }}
-          <div
-            class="home-chat"
-            aria-live="polite"
-            {{on "click" this.onAnswerClick}}
-          >
-            {{#each this.chatMessages as |message|}}
-              {{#if (eq message.role "user")}}
-                <div class="home-bubble is-user">{{message.content}}</div>
-              {{else if message.content}}
-                <div class="home-bubble is-woogi">
-                  <img
-                    src="/icon_expanded.png"
-                    alt=""
-                    class="home-bubble-avatar"
-                    aria-hidden="true"
-                  />
-                  <div
-                    class="home-ask-answer {{if this.ask.busy 'is-typing'}}"
-                  >{{renderAnswer message.content}}</div>
-                </div>
+      {{#if this.gravity}}
+        <div class="gravity-layer">
+          {{#each this.fallen key="id" as |drop|}}
+            <div class="gravity-drop" {{dropIn this.gravityEngine drop.order}}>
+              {{#if drop.card}}
+                <ToolCard @card={{drop.card}} />
+              {{else}}
+                <div class="gravity-note">{{drop.note}}</div>
               {{/if}}
-            {{/each}}
-            {{#if this.ask.error}}
-              <div class="home-bubble is-woogi is-error">
-                <img
-                  src="/icon_expanded.png"
-                  alt=""
-                  class="home-bubble-avatar"
-                  aria-hidden="true"
-                />
-                <div class="home-ask-answer">{{this.ask.error}}</div>
-              </div>
-            {{else if this.ask.status}}
-              <div class="home-bubble is-woogi is-status">
-                <img
-                  src="/icon_expanded.png"
-                  alt=""
-                  class="home-bubble-avatar"
-                  aria-hidden="true"
-                />
-                <div class="home-ask-answer">{{this.ask.status}}</div>
-              </div>
-            {{/if}}
-          </div>
-          {{#if this.askTools.length}}
-            <div class="home-chips">
-              {{#each this.askTools as |tool|}}
-                <LinkTo @route={{tool.route}} class="home-chip">
-                  <Icon @name={{tool.icon}} @size={{13}} />
-                  {{tool.label}}
-                </LinkTo>
-              {{/each}}
             </div>
-          {{/if}}
-          <p class="home-ask-status is-note">a small model running on your
-            device, so take what it says with a pinch of salt. nothing you type
-            leaves this browser.</p>
-        </section>
+          {{/each}}
+        </div>
       {{/if}}
 
       {{#if this.isSearching}}
@@ -1039,48 +802,49 @@ export default class HomePage extends Component {
             </section>
           </div>
         {{else}}
-          {{#unless this.ask}}
-            <p class="home-no-results">Nothing matches “{{this.query}}”{{if
-                this.activeFilterCount
-                " with these filters"
-              }}. Try another word{{if
-                this.droppedFile
-                ", or forget the file"
-              }}.</p>
-          {{/unless}}
+          <p class="home-no-results">Nothing matches “{{this.committed}}”{{if
+              this.activeFilterCount
+              " with these filters"
+            }}. Try another word{{if
+              this.droppedFile
+              ", or forget the file"
+            }}.</p>
         {{/if}}
-      {{else}}
-        <nav
-          class="home-categories pop-in"
-          id="home-browse"
-          aria-label="Browse by category"
-        >
-          <button
-            type="button"
-            class="home-chip {{unless this.browseCategory 'active'}}"
-            aria-pressed={{if this.browseCategory "false" "true"}}
-            {{on "click" (fn this.setBrowseCategory null)}}
-          >All</button>
-          {{#each this.categories as |category|}}
+      {{/if}}
+
+      {{! The tools are their own part of the page: always rendered, only hidden
+          while results are up, so coming back doesn't deal them all in again. }}
+      <div class="home-browse" id="home-browse" hidden={{this.isSearching}}>
+        <div class="home-browse-head">
+          <nav class="home-categories" aria-label="Browse by category">
+            >
             <button
               type="button"
-              class="home-chip
-                {{if (eq this.browseCategory category) 'active'}}"
-              aria-pressed={{if
-                (eq this.browseCategory category)
-                "true"
-                "false"
-              }}
-              {{on "click" (fn this.setBrowseCategory category)}}
-            >{{category}}</button>
-          {{/each}}
-        </nav>
-        <p class="home-count pop-in">Have a look through all
-          <strong>{{this.toolCount}}</strong>
-          tools, every one of them free, no account, and nothing uploaded.</p>
+              class="home-chip {{unless this.browseCategory 'active'}}"
+              aria-pressed={{if this.browseCategory "false" "true"}}
+              {{on "click" (fn this.setBrowseCategory null)}}
+            >All</button>
+            {{#each this.categories as |category|}}
+              <button
+                type="button"
+                class="home-chip
+                  {{if (eq this.browseCategory category) 'active'}}"
+                aria-pressed={{if
+                  (eq this.browseCategory category)
+                  "true"
+                  "false"
+                }}
+                {{on "click" (fn this.setBrowseCategory category)}}
+              >{{category}}</button>
+            {{/each}}
+          </nav>
+          <p class="home-count">Have a look through all
+            <strong>{{this.toolCount}}</strong>
+            tools, every one of them free, no account, and nothing uploaded.</p>
+        </div>
 
         {{#unless this.browseCategory}}
-          <section class="home-section pop-in">
+          <section class="home-section">
             <h2 class="section-title">Favourites</h2>
             {{#if this.favouriteCards.length}}
               <div class="tool-grid">
@@ -1096,7 +860,7 @@ export default class HomePage extends Component {
         {{/unless}}
 
         {{#each this.groupedCards key="name" as |group|}}
-          <section class="home-section pop-in">
+          <section class="home-section">
             <h2 class="section-title">{{group.name}}</h2>
             <div class="tool-grid">
               {{#each group.items key="tool.route" as |card|}}
@@ -1106,7 +870,7 @@ export default class HomePage extends Component {
           </section>
         {{/each}}
 
-        <section class="made-with pop-in">
+        <section class="made-with">
           <h3 class="credit-heading">Site built with</h3>
           <CreditList @credits={{SITE_CREDITS}} />
         </section>
@@ -1119,7 +883,7 @@ export default class HomePage extends Component {
             <a href="mailto:earl@woogi.xyz">earl@woogi.xyz</a>
           </nav>
         </footer>
-      {{/if}}
+      </div>
     </div>
   </template>
 }

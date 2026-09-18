@@ -9,15 +9,29 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
-    version: '1.0.9',
+    version: '1.0.10',
     date: '2026-09-19',
-    title:
-      'A new front page, an assistant that lives in your browser, and a tidier offline copy',
+    title: 'A translator, and a front page that stays put',
     changes: [
       {
         type: 'new',
-        text: 'Chat with Woogi from the home page: end a question with a question mark and a chat opens right there, a small language model running on your own device (it downloads quietly in the background the first time, about 400 MB, and nothing you type leaves the browser). It runs off the main thread so the page stays smooth, replies link straight to the tools that fit, and it can draw a bar, line or pie chart, or plot a function, when a picture helps.',
+        text: 'Translator: type on the left and the translation appears on the right, in any of more than a hundred languages, with the source language detected for you and a button to hear either side read aloud. The translating is done by Google Translate through this site’s own Worker.',
       },
+      {
+        type: 'improved',
+        text: 'Home page: results appear when you press Enter rather than as you type, the tools below no longer re-deal themselves when you clear a search, the categories stay pinned while you scroll the tools, and picking a small category no longer shortens the page under you.',
+      },
+      {
+        type: 'removed',
+        text: 'The chat on the home page is gone, along with its model download.',
+      },
+    ],
+  },
+  {
+    version: '1.0.9',
+    date: '2026-09-19',
+    title: 'A new front page and a tidier offline copy',
+    changes: [
       {
         type: 'new',
         text: 'Drop a file on the home search bar (or pick one with the paperclip) and you get every tool that can take that sort of file, the best fit first. Typing narrows them down further, and the tool you pick opens with the file already loaded.',

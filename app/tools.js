@@ -1655,6 +1655,36 @@ export const TOOLS = [
     ],
   },
   {
+    label: 'Translator',
+    route: 'translator',
+    icon: 'languages',
+    category: 'Text & Writing',
+    description:
+      'Translate between more than a hundred languages as you type, with the source language detected for you.',
+    keywords: [
+      'translate',
+      'translator',
+      'translation',
+      'language',
+      'languages',
+      'google translate',
+      'spanish',
+      'french',
+      'japanese',
+      'detect language',
+      'interpreter',
+    ],
+    madeWith:
+      'The translating is done by Google Translate, reached through this site’s own Worker so the page never talks to Google directly. Your text is sent as you pause typing, and the language it came back as is shown when you leave detection on. Reading a translation aloud uses the voices already on your device through the Web Speech API. Unlike most of the text tools, this one does send what you type to a server.',
+    credits: [
+      {
+        name: 'Google Translate',
+        author: 'Google',
+        url: 'https://translate.google.com',
+      },
+    ],
+  },
+  {
     label: 'Text to Braille',
     route: 'text-braille',
     icon: 'book-open',

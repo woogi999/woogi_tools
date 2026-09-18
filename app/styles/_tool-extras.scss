@@ -5302,3 +5302,124 @@ video.media-preview {
     padding: 0 9px;
   }
 }
+
+// ─── Translator ──────────────────────────────────────────────────────────
+//
+// Two panes side by side with a swap between them; on a phone they stack and
+// the swap sits between the two.
+
+.tr-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 14px;
+  width: 100%;
+  align-items: start;
+}
+
+@media (max-width: 800px) {
+  .tr-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tr-swap {
+    justify-self: center;
+    rotate: 90deg;
+  }
+}
+
+.tr-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tr-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+}
+
+.tr-language {
+  max-width: 220px;
+}
+
+.tr-detected {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.tr-swap {
+  align-self: start;
+  margin-top: 2px;
+}
+
+.tr-editor {
+  position: relative;
+  min-height: 260px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.tr-editor:focus-within {
+  border-color: var(--accent);
+}
+
+.tr-editor.is-busy {
+  opacity: 0.55;
+}
+
+.tr-input,
+.tr-output {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 1rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tr-input {
+  display: block;
+  width: 100%;
+  min-height: 260px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
+.tr-output {
+  min-height: 260px;
+  color: var(--text);
+}
+
+.tr-output.is-empty {
+  color: var(--text-faint);
+}
+
+.tr-output.is-error {
+  color: var(--card-red);
+}
+
+.tr-foot {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.tr-foot.is-over {
+  color: var(--card-red);
+}
+
+.tr-foot.is-note {
+  text-align: left;
+}
