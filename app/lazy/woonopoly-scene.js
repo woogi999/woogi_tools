@@ -1095,10 +1095,31 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
 
   // A street's building for its level: 0 an empty lot with a sign, 1 a shop,
   // 2-5 a block one floor taller per house, 6 a hotel tower.
-  function streetBuilding(index, level, mortgaged) {
+  function streetBuilding(index, level, mortgaged, burnt = false) {
     const info = BOARD[index];
     const colour = mortgaged ? '#8a8a8a' : GROUPS[info.group].color;
     const g = new Group();
+    if (burnt) {
+      // A charred shell: two broken walls, a scorched slab and a curl of smoke.
+      const char = kit.toon('#2b2622');
+      g.add(box(0.58, 0.02, 0.4, kit.toon('#3a3430'), 0.01));
+      const wallA = box(0.58, 0.2, 0.04, char, 0.1);
+      wallA.position.z = -0.18;
+      g.add(wallA);
+      const wallB = box(0.04, 0.14, 0.4, char, 0.07);
+      wallB.position.x = -0.27;
+      g.add(wallB);
+      for (let i = 0; i < 3; i++) {
+        const puff = new Mesh(
+          geo('puff', () => new SphereGeometry(0.05, 7, 5)),
+          kit.toon('#8a8a8a'),
+        );
+        puff.position.set(0.05 + i * 0.04, 0.22 + i * 0.1, -0.05);
+        puff.scale.setScalar(1 + i * 0.35);
+        g.add(puff);
+      }
+      return g;
+    }
     if (level === 0) {
       const post = cylinder(0.015, 0.015, 0.26, trunk, 0.13, 6);
       post.position.set(0.18, 0, 0.12);
@@ -1360,7 +1381,7 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
     const key = Object.entries(view.props)
       .map(
         ([s, p]) =>
-          `${s}:${p.owner ?? '-'}:${p.houses}:${p.mortgaged ? 'm' : ''}`,
+          `${s}:${p.owner ?? '-'}:${p.houses}:${p.mortgaged ? 'm' : ''}${p.burnt ? 'b' : ''}`,
       )
       .join('|');
     if (key === buildingsKey) return;
@@ -1376,7 +1397,12 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
       if (BOARD[index].type === 'street') {
         const level =
           prop.owner === null ? 0 : prop.houses === 5 ? 6 : 1 + prop.houses;
-        const building = streetBuilding(index, level, prop.mortgaged);
+        const building = streetBuilding(
+          index,
+          level,
+          prop.mortgaged,
+          prop.burnt,
+        );
         const { x, z, rot } = lotFrame(index);
         building.position.set(x, BOARD_Y, z);
         building.rotation.y = rot;
@@ -1589,6 +1615,24 @@ export function createWoonopolyScene(canvas, { onPick } = {}) {
         case 'bid':
           schedule(t, () => sfx('poly.bid'));
           break;
+        case 'arson': {
+          const playerIndex = e.player;
+          const ownerIndex = e.owner;
+          const space = e.space;
+          schedule(t, () => {
+            const tok = tokens.get(playerIndex);
+            const owner = tokens.get(ownerIndex);
+            const r = RECTS[space];
+            popup('Arson!', '#E5484D', new Vector3(r.x, BOARD_Y + 0.6, r.z));
+            if (tok)
+              tok.mood = { face: 'smug', until: performance.now() + 3000 };
+            if (owner)
+              owner.mood = { face: 'shocked', until: performance.now() + 4000 };
+            sfx('poly.arson');
+          });
+          t += 1200;
+          break;
+        }
         case 'bankrupt': {
           const playerIndex = e.player;
           schedule(t, () => {

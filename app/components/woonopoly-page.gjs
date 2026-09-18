@@ -31,7 +31,18 @@ import {
   SALARY_RANGE,
   FINE_RANGE,
   TURN_TIMES,
-  ROUND_LIMITS,
+  WIN_MODES,
+  ROUNDS_RANGE,
+  SHARE_RANGE,
+  HOUSES_RANGE,
+  WIN_MONEY_RANGE,
+  JAIL_TERM_RANGE,
+  ARSON_USES,
+  canRepair,
+  canRelist,
+  repairCost,
+  winScore,
+  winTarget,
   clampInt,
   normaliseRules,
   createGame,
@@ -77,15 +88,72 @@ const TIMER_OPTIONS = TURN_TIMES.map((s) => ({
   id: s,
   label: s ? `${s}s` : 'Off',
 }));
-const ROUND_OPTIONS = ROUND_LIMITS.map((r) => ({
-  id: r,
-  label: r ? `${r} rounds` : 'Last one standing',
-}));
+// What each way of winning asks for, and the box to type it in.
+const WIN_TARGETS = {
+  rounds: {
+    key: 'winRounds',
+    range: ROUNDS_RANGE,
+    step: 1,
+    unit: 'rounds',
+    hint: 'When the rounds are up, the richest player (cash, deeds and houses) wins.',
+  },
+  share: {
+    key: 'winShare',
+    range: SHARE_RANGE,
+    step: 5,
+    unit: '% of the 28 deeds',
+    hint: 'First to own this share of the board wins.',
+  },
+  houses: {
+    key: 'winHouses',
+    range: HOUSES_RANGE,
+    step: 1,
+    unit: 'houses',
+    hint: 'First to have this many houses standing wins. A hotel counts as five.',
+  },
+  money: {
+    key: 'winMoney',
+    range: WIN_MONEY_RANGE,
+    step: 10000,
+    unit: 'Woobux in hand',
+    hint: 'First to hold this much cash wins.',
+  },
+};
 const SWITCH_RULES = [
   {
     key: 'auctions',
     label: 'Auctions',
     hint: 'Land on a property and pass on it? It goes under the hammer, and anyone can bid.',
+  },
+  {
+    key: 'auctionOnly',
+    label: 'Everything goes to auction',
+    hint: 'Nobody buys at the list price. Land on an unowned property and it goes straight under the hammer, you included.',
+  },
+  {
+    key: 'doublesAgain',
+    label: 'Doubles roll again',
+    hint: 'Roll a double and take another go. Three in a row and it’s jail.',
+  },
+  {
+    key: 'jailDoubles',
+    label: 'Doubles open the jail',
+    hint: 'Roll a double while inside and you walk. Off, and only the fine, a card or the full term gets you out.',
+  },
+  {
+    key: 'jailSentence',
+    label: 'Serve your sentence',
+    hint: 'No fine, no card, no doubles. Sit in jail for the full term and walk out free.',
+  },
+  {
+    key: 'jailFreeze',
+    label: 'Jail freezes you',
+    hint: 'While inside you collect no rent and sit out every auction and trade.',
+  },
+  {
+    key: 'arson',
+    label: 'Arson',
+    hint: `Land on the biggest landlord’s property and torch it instead of paying rent. You go to jail owing them its price; they repair it or hand it back. ${ARSON_USES} matches per game, and never while the owner is standing there.`,
   },
   {
     key: 'doubleGo',
@@ -112,8 +180,22 @@ const BID_STEPS = [1000, 5000, 10000];
 
 export default class WoonopolyPage extends Component {
   timerOptions = TIMER_OPTIONS;
-  roundOptions = ROUND_OPTIONS;
+  winModes = WIN_MODES;
   switchRules = SWITCH_RULES;
+  jailTermMin = JAIL_TERM_RANGE[0];
+  jailTermMax = JAIL_TERM_RANGE[1];
+
+  // The number box under the chosen win condition, if it has one.
+  get winTarget() {
+    const t = WIN_TARGETS[this.settings.winMode];
+    if (!t) return null;
+    return {
+      ...t,
+      min: t.range[0],
+      max: t.range[1],
+      value: this.settings[t.key],
+    };
+  }
   bidSteps = BID_STEPS;
   moneyMin = MONEY_RANGE[0];
   moneyMax = MONEY_RANGE[1];
@@ -240,7 +322,16 @@ export default class WoonopolyPage extends Component {
     this.room.setSettings({ [key]: event.target.checked });
   setNumberRule = (key, event) => {
     const range =
-      { startingMoney: MONEY_RANGE, goSalary: SALARY_RANGE }[key] ?? FINE_RANGE;
+      {
+        startingMoney: MONEY_RANGE,
+        goSalary: SALARY_RANGE,
+        jailFine: FINE_RANGE,
+        winRounds: ROUNDS_RANGE,
+        winShare: SHARE_RANGE,
+        winHouses: HOUSES_RANGE,
+        winMoney: WIN_MONEY_RANGE,
+        jailTerm: JAIL_TERM_RANGE,
+      }[key] ?? FINE_RANGE;
     const value = clampInt(event.target.value, range, DEFAULT_RULES[key]);
     event.target.value = value;
     this.room.setSettings({ [key]: value });
@@ -492,6 +583,15 @@ export default class WoonopolyPage extends Component {
           chance: 0.6,
           vars: { name: BOARD[e.space].name },
         });
+      else if (e.type === 'arson' && bot(e.player))
+        this.chatter.say(bot(e.player), 'arson', {
+          urgent: true,
+          vars: { name: BOARD[e.space].name },
+        });
+      else if (e.type === 'arson' && bot(e.owner))
+        this.chatter.say(bot(e.owner), 'burnt', {
+          vars: { name: state.players[e.player].name },
+        });
       else if (e.type === 'bankrupt' && bot(e.player))
         this.chatter.say(bot(e.player), 'broke', { urgent: true });
       else if (e.type === 'bankrupt' && e.to !== null && bot(e.to))
@@ -683,11 +783,22 @@ export default class WoonopolyPage extends Component {
         ? `${space.name} is for sale at ${money(space.price)}.`
         : `${who} is looking at ${space.name}.`;
     }
+    if (v.phase === 'rent' && v.pending) {
+      const space = BOARD[v.pending.space];
+      const owner = v.players[v.pending.owner].name;
+      return yours
+        ? `${money(v.pending.amount)} rent is due to ${owner} for ${space.name}. Pay up, or strike a match.`
+        : `${who} owes ${owner} rent for ${space.name}, and is eyeing the matches.`;
+    }
     const player = v.players[v.turn];
     if (!v.rolled) {
       if (player.inJail)
         return yours
-          ? 'You’re in jail. Roll for doubles, pay the fine, or use a card.'
+          ? v.rules.jailSentence
+            ? `You’re in jail, serving ${v.rules.jailTerm - player.jailTurns} more turn${v.rules.jailTerm - player.jailTurns === 1 ? '' : 's'}. Roll to pass the time.`
+            : v.rules.jailDoubles
+              ? 'You’re in jail. Roll for doubles, pay the fine, or use a card.'
+              : 'You’re in jail. Pay the fine, use a card, or sit out the term.'
           : `${who} is in jail.`;
       return yours ? 'Your turn: roll the dice.' : `${who} is rolling.`;
     }
@@ -700,9 +811,34 @@ export default class WoonopolyPage extends Component {
   get roundLabel() {
     const v = this.view;
     if (!v) return '';
-    return v.rules.roundLimit
-      ? `Round ${v.round}/${v.rules.roundLimit}`
+    return v.rules.winMode === 'rounds'
+      ? `Round ${v.round}/${v.rules.winRounds}`
       : `Round ${v.round}`;
+  }
+
+  // How close the leader is to the finish line, for the HUD.
+  get winChip() {
+    const v = this.view;
+    if (!v) return null;
+    const target = winTarget(v.rules);
+    if (!target) return null;
+    let best = null;
+    v.players.forEach((p, i) => {
+      if (p.bankrupt) return;
+      const score = winScore(v, i);
+      if (!best || score > best.score) best = { name: p.name, score };
+    });
+    if (!best) return null;
+    const fmt = (n) =>
+      v.rules.winMode === 'money'
+        ? money(n)
+        : v.rules.winMode === 'share'
+          ? `${Math.round(n)}%`
+          : String(Math.round(n));
+    return {
+      title: `${WIN_MODES.find((m) => m.id === v.rules.winMode).label}: first to ${fmt(target)}`,
+      text: `${best.name} ${fmt(best.score)} / ${fmt(target)}`,
+    };
   }
 
   get timerStyle() {
@@ -736,10 +872,14 @@ export default class WoonopolyPage extends Component {
           : d.houses
             ? `${d.houses} house${d.houses > 1 ? 's' : ''}`
             : '',
+      arsonable: v.canArson && v.pending?.space === d.space,
       canBuild: mine && v.canManage && canBuild(v, me, d.space),
       canSell: mine && v.canManage && canSellHouse(v, me, d.space),
       canMortgage: mine && v.canManage && canMortgage(v, me, d.space),
       canUnmortgage: mine && v.canManage && canUnmortgage(v, me, d.space),
+      canRepair: mine && v.canManage && canRepair(v, me, d.space),
+      canRelist: mine && v.canManage && canRelist(v, me, d.space),
+      repairCost: money(repairCost(v, d.space)),
       unmortgageCost: money(unmortgageCost(d.space)),
       housePrice: d.type === 'street' ? money(d.house) : '',
       halfHouse: d.type === 'street' ? money(d.house / 2) : '',
@@ -829,6 +969,21 @@ export default class WoonopolyPage extends Component {
   // ─── Your moves ──────────────────────────────────────────────────────
 
   roll = () => this.act({ type: 'roll' });
+  payRent = () => this.act({ type: 'payRent' });
+  commitArson = async () => {
+    const p = this.view?.pending;
+    if (!p) return;
+    const left = ARSON_USES - (this.me?.arsons ?? 0);
+    const ok = await askConfirm({
+      title: 'Strike the match?',
+      message: `${BOARD[p.space].name} burns. You go straight to jail owing ${this.view.players[p.owner].name} ${money(BOARD[p.space].price)}. You have ${left} match${left === 1 ? '' : 'es'} left.`,
+      confirmLabel: 'Hold to burn it',
+      cancelLabel: 'Pay the rent instead',
+    });
+    if (ok) this.act({ type: 'arson' });
+  };
+  repair = (space) => this.act({ type: 'repair', space });
+  relist = (space) => this.act({ type: 'relist', space });
   endTurn = () => this.act({ type: 'end' });
   buy = () => this.act({ type: 'buy' });
   decline = () => this.act({ type: 'decline' });
@@ -1313,6 +1468,13 @@ export default class WoonopolyPage extends Component {
               </ol>
               <div class="poly-hud">
                 <span class="poly-hud-chip">{{this.roundLabel}}</span>
+                {{#if this.winChip}}<span
+                    class="poly-hud-chip"
+                    title={{this.winChip.title}}
+                  ><Icon
+                      @name="trophy"
+                      @size={{12}}
+                    />{{this.winChip.text}}</span>{{/if}}
                 {{#if this.secondsLeft}}<span
                     class="poly-hud-chip
                       {{if (gt 6 this.secondsLeft) 'is-alert'}}"
@@ -1527,6 +1689,22 @@ export default class WoonopolyPage extends Component {
                         "Pass"
                       }}</button>
                   {{/if}}
+                  {{#if this.view.canPayRent}}
+                    <button
+                      type="button"
+                      class="btn active"
+                      disabled={{this.locked}}
+                      {{on "click" this.payRent}}
+                    >Pay {{money this.view.pending.amount}} rent</button>
+                  {{/if}}
+                  {{#if this.view.canArson}}
+                    <button
+                      type="button"
+                      class="btn poly-danger"
+                      disabled={{this.locked}}
+                      {{on "click" this.commitArson}}
+                    ><Icon @name="flame" @size={{13}} /> Commit arson</button>
+                  {{/if}}
                   {{#if this.view.canEnd}}
                     <button
                       type="button"
@@ -1588,7 +1766,8 @@ export default class WoonopolyPage extends Component {
                     {{this.deed.ownerName}}{{#if this.deed.houseLabel}}
                       ·
                       {{this.deed.houseLabel}}{{/if}}{{#if this.deed.mortgaged}}
-                      · mortgaged{{/if}}
+                      · mortgaged{{/if}}{{#if this.deed.burnt}}
+                      · burnt out{{/if}}
                     <span class="lobby-tag">{{money this.deed.price}}</span>
                   </p>
                   <dl class="poly-deed-rents">
@@ -1640,6 +1819,21 @@ export default class WoonopolyPage extends Component {
                           class="btn"
                           {{on "click" (fn this.unmortgage this.deed.space)}}
                         >Pay off ({{this.deed.unmortgageCost}})</button>
+                      {{/if}}
+                      {{#if this.deed.canRepair}}
+                        <button
+                          type="button"
+                          class="btn active"
+                          {{on "click" (fn this.repair this.deed.space)}}
+                        ><Icon @name="hammer" @size={{13}} />
+                          Repair ({{this.deed.repairCost}})</button>
+                      {{/if}}
+                      {{#if this.deed.canRelist}}
+                        <button
+                          type="button"
+                          class="btn"
+                          {{on "click" (fn this.relist this.deed.space)}}
+                        >Hand back to the bank</button>
                       {{/if}}
                       {{#unless this.view.canManage}}
                         <p class="tool-hint">You can build and mortgage on your
@@ -2106,7 +2300,16 @@ export default class WoonopolyPage extends Component {
                     for half the price, or
                     <strong>trade</strong>. Can’t pay at all: bankruptcy.</li>
                   <li>Three doubles in a row, or the corner, sends you to jail.
-                    Roll doubles, pay the fine, or use a card to get out.</li>
+                    Roll doubles, pay the fine, or use a card to get out (unless
+                    the lobby rules say otherwise).</li>
+                  {{#if this.view.rules.arson}}
+                    <li>Land on the biggest landlord’s property and you can
+                      <strong>commit arson</strong>
+                      instead of paying rent: the buildings burn, you go to jail
+                      owing them the property’s price, and they repair it or
+                      hand it back. Two matches per game, and never while the
+                      owner is standing on it.</li>
+                  {{/if}}
                   <li><strong>Drag</strong>
                     the board to look round it,
                     <strong>scroll</strong>
@@ -2198,7 +2401,7 @@ export default class WoonopolyPage extends Component {
             <label class="lobby-rule is-switch">
               <span class="lobby-rule-text"><span class="qr-label">Jail fine</span><span
                   class="tool-hint"
-                >To walk out of jail, or after three failed rolls.</span></span>
+                >To walk out of jail early, or charged when the term is up.</span></span>
               <input
                 type="number"
                 class="lobby-number"
@@ -2209,26 +2412,58 @@ export default class WoonopolyPage extends Component {
                 {{on "change" (fn this.setNumberRule "jailFine")}}
               />
             </label>
-            <div class="lobby-rule">
-              <span class="lobby-rule-text"><span class="qr-label">Game length</span><span
+            <label class="lobby-rule is-switch">
+              <span class="lobby-rule-text"><span class="qr-label">Jail term</span><span
                   class="tool-hint"
-                >Play until one player is left, or stop after a number of rounds
-                  and let the richest win.</span></span>
-              <div class="math-tabs" role="group" aria-label="Game length">
-                {{#each this.roundOptions as |o|}}
+                >Turns inside before you’re let out.</span></span>
+              <input
+                type="number"
+                class="lobby-number"
+                min={{this.jailTermMin}}
+                max={{this.jailTermMax}}
+                step="1"
+                value={{this.settings.jailTerm}}
+                {{on "change" (fn this.setNumberRule "jailTerm")}}
+              />
+            </label>
+            <div class="lobby-rule">
+              <span class="lobby-rule-text"><span class="qr-label">Win condition</span><span
+                  class="tool-hint"
+                >{{if
+                    this.winTarget
+                    this.winTarget.hint
+                    "Play until everyone else is bankrupt."
+                  }}</span></span>
+              <div class="math-tabs" role="group" aria-label="Win condition">
+                {{#each this.winModes as |o|}}
                   <button
                     type="button"
                     class="qr-tab
-                      {{if (eq this.settings.roundLimit o.id) 'active'}}"
+                      {{if (eq this.settings.winMode o.id) 'active'}}"
                     aria-pressed={{if
-                      (eq this.settings.roundLimit o.id)
+                      (eq this.settings.winMode o.id)
                       "true"
                       "false"
                     }}
-                    {{on "click" (fn this.setRule "roundLimit" o.id)}}
+                    {{on "click" (fn this.setRule "winMode" o.id)}}
                   >{{o.label}}</button>
                 {{/each}}
               </div>
+              {{#if this.winTarget}}
+                <label class="poly-win-target">
+                  <span class="tool-hint">Target</span>
+                  <input
+                    type="number"
+                    class="lobby-number"
+                    min={{this.winTarget.min}}
+                    max={{this.winTarget.max}}
+                    step={{this.winTarget.step}}
+                    value={{this.winTarget.value}}
+                    {{on "change" (fn this.setNumberRule this.winTarget.key)}}
+                  />
+                  <span class="tool-hint">{{this.winTarget.unit}}</span>
+                </label>
+              {{/if}}
             </div>
             <div class="lobby-rule">
               <span class="lobby-rule-text"><span class="qr-label">Turn timer</span><span

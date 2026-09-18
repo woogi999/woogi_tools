@@ -444,6 +444,18 @@
   overflow: hidden;
 }
 
+.poly-win-target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.poly-win-target .lobby-number {
+  width: 9ch;
+}
+
 .poly-debt-line {
   display: flex;
   flex-wrap: wrap;
