@@ -1,5 +1,7 @@
 import { tracked } from '@glimmer/tracking';
-import { loadProfile } from './profile';
+import { loadProfile, saveProfile } from './profile';
+import { avatarKey } from './avatar';
+import { poseKey } from './pose';
 import { directOrRelayedPeerOptions } from './ice';
 import {
   ChatLog,
@@ -54,6 +56,12 @@ const PEER_PREFIX = 'woogi-msg-';
 
 // How often to have another go at reaching the members who aren't connected.
 const DIAL_EVERY_MS = 12000;
+// An id the broker says is taken is usually this tab's own previous visit,
+// whose socket the broker hasn't dropped yet. It is tried again this many
+// times, this far apart, before this tab gives up and becomes a member of
+// its own.
+const ID_RETRIES = 4;
+const ID_RETRY_MS = 2500;
 // A connection attempt that hasn't opened by now is treated as "not there".
 const DIAL_TIMEOUT_MS = 9000;
 // Typing stops showing this long after the last keystroke arrived.
@@ -70,45 +78,48 @@ export const MAX_NAME = 40;
 export const MAX_IMAGE_BYTES = 600 * 1024;
 
 const now = () => Date.now();
+const emptyView = () => ({
+  members: new Map(),
+  messages: [],
+  topic: '',
+  photo: '',
+});
 const text = (value, limit) => String(value ?? '').slice(0, limit);
 
 // ─── Identity and stored chats ─────────────────────────────────────────
 
+// You are the same person here as in the games: the name, avatar and pose
+// from your profile. Only the device id is Messages' own.
+function withProfile(id) {
+  const profile = loadProfile();
+  return {
+    id,
+    name: text(profile.name, MAX_NAME),
+    avatar: profile.avatar,
+    pose: profile.pose,
+  };
+}
+
+// This browser's one identity. A second tab of the same browser can't be the
+// same member as the first: they would both write events as that member and
+// both number them from one, which is exactly the thing version vectors
+// cannot survive. So a tab that finds the identity genuinely in use takes one
+// of its own (see `splitIdentity`), but every tab starts by trying the real
+// one, so coming back to Messages never makes a second "you".
 function loadDevice() {
-  // A second tab of the same browser can't be the same member as the first:
-  // they would both write events as that member and both number them from
-  // one, which is exactly the thing version vectors cannot survive. So a tab
-  // that finds the identity already in use takes one of its own (see
-  // `splitIdentity`) and keeps it in sessionStorage, which is per tab.
-  try {
-    const tab = JSON.parse(sessionStorage.getItem(DEVICE_KEY));
-    if (tab?.id) return { id: String(tab.id), name: text(tab.name, MAX_NAME) };
-  } catch {
-    // nothing saved for this tab
-  }
   try {
     const saved = JSON.parse(localStorage.getItem(DEVICE_KEY));
-    if (saved?.id)
-      return { id: String(saved.id), name: text(saved.name, MAX_NAME) };
+    if (saved?.id) return withProfile(String(saved.id));
   } catch {
     // nothing saved, or storage blocked
   }
-  // Your name in games is a reasonable guess at what you want to be called here.
-  const device = { id: randomHex(16), name: loadProfile().name };
+  const device = withProfile(randomHex(16));
   try {
-    localStorage.setItem(DEVICE_KEY, JSON.stringify(device));
+    localStorage.setItem(DEVICE_KEY, JSON.stringify({ id: device.id }));
   } catch {
     // storage blocked: this identity lasts until the tab closes
   }
   return device;
-}
-
-function saveDevice(device) {
-  try {
-    localStorage.setItem(DEVICE_KEY, JSON.stringify(device));
-  } catch {
-    // storage blocked
-  }
 }
 
 function loadChatList() {
@@ -290,8 +301,9 @@ export default class MeshChat {
   @tracked device = loadDevice();
   @tracked chats = [];
   @tracked activeId = '';
-  // The active chat, folded out of its log: { members, messages, topic }.
-  @tracked view = { members: new Map(), messages: [], topic: '' };
+  // The active chat, folded out of its log:
+  // { members, messages, topic, photo }.
+  @tracked view = emptyView();
   // 'starting' | 'online' | 'offline'
   @tracked status = 'starting';
   @tracked error = '';
@@ -318,6 +330,7 @@ export default class MeshChat {
   // True once this tab has taken an identity of its own, so it only ever
   // happens once however many times the broker refuses an id.
   split = false;
+  idRetries = 0;
   dialTimer = null;
   typingTimer = null;
   typingSeen = new Map(); // `${chat}:${device}` -> time
@@ -347,6 +360,9 @@ export default class MeshChat {
   async start() {
     this.chats = loadChatList();
     for (const chat of this.chats) await this.loadChat(chat);
+    // A name or avatar changed in Settings since last time reaches the logs
+    // the same way any change does.
+    for (const chat of this.chats) await this.announce(chat);
     const invite = parseInvite(window.location.hash);
     if (invite) {
       await this.joinInvite(invite);
@@ -363,6 +379,7 @@ export default class MeshChat {
   destroy() {
     clearInterval(this.dialTimer);
     clearInterval(this.typingTimer);
+    clearTimeout(this.retryTimer);
     for (const link of this.links) link.conn.close();
     this.links.clear();
     for (const peer of this.beacons.values()) peer.destroy();
@@ -390,6 +407,7 @@ export default class MeshChat {
       this.status = 'online';
       this.peerReady = true;
       this.error = '';
+      this.idRetries = 0;
       this.dialEveryone();
     });
     peer.on('connection', (conn) => this.attach(conn, false));
@@ -413,8 +431,18 @@ export default class MeshChat {
     // A member who simply isn't online is the normal case, not a fault.
     if (error?.type === 'peer-unavailable') return;
     if (error?.type === 'unavailable-id') {
-      // Another tab of this browser is holding this identity. Become a member
-      // of our own rather than sitting there unable to reach anybody.
+      // Most often this is our own last visit, not yet let go of by the
+      // broker: wait and try the same id again. Only an id that stays taken
+      // means another tab really is holding it.
+      if (this.idRetries < ID_RETRIES) {
+        this.idRetries += 1;
+        this.retryTimer = setTimeout(() => {
+          this.peer?.destroy();
+          this.peer = null;
+          this.openPeer();
+        }, ID_RETRY_MS);
+        return;
+      }
       this.splitIdentity();
       return;
     }
@@ -432,9 +460,17 @@ export default class MeshChat {
   async splitIdentity() {
     if (this.split) return;
     this.split = true;
-    const device = { id: randomHex(16), name: this.device.name };
+    // The same spare identity as last time this tab had to split, so its
+    // events keep their numbering rather than starting a third member.
+    let spare = '';
     try {
-      sessionStorage.setItem(DEVICE_KEY, JSON.stringify(device));
+      spare = String(JSON.parse(sessionStorage.getItem(DEVICE_KEY))?.id ?? '');
+    } catch {
+      // nothing saved for this tab
+    }
+    const device = { ...this.device, id: spare || randomHex(16) };
+    try {
+      sessionStorage.setItem(DEVICE_KEY, JSON.stringify({ id: device.id }));
     } catch {
       // storage blocked: this identity lasts as long as the page does
     }
@@ -818,12 +854,29 @@ export default class MeshChat {
   async announce(chat) {
     const view = this.views.get(chat.id);
     const known = view?.members.get(this.selfId);
-    if (known?.name === this.device.name && !known.left) return;
+    if (known && !known.left && this.looksLike(known)) return;
     // Coming back after leaving is a fresh join, so the others stop treating
     // this device as gone.
-    await this.commit(chat.id, known && !known.left ? 'name' : 'join', {
-      name: this.device.name,
-    });
+    await this.commit(
+      chat.id,
+      known && !known.left ? 'name' : 'join',
+      this.me(),
+    );
+  }
+
+  // What the log is told about this device: the name and look everyone sees.
+  me() {
+    const { name, avatar, pose } = this.device;
+    return { name, avatar, pose };
+  }
+
+  looksLike(member) {
+    return (
+      member.name === this.device.name &&
+      Boolean(member.avatar) &&
+      avatarKey(member.avatar) === avatarKey(this.device.avatar) &&
+      poseKey(member.pose) === poseKey(this.device.pose)
+    );
   }
 
   rebuild(chatId) {
@@ -848,6 +901,7 @@ export default class MeshChat {
         ...chat,
         name: label,
         label,
+        photo: view?.photo ?? '',
         people: view ? view.members.size : 0,
         last,
         lastText: last
@@ -855,7 +909,9 @@ export default class MeshChat {
             ? 'Message taken back'
             : last.image && !last.text
               ? 'Sent a picture'
-              : last.text
+              : last.file && !last.text
+                ? `Sent ${last.file.name}`
+                : last.text
           : 'No messages yet',
         lastAt: last?.at ?? 0,
         unread,
@@ -868,11 +924,7 @@ export default class MeshChat {
 
   select(chatId) {
     this.activeId = chatId;
-    this.view = this.views.get(chatId) ?? {
-      members: new Map(),
-      messages: [],
-      topic: '',
-    };
+    this.view = this.views.get(chatId) ?? emptyView();
     this.markRead();
     this.refreshPresence();
     this.refreshTyping();
@@ -901,7 +953,7 @@ export default class MeshChat {
     };
     this.chats = [...this.chats, chat];
     await this.loadChat(chat);
-    await this.commit(chat.id, 'join', { name: this.device.name });
+    await this.commit(chat.id, 'join', this.me());
     await this.commit(chat.id, 'topic', { name: chat.name });
     this.select(chat.id);
     this.refreshChats();
@@ -933,7 +985,7 @@ export default class MeshChat {
     };
     this.chats = [...this.chats, chat];
     await this.loadChat(chat);
-    await this.commit(chat.id, 'join', { name: this.device.name });
+    await this.commit(chat.id, 'join', this.me());
     this.select(chat.id);
     this.refreshChats();
     this.dialEveryone();
@@ -988,14 +1040,30 @@ export default class MeshChat {
     return this.commit(chatId, 'topic', { name: text(name, 60) });
   }
 
-  async setDisplayName(name) {
-    const clean = text(name, MAX_NAME).trim();
-    if (!clean || clean === this.device.name) return;
-    this.device = { ...this.device, name: clean };
-    saveDevice(this.device);
-    // Everyone finds out the same way they find out anything else.
-    for (const chat of this.chats)
-      await this.commit(chat.id, 'name', { name: clean });
+  // The chat's picture; an empty string takes it off again.
+  setPhoto(chatId, photo) {
+    return this.commit(chatId, 'topic', { photo: String(photo ?? '') });
+  }
+
+  // Your name and look are your game profile's, so changing them here changes
+  // them there too, and everyone in every chat finds out the same way they
+  // find out anything else.
+  async setProfile(patch) {
+    saveProfile({ ...loadProfile(), ...patch });
+    await this.reloadProfile();
+  }
+
+  // Coming back from the Avatar Editor or Settings, or another tab having
+  // changed the profile: take whatever is saved now.
+  async reloadProfile() {
+    const next = withProfile(this.device.id);
+    const same =
+      next.name === this.device.name &&
+      avatarKey(next.avatar) === avatarKey(this.device.avatar) &&
+      poseKey(next.pose) === poseKey(this.device.pose);
+    if (same) return;
+    this.device = next;
+    for (const chat of this.chats) await this.announce(chat);
   }
 
   // Leaving says so in the log, so the others stop trying to reach this

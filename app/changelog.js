@@ -15,6 +15,18 @@ export const CHANGELOG = [
     changes: [
       {
         type: 'new',
+        text: 'Pose Reference: a rigged 3D mannequin to draw from, laid out like the games with the controls over the picture. Drag its limbs into a pose or start from a preset, orbit and light it, choose the lens, and save a picture. Clay, toon, wireframe or x-ray.',
+      },
+      {
+        type: 'improved',
+        text: 'Messages uses your name and avatar from the games, so you look the same everywhere; files can be dropped straight onto the conversation or pasted in, messages support markdown, and a chat can be renamed and given a photo from its details panel.',
+      },
+      {
+        type: 'fixed',
+        text: 'Messages: you no longer hear your own voice echoed back in a call, and coming back to the page no longer makes a second copy of you in the chat.',
+      },
+      {
+        type: 'new',
         text: 'IP Address Lookup: type an address, a hostname or nothing at all for your own. The map fills the page, with road, satellite, hybrid and terrain views, and the address, its provider, its network and its local time sit over it; everything else is one panel away. The lookup goes straight from your browser to the geolocation service.',
       },
       {
