@@ -1,6 +1,6 @@
 {
   "name": "woogi-tools",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "private": true,
   "description": "Small description for woogi-tools goes here",
   "repository": "",
@@ -107,6 +107,7 @@
     "imagetracerjs": "^1.2.6",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
+    "matter-js": "^0.20.0",
     "pandoc-wasm": "^1.1.0",
     "papaparse": "^5.7.0",
     "pdf-lib": "^1.17.1",

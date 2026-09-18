@@ -10,6 +10,9 @@
 // what it found. It goes through the Worker rather than straight from the page
 // so the endpoint can be swapped for a self-hosted LanguageTool by setting
 // LANGUAGETOOL_URL, and so the browser never has to care where it lives.
+//
+// POST /api/translate does the same for the Translator with Google Translate's
+// public endpoint, so the page never talks to Google itself.
 
 const CREDENTIAL_TTL_S = 6 * 60 * 60;
 
@@ -19,12 +22,16 @@ const LANGUAGETOOL_URL = 'https://api.languagetool.org/v2/check';
 // The public service caps a request at 20 KB; refuse longer here with a clear
 // message rather than letting it come back as an opaque error.
 const MAX_TEXT_BYTES = 20000;
+// Google Translate, as the browser extensions and most free clients use it.
+const TRANSLATE_URL = 'https://translate.googleapis.com/translate_a/single';
+const MAX_TRANSLATE_CHARS = 5000;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/api/turn') return turn(request, env);
     if (url.pathname === '/api/grammar') return grammar(request, env);
+    if (url.pathname === '/api/translate') return translate(request);
     if (url.pathname.startsWith('/api/'))
       return json({ error: 'Not found' }, 404);
     return env.ASSETS.fetch(request);
@@ -145,6 +152,68 @@ async function grammar(request, env) {
       category: m.rule?.category?.name ?? '',
       url: m.rule?.urls?.[0]?.value ?? '',
     })),
+  });
+}
+
+async function translate(request) {
+  if (request.method !== 'POST')
+    return json({ error: 'Method not allowed' }, 405);
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== new URL(request.url).origin)
+    return json({ error: 'Forbidden' }, 403);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: 'Expected JSON' }, 400);
+  }
+  const text = typeof body?.text === 'string' ? body.text : '';
+  if (!text.trim()) return json({ text: '', detected: null });
+  if (text.length > MAX_TRANSLATE_CHARS)
+    return json(
+      { error: 'That is too long to translate in one go. Try less at a time.' },
+      413,
+    );
+  const code = (value) =>
+    typeof value === 'string' && /^[a-z]{2,3}(-[A-Za-z]{2,4})?$/.test(value)
+      ? value
+      : null;
+  const to = code(body.to);
+  if (!to) return json({ error: 'Pick a language to translate into.' }, 400);
+  const from = code(body.from) ?? 'auto';
+
+  let response;
+  try {
+    const params = new URLSearchParams({
+      client: 'gtx',
+      sl: from,
+      tl: to,
+      dt: 't',
+      q: text,
+    });
+    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Google Translate
+    response = await fetch(`${TRANSLATE_URL}?${params}`, {
+      headers: { Accept: 'application/json' },
+    });
+  } catch {
+    return json({ error: 'The translator could not be reached.' }, 502);
+  }
+  if (response.status === 429)
+    return json(
+      { error: 'The translator is busy right now. Give it a moment.' },
+      429,
+    );
+  if (!response.ok)
+    return json({ error: 'The translator turned that down.' }, 502);
+
+  // Google's reply is a nested array: [0] holds [translated, original]
+  // segments, [2] the language it detected.
+  const data = await response.json();
+  const segments = Array.isArray(data?.[0]) ? data[0] : [];
+  return json({
+    text: segments.map((s) => s?.[0] ?? '').join(''),
+    detected: typeof data?.[2] === 'string' ? data[2] : null,
   });
 }
 

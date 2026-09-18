@@ -66,6 +66,7 @@ Router.map(function () {
   this.route('audio-normalizer');
   this.route('grammar-checker');
   this.route('paraphraser');
+  this.route('translator');
   this.route('text-braille');
   this.route('text-ipa');
   this.route('text-morse');

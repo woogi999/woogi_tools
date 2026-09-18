@@ -1250,6 +1250,12 @@ main {
     padding 0.45s ease;
 }
 
+// While the search grows back to a full screen the tools stay hidden, or they
+// would show through underneath until the hero had pushed them off again.
+.home.is-settling .home-browse {
+  display: none;
+}
+
 // While searching, the logo and bar stick to the top as the results scroll.
 .home-search.is-searching {
   position: sticky;
@@ -1272,6 +1278,9 @@ main {
 .home-search-logo {
   width: min(320px, 70vw);
   height: auto;
+  // Grabbed as a thing, not as a picture: no ghost image and no drag-out.
+  user-select: none;
+  -webkit-user-drag: none;
   transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1415,182 +1424,6 @@ main {
   color: var(--bg);
   font-size: 0.8rem;
   pointer-events: none;
-}
-
-.home-ask-btn .icon {
-  color: #f5c518;
-}
-
-// ─── The chat with Woogi ────────────────────────────────────────────────
-
-.home-ask {
-  width: min(680px, 100%);
-  margin: 0 auto 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.home-ask-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.home-ask-head .icon {
-  color: #f5c518;
-}
-
-.home-ask-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 0.95rem;
-}
-
-// Messages as bubbles: yours on the right in ink, Woogi's on the left with a face.
-.home-chat {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.home-bubble {
-  max-width: 85%;
-  padding: 8px 12px;
-  border-radius: 16px;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  animation: bubble-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.home-bubble.is-user {
-  align-self: flex-end;
-  background: var(--text);
-  color: var(--bg);
-  border-bottom-right-radius: 4px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.home-bubble.is-woogi {
-  align-self: flex-start;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding-left: 8px;
-  border: 1px solid var(--border-color);
-  border-bottom-left-radius: 4px;
-  background: var(--bg-elevated);
-}
-
-.home-bubble.is-status {
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.home-bubble.is-error {
-  color: var(--card-red);
-  border-color: var(--card-red);
-}
-
-.home-bubble-avatar {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-top: 1px;
-}
-
-@keyframes bubble-in {
-  from {
-    opacity: 0;
-    translate: 0 10px;
-    scale: 0.92;
-  }
-}
-
-.home-ask-answer {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.home-ask-answer p {
-  margin: 0 0 0.6em;
-}
-
-.home-ask-answer > :last-child {
-  margin-bottom: 0;
-}
-
-// A blinking caret while the answer is still arriving.
-.home-ask-answer.is-typing > :last-child::after {
-  content: "▍";
-  margin-left: 1px;
-  color: var(--text-faint);
-  animation: blink 1s steps(2) infinite;
-}
-
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
-}
-
-.home-ask-status {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 0.8rem;
-}
-
-.home-ask-status.is-note {
-  color: var(--text-faint);
-  font-size: 0.72rem;
-}
-
-.home-ask .home-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  text-decoration: none;
-}
-
-// Links and charts inside the assistant's answer.
-.home-ask-link {
-  color: var(--text);
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-color: var(--card-red);
-  text-underline-offset: 2px;
-}
-
-.ask-chart {
-  display: block;
-  width: min(420px, 100%);
-  height: auto;
-  margin: 6px 0;
-  color: var(--text);
-  font-size: 10px;
-}
-
-.ask-chart-title {
-  font-size: 11px;
-  font-weight: 600;
-  fill: var(--text);
-}
-
-.ask-chart-label {
-  fill: var(--text-dim);
-}
-
-.ask-chart-grid {
-  stroke: var(--border-color);
-  stroke-width: 1;
-}
-
-.ask-chart-axis {
-  stroke: var(--text-faint);
-  stroke-width: 1;
 }
 
 // ─── Cards dealt in and out as the page scrolls ─────────────────────────
@@ -2008,14 +1841,47 @@ main {
   gap: 6px;
 }
 
-// Room above the categories, which land at the top of the screen after the snap.
+// The tools are at least a screen tall however few are showing, so picking a
+// category never shortens the page under you.
+.home-browse {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.home-browse[hidden] {
+  display: none;
+}
+
+// Spare height goes above the credits, so they stay together with the footer.
+.home-browse > .made-with {
+  margin-top: auto;
+}
+
+// The categories and the count stay at the top while you scroll the tools.
+.home-browse-head {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  margin-bottom: 4px;
+  padding-top: 28px;
+  padding-bottom: 12px;
+  background: var(--bg);
+}
+
+@media (max-width: 720px) {
+  // Below the mobile header, which is sticky too.
+  .home-browse-head {
+    top: 50px;
+  }
+}
+
 .home-categories {
   margin-bottom: 10px;
-  padding-top: 28px;
 }
 
 .home-count {
-  margin: 0 0 20px;
+  margin: 0;
   font-size: 0.85rem;
   color: var(--text-dim);
 }
@@ -2059,6 +1925,67 @@ main {
 .btn.home-lucky {
   padding: 8px 16px;
   font-size: 0.8rem;
+}
+
+// ─── Gravity ────────────────────────────────────────────────────────────────────────
+//
+// Type "gravity" and press I'm Feeling Lucky: the first screen falls down.
+// Bodies are moved by app/utils/gravity.js with a transform; the styles only
+// make them feel like things you can pick up.
+
+.home {
+  position: relative;
+}
+
+.home.is-gravity .home-search {
+  transition: none;
+}
+
+.is-falling {
+  user-select: none;
+  cursor: grab;
+  transform-origin: center;
+}
+
+.is-falling.is-held {
+  cursor: grabbing;
+}
+
+.is-falling.is-held,
+.is-falling.is-held * {
+  pointer-events: none;
+}
+
+// Dropped search results live in a layer pinned to the page's top-left corner,
+// so the sim can place them in page coordinates.
+.gravity-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+  z-index: 30;
+}
+
+.gravity-drop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 145px;
+}
+
+.gravity-drop .tool-card {
+  box-shadow: 0 4px 16px color-mix(in oklab, var(--text) 12%, transparent);
+}
+
+.gravity-note {
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-pill);
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 // ─── Update toast & Updates page ─────────────────────────────────────────

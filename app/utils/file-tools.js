@@ -144,6 +144,7 @@ const KINDS = {
       'line-tools',
       'grammar-checker',
       'paraphraser',
+      'translator',
       'qr-code',
       'file-converter',
       'file-share',
