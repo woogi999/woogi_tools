@@ -157,6 +157,7 @@ const SOUNDS = {
   'poly.bid': S(one('ui/select.ogg'), 0.45, 0.05),
   'poly.offer': S(one('ui/chat.ogg'), 0.5),
   'poly.bankrupt': S(one('jingles/woono-skipped.ogg'), 0.5, 0),
+  'poly.arson': S(one('cards/slam.ogg'), 0.8, 0.06, 0.6),
   'poly.myturn': S(one('ui/select.ogg'), 0.4, 0),
   'poly.tick': S(one('ui/tick-1.ogg'), 0.35, 0.03),
   'poly.win': S(one('jingles/woono-win.ogg'), 0.5, 0),

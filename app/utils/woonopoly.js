@@ -8,7 +8,7 @@
 //   viewFor(state, index)        -> what one screen shows (index -1 for a spectator)
 //   settleMs(events)             -> how long the board takes to animate these events
 //
-// Money is Woobux, counted in pesos: ₱150,000 to start, ₱20,000 for passing GO.
+// Money is Woobux, counted in pesos: ₱50,000 to start, ₱5,000 for passing GO.
 
 export const MAX_PLAYERS = 8;
 export const CURRENCY = '₱';
@@ -207,9 +207,9 @@ export const BOARD = [
   street(
     'Sketchbook Square',
     'green',
-    320,
-    [28, 150, 450, 1000, 1200, 1400],
-    200,
+    32000,
+    [2800, 15000, 45000, 100000, 120000, 140000],
+    20000,
   ),
   station('Speed Test Station'),
   chance(),
@@ -224,9 +224,9 @@ export const BOARD = [
   street(
     'Studio Heights',
     'darkblue',
-    400,
-    [50, 200, 600, 1400, 1700, 2000],
-    200,
+    40000,
+    [5000, 20000, 60000, 140000, 170000, 200000],
+    20000,
   ),
 ];
 
@@ -237,7 +237,6 @@ const STATION_RENT = [2500, 5000, 10000, 20000];
 const UTILITY_MULTIPLIER = [400, 1000];
 const HOUSE_SUPPLY = 32;
 const HOTEL_SUPPLY = 12;
-const MAX_JAIL_TURNS = 3;
 
 export const isProperty = (space) =>
   space.type === 'street' ||
@@ -366,8 +365,8 @@ const DECKS = { chance: CHANCE, chest: CHEST };
 // ─── Rules ─────────────────────────────────────────────────────────────
 
 export const DEFAULT_RULES = Object.freeze({
-  startingMoney: 150000,
-  goSalary: 20000,
+  startingMoney: 50000,
+  goSalary: 5000,
   // Landing exactly on GO pays the salary twice.
   doubleGo: false,
   // Taxes and fines pile up under Free Parking for whoever lands there.
@@ -376,20 +375,52 @@ export const DEFAULT_RULES = Object.freeze({
   auctions: true,
   // Only 32 houses and 12 hotels exist; when they run out, nobody can build.
   housingLimit: true,
-  jailFine: 5000,
+  jailFine: 2000,
   // Seconds per turn, 0 for no clock.
   turnTime: 0,
-  // Rounds before the richest player wins, 0 to play to the last one standing.
-  roundLimit: 0,
+  // How the game ends: 'last' one standing, after 'rounds', a 'share' of the
+  // board, a number of 'houses', or a pile of 'money'. Each has its own target.
+  winMode: 'last',
+  winRounds: 12,
+  winShare: 50,
+  winHouses: 12,
+  winMoney: 200000,
+  // Rolling doubles gives you another go (and three in a row sends you to jail).
+  doublesAgain: true,
+  // Rolling doubles gets you out of jail.
+  jailDoubles: true,
+  // Jail is a sentence: no fine, no card, no doubles; sit out the term and walk.
+  jailSentence: false,
+  // Turns in jail before you're let out (paying the fine, unless it's a sentence).
+  jailTerm: 3,
+  // While in jail you collect no rent and sit out auctions and trades.
+  jailFreeze: false,
+  // Nobody buys at the list price: every property goes straight to auction.
+  auctionOnly: false,
+  // Land on the biggest landlord's property and torch it instead of paying rent.
+  arson: false,
   // Everyone starts with two random properties.
   quickStart: false,
 });
 
-export const MONEY_RANGE = [50000, 500000];
+export const MONEY_RANGE = [10000, 500000];
 export const SALARY_RANGE = [0, 50000];
 export const FINE_RANGE = [0, 50000];
 export const TURN_TIMES = [0, 30, 60, 90, 120];
-export const ROUND_LIMITS = [0, 20, 40, 60];
+export const WIN_MODES = [
+  { id: 'last', label: 'Last one standing' },
+  { id: 'rounds', label: 'Rounds' },
+  { id: 'share', label: 'Share of the board' },
+  { id: 'houses', label: 'Houses built' },
+  { id: 'money', label: 'Target money' },
+];
+export const ROUNDS_RANGE = [1, 200];
+export const SHARE_RANGE = [10, 100];
+export const HOUSES_RANGE = [1, 60];
+export const WIN_MONEY_RANGE = [10000, 5000000];
+export const JAIL_TERM_RANGE = [1, 10];
+// Times a player can commit arson in one game.
+export const ARSON_USES = 2;
 
 export const clampInt = (value, [min, max], fallback) => {
   const n = Math.round(Number(value));
@@ -412,9 +443,20 @@ export function normaliseRules(input) {
     turnTime: TURN_TIMES.includes(Number(raw.turnTime))
       ? Number(raw.turnTime)
       : d.turnTime,
-    roundLimit: ROUND_LIMITS.includes(Number(raw.roundLimit))
-      ? Number(raw.roundLimit)
-      : d.roundLimit,
+    winMode: WIN_MODES.some((m) => m.id === raw.winMode)
+      ? raw.winMode
+      : d.winMode,
+    winRounds: clampInt(raw.winRounds, ROUNDS_RANGE, d.winRounds),
+    winShare: clampInt(raw.winShare, SHARE_RANGE, d.winShare),
+    winHouses: clampInt(raw.winHouses, HOUSES_RANGE, d.winHouses),
+    winMoney: clampInt(raw.winMoney, WIN_MONEY_RANGE, d.winMoney),
+    doublesAgain: flag('doublesAgain'),
+    jailDoubles: flag('jailDoubles'),
+    jailSentence: flag('jailSentence'),
+    jailTerm: clampInt(raw.jailTerm, JAIL_TERM_RANGE, d.jailTerm),
+    jailFreeze: flag('jailFreeze'),
+    auctionOnly: flag('auctionOnly'),
+    arson: flag('arson'),
     quickStart: flag('quickStart'),
   };
 }
@@ -448,18 +490,22 @@ export function createGame(players, rules = DEFAULT_RULES) {
       inJail: false,
       jailTurns: 0,
       jailCards: 0,
+      arsons: 0,
       bankrupt: false,
     })),
-    // Per property index: { owner (player index or null), houses 0-5 (5 is a hotel), mortgaged }.
+    // Per property index: { owner (player index or null), houses 0-5 (5 is a hotel),
+    // mortgaged, burnt (torched and not yet repaired), damage (what the fire cost) }.
     props: Object.fromEntries(
       PROPERTY_INDICES.map((i) => [
         i,
-        { owner: null, houses: 0, mortgaged: false },
+        { owner: null, houses: 0, mortgaged: false, burnt: false, damage: 0 },
       ]),
     ),
     turn: 0,
-    // 'turn' (roll, then manage and end) | 'buy' | 'auction' | 'debt' | 'over'
+    // 'turn' (roll, then manage and end) | 'buy' | 'rent' (pay, or arson) | 'auction' | 'debt' | 'over'
     phase: 'turn',
+    // The rent waiting to be paid while the 'rent' phase asks: { space, owner, amount }.
+    pending: null,
     // Whether the player to move has finished moving this turn.
     rolled: false,
     dice: [0, 0],
@@ -538,7 +584,8 @@ export function rentFor(
 ) {
   const info = BOARD[space];
   const prop = state.props[space];
-  if (prop.owner === null || prop.mortgaged) return 0;
+  if (prop.owner === null || prop.mortgaged || prop.burnt) return 0;
+  if (state.rules.jailFreeze && state.players[prop.owner].inJail) return 0;
   if (info.type === 'street') {
     if (prop.houses > 0) return info.rent[prop.houses];
     const full = ownsGroup(state, prop.owner, info.group);
@@ -609,6 +656,7 @@ const afterDebts = (state) => {
   const back = state.resume ?? 'turn';
   state.resume = null;
   if (back === 'auction' && !state.auction) return 'turn';
+  if (back === 'rent' && !state.pending) return 'turn';
   if (back === 'buy' && state.props[current(state).pos]?.owner !== null)
     return 'turn';
   return back;
@@ -695,10 +743,23 @@ function land(state, index, rentTimes) {
     default: {
       const prop = state.props[player.pos];
       if (prop.owner === null) {
+        if (state.rules.auctionOnly && startAuction(state, player.pos, true))
+          return;
         state.phase = 'buy';
         return;
       }
       if (prop.owner === index || prop.mortgaged) return;
+      if (prop.burnt) {
+        note(state, `${space.name} is a burnt-out shell; no rent is due.`);
+        return;
+      }
+      if (state.rules.jailFreeze && state.players[prop.owner].inJail) {
+        note(
+          state,
+          `${nameOf(state, prop.owner)} is in jail and collects no rent for ${space.name}.`,
+        );
+        return;
+      }
       const rent =
         rentTimes === 'double'
           ? rentFor(state, player.pos, total, { doubled: true })
@@ -706,20 +767,126 @@ function land(state, index, rentTimes) {
             ? rentFor(state, player.pos, total, { utilityTimes: 1000 })
             : rentFor(state, player.pos, total);
       if (!rent) return;
-      note(
-        state,
-        `${player.name} paid ${money(rent)} rent to ${nameOf(state, prop.owner)} for ${space.name}.`,
-      );
-      charge(state, index, rent, prop.owner, 'rent');
-      event(state, {
-        type: 'rent',
-        player: index,
-        to: prop.owner,
-        space: player.pos,
-        amount: rent,
-      });
+      // With arson on the table, the rent waits for a decision.
+      if (canArson(state, index, player.pos)) {
+        state.pending = { space: player.pos, owner: prop.owner, amount: rent };
+        state.phase = 'rent';
+        return;
+      }
+      payRent(state, index, player.pos, rent);
     }
   }
+}
+
+function payRent(state, index, space, rent) {
+  const player = state.players[index];
+  const prop = state.props[space];
+  note(
+    state,
+    `${player.name} paid ${money(rent)} rent to ${nameOf(state, prop.owner)} for ${BOARD[space].name}.`,
+  );
+  charge(state, index, rent, prop.owner, 'rent');
+  event(state, {
+    type: 'rent',
+    player: index,
+    to: prop.owner,
+    space,
+    amount: rent,
+  });
+}
+
+// ─── Arson ─────────────────────────────────────────────────────────────
+
+// Whoever owns the most deeds (all of them, if it's a tie at the top).
+export function biggestLandlords(state) {
+  const counts = state.players.map((p, i) =>
+    p.bankrupt ? -1 : propertiesOf(state, i).length,
+  );
+  const top = Math.max(...counts);
+  if (top <= 0) return [];
+  return counts.map((c, i) => (c === top ? i : -1)).filter((i) => i >= 0);
+}
+
+// You can torch the property you're standing on instead of paying rent when the
+// rule is on, you have a match left, the owner is the biggest landlord and they
+// aren't standing on it with you.
+export function canArson(state, index, space) {
+  if (!state.rules.arson) return false;
+  const player = state.players[index];
+  const prop = state.props[space];
+  if (!player || player.arsons >= ARSON_USES) return false;
+  if (prop.owner === null || prop.owner === index || prop.burnt) return false;
+  if (!biggestLandlords(state).includes(prop.owner)) return false;
+  if (state.players[prop.owner].pos === space) return false;
+  return true;
+}
+
+export const repairCost = (state, space) =>
+  BOARD[space].price + (state.props[space].damage ?? 0);
+
+export const canRepair = (state, index, space) => {
+  const prop = state.props[space];
+  return (
+    prop.owner === index &&
+    prop.burnt &&
+    state.players[index].money >= repairCost(state, space)
+  );
+};
+
+export const canRelist = (state, index, space) => {
+  const prop = state.props[space];
+  return prop.owner === index && prop.burnt;
+};
+
+function arson(state, index) {
+  const player = state.players[index];
+  const { space, owner } = state.pending;
+  const info = BOARD[space];
+  const prop = state.props[space];
+  // The buildings go up in smoke; what they cost is the damage bill.
+  if (state.rules.housingLimit) {
+    if (prop.houses === 5) state.hotels++;
+    else state.houses += prop.houses;
+  }
+  prop.damage = info.type === 'street' ? prop.houses * info.house : 0;
+  prop.houses = 0;
+  prop.burnt = true;
+  player.arsons++;
+  state.pending = null;
+  state.phase = 'turn';
+  event(state, { type: 'arson', player: index, space, owner });
+  note(
+    state,
+    `${player.name} set fire to ${info.name}! They owe ${nameOf(state, owner)} ${money(info.price)} and are off to jail.`,
+  );
+  charge(state, index, info.price, owner, 'arson');
+  goToJail(state, index);
+}
+
+function repair(state, index, space) {
+  const prop = state.props[space];
+  const cost = repairCost(state, space);
+  state.players[index].money -= cost;
+  prop.burnt = false;
+  prop.damage = 0;
+  event(state, { type: 'repair', player: index, space });
+  note(
+    state,
+    `${state.players[index].name} repaired ${BOARD[space].name} for ${money(cost)}.`,
+  );
+}
+
+function relist(state, index, space) {
+  const prop = state.props[space];
+  prop.owner = null;
+  prop.burnt = false;
+  prop.damage = 0;
+  prop.mortgaged = false;
+  event(state, { type: 'relist', player: index, space });
+  note(
+    state,
+    `${state.players[index].name} handed the burnt-out ${BOARD[space].name} back to the bank.`,
+  );
 }
 
 function drawCard(state, index, deck) {
@@ -784,12 +951,15 @@ function endTurn(state) {
   const next = order[(at + 1) % order.length];
   if (next <= state.turn) {
     state.round++;
-    if (state.rules.roundLimit && state.round > state.rules.roundLimit) {
+    if (
+      state.rules.winMode === 'rounds' &&
+      state.round > state.rules.winRounds
+    ) {
       const richest = order.reduce(
         (best, i) => (netWorth(state, i) > netWorth(state, best) ? i : best),
         order[0],
       );
-      note(state, `${state.rules.roundLimit} rounds are up.`);
+      note(state, `${state.rules.winRounds} rounds are up.`);
       finish(state, richest);
       return;
     }
@@ -798,6 +968,7 @@ function endTurn(state) {
   state.rolled = false;
   state.doubles = 0;
   state.card = null;
+  state.pending = null;
   state.phase = 'turn';
   state.turnId++;
   event(state, { type: 'turn', player: next });
@@ -808,10 +979,60 @@ function finish(state, winner) {
   state.phase = 'over';
   state.auction = null;
   state.trade = null;
+  state.pending = null;
   if (winner !== null) {
     note(state, `${state.players[winner].name} wins Woonopoly!`);
     event(state, { type: 'win', player: winner });
   }
+}
+
+// How far along each player is towards the chosen finish line.
+export function winScore(state, index) {
+  const r = state.rules;
+  const player = state.players[index];
+  if (player.bankrupt) return 0;
+  if (r.winMode === 'share')
+    return (propertiesOf(state, index).length / PROPERTY_INDICES.length) * 100;
+  if (r.winMode === 'houses')
+    return propertiesOf(state, index).reduce(
+      (n, s) => n + state.props[s].houses,
+      0,
+    );
+  if (r.winMode === 'money') return player.money;
+  return 0;
+}
+
+export const winTarget = (rules) =>
+  rules.winMode === 'share'
+    ? rules.winShare
+    : rules.winMode === 'houses'
+      ? rules.winHouses
+      : rules.winMode === 'money'
+        ? rules.winMoney
+        : 0;
+
+// Somebody crossed the line? Called after every action once the dust settles.
+function checkWin(state) {
+  if (state.phase === 'over' || state.phase === 'debt') return;
+  const target = winTarget(state.rules);
+  if (!target) return;
+  const order = alive(state);
+  let best = null;
+  for (const i of order) {
+    const score = winScore(state, i);
+    if (score >= target && (best === null || score > winScore(state, best)))
+      best = i;
+  }
+  if (best === null) return;
+  const r = state.rules;
+  const how =
+    r.winMode === 'share'
+      ? `owns ${r.winShare}% of the board`
+      : r.winMode === 'houses'
+        ? `has built ${r.winHouses} houses`
+        : `has ${money(r.winMoney)}`;
+  note(state, `${state.players[best].name} ${how}.`);
+  finish(state, best);
 }
 
 function roll(state, index) {
@@ -822,7 +1043,8 @@ function roll(state, index) {
   const doubles = dice[0] === dice[1];
   event(state, { type: 'roll', player: index, dice });
   if (player.inJail) {
-    if (doubles) {
+    const r = state.rules;
+    if (doubles && r.jailDoubles && !r.jailSentence) {
       player.inJail = false;
       player.jailTurns = 0;
       note(state, `${player.name} rolled doubles and is out of jail.`);
@@ -834,12 +1056,16 @@ function roll(state, index) {
       return;
     }
     player.jailTurns++;
-    if (player.jailTurns >= MAX_JAIL_TURNS) {
-      note(
-        state,
-        `${player.name} paid the ${money(state.rules.jailFine)} fine after three turns in jail.`,
-      );
-      charge(state, index, state.rules.jailFine, null, 'fine');
+    if (player.jailTurns >= r.jailTerm) {
+      if (r.jailSentence)
+        note(state, `${player.name} served their time and is out of jail.`);
+      else {
+        note(
+          state,
+          `${player.name} paid the ${money(r.jailFine)} fine after ${r.jailTerm} turn${r.jailTerm === 1 ? '' : 's'} in jail.`,
+        );
+        charge(state, index, r.jailFine, null, 'fine');
+      }
       player.inJail = false;
       player.jailTurns = 0;
       event(state, { type: 'free', player: index });
@@ -853,7 +1079,7 @@ function roll(state, index) {
     state.rolled = true;
     return;
   }
-  if (doubles) {
+  if (doubles && state.rules.doublesAgain) {
     state.doubles++;
     if (state.doubles === 3) {
       note(state, `${player.name} rolled doubles three times in a row.`);
@@ -888,6 +1114,7 @@ export function canBuild(state, index, space) {
   const prop = state.props[space];
   if (info.type !== 'street' || prop.owner !== index || prop.houses >= 5)
     return false;
+  if (prop.burnt) return false;
   if (!ownsGroup(state, index, info.group)) return false;
   const siblings = groupSpaces(info.group).map((s) => state.props[s]);
   if (siblings.some((p) => p.mortgaged)) return false;
@@ -918,6 +1145,7 @@ export function canMortgage(state, index, space) {
   const info = BOARD[space];
   const prop = state.props[space];
   if (!isProperty(info) || prop.owner !== index || prop.mortgaged) return false;
+  if (prop.burnt) return false;
   if (
     info.type === 'street' &&
     groupSpaces(info.group).some((s) => state.props[s].houses > 0)
@@ -998,18 +1226,25 @@ function unmortgage(state, index, space) {
 
 // ─── Auctions ──────────────────────────────────────────────────────────
 
-function startAuction(state, space) {
-  const bidders = alive(state).filter((i) => state.players[i].money > 0);
-  if (bidders.length < 2) return;
-  // Bidding goes round from the player after the one who passed on it.
+function startAuction(state, space, withCurrent = false) {
+  const bidders = alive(state).filter(
+    (i) =>
+      state.players[i].money > 0 &&
+      (withCurrent || i !== state.turn) &&
+      !(state.rules.jailFreeze && state.players[i].inJail),
+  );
+  if (bidders.length < 2) return false;
+  // Bidding goes round from the player after the one who passed on it (or from
+  // them, when everything goes to auction).
   const order = [
-    ...bidders.filter((i) => i > state.turn),
-    ...bidders.filter((i) => i <= state.turn),
+    ...bidders.filter((i) => (withCurrent ? i >= state.turn : i > state.turn)),
+    ...bidders.filter((i) => (withCurrent ? i < state.turn : i <= state.turn)),
   ];
   state.auction = { space, bid: 0, bidder: null, bidders: order, at: 0 };
   state.phase = 'auction';
   event(state, { type: 'auction', space });
   note(state, `${BOARD[space].name} is up for auction.`);
+  return true;
 }
 
 function auctionNext(state) {
@@ -1050,6 +1285,8 @@ function bankrupt(state, index, to) {
     if (to === null || to === undefined) {
       prop.owner = null;
       prop.mortgaged = false;
+      prop.burnt = false;
+      prop.damage = 0;
     } else prop.owner = to;
   }
   if (to !== null && to !== undefined) {
@@ -1062,6 +1299,11 @@ function bankrupt(state, index, to) {
   for (const debt of state.debts) if (debt.to === index) debt.to = to ?? null;
   if (state.trade && (state.trade.from === index || state.trade.to === index))
     state.trade = null;
+  if (state.pending?.owner === index) {
+    // The landlord went under before the rent (or the match) was settled.
+    state.pending = null;
+    if (state.phase === 'rent') state.phase = 'turn';
+  }
   if (state.auction) {
     state.auction.bidders = state.auction.bidders.filter((i) => i !== index);
     if (state.auction.bidder === index) state.auction.bidder = null;
@@ -1089,7 +1331,8 @@ const cleanOffer = (state, index, offer) => {
     (s) =>
       state.props[s] &&
       state.props[s].owner === index &&
-      state.props[s].houses === 0,
+      state.props[s].houses === 0 &&
+      !state.props[s].burnt,
   );
   return {
     money: clampInt(raw.money, [0, state.players[index].money], 0),
@@ -1131,10 +1374,14 @@ export function act(state, index, action) {
   const ok = perform(state, index, action);
   if (ok) {
     settleDebts(state);
+    checkWin(state);
     state.version++;
   }
   return ok;
 }
+
+const frozen = (state, index) =>
+  state.rules.jailFreeze && state.players[index].inJail;
 
 function perform(state, index, action) {
   const player = state.players[index];
@@ -1147,6 +1394,7 @@ function perform(state, index, action) {
     case 'payFine':
       if (!mine || state.phase !== 'turn' || !player.inJail || state.rolled)
         return false;
+      if (state.rules.jailSentence) return false;
       if (player.money < state.rules.jailFine) return false;
       charge(state, index, state.rules.jailFine, null, 'fine');
       player.inJail = false;
@@ -1163,7 +1411,8 @@ function perform(state, index, action) {
         state.phase !== 'turn' ||
         !player.inJail ||
         state.rolled ||
-        !player.jailCards
+        !player.jailCards ||
+        state.rules.jailSentence
       )
         return false;
       player.jailCards--;
@@ -1218,6 +1467,29 @@ function perform(state, index, action) {
         auctionNext(state);
       return true;
     }
+    case 'payRent': {
+      if (!mine || state.phase !== 'rent' || !state.pending) return false;
+      const { space, amount } = state.pending;
+      state.pending = null;
+      state.phase = 'turn';
+      payRent(state, index, space, amount);
+      return true;
+    }
+    case 'arson':
+      if (!mine || state.phase !== 'rent' || !state.pending) return false;
+      if (!canArson(state, index, state.pending.space)) return false;
+      arson(state, index);
+      return true;
+    case 'repair':
+      if (!manageable(state, index) || !canRepair(state, index, action.space))
+        return false;
+      repair(state, index, action.space);
+      return true;
+    case 'relist':
+      if (!manageable(state, index) || !canRelist(state, index, action.space))
+        return false;
+      relist(state, index, action.space);
+      return true;
     case 'build':
       if (!manageable(state, index) || !canBuild(state, index, action.space))
         return false;
@@ -1289,6 +1561,7 @@ function perform(state, index, action) {
       const to = Number(action.to);
       const other = state.players[to];
       if (!other || other.bankrupt || to === index) return false;
+      if (frozen(state, index) || frozen(state, to)) return false;
       const give = cleanOffer(state, index, action.give);
       const get = cleanOffer(state, to, action.get);
       if (
@@ -1308,6 +1581,11 @@ function perform(state, index, action) {
     case 'acceptTrade': {
       const t = state.trade;
       if (!t || t.to !== index) return false;
+      if (frozen(state, t.from) || frozen(state, t.to)) {
+        state.trade = null;
+        note(state, 'The trade fell through: someone is in jail.');
+        return true;
+      }
       // Things can change while the offer sits there: check it still holds.
       const give = cleanOffer(state, t.from, t.give);
       const get = cleanOffer(state, t.to, t.get);
@@ -1353,6 +1631,8 @@ export function timeOut(state) {
       return act(state, index, { type: 'end' });
     case 'buy':
       return act(state, index, { type: 'decline' });
+    case 'rent':
+      return act(state, index, { type: 'payRent' });
     case 'auction':
       return act(state, index, { type: 'passBid' });
     case 'debt': {
@@ -1407,6 +1687,7 @@ export function settleMs(events) {
     else if (e.type === 'jail') total += 900;
     else if (e.type === 'card') total += 1400;
     else if (e.type === 'bankrupt' || e.type === 'win') total += 800;
+    else if (e.type === 'arson') total += 1200;
   }
   return total;
 }
@@ -1429,6 +1710,8 @@ export function viewFor(state, index) {
     canPayDebt: false,
     canManage: false,
     canTrade: false,
+    canPayRent: false,
+    canArson: false,
   };
   if (me && !me.bankrupt && state.phase !== 'over') {
     const mine = state.turn === index;
@@ -1447,7 +1730,14 @@ export function viewFor(state, index) {
       me.money >= state.debts[0].amount;
     flags.canManage = manageable(state, index);
     flags.canTrade =
-      !state.trade && state.phase !== 'auction' && state.phase !== 'debt';
+      !state.trade &&
+      state.phase !== 'auction' &&
+      state.phase !== 'debt' &&
+      state.phase !== 'rent' &&
+      !frozen(state, index);
+    flags.canPayRent = mine && state.phase === 'rent' && Boolean(state.pending);
+    flags.canArson =
+      flags.canPayRent && canArson(state, index, state.pending.space);
   }
   return {
     gameId: state.gameId,
@@ -1468,6 +1758,7 @@ export function viewFor(state, index) {
       ? { ...state.auction, bidders: [...state.auction.bidders] }
       : null,
     debt: state.debts[0] ?? null,
+    pending: state.pending,
     trade: state.trade,
     houses: state.houses,
     hotels: state.hotels,
@@ -1520,12 +1811,18 @@ export function deedFor(state, space) {
     lines.push({ label: 'With both', value: '₱1,000 × the dice' });
   }
   lines.push({ label: 'Mortgage value', value: money(info.price / 2) });
+  if (prop.burnt)
+    lines.push({
+      label: 'Repair cost',
+      value: money(repairCost(state, space)),
+    });
   return {
     ...info,
     space,
     owner: prop.owner,
     houses: prop.houses,
     mortgaged: prop.mortgaged,
+    burnt: prop.burnt,
     lines,
   };
 }

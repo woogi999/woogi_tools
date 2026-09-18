@@ -144,6 +144,15 @@ const LINES = {
     'Out of Woobux. Someone reboot my finances.',
     'Bankruptcy.exe has finished running.',
   ],
+  arson: [
+    'Oops. {name} appears to be on fire. Nothing to do with me.',
+    'Rent was too high, so I lowered the building. To the ground.',
+    '{name} had a small electrical fault. Very small. Very hot.',
+  ],
+  burnt: [
+    '{name}, you set fire to my property. Adding you to the blocklist.',
+    'Arson, {name}? Really? I hope the cell is cold.',
+  ],
   ruined: [
     'Sorry {name}. It was just business. Beep.',
     'Thanks for the estate, {name}. I’ll take good care of it.',

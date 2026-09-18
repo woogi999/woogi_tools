@@ -14,6 +14,10 @@ import {
   canBuild,
   canUnmortgage,
   unmortgageCost,
+  canArson,
+  canRepair,
+  canRelist,
+  repairCost,
   raiseMoney,
 } from './woonopoly';
 
@@ -93,18 +97,36 @@ function unmortgagePlan(state, index) {
     : null;
 }
 
+// A burnt-out property gets repaired when the money is there, else handed back.
+function firePlan(state, index) {
+  const player = state.players[index];
+  const keep = reserve(state, index);
+  for (const space of PROPERTY_INDICES) {
+    if (!canRelist(state, index, space)) continue;
+    if (
+      canRepair(state, index, space) &&
+      player.money - repairCost(state, space) >= keep * 0.5
+    )
+      return { type: 'repair', space };
+    return { type: 'relist', space };
+  }
+  return null;
+}
+
 export function decide(state, index) {
   const player = state.players[index];
   switch (state.phase) {
     case 'turn': {
       if (state.turn !== index) return null;
       // Sort the estate out first (before rolling, or before ending the turn).
+      const fire = firePlan(state, index);
+      if (fire) return fire;
       const build = buildPlan(state, index);
       if (build) return build;
       const unmortgage = unmortgagePlan(state, index);
       if (unmortgage) return unmortgage;
       if (state.rolled) return { type: 'end' };
-      if (player.inJail) {
+      if (player.inJail && !state.rules.jailSentence) {
         if (player.jailCards) return { type: 'useJailCard' };
         // Early on, get out and buy things; later, jail is a safe place to sit.
         const owned = PROPERTY_INDICES.filter(
@@ -118,6 +140,15 @@ export function decide(state, index) {
           return { type: 'payFine' };
       }
       return { type: 'roll' };
+    }
+    case 'rent': {
+      if (state.turn !== index || !state.pending) return null;
+      // Strike a match when the rent really hurts and the landlord can take it.
+      const { amount, space } = state.pending;
+      const hurts = amount >= Math.max(8000, player.money * 0.4);
+      if (hurts && Math.random() < 0.7 && canArson(state, index, space))
+        return { type: 'arson' };
+      return { type: 'payRent' };
     }
     case 'buy': {
       const space = player.pos;

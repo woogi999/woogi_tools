@@ -16,7 +16,7 @@ export const CHANGELOG = [
     changes: [
       {
         type: 'new',
-        text: 'Woonopoly: our take on the property-trading board game, on a 3D city board with your avatars walking round it as the tokens, buildings that grow as you build, and a camera that follows the action or pulls up to a map. Up to eight players, online or against the computer, with auctions, trades, mortgages, houses and hotels, jail, Chance and Treasure Chest cards, and Woobux counted in pesos. The lobby sets the starting money, the GO salary, a round limit, a turn timer and the usual house rules (Free Parking jackpot, double salary on GO, a housing shortage, quick start).',
+        text: 'Woonopoly: our take on the property-trading board game, on a 3D city board with your avatars walking round it as the tokens, buildings that grow as you build, and a camera that follows the action or pulls up to a map. Up to eight players, online or against the computer, with auctions, trades, mortgages, houses and hotels, jail, Chance and Treasure Chest cards, and Woobux counted in pesos. The lobby sets the starting money, the GO salary, a turn timer, the win condition (last one standing, a number of rounds, a share of the board, a house count or a cash target) and the house rules: Free Parking jackpot, double salary on GO, a housing shortage, quick start, everything to auction, doubles rules, how jail works (doubles, a fixed sentence, a term, and whether it freezes your rent, auctions and trades) and arson, where you torch the biggest landlord’s property instead of paying rent and go to jail owing them for it.',
       },
       {
         type: 'improved',
