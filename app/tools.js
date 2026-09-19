@@ -34,6 +34,15 @@ export const TOOLS = [
     keywords: ['changelog', "what's new", 'release notes', 'version', 'news'],
   },
   {
+    label: 'Woogidex',
+    href: 'https://dex.woogi.xyz/',
+    icon: 'sparkles',
+    accent: '#FFF77B',
+    category: 'Other Sites',
+    description: 'A Fakemon creation tool, over on its own site.',
+    keywords: ['fakemon', 'pokemon', 'dex', 'pokedex', 'creature', 'creator'],
+  },
+  {
     label: 'Colour Picker',
     route: 'color-picker',
     icon: 'paint-bucket',
@@ -3365,6 +3374,7 @@ export function searchTools(query) {
 
 // The order the categories are shown in, in the sidebar and on the home page.
 export const CATEGORY_ORDER = [
+  'Other Sites',
   'Images',
   'Colour & Design',
   'Audio & Video',

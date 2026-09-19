@@ -3,9 +3,12 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { LinkTo } from '@ember/routing';
 import { service } from '@ember/service';
+import { htmlSafe } from '@ember/template';
 import { modifier } from 'ember-modifier';
 import Icon from './icon';
 import { searchTools, groupTools } from '../tools';
+
+const accentStyle = (accent) => htmlSafe(accent ? `color:${accent};` : '');
 
 export default class SidebarNav extends Component {
   @service router;
@@ -71,15 +74,28 @@ export default class SidebarNav extends Component {
           <div class="nav-group-label">{{group.name}}</div>
         {{/if}}
         {{#each group.items as |tool|}}
-          <LinkTo
-            @route={{tool.route}}
-            class="nav-link"
-            activeClass="active"
-            {{on "click" (if @onNavigate @onNavigate this.noop)}}
-          >
-            <Icon @name={{tool.icon}} @size={{15}} />
-            <span>{{tool.label}}</span>
-          </LinkTo>
+          {{#if tool.href}}
+            <a
+              href={{tool.href}}
+              class="nav-link nav-link-external"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{accentStyle tool.accent}}
+            >
+              <Icon @name={{tool.icon}} @size={{15}} />
+              <span>{{tool.label}}</span>
+            </a>
+          {{else}}
+            <LinkTo
+              @route={{tool.route}}
+              class="nav-link"
+              activeClass="active"
+              {{on "click" (if @onNavigate @onNavigate this.noop)}}
+            >
+              <Icon @name={{tool.icon}} @size={{15}} />
+              <span>{{tool.label}}</span>
+            </LinkTo>
+          {{/if}}
         {{/each}}
       {{else}}
         <div class="nav-empty">No tools found</div>

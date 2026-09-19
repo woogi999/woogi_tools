@@ -4,6 +4,7 @@ import { service } from '@ember/service';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { LinkTo } from '@ember/routing';
+import { htmlSafe } from '@ember/template';
 import { modifier } from 'ember-modifier';
 import Icon from './icon';
 import FavouriteStar from './favourite-star';
@@ -500,7 +501,7 @@ export default class HomePage extends Component {
       this.startGravity();
       return;
     }
-    const pool = this.cards;
+    const pool = this.cards.filter((card) => card.tool.route);
     if (pool.length)
       this.router.transitionTo(
         pool[Math.floor(Math.random() * pool.length)].tool.route,
@@ -890,6 +891,8 @@ function hover(onHover, route) {
   return () => onHover?.(route);
 }
 
+const accentStyle = (accent) => htmlSafe(accent ? `color:${accent};` : '');
+
 const ToolCard = <template>
   <div
     class="tool-card
@@ -900,7 +903,7 @@ const ToolCard = <template>
     {{on "mouseenter" (hover @onHover @card.tool.route)}}
     {{on "mouseleave" (hover @onHover null)}}
   >
-    {{#if @card.tool.category}}
+    {{#if @card.tool.route}}
       <FavouriteStar
         @route={{@card.tool.route}}
         @size={{16}}
@@ -918,10 +921,20 @@ const ToolCard = <template>
         class="card-suit"
       >{{@card.suit.symbol}}</span></span>
     <Icon @name={{@card.tool.icon}} @size={{34}} class="tool-icon" />
-    <LinkTo
-      @route={{@card.tool.route}}
-      class="tool-card-link"
-    >{{@card.tool.label}}</LinkTo>
+    {{#if @card.tool.href}}
+      <a
+        href={{@card.tool.href}}
+        class="tool-card-link"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{accentStyle @card.tool.accent}}
+      >{{@card.tool.label}}</a>
+    {{else}}
+      <LinkTo
+        @route={{@card.tool.route}}
+        class="tool-card-link"
+      >{{@card.tool.label}}</LinkTo>
+    {{/if}}
     <p>{{@card.tool.description}}</p>
   </div>
 </template>;
