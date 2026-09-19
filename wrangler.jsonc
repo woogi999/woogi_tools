@@ -21,7 +21,7 @@
   "kv_namespaces": [
     {
       "binding": "TEMP_MAIL",
-      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+      "id": "b2a7ddcfc12b4b86a6ca40887aeb642c"
     }
   ],
   // Worker logs, including one log per invocation, visible in the Cloudflare dashboard.
