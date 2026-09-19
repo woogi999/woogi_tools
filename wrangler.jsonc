@@ -14,6 +14,16 @@
   "vars": {
     "TURN_KEY_ID": "2900fc412b4c30e1bdc49baf7079dc59"
   },
+  // Disposable Emails: incoming mail waits here for an hour. Create the
+  // namespace with `npx wrangler kv namespace create TEMP_MAIL` and paste
+  // its id below; then in the dashboard enable Email Routing for
+  // temp.woogi.xyz with a catch-all rule that sends to this Worker.
+  "kv_namespaces": [
+    {
+      "binding": "TEMP_MAIL",
+      "id": "REPLACE_WITH_KV_NAMESPACE_ID"
+    }
+  ],
   // Worker logs, including one log per invocation, visible in the Cloudflare dashboard.
   "observability": {
     "logs": {

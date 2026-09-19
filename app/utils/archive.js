@@ -79,6 +79,36 @@ export async function listArchive(file, options = {}) {
   };
 }
 
+// Several files packed into one .zip or .7z. 7-Zip can read RAR but not
+// write it (the format is WinRAR's own), so there is no 'rar' here.
+export async function createArchive(files, format, level = 5) {
+  const create = await loadSevenZip();
+  const z = await create();
+  z.FS.mkdir('/in');
+  const seen = new Set();
+  for (const file of files) {
+    let name = file.name.replace(/[\\/]/g, '_') || 'file';
+    while (seen.has(name)) name = `_${name}`;
+    seen.add(name);
+    z.FS.writeFile(`/in/${name}`, new Uint8Array(await file.arrayBuffer()));
+  }
+  const out = `/archive.${format}`;
+  // Added from inside the folder, so the archive holds bare names, not "in/…".
+  z.FS.chdir('/in');
+  try {
+    z.callMain([
+      'a',
+      `-t${format}`,
+      `-mx=${Math.max(0, Math.min(9, level))}`,
+      out,
+      ...seen,
+    ]);
+  } catch (error) {
+    if (error?.status) throw new Error('7-Zip could not build the archive.');
+  }
+  return new Uint8Array(z.FS.readFile(out));
+}
+
 // A .tar.gz is two layers: the outer gzip, then the tar inside it.
 export function looksDoubleWrapped(entries) {
   return entries.length === 1 && entries[0].name.toLowerCase().endsWith('.tar');

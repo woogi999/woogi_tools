@@ -4,6 +4,7 @@ import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { htmlSafe } from '@ember/template';
 import ToolPage from './tool-page';
+import Icon from './icon';
 import { keepState } from '../utils/tool-state';
 
 const PRESETS = [
@@ -30,6 +31,7 @@ export default class AspectRatioPage extends Component {
   @tracked height = '1080';
   @tracked newWidth = '1280';
   @tracked newHeight = '';
+  @tracked linked = false;
 
   constructor(owner, args) {
     super(owner, args);
@@ -38,6 +40,7 @@ export default class AspectRatioPage extends Component {
       'height',
       'newWidth',
       'newHeight',
+      'linked',
     ]);
   }
 
@@ -115,8 +118,20 @@ export default class AspectRatioPage extends Component {
     return { width: '', height: '' };
   }
 
-  setWidth = (e) => (this.width = e.target.value);
-  setHeight = (e) => (this.height = e.target.value);
+  // Linked, a change to one side scales the other to keep the ratio as it was.
+  setWidth = (e) => {
+    const ratio = this.valid ? this.h / this.w : null;
+    this.width = e.target.value;
+    if (this.linked && ratio && this.w > 0)
+      this.height = String(round(this.w * ratio));
+  };
+  setHeight = (e) => {
+    const ratio = this.valid ? this.w / this.h : null;
+    this.height = e.target.value;
+    if (this.linked && ratio && this.h > 0)
+      this.width = String(round(this.h * ratio));
+  };
+  toggleLinked = () => (this.linked = !this.linked);
 
   setNewWidth = (e) => {
     this.newWidth = e.target.value;
@@ -156,12 +171,29 @@ export default class AspectRatioPage extends Component {
                 value={{this.width}}
                 {{on "input" this.setWidth}}
               /></label>
-            <button
-              type="button"
-              class="btn math-swap"
-              aria-label="Swap width and height"
-              {{on "click" this.swap}}
-            >⇄</button>
+            <div class="ar-between">
+              <button
+                type="button"
+                class="btn math-swap {{if this.linked 'active'}}"
+                aria-pressed={{if this.linked "true" "false"}}
+                aria-label="Link width and height"
+                title={{if
+                  this.linked
+                  "Linked: changing one side scales the other to keep this ratio"
+                  "Link the sides, so changing one keeps the ratio"
+                }}
+                {{on "click" this.toggleLinked}}
+              ><Icon
+                  @name={{if this.linked "link" "unlink"}}
+                  @size={{14}}
+                /></button>
+              <button
+                type="button"
+                class="btn math-swap"
+                aria-label="Swap width and height"
+                {{on "click" this.swap}}
+              >⇄</button>
+            </div>
             <label class="math-field"><span
                 class="qr-label is-muted"
               >Height</span><input

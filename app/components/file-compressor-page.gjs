@@ -7,7 +7,32 @@ import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
 import { FORMATS, compressBytes, decompressBytes } from '../utils/codec';
+import { createArchive, listArchive } from '../utils/archive';
 import { acceptPastedFiles } from '../utils/paste-files';
+
+// Archives hold several files at once, unlike the single-stream formats
+// above. RAR can only be opened: nothing but WinRAR may write it.
+const ARCHIVES = [
+  {
+    id: 'zip',
+    label: 'zip (archive)',
+    min: 0,
+    max: 9,
+    level: 5,
+    archive: true,
+  },
+  { id: '7z', label: '7z (archive)', min: 0, max: 9, level: 5, archive: true },
+  {
+    id: 'rar',
+    label: 'rar (open only)',
+    min: 0,
+    max: 0,
+    level: 0,
+    archive: true,
+    readOnly: true,
+  },
+];
+const ALL_FORMATS = [...FORMATS, ...ARCHIVES];
 
 const EXT = {
   gzip: 'gz',
@@ -15,6 +40,9 @@ const EXT = {
   'deflate-raw': 'raw',
   brotli: 'br',
   zstd: 'zst',
+  zip: 'zip',
+  '7z': '7z',
+  rar: 'rar',
 };
 const eq = (a, b) => a === b;
 
@@ -35,8 +63,6 @@ export default class FileCompressorPage extends Component {
   get pipWarning() {
     return 'Close the File Compressor? The compression in progress will be cancelled.';
   }
-  formats = FORMATS;
-
   @tracked mode = 'compress';
   @tracked formatId = 'gzip';
   @tracked level = FORMATS[0].level;
@@ -49,38 +75,65 @@ export default class FileCompressorPage extends Component {
     registerDestructor(this, () => this.revokeAll());
   }
 
+  get formats() {
+    return this.isCompress
+      ? ALL_FORMATS.filter((f) => !f.readOnly)
+      : ALL_FORMATS;
+  }
+
   get format() {
-    return FORMATS.find((f) => f.id === this.formatId);
+    return ALL_FORMATS.find((f) => f.id === this.formatId);
+  }
+
+  get isArchive() {
+    return Boolean(this.format.archive);
   }
 
   get isCompress() {
     return this.mode === 'compress';
   }
 
+  @tracked archive = null; // { url, name, size } when several files became one
+
   get doneItems() {
     return this.items.filter((i) => i.url);
   }
 
   get savings() {
+    if (!this.isCompress) return null;
+    if (this.archive) {
+      const before = this.items.reduce((n, i) => n + i.file.size, 0);
+      return this.savingsText(before, this.archive.size);
+    }
     const done = this.doneItems;
-    if (!done.length || !this.isCompress) return null;
+    if (!done.length) return null;
     const before = done.reduce((n, i) => n + i.file.size, 0);
     const after = done.reduce((n, i) => n + i.size, 0);
+    return this.savingsText(before, after);
+  }
+
+  savingsText(before, after) {
     const pct = Math.round((1 - after / before) * 100);
     return `${formatBytes(before)} → ${formatBytes(after)} (${pct >= 0 ? `${pct}% smaller` : `${-pct}% larger`})`;
   }
 
   revokeAll() {
-    for (const item of this.items) if (item.url) URL.revokeObjectURL(item.url);
+    for (const item of this.items) {
+      if (item.url) URL.revokeObjectURL(item.url);
+      for (const out of item.outputs ?? []) URL.revokeObjectURL(out.url);
+    }
+    if (this.archive) URL.revokeObjectURL(this.archive.url);
   }
 
   resetResults() {
-    for (const item of this.items) if (item.url) URL.revokeObjectURL(item.url);
+    this.revokeAll();
+    this.archive = null;
     this.items = this.items.map((i) => ({
       ...i,
       url: null,
       size: null,
       name: null,
+      outputs: null,
       error: null,
     }));
   }
@@ -96,6 +149,7 @@ export default class FileCompressorPage extends Component {
         url: null,
         size: null,
         name: null,
+        outputs: null,
         error: null,
       })),
     ];
@@ -125,6 +179,7 @@ export default class FileCompressorPage extends Component {
     if (mode === this.mode) return;
     this.mode = mode;
     this.resetResults();
+    if (this.format.readOnly && this.isCompress) this.formatId = 'zip';
   };
 
   setFormat = (event) => {
@@ -140,6 +195,7 @@ export default class FileCompressorPage extends Component {
   remove = (id) => {
     const item = this.items.find((i) => i.id === id);
     if (item?.url) URL.revokeObjectURL(item.url);
+    for (const out of item?.outputs ?? []) URL.revokeObjectURL(out.url);
     this.items = this.items.filter((i) => i.id !== id);
   };
 
@@ -151,6 +207,11 @@ export default class FileCompressorPage extends Component {
   run = async () => {
     this.busy = true;
     this.resetResults();
+    if (this.isArchive) {
+      await this.runArchive();
+      this.busy = false;
+      return;
+    }
     for (const item of this.items) {
       try {
         const bytes = new Uint8Array(await item.file.arrayBuffer());
@@ -205,6 +266,53 @@ export default class FileCompressorPage extends Component {
     this.busy = false;
   };
 
+  // Packing: every file into one archive. Opening: each archive's files listed out.
+  async runArchive() {
+    if (this.isCompress) {
+      try {
+        const bytes = await createArchive(
+          this.items.map((i) => i.file),
+          this.formatId,
+          this.level,
+        );
+        const blob = new Blob([bytes]);
+        const base =
+          this.items.length === 1
+            ? this.items[0].file.name.replace(/\.[^.]+$/, '')
+            : 'archive';
+        this.archive = {
+          url: URL.createObjectURL(blob),
+          name: `${base}.${EXT[this.formatId]}`,
+          size: blob.size,
+        };
+      } catch (error) {
+        this.items = this.items.map((i) => ({ ...i, error: error.message }));
+      }
+      return;
+    }
+    for (const item of this.items) {
+      try {
+        const { entries, read } = await listArchive(item.file);
+        const outputs = entries.map((entry) => {
+          const blob = new Blob([read(entry)]);
+          return {
+            name: entry.name,
+            path: entry.path,
+            url: URL.createObjectURL(blob),
+            size: blob.size,
+          };
+        });
+        this.items = this.items.map((i) =>
+          i.id === item.id ? { ...i, outputs, error: null } : i,
+        );
+      } catch (error) {
+        this.items = this.items.map((i) =>
+          i.id === item.id ? { ...i, error: error.message } : i,
+        );
+      }
+    }
+  }
+
   pasteFiles = (files) => this.addFiles(files);
 
   <template>
@@ -212,7 +320,7 @@ export default class FileCompressorPage extends Component {
       @route="file-compressor"
       @busy={{this.pipBusy}}
       @closeWarning={{this.pipWarning}}
-      @subtitle="Shrink any file with gzip, deflate, brotli or zstd, or unpack one. Right here in your browser."
+      @subtitle="Shrink any file with gzip, deflate, brotli or zstd, pack several into a zip or 7z, or unpack one (rar included). Right here in your browser."
     >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
@@ -243,6 +351,11 @@ export default class FileCompressorPage extends Component {
             </select>
           </div>
           {{#if this.isCompress}}
+            {{#if this.isArchive}}
+              <p class="tool-hint">Every file you add goes into one archive. Zip
+                can't be beaten on compatibility; 7z packs tighter. RAR can only
+                be opened, not made: the format belongs to WinRAR.</p>
+            {{/if}}
             <div class="slider-row slider-row-wide">
               <label for="fcomp-level">Level</label>
               <input
@@ -267,7 +380,7 @@ export default class FileCompressorPage extends Component {
             <span>{{if
                 this.isCompress
                 "Drop any file to compress, or click to browse"
-                "Drop a .gz, .br, .zst or .zz file to decompress, or click to browse"
+                "Drop a .gz, .br, .zst, .zz, .zip, .7z or .rar file to decompress, or click to browse"
               }}</span>
             <input
               type="file"
@@ -302,6 +415,20 @@ export default class FileCompressorPage extends Component {
                   class="tool-hint"
                 >{{this.savings}}</span>{{/if}}
             </div>
+            {{#if this.archive}}
+              <div class="fc-archive">
+                <Icon @name="file-archive" @size={{16}} />
+                <span class="fs-row-name">{{this.archive.name}}</span>
+                <span class="fs-row-size">{{formatBytes
+                    this.archive.size
+                  }}</span>
+                <a
+                  class="btn fs-save"
+                  href={{this.archive.url}}
+                  download={{this.archive.name}}
+                ><Icon @name="download" @size={{13}} /> Save archive</a>
+              </div>
+            {{/if}}
             <ul class="fs-list">
               {{#each this.items key="id" as |item|}}
                 <li class="fs-row fc-row">
@@ -316,6 +443,26 @@ export default class FileCompressorPage extends Component {
                     {{#if item.error}}<span
                         class="tool-error"
                       >{{item.error}}</span>{{/if}}
+                    {{#if item.outputs}}
+                      <ul class="fc-outputs">
+                        {{#each item.outputs as |out|}}
+                          <li>
+                            <span
+                              class="fs-row-name"
+                              title={{out.path}}
+                            >{{out.path}}</span>
+                            <span class="fs-row-size">{{formatBytes
+                                out.size
+                              }}</span>
+                            <a
+                              class="btn fs-save"
+                              href={{out.url}}
+                              download={{out.name}}
+                            ><Icon @name="download" @size={{13}} /> Save</a>
+                          </li>
+                        {{/each}}
+                      </ul>
+                    {{/if}}
                   </div>
                   <div class="fs-row-status">
                     {{#if item.url}}<a

@@ -26,39 +26,84 @@ export const ENGINE_INFO = {
 };
 
 export const loadFFmpeg = once(async () => {
-  const [{ FFmpeg }, { toBlobURL }] = await Promise.all([import('@ffmpeg/ffmpeg'), import('@ffmpeg/util')]);
+  const [{ FFmpeg }, { toBlobURL }] = await Promise.all([
+    import('@ffmpeg/ffmpeg'),
+    import('@ffmpeg/util'),
+  ]);
   const ffmpeg = new FFmpeg();
-  const [coreURL, wasmURL] = await Promise.all([toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.js`, 'text/javascript'), toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.wasm`, 'application/wasm')]);
+  const [coreURL, wasmURL] = await Promise.all([
+    toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.js`, 'text/javascript'),
+    toBlobURL(`${FFMPEG_CORE}/ffmpeg-core.wasm`, 'application/wasm'),
+  ]);
   await ffmpeg.load({ coreURL, wasmURL });
   return ffmpeg;
 });
 
 export const loadMagick = once(async () => {
-  const [magick, { default: wasmUrl }] = await Promise.all([import('@imagemagick/magick-wasm'), import('@imagemagick/magick-wasm/magick.wasm?url')]);
+  const [magick, { default: wasmUrl }] = await Promise.all([
+    import('@imagemagick/magick-wasm'),
+    import('@imagemagick/magick-wasm/magick.wasm?url'),
+  ]);
   await magick.initializeImageMagick(new URL(wasmUrl, window.location.href));
   return magick;
 });
 
 export const loadPandoc = once(async () => {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
-  const [{ createPandocInstance }, wasm] = await Promise.all([import('pandoc-wasm-core'), fetch(PANDOC_WASM).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error('Could not download the document engine'))))]);
+  const [{ createPandocInstance }, wasm] = await Promise.all([
+    import('pandoc-wasm-core'),
+    // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
+    fetch(PANDOC_WASM).then((r) =>
+      r.ok
+        ? r.arrayBuffer()
+        : Promise.reject(new Error('Could not download the document engine')),
+    ),
+  ]);
   return createPandocInstance(wasm);
 });
 
 export const loadSevenZip = once(async () => {
-  const [{ default: SevenZip }, { default: wasmUrl }] = await Promise.all([import('7z-wasm'), import('7z-wasm/7zz.wasm?url')]);
+  const [{ default: SevenZip }, { default: wasmUrl }] = await Promise.all([
+    import('7z-wasm'),
+    import('7z-wasm/7zz.wasm?url'),
+  ]);
   // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
   const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
   // A fresh module per job keeps each archive's scratch files isolated.
   return () => SevenZip({ wasmBinary, print: () => {}, printErr: () => {} });
 });
 
+// QPDF, for taking passwords and restrictions off a PDF without redrawing it.
+export const loadQpdf = once(async () => {
+  const [{ default: createQpdf }, { default: wasmUrl }] = await Promise.all([
+    import('@neslinesli93/qpdf-wasm'),
+    import('@neslinesli93/qpdf-wasm/dist/qpdf.wasm?url'),
+  ]);
+  // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
+  const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
+  return () =>
+    createQpdf({
+      wasmBinary,
+      noInitialRun: true,
+      print: () => {},
+      printErr: () => {},
+    });
+});
+
 export const loadPdfJs = once(async () => {
-  const [pdfjs, { default: workerUrl }] = await Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')]);
+  const [pdfjs, { default: workerUrl }] = await Promise.all([
+    import('pdfjs-dist'),
+    import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
+  ]);
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   return pdfjs;
 });
 
 export const loadJsPdf = once(async () => (await import('jspdf')).jsPDF);
 
-export const ENGINE_LOADERS = { ffmpeg: loadFFmpeg, magick: loadMagick, pandoc: loadPandoc, sevenZip: loadSevenZip, pdf: loadPdfJs };
+export const ENGINE_LOADERS = {
+  ffmpeg: loadFFmpeg,
+  magick: loadMagick,
+  pandoc: loadPandoc,
+  sevenZip: loadSevenZip,
+  pdf: loadPdfJs,
+};

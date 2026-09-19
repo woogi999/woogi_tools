@@ -16,24 +16,38 @@ const escape = (text) =>
 const BULLET = /^[•·◦▪▫‣■□●○\-–—*]\s+/;
 const NUMBERED = /^(\(?\d{1,3}[.)]|[a-zA-Z][.)]|[ivxIVX]{1,5}[.)])\s+/;
 
-export async function pdfToHtml(pdf, { progress = () => {} } = {}) {
+export async function pdfToHtml(pdf, { progress = () => {}, pdfjs } = {}) {
   const pages = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n);
     // Fonts only reach this side of the worker once the page has been
     // prepared for drawing; that's where the bold and italic flags live.
-    await page.getOperatorList();
+    const ops = await page.getOperatorList();
     const { items } = await page.getTextContent();
-    pages.push(linesOf(items, page));
+    const lines = linesOf(items, page);
+    const images = pdfjs ? await imagesOf(ops, page, pdfjs) : [];
+    pages.push({ lines, images });
     page.cleanup();
     progress(n / pdf.numPages);
   }
-  const bodySize = commonSize(pages.flat());
-  const blocks = pages.flatMap((lines) => paragraphs(lines, bodySize));
+  const bodySize = commonSize(pages.flatMap((p) => p.lines));
+  // Text blocks and pictures are put back in the order they sit on the page,
+  // top to bottom.
+  const blocks = pages.flatMap(({ lines, images }) =>
+    [
+      ...paragraphs(lines, bodySize).map((block) => ({
+        top: block.lines[0].y,
+        block,
+      })),
+      ...images.map((image) => ({ top: image.top, image })),
+    ].sort((p, q) => q.top - p.top),
+  );
   // Neighbouring list items make one list.
   const html = [];
-  for (const block of blocks) {
-    const piece = render(block, bodySize);
+  for (const { block, image } of blocks) {
+    const piece = image
+      ? `<p><img src="${image.src}" width="${image.width}" height="${image.height}"></p>`
+      : render(block, bodySize);
     const last = html[html.length - 1];
     const tag = piece.match(/^<(ul|ol)>/)?.[1];
     if (tag && last?.endsWith(`</${tag}>`))
@@ -101,6 +115,108 @@ function linesOf(items, page) {
     line.bold = line.runs.every((r) => r.bold || !r.text.trim());
   }
   return lines.filter((line) => line.text.trim());
+}
+
+// The pictures drawn on a page, with where they sit. PDF.js hands over the
+// drawing as a list of operators, so the current transform is followed
+// through saves, restores and nested forms to find where each image lands.
+async function imagesOf(ops, page, pdfjs) {
+  const { OPS } = pdfjs;
+  const images = [];
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const multiply = (m, n) => [
+    m[0] * n[0] + m[2] * n[1],
+    m[1] * n[0] + m[3] * n[1],
+    m[0] * n[2] + m[2] * n[3],
+    m[1] * n[2] + m[3] * n[3],
+    m[0] * n[4] + m[2] * n[5] + m[4],
+    m[1] * n[4] + m[3] * n[5] + m[5],
+  ];
+  const place = async (data, m) => {
+    const image = await imageData(data, page);
+    if (!image) return;
+    // The unit square under the transform is where the picture lands.
+    const xs = [m[4], m[4] + m[0], m[4] + m[2], m[4] + m[0] + m[2]];
+    const ys = [m[5], m[5] + m[1], m[5] + m[3], m[5] + m[1] + m[3]];
+    const w = Math.max(...xs) - Math.min(...xs);
+    const h = Math.max(...ys) - Math.min(...ys);
+    if (w < 4 || h < 4) return;
+    images.push({
+      top: Math.max(...ys),
+      width: Math.round((w * 96) / 72),
+      height: Math.round((h * 96) / 72),
+      src: image,
+    });
+  };
+  for (let i = 0; i < ops.fnArray.length; i++) {
+    const fn = ops.fnArray[i];
+    const args = ops.argsArray[i];
+    if (fn === OPS.save) stack.push(ctm);
+    else if (fn === OPS.restore) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS.transform) ctm = multiply(ctm, args);
+    else if (fn === OPS.paintFormXObjectBegin) {
+      stack.push(ctm);
+      if (args[0]) ctm = multiply(ctm, args[0]);
+    } else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() ?? ctm;
+    else if (fn === OPS.paintImageXObject) await place(args[0], ctm);
+    else if (fn === OPS.paintInlineImageXObject) await place(args[0], ctm);
+    else if (fn === OPS.paintImageXObjectRepeat) {
+      const [id, sx, sy, positions] = args;
+      for (let p = 0; p < positions.length; p += 2)
+        await place(
+          id,
+          multiply(ctm, [sx, 0, 0, sy, positions[p], positions[p + 1]]),
+        );
+    }
+  }
+  return images;
+}
+
+const fetchObject = (page, id) =>
+  new Promise((resolve) => {
+    const store = id.startsWith('g_') ? page.commonObjs : page.objs;
+    store.get(id, resolve);
+  });
+
+// A PDF.js image (a bitmap, or raw pixels in one of its layouts) as a PNG data URL.
+async function imageData(ref, page) {
+  const img = typeof ref === 'string' ? await fetchObject(page, ref) : ref;
+  if (!img?.width || !img?.height) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = img.width;
+  canvas.height = img.height;
+  const ctx = canvas.getContext('2d');
+  if (img.bitmap) {
+    ctx.drawImage(img.bitmap, 0, 0);
+  } else if (img.data) {
+    const out = ctx.createImageData(img.width, img.height);
+    const dest = out.data;
+    const src = img.data;
+    const pixels = img.width * img.height;
+    if (src.length >= pixels * 4) {
+      dest.set(src.subarray(0, pixels * 4));
+    } else if (src.length >= pixels * 3) {
+      for (let p = 0, s = 0; p < pixels; p++, s += 3) {
+        dest[p * 4] = src[s];
+        dest[p * 4 + 1] = src[s + 1];
+        dest[p * 4 + 2] = src[s + 2];
+        dest[p * 4 + 3] = 255;
+      }
+    } else {
+      // One bit a pixel, rows padded to a byte: a set bit is white.
+      const rowBytes = (img.width + 7) >> 3;
+      for (let y = 0; y < img.height; y++)
+        for (let x = 0; x < img.width; x++) {
+          const bit = (src[y * rowBytes + (x >> 3)] >> (7 - (x & 7))) & 1;
+          const p = (y * img.width + x) * 4;
+          dest[p] = dest[p + 1] = dest[p + 2] = bit ? 255 : 0;
+          dest[p + 3] = 255;
+        }
+    }
+    ctx.putImageData(out, 0, 0);
+  } else return null;
+  return canvas.toDataURL('image/png');
 }
 
 // The size most of the text is set in, which is what body copy looks like.
