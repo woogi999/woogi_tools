@@ -26,6 +26,9 @@ module('Unit | tool search', function () {
     assert.strictEqual(top('hex'), 'color-picker');
     assert.strictEqual(top('qrgen'), 'qr-code');
     assert.strictEqual(top('clr pckr'), 'color-picker');
+    assert.strictEqual(top('zodiac'), 'astrology-profile');
+    assert.strictEqual(top('sign'), 'astrology-profile');
+    assert.strictEqual(top('scorpio'), 'astrology-profile');
     assert.deepEqual(searchTools('xyzzy'), []);
   });
 });

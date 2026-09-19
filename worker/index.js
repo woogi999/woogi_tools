@@ -13,6 +13,17 @@
 //
 // POST /api/translate does the same for the Translator with Google Translate's
 // public endpoint, so the page never talks to Google itself.
+//
+// GET /api/roblox fetches public Roblox assets and their details for the
+// Roblox Asset Viewer, since Roblox's endpoints refuse browsers on other sites.
+//
+// Disposable Emails: mail sent to <anything>@temp.woogi.xyz reaches the
+// email() handler below through Cloudflare Email Routing, is parsed, and is
+// kept in the TEMP_MAIL KV namespace for an hour. GET /api/mail?box=<name>
+// lists a box, and &id=<id> fetches one message. The box name is the only
+// secret: the page makes a long random one and never shows it to anyone else.
+
+import PostalMime from 'postal-mime';
 
 const CREDENTIAL_TTL_S = 6 * 60 * 60;
 
@@ -32,11 +43,109 @@ export default {
     if (url.pathname === '/api/turn') return turn(request, env);
     if (url.pathname === '/api/grammar') return grammar(request, env);
     if (url.pathname === '/api/translate') return translate(request);
+    if (url.pathname === '/api/roblox') return roblox(request);
+    if (url.pathname === '/api/mail') return mail(request, env);
     if (url.pathname.startsWith('/api/'))
       return json({ error: 'Not found' }, 404);
     return env.ASSETS.fetch(request);
   },
+
+  async email(message, env) {
+    if (!env.TEMP_MAIL) return;
+    const box = boxOf(message.to);
+    if (!box) return;
+    const parsed = await PostalMime.parse(message.raw);
+    const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+    const record = {
+      id,
+      box,
+      from: parsed.from?.address ?? message.from,
+      fromName: parsed.from?.name ?? '',
+      to: message.to,
+      subject: parsed.subject ?? '',
+      date: parsed.date ?? new Date().toISOString(),
+      text: (parsed.text ?? '').slice(0, MAIL_MAX_BODY),
+      html: (parsed.html ?? '').slice(0, MAIL_MAX_BODY),
+      attachments: (parsed.attachments ?? []).map((a) => ({
+        name: a.filename ?? 'attachment',
+        type: a.mimeType ?? '',
+        size: a.content?.byteLength ?? 0,
+      })),
+    };
+    await env.TEMP_MAIL.put(`${box}:${id}`, JSON.stringify(record), {
+      expirationTtl: MAIL_TTL_S,
+    });
+  },
 };
+
+const MAIL_TTL_S = 60 * 60;
+const MAIL_MAX_BODY = 200 * 1024;
+const MAIL_DOMAIN = 'temp.woogi.xyz';
+const BOX_NAME = /^[a-z0-9]{6,32}$/;
+
+// The part before the @, lower-cased, if the address is one of ours.
+function boxOf(address) {
+  const m = String(address ?? '')
+    .toLowerCase()
+    .match(/^([a-z0-9._+-]+)@([a-z0-9.-]+)$/);
+  if (!m || m[2] !== MAIL_DOMAIN) return null;
+  const box = m[1].replace(/[^a-z0-9]/g, '');
+  return BOX_NAME.test(box) ? box : null;
+}
+
+async function mail(request, env) {
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== new URL(request.url).origin)
+    return json({ error: 'Forbidden' }, 403);
+  if (!env.TEMP_MAIL)
+    return json(
+      { error: 'Disposable email is not set up on this server.' },
+      503,
+    );
+  const params = new URL(request.url).searchParams;
+  const box = params.get('box') ?? '';
+  if (!BOX_NAME.test(box)) return json({ error: 'Bad box name' }, 400);
+  const id = params.get('id');
+
+  if (request.method === 'DELETE') {
+    const { keys } = await env.TEMP_MAIL.list({ prefix: `${box}:` });
+    await Promise.all(keys.map((k) => env.TEMP_MAIL.delete(k.name)));
+    return json({ ok: true });
+  }
+  if (request.method !== 'GET')
+    return json({ error: 'Method not allowed' }, 405);
+
+  if (id) {
+    const raw = await env.TEMP_MAIL.get(`${box}:${id}`);
+    if (!raw) return json({ error: 'That message has gone.' }, 404);
+    return json(JSON.parse(raw));
+  }
+  const { keys } = await env.TEMP_MAIL.list({ prefix: `${box}:` });
+  const messages = await Promise.all(
+    keys.map(async (k) => {
+      const raw = await env.TEMP_MAIL.get(k.name);
+      if (!raw) return null;
+      const m = JSON.parse(raw);
+      return {
+        id: m.id,
+        from: m.from,
+        fromName: m.fromName,
+        subject: m.subject,
+        date: m.date,
+        preview: (m.text || '').replace(/\s+/g, ' ').slice(0, 120),
+        attachments: m.attachments.length,
+        expires: k.expiration ? k.expiration * 1000 : null,
+      };
+    }),
+  );
+  return json({
+    address: `${box}@${MAIL_DOMAIN}`,
+    ttl: MAIL_TTL_S,
+    messages: messages
+      .filter(Boolean)
+      .sort((a, b) => (b.date > a.date ? 1 : -1)),
+  });
+}
 
 async function turn(request, env) {
   if (request.method !== 'GET')
@@ -217,12 +326,146 @@ async function translate(request) {
   });
 }
 
-function json(body, status = 200) {
+// The Roblox Asset Viewer. Roblox's public endpoints don't allow browsers on
+// other sites to call them, so the page asks here and this fetches on its
+// behalf. Only public assets come back; anything Roblox restricts stays that
+// way. `kind` picks what to fetch:
+//   details  what the asset is (name, type, creator)
+//   thumb    the 2D thumbnail's image URL
+//   asset    the file itself (audio, an image, a decal's XML)
+//   3d       the pieces Roblox's own 3D thumbnails are drawn from
+//   cdn      one of those pieces, by its hash
+const ROBLOX_CACHE = 'public, max-age=3600';
+const ASSET_ID = /^\d{1,20}$/;
+const CDN_HASH = /^[a-f0-9]{32}/;
+
+async function roblox(request) {
+  if (request.method !== 'GET')
+    return json({ error: 'Method not allowed' }, 405);
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== new URL(request.url).origin)
+    return json({ error: 'Forbidden' }, 403);
+  const params = new URL(request.url).searchParams;
+  const kind = params.get('kind');
+  const id = params.get('id') ?? '';
+  const hash = (params.get('hash') ?? '').match(CDN_HASH)?.[0];
+
+  try {
+    if (kind === 'cdn') {
+      if (!hash) return json({ error: 'Bad hash' }, 400);
+      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox's CDN
+      return passThrough(await fetch(cdnUrl(hash)));
+    }
+    if (!ASSET_ID.test(id)) return json({ error: 'Bad asset id' }, 400);
+
+    if (kind === 'details') {
+      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
+      const response = await fetch(
+        `https://economy.roblox.com/v2/assets/${id}/details`,
+        { headers: { Accept: 'application/json' } },
+      );
+      if (!response.ok)
+        return json({ error: 'Roblox has no public asset with that id.' }, 404);
+      const d = await response.json();
+      return json(
+        {
+          id: d.AssetId,
+          name: d.Name ?? '',
+          description: d.Description ?? '',
+          typeId: d.AssetTypeId,
+          creator: d.Creator?.Name ?? '',
+          created: d.Created ?? null,
+          updated: d.Updated ?? null,
+        },
+        200,
+        ROBLOX_CACHE,
+      );
+    }
+    if (kind === 'thumb') {
+      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
+      const response = await fetch(
+        `https://thumbnails.roblox.com/v1/assets?assetIds=${id}&size=420x420&format=Png&isCircular=false`,
+      );
+      const d = response.ok ? await response.json() : null;
+      const entry = d?.data?.[0];
+      return json(
+        { url: entry?.state === 'Completed' ? entry.imageUrl : null },
+        200,
+        ROBLOX_CACHE,
+      );
+    }
+    if (kind === 'asset') {
+      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
+      const response = await fetch(
+        `https://assetdelivery.roblox.com/v1/asset/?id=${id}`,
+        { redirect: 'follow' },
+      );
+      if (response.status === 403 || response.status === 401)
+        return json(
+          {
+            error: 'Roblox keeps that asset private, so it cannot be fetched.',
+          },
+          403,
+        );
+      if (!response.ok)
+        return json({ error: 'Roblox did not hand that asset over.' }, 404);
+      return passThrough(response);
+    }
+    if (kind === '3d') {
+      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
+      const response = await fetch(
+        `https://thumbnails.roblox.com/v1/assets-thumbnail-3d?assetId=${id}`,
+      );
+      const d = response.ok ? await response.json() : null;
+      if (d?.state !== 'Completed' || !d.imageUrl)
+        return json({ error: 'Roblox has no 3D view of that asset.' }, 404);
+      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox's CDN
+      const parts = await (await fetch(d.imageUrl)).json();
+      if (!parts?.obj) return json({ error: 'That 3D view is empty.' }, 404);
+      return json(
+        {
+          obj: parts.obj,
+          mtl: parts.mtl ?? null,
+          textures: parts.textures ?? [],
+          camera: parts.camera ?? null,
+          aabb: parts.aabb ?? null,
+        },
+        200,
+        ROBLOX_CACHE,
+      );
+    }
+    return json({ error: 'Unknown kind' }, 400);
+  } catch {
+    return json({ error: 'Roblox could not be reached.' }, 502);
+  }
+}
+
+// Roblox spreads its CDN over eight hosts, picked from the hash itself.
+function cdnUrl(hash) {
+  let t = 31;
+  for (let i = 0; i < 32; i++) t ^= hash.charCodeAt(i);
+  return `https://t${t % 8}.rbxcdn.com/${hash}`;
+}
+
+function passThrough(response) {
+  if (!response.ok) return json({ error: 'Not found' }, 404);
+  const headers = new Headers();
+  headers.set(
+    'Content-Type',
+    response.headers.get('Content-Type') ?? 'application/octet-stream',
+  );
+  const length = response.headers.get('Content-Length');
+  if (length) headers.set('Content-Length', length);
+  headers.set('Cache-Control', ROBLOX_CACHE);
+  return new Response(response.body, { status: 200, headers });
+}
+
+function json(body, status = 200, cache = 'no-store') {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
+      'Cache-Control': cache,
     },
   });
 }

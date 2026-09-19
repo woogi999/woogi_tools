@@ -17,13 +17,17 @@ export default class CopyButton extends Component {
     }, 1200);
   };
 
+  get label() {
+    return this.copied ? 'Copied' : (this.args.label ?? 'Copy');
+  }
+
   <template>
     <button
       type="button"
-      class="btn copy-btn {{if this.copied "copied"}}"
+      class="btn copy-btn {{if this.copied 'copied'}}"
       {{on "click" this.copy}}
     >
-      {{if this.copied "Copied" "Copy"}}
+      {{this.label}}
     </button>
   </template>
 }

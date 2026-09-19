@@ -26,6 +26,8 @@ const KINDS = {
       'metadata-editor',
       'favicon-generator',
       'pixel-eyedropper',
+      'palette-extractor',
+      'code-scanner',
       'ascii-art',
       'mockup-preview',
       'qr-code',
@@ -78,6 +80,7 @@ const KINDS = {
   pdf: {
     label: 'a PDF',
     routes: [
+      'unlock-pdf',
       'pdf-tools',
       'document-redacter',
       'file-converter',
@@ -98,12 +101,19 @@ const KINDS = {
   },
   subtitle: {
     label: 'a subtitle file',
-    routes: ['subtitle-baker', 'video-player', 'file-converter', 'file-share'],
+    routes: [
+      'subtitle-baker',
+      'video-player',
+      'text-to-speech',
+      'file-converter',
+      'file-share',
+    ],
   },
   archive: {
     label: 'an archive',
     routes: [
       'archive-opener',
+      'file-compressor',
       'file-converter',
       'file-share',
       'hash-generator',

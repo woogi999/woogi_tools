@@ -549,7 +549,10 @@ const pdfHandler = {
     const pdf = await task.promise;
     try {
       if (to === 'html')
-        return blobOf(await pdfToHtml(pdf, { progress: ctx.progress }), 'html');
+        return blobOf(
+          await pdfToHtml(pdf, { progress: ctx.progress, pdfjs }),
+          'html',
+        );
       if (to === 'txt') {
         const pages = [];
         for (let n = 1; n <= pdf.numPages; n++) {

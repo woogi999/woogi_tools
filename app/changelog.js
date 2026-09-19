@@ -9,6 +9,121 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.12',
+    date: '2026-09-19',
+    title: 'A dozen more tools, archives in the compressor, and the Darkroom',
+    changes: [
+      {
+        type: 'new',
+        text: 'Astrology Profile: sun, moon and rising signs, the planets in their houses, birthstone, flower, colour, Chinese zodiac and more, from your date, time and place of birth.',
+      },
+      {
+        type: 'new',
+        text: 'Text to Speech: any text read aloud in a natural voice or the flat robot of the old free TTS sites, and subtitle files read cue by cue, to their timings if you like.',
+      },
+      {
+        type: 'new',
+        text: 'Webcam Recorder: record video from your camera, pause and resume, take photos, and save the lot.',
+      },
+      {
+        type: 'new',
+        text: 'QR & Barcode Scanner: read QR codes and barcodes with the camera or from a picture.',
+      },
+      {
+        type: 'new',
+        text: 'Disposable Emails: a throwaway address at temp.woogi.xyz that lasts an hour, with the inbox on the page.',
+      },
+      {
+        type: 'new',
+        text: 'Shoe Size Finder & Converter: your size from a foot measurement, and US, UK and EU sizes converted for men, women and kids.',
+      },
+      {
+        type: 'new',
+        text: 'Domain Lookup: who a domain is registered to, when it runs out, and its DNS records.',
+      },
+      {
+        type: 'new',
+        text: 'Unlock PDF: take the password or the printing and copying restrictions off a PDF and get the same file back.',
+      },
+      {
+        type: 'new',
+        text: 'Calendar: a month view with repeating events, colours, an .ics export, and a link from any event to one of your Quick Notes.',
+      },
+      {
+        type: 'new',
+        text: 'Timer & Alarm, and a Stopwatch with laps. Both carry on while you use the rest of the site.',
+      },
+      {
+        type: 'new',
+        text: 'Roman Numerals Converter: numbers to numerals and back, with the working shown.',
+      },
+      {
+        type: 'improved',
+        text: 'File Compressor: pack several files into a zip or 7z, and open zip, 7z and rar archives. (RAR can only be opened: only WinRAR may write the format.)',
+      },
+      {
+        type: 'improved',
+        text: 'Image Editor is now called Image Darkroom.',
+      },
+    ],
+  },
+  {
+    version: '1.0.11',
+    date: '2026-09-19',
+    title:
+      'Eight new tools, a proper crop box, and pictures in your Word files',
+    changes: [
+      {
+        type: 'new',
+        text: 'Colour Blindness Test: nine plates of dots hiding numbers, with a read on your red-green and blue-yellow vision at the end.',
+      },
+      {
+        type: 'new',
+        text: 'Palette: roll colours that go together in the harmony you pick, lock the keepers, edit any hex, and save palettes to a collection.',
+      },
+      {
+        type: 'new',
+        text: 'Palette Extractor: pull the main colours out of any picture, biggest first, and copy them or save them to your palettes.',
+      },
+      {
+        type: 'new',
+        text: 'Audio Recorder: record from the microphone with a live level meter, pause and resume, then play back and save.',
+      },
+      {
+        type: 'new',
+        text: 'Compass & Altitude: a compass that turns with your phone, plus your altitude, coordinates and accuracy from its GPS.',
+      },
+      {
+        type: 'new',
+        text: 'Reaction Time Test: wait for green, click as fast as you can, five goes to a score, with your best runs kept.',
+      },
+      {
+        type: 'new',
+        text: 'Roblox Asset Viewer: paste an asset ID or link to play its audio, see its image, or turn its 3D model around.',
+      },
+      {
+        type: 'new',
+        text: 'Baybayin Translator: Tagalog into the old Philippine script and back, with your choice of how to write a final consonant.',
+      },
+      {
+        type: 'improved',
+        text: 'Image Cropper: the crop is now a box drawn over the whole picture. Custom lets you pull any side or corner; every preset keeps its shape and lets you scale it from a corner and drag it about.',
+      },
+      {
+        type: 'improved',
+        text: 'Aspect Ratio: a link button between width and height, so changing one scales the other and keeps the ratio.',
+      },
+      {
+        type: 'fixed',
+        text: 'File Converter: a PDF turned into a Word file (or HTML) now keeps its pictures, in place.',
+      },
+      {
+        type: 'fixed',
+        text: 'Home page: a file dropped on the search bar now comes along when you click any tool, not only one in the search results.',
+      },
+    ],
+  },
+  {
     version: '1.0.10',
     date: '2026-09-19',
     title: 'A translator, and a front page that stays put',

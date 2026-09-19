@@ -579,6 +579,7 @@ export default class HomePage extends Component {
   setActive = (route) => (this.activeRoute = route);
 
   <template>
+    {{! template-lint-disable no-invalid-interactive }}
     <div
       class="container home
         {{if this.dragging 'is-dragging'}}
@@ -586,6 +587,7 @@ export default class HomePage extends Component {
       {{on "dragover" this.onDragOver}}
       {{on "dragleave" this.onDragLeave}}
       {{on "drop" this.onDrop}}
+      {{on "click" this.onResultClick}}
     >
       <section
         class="home-search {{if this.isSearching 'is-searching' 'is-hero'}}"
@@ -770,11 +772,7 @@ export default class HomePage extends Component {
 
       {{#if this.isSearching}}
         {{#if this.results.length}}
-          {{! template-lint-disable no-invalid-interactive }}
-          <div
-            class="home-results {{if this.showHand 'has-hand'}}"
-            {{on "click" this.onResultClick}}
-          >
+          <div class="home-results {{if this.showHand 'has-hand'}}">
             {{#if this.showHand}}
               <CardHand
                 @cards={{this.results}}

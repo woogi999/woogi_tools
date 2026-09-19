@@ -4,6 +4,7 @@ import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { htmlSafe } from '@ember/template';
 import { registerDestructor } from '@ember/destroyable';
+import { modifier } from 'ember-modifier';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { CROP_PRESETS } from '../utils/social-presets';
@@ -12,8 +13,10 @@ import PrintButton from './print-button';
 
 const GROUPS = groupByPlatform(CROP_PRESETS);
 const eq = (a, b) => a === b;
-const MAX_BOX = 360;
-const MIN_BOX = 160;
+const FREE_HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const CORNER_HANDLES = ['nw', 'ne', 'se', 'sw'];
+// The smallest a crop can be dragged down to, in source pixels.
+const MIN_SIDE = 8;
 
 function groupByPlatform(list) {
   const map = new Map();
@@ -24,6 +27,8 @@ function groupByPlatform(list) {
   return [...map].map(([platform, items]) => ({ platform, items }));
 }
 
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
 export default class ImageCropperPage extends Component {
   groups = GROUPS;
 
@@ -31,16 +36,13 @@ export default class ImageCropperPage extends Component {
   @tracked imageUrl = null;
   @tracked fileName = 'image';
   @tracked presetId = 'ig-square';
-  @tracked customW = 1200;
-  @tracked customH = 800;
-  @tracked zoom = 1;
-  @tracked offsetX = 0;
-  @tracked offsetY = 0;
+  // The crop, in source pixels: { x, y, w, h }.
+  @tracked rect = null;
+  // Screen pixels per source pixel, measured from the image as it's shown.
+  @tracked scale = 1;
   @tracked resultUrl = null;
   @tracked error = null;
-  @tracked dragging = false;
-
-  dragStart = null;
+  @tracked dragging = null;
 
   constructor(owner, args) {
     super(owner, args);
@@ -54,76 +56,56 @@ export default class ImageCropperPage extends Component {
     return CROP_PRESETS.find((p) => p.id === this.presetId);
   }
 
+  get ratio() {
+    return this.preset.free ? null : this.preset.w / this.preset.h;
+  }
+
+  get handles() {
+    return this.preset.free ? FREE_HANDLES : CORNER_HANDLES;
+  }
+
   get targetW() {
-    return this.preset.free ? Math.max(1, this.customW) : this.preset.w;
+    return this.preset.free ? (this.rect?.w ?? 1) : this.preset.w;
   }
 
   get targetH() {
-    return this.preset.free ? Math.max(1, this.customH) : this.preset.h;
+    return this.preset.free ? (this.rect?.h ?? 1) : this.preset.h;
   }
 
-  // The on-screen viewport size, worked out from the target ratio rather than
-  // measured from the DOM, so the crop math never has to wait on layout.
-  get viewportSize() {
-    const ratio = this.targetW / this.targetH;
-    let vw, vh;
-    if (ratio >= 1) {
-      vw = MAX_BOX;
-      vh = Math.max(MIN_BOX, MAX_BOX / ratio);
-    } else {
-      vh = MAX_BOX;
-      vw = Math.max(MIN_BOX, MAX_BOX * ratio);
-    }
-    return { vw, vh };
-  }
-
-  get viewportStyle() {
-    const { vw, vh } = this.viewportSize;
-    return htmlSafe(`width:${vw}px;height:${vh}px`);
-  }
-
-  get imageStyle() {
-    if (!this.bitmap) return htmlSafe('');
-    const { imgW, imgH, left, top } = this.layout();
+  get boxStyle() {
+    if (!this.rect) return htmlSafe('');
+    const { x, y, w, h } = this.rect;
+    const s = this.scale;
     return htmlSafe(
-      `width:${imgW}px;height:${imgH}px;transform:translate(${left}px,${top}px)`,
+      `left:${x * s}px;top:${y * s}px;width:${w * s}px;height:${h * s}px`,
     );
   }
 
-  // Cover-fit geometry: the image always fills the viewport, panned and
-  // zoomed within it. Returns pixel values in viewport space.
-  layout() {
-    const { vw, vh } = this.viewportSize;
-    const baseScale = Math.max(vw / this.bitmap.width, vh / this.bitmap.height);
-    const scale = baseScale * this.zoom;
-    const imgW = this.bitmap.width * scale;
-    const imgH = this.bitmap.height * scale;
-    const maxOffsetX = Math.max(0, (imgW - vw) / 2);
-    const maxOffsetY = Math.max(0, (imgH - vh) / 2);
-    const offsetX = Math.max(-maxOffsetX, Math.min(maxOffsetX, this.offsetX));
-    const offsetY = Math.max(-maxOffsetY, Math.min(maxOffsetY, this.offsetY));
-    const left = (vw - imgW) / 2 + offsetX;
-    const top = (vh - imgH) / 2 + offsetY;
-    return {
-      vw,
-      vh,
-      scale,
-      imgW,
-      imgH,
-      left,
-      top,
-      maxOffsetX,
-      maxOffsetY,
-      offsetX,
-      offsetY,
+  // Keeps the on-screen scale in step with however big the image is shown.
+  measure = modifier((img) => {
+    const update = () => {
+      if (this.bitmap && img.clientWidth)
+        this.scale = img.clientWidth / this.bitmap.width;
     };
-  }
+    const observer = new ResizeObserver(update);
+    observer.observe(img);
+    update();
+    return () => observer.disconnect();
+  });
 
-  clampOffsets() {
-    if (!this.bitmap) return;
-    const { offsetX, offsetY } = this.layout();
-    this.offsetX = offsetX;
-    this.offsetY = offsetY;
+  // The biggest crop of the wanted shape that fits, sat in the middle.
+  fitRect() {
+    const { width: bw, height: bh } = this.bitmap;
+    if (!this.ratio) return { x: 0, y: 0, w: bw, h: bh };
+    let w = bw;
+    let h = w / this.ratio;
+    if (h > bh) {
+      h = bh;
+      w = h * this.ratio;
+    }
+    w = Math.round(w);
+    h = Math.round(h);
+    return { x: Math.round((bw - w) / 2), y: Math.round((bh - h) / 2), w, h };
   }
 
   openFile = async (file) => {
@@ -137,9 +119,7 @@ export default class ImageCropperPage extends Component {
       this.bitmap = bitmap;
       this.resultUrl = null;
       this.error = null;
-      this.zoom = 1;
-      this.offsetX = 0;
-      this.offsetY = 0;
+      this.rect = this.fitRect();
     } catch {
       this.error =
         "This browser can't open that image. Try the File Converter first.";
@@ -160,73 +140,124 @@ export default class ImageCropperPage extends Component {
   setPreset = (event) => {
     this.presetId = event.target.value;
     this.resultUrl = null;
-    this.zoom = 1;
-    this.offsetX = 0;
-    this.offsetY = 0;
+    if (this.bitmap) this.rect = this.fitRect();
   };
 
+  // Typing a size for a custom crop resizes the rectangle from its top-left,
+  // nudging it back into the picture if it would run off the edge.
   setCustom = (key, event) => {
-    this[key] = Math.max(1, Math.floor(+event.target.value) || 1);
+    if (!this.rect) return;
+    const value = Math.max(MIN_SIDE, Math.floor(+event.target.value) || 0);
+    const { width: bw, height: bh } = this.bitmap;
+    const next = { ...this.rect };
+    if (key === 'w') {
+      next.w = Math.min(value, bw);
+      next.x = clamp(next.x, 0, bw - next.w);
+    } else {
+      next.h = Math.min(value, bh);
+      next.y = clamp(next.y, 0, bh - next.h);
+    }
+    this.rect = next;
     this.resultUrl = null;
-    this.offsetX = 0;
-    this.offsetY = 0;
   };
 
-  setZoom = (event) => {
-    this.zoom = Math.max(1, Math.min(4, +event.target.value));
-    this.clampOffsets();
-    this.resultUrl = null;
-  };
-
-  startDrag = (e) => {
+  reset = () => {
     if (!this.bitmap) return;
+    this.rect = this.fitRect();
+    this.resultUrl = null;
+  };
+
+  startDrag = (mode, e) => {
+    if (!this.rect) return;
     e.preventDefault();
-    this.dragging = true;
-    this.dragStart = {
-      x: e.clientX,
-      y: e.clientY,
-      offsetX: this.offsetX,
-      offsetY: this.offsetY,
-    };
+    e.stopPropagation();
+    this.dragging = mode;
+    const start = { x: e.clientX, y: e.clientY, rect: this.rect };
     const move = (ev) => {
-      this.offsetX = this.dragStart.offsetX + (ev.clientX - this.dragStart.x);
-      this.offsetY = this.dragStart.offsetY + (ev.clientY - this.dragStart.y);
-      this.clampOffsets();
+      const dx = (ev.clientX - start.x) / this.scale;
+      const dy = (ev.clientY - start.y) / this.scale;
+      this.rect =
+        mode === 'move'
+          ? this.moved(start.rect, dx, dy)
+          : this.ratio
+            ? this.scaled(start.rect, mode, dx, dy)
+            : this.resized(start.rect, mode, dx, dy);
       this.resultUrl = null;
     };
     const stop = () => {
-      this.dragging = false;
+      this.dragging = null;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
   };
 
-  crop = () => {
-    if (!this.bitmap) return;
-    const { vw, vh, scale, left, top } = this.layout();
-    const srcX = -left / scale;
-    const srcY = -top / scale;
-    const srcW = vw / scale;
-    const srcH = vh / scale;
+  moved(r, dx, dy) {
+    const { width: bw, height: bh } = this.bitmap;
+    return {
+      ...r,
+      x: Math.round(clamp(r.x + dx, 0, bw - r.w)),
+      y: Math.round(clamp(r.y + dy, 0, bh - r.h)),
+    };
+  }
 
+  // Any side or corner, on its own: the edges being pulled follow the pointer.
+  resized(r, handle, dx, dy) {
+    const { width: bw, height: bh } = this.bitmap;
+    let left = r.x;
+    let top = r.y;
+    let right = r.x + r.w;
+    let bottom = r.y + r.h;
+    if (handle.includes('w')) left = clamp(r.x + dx, 0, right - MIN_SIDE);
+    if (handle.includes('e')) right = clamp(right + dx, left + MIN_SIDE, bw);
+    if (handle.includes('n')) top = clamp(r.y + dy, 0, bottom - MIN_SIDE);
+    if (handle.includes('s')) bottom = clamp(bottom + dy, top + MIN_SIDE, bh);
+    return {
+      x: Math.round(left),
+      y: Math.round(top),
+      w: Math.round(right - left),
+      h: Math.round(bottom - top),
+    };
+  }
+
+  // A corner, with the shape locked: the opposite corner stays put and the
+  // box grows or shrinks towards the pointer, never past the picture's edge.
+  scaled(r, handle, dx, dy) {
+    const { width: bw, height: bh } = this.bitmap;
+    const ratio = this.ratio;
+    const anchorX = handle.includes('w') ? r.x + r.w : r.x;
+    const anchorY = handle.includes('n') ? r.y + r.h : r.y;
+    const wantW = handle.includes('w') ? r.w - dx : r.w + dx;
+    const wantH = handle.includes('n') ? r.h - dy : r.h + dy;
+    let w = Math.max(wantW, wantH * ratio);
+    const roomW = handle.includes('w') ? anchorX : bw - anchorX;
+    const roomH = handle.includes('n') ? anchorY : bh - anchorY;
+    w = clamp(
+      w,
+      Math.max(MIN_SIDE, MIN_SIDE * ratio),
+      Math.min(roomW, roomH * ratio),
+    );
+    const h = w / ratio;
+    return {
+      x: Math.round(handle.includes('w') ? anchorX - w : anchorX),
+      y: Math.round(handle.includes('n') ? anchorY - h : anchorY),
+      w: Math.round(w),
+      h: Math.round(h),
+    };
+  }
+
+  crop = () => {
+    if (!this.bitmap || !this.rect) return;
+    const { x, y, w, h } = this.rect;
     const canvas = document.createElement('canvas');
     canvas.width = this.targetW;
     canvas.height = this.targetH;
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(
-      this.bitmap,
-      srcX,
-      srcY,
-      srcW,
-      srcH,
-      0,
-      0,
-      this.targetW,
-      this.targetH,
-    );
+    ctx.drawImage(this.bitmap, x, y, w, h, 0, 0, this.targetW, this.targetH);
     canvas.toBlob((blob) => {
       if (this.resultUrl) URL.revokeObjectURL(this.resultUrl);
       this.resultUrl = URL.createObjectURL(blob);
@@ -238,7 +269,7 @@ export default class ImageCropperPage extends Component {
   <template>
     <ToolPage
       @route="image-cropper"
-      @subtitle="Drag, zoom and crop to an exact size, with presets for socials and a live preview so nothing gets cut off."
+      @subtitle="Draw the crop right on the picture: drag it about, pull the corners, and save at an exact size, with presets for socials."
     >
       <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>
         <section class="math-card">
@@ -284,53 +315,66 @@ export default class ImageCropperPage extends Component {
                   type="number"
                   min="1"
                   class="math-input"
-                  value={{this.customW}}
-                  {{on "input" (fn this.setCustom "customW")}}
+                  value={{this.targetW}}
+                  {{on "change" (fn this.setCustom "w")}}
                 /></label>
               <label class="math-field"><span class="qr-label is-muted">Height
                   (px)</span><input
                   type="number"
                   min="1"
                   class="math-input"
-                  value={{this.customH}}
-                  {{on "input" (fn this.setCustom "customH")}}
+                  value={{this.targetH}}
+                  {{on "change" (fn this.setCustom "h")}}
                 /></label>
             </div>
+            <p class="tool-hint">Pull any side or corner of the box, or type a
+              size.</p>
+          {{else}}
+            <p class="tool-hint">The box keeps its shape: pull a corner to make
+              it bigger or smaller, and drag it to where you want.</p>
           {{/if}}
 
-          {{#if this.bitmap}}
-            <label class="math-field">
-              <span class="qr-label is-muted">Zoom</span>
-              <input
-                type="range"
-                min="1"
-                max="4"
-                step="0.01"
-                value={{this.zoom}}
-                {{on "input" this.setZoom}}
-              />
-            </label>
+          {{#if this.rect}}
+            <p class="crop-readout">Crop:
+              {{this.rect.w}}×{{this.rect.h}}
+              at
+              {{this.rect.x}},{{this.rect.y}}
+              {{#unless this.preset.free}}<span class="is-muted">→
+                  {{this.targetW}}×{{this.targetH}}</span>{{/unless}}</p>
+            <div class="settings-actions">
+              <button type="button" class="btn" {{on "click" this.reset}}>
+                <Icon @name="rotate-ccw" @size={{13}} />
+                Fit to picture</button>
+            </div>
           {{/if}}
         </section>
 
         <section class="math-card">
           <h3 class="qr-heading">Preview</h3>
           {{#if this.bitmap}}
-            <div
-              class="crop-viewport {{if this.dragging 'is-dragging'}}"
-              style={{this.viewportStyle}}
-              {{on "pointerdown" this.startDrag}}
-            >
+            <div class="crop-stage {{if this.dragging 'is-dragging'}}">
               <img
                 src={{this.imageUrl}}
                 alt=""
-                class="crop-image"
-                style={{this.imageStyle}}
+                class="crop-picture"
                 draggable="false"
+                {{this.measure}}
               />
+              {{! template-lint-disable no-pointer-down-event-binding }}
+              <div
+                class="crop-box"
+                style={{this.boxStyle}}
+                {{on "pointerdown" (fn this.startDrag "move")}}
+              >
+                {{#each this.handles as |handle|}}
+                  {{! template-lint-disable no-invalid-interactive }}
+                  <span
+                    class="crop-handle is-{{handle}}"
+                    {{on "pointerdown" (fn this.startDrag handle)}}
+                  ></span>
+                {{/each}}
+              </div>
             </div>
-            <p class="tool-hint">Drag to reposition, and use the zoom slider to
-              get in closer.</p>
             <div class="settings-actions">
               <button
                 type="button"
@@ -346,6 +390,13 @@ export default class ImageCropperPage extends Component {
                   @name="{{this.fileName}}.png"
                 />{{/if}}
             </div>
+            {{#if this.resultUrl}}
+              <img
+                src={{this.resultUrl}}
+                alt="Cropped result"
+                class="crop-result"
+              />
+            {{/if}}
           {{else}}
             <p class="tool-hint">Upload an image to start cropping.</p>
           {{/if}}
