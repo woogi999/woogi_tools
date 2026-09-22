@@ -24,8 +24,8 @@
 // Roblox Asset Viewer, since Roblox's endpoints refuse browsers on other sites.
 //
 // GET /api/osint backs the OSINT tools, whose sources refuse browsers on
-// other sites: kind=username checks one site from app/utils/username-sites.js
-// for one name (the page asks for each site separately, so results stream in),
+// other sites: kind=username checks a batch of sites from app/utils/username-sites.js
+// for one name (25 to a request, so results stream in batch by batch),
 // kind=subdomains reads certificate-transparency logs through crt.sh (with
 // Cert Spotter as the fallback), kind=wayback is the Internet Archive's
 // capture calendar for a URL, and kind=breaches is Have I Been Pwned's public list of
@@ -523,15 +523,51 @@ function osintFetch(url, timeout = 10000, init = {}) {
   });
 }
 
+// Sites per request. Each check is one subrequest, and Cloudflare's free plan
+// allows 50 per request; batching keeps a 600-site search to a few dozen
+// requests instead of 600.
+const USERNAME_BATCH = 25;
+
 async function osintUsername(params) {
-  const site = USERNAME_SITES[Number(params.get('site'))];
-  if (!site) return json({ error: 'Unknown site' }, 400);
-  const result = await checkSite(site, params.get('name') ?? '');
-  return json(
-    result,
-    200,
-    result.state === 'unknown' ? 'no-store' : 'public, max-age=600',
+  const name = params.get('name') ?? '';
+  if (params.has('url')) {
+    const site = customSite(params);
+    if (!site) return json({ error: 'Unknown site' }, 400);
+    return json(await checkSite(site, name));
+  }
+  const ids = (params.get('sites') ?? params.get('site') ?? '')
+    .split(',')
+    .slice(0, USERNAME_BATCH)
+    .map(Number);
+  if (!ids.length || ids.some((i) => !USERNAME_SITES[i]))
+    return json({ error: 'Unknown site' }, 400);
+  const results = await Promise.all(
+    ids.map((i) => checkSite(USERNAME_SITES[i], name)),
   );
+  const settled = results.every((r) => r.state !== 'unknown');
+  return json(
+    params.has('sites') ? { results } : results[0],
+    200,
+    settled ? 'public, max-age=600' : 'no-store',
+  );
+}
+
+// A site someone added on the page: a profile URL with {} for the name, and
+// either "missing users get an error page" or text that only a missing
+// user's page shows. Only the found/absent verdict goes back, never the page.
+function customSite(params) {
+  const url = params.get('url') ?? '';
+  const absent = (params.get('absent') ?? '').slice(0, 200);
+  if (!/^https?:\/\/[^/\s]+\S*\{\}/.test(url) || url.length > 300) return null;
+  try {
+    const host = new URL(url.replaceAll('{}', 'x')).hostname;
+    if (host === 'localhost' || /^[\d.]+$|:/.test(host)) return null;
+  } catch {
+    return null;
+  }
+  return absent
+    ? { name: 'custom', url, check: 'message', absent }
+    : { name: 'custom', url, check: 'status' };
 }
 
 async function osintSubdomains(params) {

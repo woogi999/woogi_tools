@@ -17,8 +17,14 @@ async function api(params, signal) {
   return body;
 }
 
-export const checkUsername = (site, name, signal) =>
-  api({ kind: 'username', site, name }, signal);
+// A batch of sites (indexes into USERNAME_SITES) in one request; the answer
+// is { results: [{ state, note }] } in the same order.
+export const checkUsernames = (sites, name, signal) =>
+  api({ kind: 'username', sites: sites.join(','), name }, signal);
+
+// A site the person added themselves: { url: 'https://…/{}', absent: '' }.
+export const checkCustomSite = ({ url, absent }, name, signal) =>
+  api({ kind: 'username', url, absent: absent ?? '', name }, signal);
 
 export const findSubdomains = (domain, signal) =>
   api({ kind: 'subdomains', domain }, signal);

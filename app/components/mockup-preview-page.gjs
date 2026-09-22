@@ -173,6 +173,8 @@ export default class MockupPreviewPage extends Component {
   <template>
     <ToolPage
       @route="mockup-preview"
+      @busy={{this.busy}}
+      @closeWarning="Close Mockup Preview? The mockup being saved will be lost."
       @subtitle="See a post the way it will actually look on Facebook, X, Instagram, YouTube, TikTok, LinkedIn, Reddit or Threads before you post it, in light or dark, and save the mockup as a picture."
     >
       <div class="ie-layout mk-layout pop-in">

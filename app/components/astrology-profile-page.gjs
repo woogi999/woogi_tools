@@ -193,6 +193,8 @@ export default class AstrologyProfilePage extends Component {
   <template>
     <ToolPage
       @route="astrology-profile"
+      @busy={{this.busy}}
+      @closeWarning="Close Astrology Profile? The chart being worked out will stop."
       @subtitle="Your sun, moon and rising signs, the planets and the twelve houses, from when and where you were born."
     >
       <div class="math-grid pop-in">

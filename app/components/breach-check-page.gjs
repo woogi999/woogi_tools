@@ -194,6 +194,8 @@ export default class BreachCheckPage extends Component {
   <template>
     <ToolPage
       @route="breach-check"
+      @busy={{this.busy}}
+      @closeWarning="Close Breach Check? The check still running will stop."
       @subtitle="Has your email or password leaked? One check against XposedOrNot, LeakCheck and Have I Been Pwned together."
     >
       <div class="pop-in">

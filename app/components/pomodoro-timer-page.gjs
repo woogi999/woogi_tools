@@ -179,6 +179,8 @@ export default class PomodoroTimerPage extends Component {
   <template>
     <ToolPage
       @route="pomodoro-timer"
+      @busy={{this.running}}
+      @closeWarning="Close the Pomodoro Timer? The session in progress will stop."
       @subtitle="Work in focused sessions with little breaks in between, and a longer break every few rounds."
     >
       <div class="math-grid pop-in">

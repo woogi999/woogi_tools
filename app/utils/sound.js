@@ -19,7 +19,8 @@ import { tracked } from '@glimmer/tracking';
 //   sfx('cards.place')          play an effect
 //   soundPrefs.muted / .volume  tracked, saved in localStorage
 //
-// Browsers only allow audio after a user gesture; sounds before that are skipped.
+// Browsers only allow audio after a user gesture (unless they already trust
+// the site); sounds before that are skipped.
 
 const PREFS_KEY = 'woogi-sound';
 const MIN_GAP_MS = 35;
@@ -431,24 +432,38 @@ export function preloadSounds(prefix) {
     if (name.startsWith(`${prefix}.`)) sound.files.forEach(load);
 }
 
-// The browser unlocks audio on the first real gesture; set up then.
+// Audio starts on the first real gesture, or straight away if the browser
+// already allows it (Chrome does for sites you've listened to before).
 let unlocked = false;
 function unlock() {
+  const context = audio();
+  if (context?.state === 'suspended') context.resume().catch(() => {});
   if (unlocked) return;
   unlocked = true;
-  audio()
-    ?.resume?.()
-    .catch(() => {});
   preloadSounds('ui');
   preloadSounds('cards');
 }
 if (typeof window !== 'undefined') {
-  for (const type of ['pointerdown', 'keydown', 'touchstart'])
-    window.addEventListener(type, unlock, {
-      once: true,
-      capture: true,
-      passive: true,
-    });
+  // Only these count as a gesture; touchstart and mousemove don't. Kept on
+  // (not once) so a gesture that didn't take gets another go.
+  const gestures = ['pointerdown', 'pointerup', 'keydown', 'touchend', 'click'];
+  const onGesture = () => {
+    unlock();
+    if (ctx?.state === 'running')
+      for (const type of gestures)
+        window.removeEventListener(type, onGesture, { capture: true });
+  };
+  for (const type of gestures)
+    window.addEventListener(type, onGesture, { capture: true, passive: true });
+  if (navigator.userActivation?.hasBeenActive) unlock();
+  else {
+    const context = audio();
+    if (context?.state === 'running') unlock();
+    else
+      context?.addEventListener('statechange', () => {
+        if (context.state === 'running') unlock();
+      });
+  }
 }
 
 export function sfx(name, { force = false } = {}) {

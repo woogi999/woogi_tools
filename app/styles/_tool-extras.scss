@@ -7943,3 +7943,52 @@ video.media-preview {
 .osint-months li.is-empty {
   opacity: 0.45;
 }
+
+.osint-add-site {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.osint-add-site .btn {
+  justify-self: start;
+}
+
+.osint-custom-sites {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.osint-custom-sites li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.osint-custom-sites code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+}
+
+.osint-adult-toggle {
+  display: inline-flex;
+  margin: -4px 0 12px;
+}
+
+.osint-adult {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: #fff;
+  background: #d9434b;
+}

@@ -112,6 +112,8 @@ export default class DomainLookupPage extends Component {
   <template>
     <ToolPage
       @route="domain-lookup"
+      @busy={{this.busy}}
+      @closeWarning="Close Domain Lookup? The lookup still running will stop."
       @subtitle="Who a domain is registered to, when it runs out, and where it points: the registry record and the DNS, side by side."
     >
       <div class="pop-in">

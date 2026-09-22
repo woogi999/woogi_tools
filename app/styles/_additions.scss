@@ -827,3 +827,214 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+
+// ─── 404 ─────────────────────────────────────────────────────────────────
+// One screen, no scrolling: the copy on top, the hand fills what's left.
+
+.nf {
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+  text-align: center;
+}
+
+.nf-top {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 0 clamp(0.25rem, 2vh, 1rem);
+}
+
+.nf-brand {
+  position: relative;
+  display: block;
+  height: 40px;
+
+  img {
+    height: 100%;
+    display: block;
+  }
+
+  .brand-logo-gif {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover .brand-logo-gif {
+    opacity: 1;
+  }
+}
+
+.nf-deck {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin-bottom: clamp(0.75rem, 3vh, 1.5rem);
+  perspective: 900px;
+}
+
+.nf-card {
+  position: relative;
+  width: clamp(48px, 9vh, 76px);
+  aspect-ratio: 5 / 7;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  font-size: clamp(1.6rem, 5vh, 2.8rem);
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 25%);
+  animation: nf-deal 0.6s cubic-bezier(0.2, 0.8, 0.3, 1.2) backwards;
+  transition: transform 0.25s ease;
+
+  &.is-red {
+    color: var(--card-red);
+  }
+
+  &:nth-child(1) {
+    rotate: -8deg;
+    translate: 0 6px;
+  }
+
+  &:nth-child(2) {
+    animation-delay: 0.12s;
+  }
+
+  &:nth-child(3) {
+    rotate: 8deg;
+    translate: 0 6px;
+    animation-delay: 0.24s;
+  }
+
+  &:hover {
+    transform: translateY(-8px);
+  }
+
+  // The zero is a face-down card: nothing here.
+  &.is-back {
+    background:
+      repeating-linear-gradient(
+        45deg,
+        var(--bg-elevated-2) 0 5px,
+        transparent 5px 10px
+      ),
+      var(--bg-elevated);
+    color: var(--text-faint);
+  }
+}
+
+.nf-pip {
+  position: absolute;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+
+  &.tl {
+    top: 5px;
+    left: 5px;
+  }
+
+  &.br {
+    bottom: 5px;
+    right: 5px;
+    rotate: 180deg;
+  }
+}
+
+@keyframes nf-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) rotateY(90deg);
+  }
+}
+
+// Lifted cards can reach up this far; the buttons stay on top.
+.nf-copy {
+  position: relative;
+  z-index: 1;
+  animation: nf-rise 0.5s 0.35s ease backwards;
+}
+
+.nf-title {
+  font-size: clamp(1.5rem, 4.5vh, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.4rem;
+}
+
+.nf-body {
+  color: var(--text-dim);
+  max-width: 32rem;
+  margin: 0 auto 1rem;
+  line-height: 1.5;
+}
+
+.nf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.nf-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+}
+
+// Takes whatever height the copy leaves, and the hand sizes itself to it.
+.nf-pick {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  margin-top: clamp(0.5rem, 2vh, 1.5rem);
+  animation: nf-rise 0.5s 0.55s ease backwards;
+}
+
+.nf-hand {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+}
+
+// Sized as if the space were taller, then pushed down: the forearm runs off
+// the bottom edge and the fan gets the room.
+.nf-hand .card-hand {
+  --space: 125cqh;
+  --hw: min(clamp(160px, 20vw, 300px), var(--space) / 3.1);
+  --cw: min(clamp(100px, 30vw, 170px), 100cqh * 0.3);
+  translate: 0 calc(var(--hh) * 0.3);
+  height: 100%;
+}
+
+.nf-hand .card-hand-stage {
+  height: 100%;
+}
+
+@keyframes nf-rise {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nf-card,
+  .nf-copy,
+  .nf-pick {
+    animation: none;
+  }
+}

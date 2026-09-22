@@ -3436,13 +3436,25 @@ export const TOOLS = [
       'handle',
     ],
     madeWith:
-      'Works the way Sherlock does, from a list of sites in Sherlock’s own format: each one has a profile address and a rule for telling a real profile from a “no such user” page (the status code, or text that only the missing page has). Most sites refuse to answer a browser on another site, so the site’s Worker makes each request and says only found, absent or unknown; the page asks for each site separately, eight at a time, so results fill in as they come. Sites that rate-limit or put up a bot wall are reported as unknown rather than guessed.',
+      'The sites come from three open lists (Sherlock, WhatsMyName and Maigret), merged and put through a live test: each one is asked about an account known to exist there and about a made-up name, twice, and only sites that told the two apart every time made it in. Each site has a profile address and a rule for telling a real profile from a “no such user” page (the status code, or text that only one of the two pages has). Most sites refuse to answer a browser on another site, so the site’s Worker makes the requests, 25 sites at a time, and says only found, absent or unknown. Sites that rate-limit or put up a bot wall are reported as unknown rather than guessed. Adult sites are left out unless you tick the box.',
     credits: [
       {
         name: 'Sherlock',
         author: 'Sherlock Project',
         license: 'MIT',
         url: 'https://github.com/sherlock-project/sherlock',
+      },
+      {
+        name: 'WhatsMyName',
+        author: 'Micah Hoffman and contributors',
+        license: 'CC BY-SA 4.0',
+        url: 'https://github.com/WebBreacher/WhatsMyName',
+      },
+      {
+        name: 'Maigret',
+        author: 'Soxoj and contributors',
+        license: 'MIT',
+        url: 'https://github.com/soxoj/maigret',
       },
     ],
   },

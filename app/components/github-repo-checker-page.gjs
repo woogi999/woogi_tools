@@ -189,6 +189,8 @@ export default class GithubRepoCheckerPage extends Component {
   <template>
     <ToolPage
       @route="github-repo-checker"
+      @busy={{this.loading}}
+      @closeWarning="Close the GitHub Repo Checker? The repository still being counted will stop."
       @subtitle="Paste a GitHub link for the numbers behind a repository: stars, commits, contributors, languages, lines of code and more."
     >
       <div class="gh-shell pop-in">

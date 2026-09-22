@@ -18,7 +18,7 @@ import { installGamepad } from '../utils/gamepad';
 // Routes that take the whole window: no sidebar, no header, no theme
 // controls, no command palette. A bare route is a page in its own right and
 // is responsible for its own way back into the site.
-const BARE_ROUTES = ['video-editor'];
+const BARE_ROUTES = ['video-editor', 'not-found'];
 
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.

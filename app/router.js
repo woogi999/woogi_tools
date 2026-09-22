@@ -136,4 +136,5 @@ Router.map(function () {
   this.route('updates');
   this.route('privacy');
   this.route('terms');
+  this.route('not-found', { path: '/*path' });
 });

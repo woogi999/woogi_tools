@@ -128,6 +128,8 @@ export default class WaybackSnapshotsPage extends Component {
   <template>
     <ToolPage
       @route="wayback-snapshots"
+      @busy={{this.busy}}
+      @closeWarning="Close Wayback Snapshots? The lookup still running will stop."
       @subtitle="What a page used to say: when the Internet Archive saved it, year by year, one click from the copy."
     >
       <div class="pop-in">

@@ -240,6 +240,8 @@ export default class RobloxAssetViewerPage extends Component {
   <template>
     <ToolPage
       @route="roblox-asset-viewer"
+      @busy={{this.busy}}
+      @closeWarning="Close the Roblox Asset Viewer? The asset still loading will stop."
       @subtitle="Paste a Roblox asset ID or link and see what it is: listen to the audio, look at the image, or spin the model round."
     >
       <div class="math-grid pop-in">
