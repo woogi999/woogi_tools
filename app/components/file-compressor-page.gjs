@@ -6,52 +6,59 @@ import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { formatBytes } from '../utils/file-share';
-import { FORMATS, compressBytes, decompressBytes } from '../utils/codec';
-import { createArchive, listArchive } from '../utils/archive';
 import { acceptPastedFiles } from '../utils/paste-files';
+import { runFFmpeg, mediaInfo, baseName } from '../utils/media-jobs';
+import {
+  kindOf,
+  canEncode,
+  compressImage,
+  videoBitrates,
+  audioBitrate,
+} from '../utils/compress-media';
+import { keepState } from '../utils/tool-state';
 
-// Archives hold several files at once, unlike the single-stream formats
-// above. RAR can only be opened: nothing but WinRAR may write it.
-const ARCHIVES = [
+// How hard to squeeze, for the people who don't have a number in mind. The
+// image quality and the audio bitrate are the settings themselves; the video
+// CRF is x264's constant-quality scale, where bigger means smaller and worse.
+const PRESETS = [
   {
-    id: 'zip',
-    label: 'zip (archive)',
-    min: 0,
-    max: 9,
-    level: 5,
-    archive: true,
+    id: 'light',
+    label: 'Light',
+    hint: 'Barely touched. Good for photos you still want to print.',
+    quality: 0.9,
+    crf: 23,
+    audioKbps: 192,
   },
-  { id: '7z', label: '7z (archive)', min: 0, max: 9, level: 5, archive: true },
   {
-    id: 'rar',
-    label: 'rar (open only)',
-    min: 0,
-    max: 0,
-    level: 0,
-    archive: true,
-    readOnly: true,
+    id: 'balanced',
+    label: 'Balanced',
+    hint: 'The usual choice: a lot smaller, and you have to look for the difference.',
+    quality: 0.75,
+    crf: 28,
+    audioKbps: 128,
+  },
+  {
+    id: 'strong',
+    label: 'Strong',
+    hint: 'As small as it can go while still looking like the original.',
+    quality: 0.55,
+    crf: 33,
+    audioKbps: 96,
   },
 ];
-const ALL_FORMATS = [...FORMATS, ...ARCHIVES];
 
-const EXT = {
-  gzip: 'gz',
-  deflate: 'zz',
-  'deflate-raw': 'raw',
-  brotli: 'br',
-  zstd: 'zst',
-  zip: 'zip',
-  '7z': '7z',
-  rar: 'rar',
-};
+const IMAGE_FORMATS = [
+  { id: 'keep', label: 'Keep the format' },
+  { id: 'jpeg', label: 'JPEG' },
+  { id: 'webp', label: 'WebP (smaller)' },
+  { id: 'avif', label: 'AVIF (smallest)' },
+];
+
 const eq = (a, b) => a === b;
+const gt = (a, b) => a > b;
+const pct = (n) => `${Math.round(n * 100)}%`;
 
 let nextId = 1;
-
-function guessFormat(name) {
-  const ext = name.split('.').pop()?.toLowerCase();
-  return Object.entries(EXT).find(([, e]) => e === ext)?.[0] ?? null;
-}
 
 export default class FileCompressorPage extends Component {
   // While this is true, leaving the page floats the tool in a PiP window
@@ -61,101 +68,97 @@ export default class FileCompressorPage extends Component {
   }
 
   get pipWarning() {
-    return 'Close the File Compressor? The compression in progress will be cancelled.';
+    return 'Close the File Compressor? The file being compressed will be lost.';
   }
-  @tracked mode = 'compress';
-  @tracked formatId = 'gzip';
-  @tracked level = FORMATS[0].level;
+
+  presets = PRESETS;
+  imageFormats = IMAGE_FORMATS;
+
   @tracked items = [];
+  @tracked mode = 'preset'; // 'preset' | 'target'
+  @tracked preset = 'balanced';
+  @tracked targetMb = 5;
+  @tracked imageFormat = 'keep';
   @tracked busy = false;
+  @tracked status = null;
+  @tracked progress = 0;
   @tracked dragging = false;
 
   constructor(owner, args) {
     super(owner, args);
+    keepState(this, 'file-compressor', [
+      'mode',
+      'preset',
+      'targetMb',
+      'imageFormat',
+    ]);
     registerDestructor(this, () => this.revokeAll());
   }
 
-  get formats() {
-    return this.isCompress
-      ? ALL_FORMATS.filter((f) => !f.readOnly)
-      : ALL_FORMATS;
+  get isTarget() {
+    return this.mode === 'target';
   }
 
-  get format() {
-    return ALL_FORMATS.find((f) => f.id === this.formatId);
+  get currentPreset() {
+    return PRESETS.find((p) => p.id === this.preset) ?? PRESETS[1];
   }
 
-  get isArchive() {
-    return Boolean(this.format.archive);
+  get targetBytes() {
+    return Math.max(0.01, Number(this.targetMb) || 0) * 1024 * 1024;
   }
 
-  get isCompress() {
-    return this.mode === 'compress';
-  }
-
-  @tracked archive = null; // { url, name, size } when several files became one
-
-  get doneItems() {
-    return this.items.filter((i) => i.url);
+  get done() {
+    return this.items.filter((i) => i.blobUrl);
   }
 
   get savings() {
-    if (!this.isCompress) return null;
-    if (this.archive) {
-      const before = this.items.reduce((n, i) => n + i.file.size, 0);
-      return this.savingsText(before, this.archive.size);
-    }
-    const done = this.doneItems;
+    const done = this.done;
     if (!done.length) return null;
     const before = done.reduce((n, i) => n + i.file.size, 0);
     const after = done.reduce((n, i) => n + i.size, 0);
-    return this.savingsText(before, after);
-  }
-
-  savingsText(before, after) {
-    const pct = Math.round((1 - after / before) * 100);
-    return `${formatBytes(before)} → ${formatBytes(after)} (${pct >= 0 ? `${pct}% smaller` : `${-pct}% larger`})`;
+    const saved = Math.round((1 - after / before) * 100);
+    return `${formatBytes(before)} → ${formatBytes(after)} (${
+      saved >= 0 ? `${saved}% smaller` : `${-saved}% larger`
+    })`;
   }
 
   revokeAll() {
     for (const item of this.items) {
-      if (item.url) URL.revokeObjectURL(item.url);
-      for (const out of item.outputs ?? []) URL.revokeObjectURL(out.url);
+      if (item.blobUrl) URL.revokeObjectURL(item.blobUrl);
+      if (item.sourceUrl) URL.revokeObjectURL(item.sourceUrl);
     }
-    if (this.archive) URL.revokeObjectURL(this.archive.url);
   }
 
-  resetResults() {
-    this.revokeAll();
-    this.archive = null;
-    this.items = this.items.map((i) => ({
-      ...i,
-      url: null,
-      size: null,
+  patch(id, changes) {
+    this.items = this.items.map((i) =>
+      i.id === id ? { ...i, ...changes } : i,
+    );
+  }
+
+  async addFiles(list) {
+    const usable = [...list]
+      .map((file) => ({ file, kind: kindOf(file) }))
+      .filter((f) => f.kind);
+    if (!usable.length) return;
+    const added = usable.map(({ file, kind }) => ({
+      id: nextId++,
+      file,
+      kind,
+      sourceUrl: kind === 'image' ? URL.createObjectURL(file) : null,
+      blobUrl: null,
       name: null,
-      outputs: null,
+      size: null,
+      note: null,
       error: null,
+      duration: 0,
     }));
-  }
-
-  addFiles(list) {
-    if (!list.length) return;
-    this.resetResults();
-    this.items = [
-      ...this.items,
-      ...[...list].map((file) => ({
-        id: nextId++,
-        file,
-        url: null,
-        size: null,
-        name: null,
-        outputs: null,
-        error: null,
-      })),
-    ];
-    if (!this.isCompress) {
-      const guess = guessFormat(list[0].name);
-      if (guess) this.formatId = guess;
+    this.items = [...this.items, ...added];
+    // Audio and video need their length before the budget can be divided up,
+    // and the browser can read that without waking the engine.
+    for (const item of added) {
+      if (item.kind === 'image') continue;
+      const info = await mediaInfo(item.file);
+      this.patch(item.id, { duration: info.duration, hasAudio: info.hasAudio });
     }
   }
 
@@ -175,142 +178,171 @@ export default class FileCompressorPage extends Component {
     this.addFiles(e.dataTransfer.files);
   };
 
-  setMode = (mode) => {
-    if (mode === this.mode) return;
-    this.mode = mode;
-    this.resetResults();
-    if (this.format.readOnly && this.isCompress) this.formatId = 'zip';
-  };
-
-  setFormat = (event) => {
-    this.formatId = event.target.value;
-    this.level = this.format.level;
-    this.resetResults();
-  };
-
-  setLevel = (event) => {
-    this.level = +event.target.value;
+  setMode = (mode) => (this.mode = mode);
+  setPreset = (id) => (this.preset = id);
+  setFormat = (e) => (this.imageFormat = e.target.value);
+  setTarget = (e) => {
+    const value = Number(e.target.value);
+    this.targetMb = Number.isFinite(value) && value > 0 ? value : 1;
   };
 
   remove = (id) => {
     const item = this.items.find((i) => i.id === id);
-    if (item?.url) URL.revokeObjectURL(item.url);
-    for (const out of item?.outputs ?? []) URL.revokeObjectURL(out.url);
+    if (item?.blobUrl) URL.revokeObjectURL(item.blobUrl);
+    if (item?.sourceUrl) URL.revokeObjectURL(item.sourceUrl);
     this.items = this.items.filter((i) => i.id !== id);
   };
 
   clear = () => {
     this.revokeAll();
     this.items = [];
+    this.status = null;
+    this.progress = 0;
   };
 
   run = async () => {
     this.busy = true;
-    this.resetResults();
-    if (this.isArchive) {
-      await this.runArchive();
-      this.busy = false;
-      return;
-    }
-    for (const item of this.items) {
-      try {
-        const bytes = new Uint8Array(await item.file.arrayBuffer());
-        if (this.isCompress) {
-          const out = await compressBytes(bytes, this.formatId, this.level);
-          const name = `${item.file.name}.${EXT[this.formatId]}`;
-          const blob = new Blob([out]);
-          this.items = this.items.map((i) =>
-            i.id === item.id
-              ? {
-                  ...i,
-                  url: URL.createObjectURL(blob),
-                  size: blob.size,
-                  name,
-                  error: null,
-                }
-              : i,
-          );
-        } else {
-          const out = await decompressBytes(bytes, this.formatId);
-          const name =
-            item.file.name.replace(
-              new RegExp(`\\.${EXT[this.formatId]}$`, 'i'),
-              '',
-            ) || `${item.file.name}.out`;
-          const blob = new Blob([out]);
-          this.items = this.items.map((i) =>
-            i.id === item.id
-              ? {
-                  ...i,
-                  url: URL.createObjectURL(blob),
-                  size: blob.size,
-                  name,
-                  error: null,
-                }
-              : i,
-          );
+    this.progress = 0;
+    try {
+      for (const item of this.items) {
+        this.patch(item.id, { error: null, note: null });
+        this.status = `Compressing ${item.file.name}…`;
+        try {
+          const result =
+            item.kind === 'image'
+              ? await this.compressImage(item)
+              : await this.compressMedia(item);
+          if (item.blobUrl) URL.revokeObjectURL(item.blobUrl);
+          this.patch(item.id, {
+            blobUrl: URL.createObjectURL(result.blob),
+            size: result.blob.size,
+            name: result.name,
+            note: result.note,
+          });
+        } catch (error) {
+          this.patch(item.id, {
+            error: error.message || 'Could not compress this file.',
+          });
         }
-      } catch {
-        this.items = this.items.map((i) =>
-          i.id === item.id
-            ? {
-                ...i,
-                error: this.isCompress
-                  ? 'Compression failed.'
-                  : `Couldn't decompress: is this really a ${this.format.label} file?`,
-              }
-            : i,
-        );
       }
+      this.status = null;
+      this.progress = 0;
+    } finally {
+      this.busy = false;
     }
-    this.busy = false;
   };
 
-  // Packing: every file into one archive. Opening: each archive's files listed out.
-  async runArchive() {
-    if (this.isCompress) {
-      try {
-        const bytes = await createArchive(
-          this.items.map((i) => i.file),
-          this.formatId,
-          this.level,
-        );
-        const blob = new Blob([bytes]);
-        const base =
-          this.items.length === 1
-            ? this.items[0].file.name.replace(/\.[^.]+$/, '')
-            : 'archive';
-        this.archive = {
-          url: URL.createObjectURL(blob),
-          name: `${base}.${EXT[this.formatId]}`,
-          size: blob.size,
-        };
-      } catch (error) {
-        this.items = this.items.map((i) => ({ ...i, error: error.message }));
-      }
-      return;
+  async compressImage(item) {
+    const current = (item.file.type.split('/')[1] || 'jpeg').toLowerCase();
+    let format =
+      this.imageFormat === 'keep'
+        ? current === 'png' || current === 'webp' || current === 'avif'
+          ? current
+          : 'jpeg'
+        : this.imageFormat;
+    if (!canEncode(format)) {
+      // Safari has no AVIF encoder, and a canvas that can't encode what you
+      // asked for silently returns a PNG, which would be bigger than the input.
+      format = canEncode('webp') ? 'webp' : 'jpeg';
     }
-    for (const item of this.items) {
-      try {
-        const { entries, read } = await listArchive(item.file);
-        const outputs = entries.map((entry) => {
-          const blob = new Blob([read(entry)]);
-          return {
-            name: entry.name,
-            path: entry.path,
-            url: URL.createObjectURL(blob),
-            size: blob.size,
-          };
-        });
-        this.items = this.items.map((i) =>
-          i.id === item.id ? { ...i, outputs, error: null } : i,
-        );
-      } catch (error) {
-        this.items = this.items.map((i) =>
-          i.id === item.id ? { ...i, error: error.message } : i,
-        );
-      }
+    const result = await compressImage(item.file, {
+      format,
+      quality: this.currentPreset.quality,
+      targetBytes: this.isTarget ? this.targetBytes : null,
+      onStatus: (text) => (this.status = `${item.file.name}: ${text}`),
+    });
+    const scaled = result.scale < 1;
+    const note =
+      this.isTarget && result.blob.size > this.targetBytes
+        ? `Couldn't reach the target: ${formatBytes(result.blob.size)} is as small as this picture goes without falling apart.`
+        : `${format.toUpperCase()} at ${pct(result.quality)} quality${
+            scaled ? `, scaled to ${result.width}×${result.height}` : ''
+          }.`;
+    return {
+      blob: result.blob,
+      name: `${baseName(item.file.name)}-small.${format === 'jpeg' ? 'jpg' : format}`,
+      note,
+    };
+  }
+
+  async compressMedia(item) {
+    const isVideo = item.kind === 'video';
+    const preset = this.currentPreset;
+    if (this.isTarget && !item.duration)
+      throw new Error(
+        "Couldn't read how long this file is, so a target size can't be worked out. Use a preset instead.",
+      );
+
+    const out = isVideo ? 'mp4' : 'mp3';
+    const type = isVideo ? 'video/mp4' : 'audio/mpeg';
+    let note;
+    let build;
+
+    if (isVideo) {
+      const rates = this.isTarget
+        ? videoBitrates(this.targetBytes, item.duration, preset.audioKbps)
+        : null;
+      // A target size means a fixed bitrate, because that is the only way to
+      // predict how big the result will be; a preset means constant quality,
+      // which looks better but lands wherever it lands.
+      build = (input) => [
+        '-i',
+        input,
+        '-c:v',
+        'libx264',
+        '-preset',
+        'veryfast',
+        ...(rates
+          ? [
+              '-b:v',
+              `${rates.video}k`,
+              '-maxrate',
+              `${rates.video}k`,
+              '-bufsize',
+              `${rates.video * 2}k`,
+            ]
+          : ['-crf', String(preset.crf)]),
+        '-pix_fmt',
+        'yuv420p',
+        '-c:a',
+        'aac',
+        '-b:a',
+        `${preset.audioKbps}k`,
+        '-movflags',
+        '+faststart',
+      ];
+      note = rates
+        ? rates.fits
+          ? `Video at ${rates.video} kbps, audio at ${rates.audio} kbps.`
+          : `This clip is too long for ${this.targetMb} MB: held at the lowest watchable bitrate (${rates.video} kbps) instead.`
+        : `Constant quality (CRF ${preset.crf}).`;
+    } else {
+      const rate = this.isTarget
+        ? audioBitrate(this.targetBytes, item.duration)
+        : { audio: preset.audioKbps, fits: true };
+      build = (input) => [
+        '-i',
+        input,
+        '-vn',
+        '-c:a',
+        'libmp3lame',
+        '-b:a',
+        `${rate.audio}k`,
+      ];
+      note = rate.fits
+        ? `MP3 at ${rate.audio} kbps.`
+        : `This track is too long for ${this.targetMb} MB: held at 32 kbps, the lowest that still sounds like music.`;
     }
+
+    const blob = await runFFmpeg(item.file, {
+      out,
+      type,
+      build,
+      duration: item.duration,
+      onStatus: (text) => (this.status = `${item.file.name}: ${text}`),
+      onProgress: (p) => (this.progress = p),
+    });
+    return { blob, name: `${baseName(item.file.name)}-small.${out}`, note };
   }
 
   pasteFiles = (files) => this.addFiles(files);
@@ -320,75 +352,84 @@ export default class FileCompressorPage extends Component {
       @route="file-compressor"
       @busy={{this.pipBusy}}
       @closeWarning={{this.pipWarning}}
-      @subtitle="Shrink any file with gzip, deflate, brotli or zstd, pack several into a zip or 7z, or unpack one (rar included). Right here in your browser."
+      @subtitle="That photo, song or clip is too big to send. Say how small you need it and it comes back that size, or pick how hard to squeeze and let it get on with it."
     >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>
         <div class="fs-frame fc-panel pop-in">
-          <div class="tool-controls">
-            <div class="mode-toggle" role="group" aria-label="Mode">
-              <button
-                type="button"
-                class="btn {{if this.isCompress 'active'}}"
-                {{on "click" (fn this.setMode "compress")}}
-              >Compress</button>
-              <button
-                type="button"
-                class="btn {{if this.isCompress '' 'active'}}"
-                {{on "click" (fn this.setMode "decompress")}}
-              >Decompress</button>
-            </div>
-            <select
-              class="select"
-              aria-label="Format"
-              {{on "change" this.setFormat}}
-            >
-              {{#each this.formats as |f|}}
-                <option
-                  value={{f.id}}
-                  selected={{eq f.id this.formatId}}
-                >{{f.label}}</option>
-              {{/each}}
-            </select>
-          </div>
-          {{#if this.isCompress}}
-            {{#if this.isArchive}}
-              <p class="tool-hint">Every file you add goes into one archive. Zip
-                can't be beaten on compatibility; 7z packs tighter. RAR can only
-                be opened, not made: the format belongs to WinRAR.</p>
-            {{/if}}
-            <div class="slider-row slider-row-wide">
-              <label for="fcomp-level">Level</label>
-              <input
-                id="fcomp-level"
-                type="range"
-                min={{this.format.min}}
-                max={{this.format.max}}
-                value={{this.level}}
-                {{on "input" this.setLevel}}
-              />
-              <span class="slider-num">{{this.level}}</span>
-            </div>
-          {{/if}}
-
           <label
             class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}"
             {{on "dragover" this.dragOver}}
             {{on "dragleave" this.dragOver}}
             {{on "drop" this.drop}}
           >
-            <Icon @name="package" @size={{22}} />
-            <span>{{if
-                this.isCompress
-                "Drop any file to compress, or click to browse"
-                "Drop a .gz, .br, .zst, .zz, .zip, .7z or .rar file to decompress, or click to browse"
-              }}</span>
+            <Icon @name="shrink" @size={{22}} />
+            <span>Drop images, videos or audio, or click to browse</span>
             <input
               type="file"
+              accept="image/*,video/*,audio/*"
               multiple
               class="sr-only"
               {{on "change" this.selectFiles}}
             />
           </label>
+
+          <div class="mode-toggle" role="group" aria-label="How to compress">
+            <button
+              type="button"
+              class="btn {{unless this.isTarget 'active'}}"
+              {{on "click" (fn this.setMode "preset")}}
+            >How hard to squeeze</button>
+            <button
+              type="button"
+              class="btn {{if this.isTarget 'active'}}"
+              {{on "click" (fn this.setMode "target")}}
+            >Aim for a size</button>
+          </div>
+
+          {{#if this.isTarget}}
+            <label class="math-field">
+              <span class="qr-label is-muted">Target size, in MB</span>
+              <input
+                type="number"
+                min="0.05"
+                step="0.5"
+                class="math-input"
+                value={{this.targetMb}}
+                {{on "input" this.setTarget}}
+              />
+            </label>
+            <p class="tool-hint">Pictures are re-encoded over and over until one
+              lands just under your number, and shrunk in size only if quality
+              alone can't get there. Video and audio get a bitrate worked out
+              from how long they run, so the result lands within a few percent.</p>
+          {{else}}
+            <div class="math-tabs" role="group" aria-label="Strength">
+              {{#each this.presets as |p|}}
+                <button
+                  type="button"
+                  class="qr-tab {{if (eq this.preset p.id) 'active'}}"
+                  {{on "click" (fn this.setPreset p.id)}}
+                >{{p.label}}</button>
+              {{/each}}
+            </div>
+            <p class="tool-hint">{{this.currentPreset.hint}}</p>
+          {{/if}}
+
+          <label class="math-field">
+            <span class="qr-label is-muted">Picture format</span>
+            <select class="select" {{on "change" this.setFormat}}>
+              {{#each this.imageFormats as |f|}}
+                <option
+                  value={{f.id}}
+                  selected={{eq f.id this.imageFormat}}
+                >{{f.label}}</option>
+              {{/each}}
+            </select>
+          </label>
+          <p class="tool-hint">Videos come out as MP4 (H.264) and audio as MP3,
+            so they play anywhere. The audio and video engine is about 30 MB and
+            downloads the first time you compress a clip; pictures need no
+            engine at all. Nothing leaves your device either way.</p>
         </div>
 
         {{#if this.items.length}}
@@ -400,14 +441,11 @@ export default class FileCompressorPage extends Component {
                   class="btn active"
                   disabled={{this.busy}}
                   {{on "click" this.run}}
-                >{{if
-                    this.busy
-                    "Working…"
-                    (if this.isCompress "Compress" "Decompress")
-                  }}</button>
+                >{{if this.busy "Working…" "Compress"}}</button>
                 <button
                   type="button"
                   class="btn"
+                  disabled={{this.busy}}
                   {{on "click" this.clear}}
                 >Clear</button>
               </div>
@@ -415,24 +453,27 @@ export default class FileCompressorPage extends Component {
                   class="tool-hint"
                 >{{this.savings}}</span>{{/if}}
             </div>
-            {{#if this.archive}}
-              <div class="fc-archive">
-                <Icon @name="file-archive" @size={{16}} />
-                <span class="fs-row-name">{{this.archive.name}}</span>
-                <span class="fs-row-size">{{formatBytes
-                    this.archive.size
-                  }}</span>
-                <a
-                  class="btn fs-save"
-                  href={{this.archive.url}}
-                  download={{this.archive.name}}
-                ><Icon @name="download" @size={{13}} /> Save archive</a>
-              </div>
+            {{#if this.status}}
+              <p class="tool-hint">{{this.status}}</p>
+              {{#if (gt this.progress 0)}}
+                <progress
+                  class="tool-progress"
+                  value={{this.progress}}
+                  max="1"
+                ></progress>
+              {{/if}}
             {{/if}}
             <ul class="fs-list">
               {{#each this.items key="id" as |item|}}
                 <li class="fs-row fc-row">
-                  <Icon @name="package" @size={{16}} />
+                  {{#if item.sourceUrl}}
+                    <img src={{item.sourceUrl}} alt="" class="bgr-thumb" />
+                  {{else}}
+                    <Icon
+                      @name={{if (eq item.kind "video") "film" "music"}}
+                      @size={{16}}
+                    />
+                  {{/if}}
                   <div class="fs-row-info">
                     <span class="fs-row-name">{{item.file.name}}</span>
                     <span class="fs-row-size">{{formatBytes
@@ -440,34 +481,17 @@ export default class FileCompressorPage extends Component {
                       }}{{#if item.size}}
                         →
                         {{formatBytes item.size}}{{/if}}</span>
+                    {{#if item.note}}<span
+                        class="tool-hint"
+                      >{{item.note}}</span>{{/if}}
                     {{#if item.error}}<span
                         class="tool-error"
                       >{{item.error}}</span>{{/if}}
-                    {{#if item.outputs}}
-                      <ul class="fc-outputs">
-                        {{#each item.outputs as |out|}}
-                          <li>
-                            <span
-                              class="fs-row-name"
-                              title={{out.path}}
-                            >{{out.path}}</span>
-                            <span class="fs-row-size">{{formatBytes
-                                out.size
-                              }}</span>
-                            <a
-                              class="btn fs-save"
-                              href={{out.url}}
-                              download={{out.name}}
-                            ><Icon @name="download" @size={{13}} /> Save</a>
-                          </li>
-                        {{/each}}
-                      </ul>
-                    {{/if}}
                   </div>
                   <div class="fs-row-status">
-                    {{#if item.url}}<a
+                    {{#if item.blobUrl}}<a
                         class="btn fs-save"
-                        href={{item.url}}
+                        href={{item.blobUrl}}
                         download={{item.name}}
                       ><Icon @name="download" @size={{13}} /> Save</a>{{/if}}
                   </div>

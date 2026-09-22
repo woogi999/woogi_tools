@@ -92,6 +92,70 @@ async function execute(
   }
 }
 
+/**
+ * Runs one FFmpeg command over a pile of files rather than a single input.
+ *
+ * For the commands that stitch many files into one — a numbered run of frames
+ * becoming a video, say. `files` is [{ name, data }]; `build(output)` gets the
+ * output name and returns the arguments, and names the inputs itself, because
+ * only the caller knows whether they are a `%05d` pattern or a concat list.
+ *
+ * Shares the same queue as runFFmpeg: one WebAssembly instance, one job at a
+ * time, whichever tool asked.
+ */
+export function runFFmpegMany(
+  files,
+  { out = 'webm', type = '', build, onProgress, onStatus },
+) {
+  const job = queue.then(() =>
+    executeMany(files, { out, type, build, onProgress, onStatus }),
+  );
+  queue = job.catch(() => {});
+  return job;
+}
+
+async function executeMany(files, { out, type, build, onProgress, onStatus }) {
+  onStatus?.('Starting the audio/video engine…');
+  const ffmpeg = await loadFFmpeg();
+  const output = `out-${Date.now()}.${out}`;
+  const logs = [];
+  const onLog = ({ message }) => {
+    logs.push(message);
+    if (logs.length > 40) logs.shift();
+  };
+  const progress = ({ progress: p }) =>
+    onProgress?.(Math.max(0, Math.min(1, p)));
+  ffmpeg.on('log', onLog);
+  ffmpeg.on('progress', progress);
+  try {
+    onStatus?.('Handing the frames over…');
+    for (const file of files)
+      await ffmpeg.writeFile(
+        file.name,
+        file.data instanceof Blob ? await bytesOf(file.data) : file.data,
+      );
+    onStatus?.('Encoding…');
+    const code = await ffmpeg.exec([...build(output), '-y', output]);
+    if (code !== 0) {
+      const reason = logs
+        .reverse()
+        .find((line) => /error|invalid|not found|no such/i.test(line));
+      throw new Error(
+        reason ? `FFmpeg: ${reason.trim()}` : 'FFmpeg couldn’t encode this',
+      );
+    }
+    const data = await ffmpeg.readFile(output);
+    onProgress?.(1);
+    return new Blob([data.buffer ?? data], { type });
+  } finally {
+    ffmpeg.off('log', onLog);
+    ffmpeg.off('progress', progress);
+    await ffmpeg.deleteFile(output).catch(() => {});
+    for (const file of files)
+      await ffmpeg.deleteFile(file.name).catch(() => {});
+  }
+}
+
 // How long a clip is, and whether it has any sound, read by the browser itself
 // (no engine needed) so a tool can show a timeline straight away.
 export function mediaInfo(file) {

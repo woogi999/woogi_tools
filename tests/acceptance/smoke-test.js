@@ -1,5 +1,12 @@
 import { module, test } from 'qunit';
-import { visit, click, fillIn, waitUntil, find } from '@ember/test-helpers';
+import {
+  visit,
+  click,
+  fillIn,
+  waitUntil,
+  find,
+  findAll,
+} from '@ember/test-helpers';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
 
 module('Acceptance | smoke', function (hooks) {
@@ -102,6 +109,129 @@ module('Acceptance | smoke', function (hooks) {
       timeout: 3000,
     });
     assert.dom('.textarea').hasValue('remember me');
+  });
+
+  test('the newest tools render and work', async function (assert) {
+    for (const [url, title] of [
+      ['/file-archiver', 'File Archiver'],
+      ['/file-compressor', 'File Compressor'],
+      ['/timezone-converter', 'Timezone Converter'],
+      ['/svg-optimizer', 'SVG Optimizer'],
+      ['/auto-trace', 'Auto-trace'],
+      ['/fake-data', 'Fake Data Generator'],
+      ['/regex-library', 'Regex Library'],
+      ['/stem-extractor', 'Audio Stem Extractor'],
+      ['/background-remover', 'Background Remover'],
+    ]) {
+      await visit(url);
+      assert.dom('.hero-title span').hasText(title);
+      assert.dom('.made-with').exists();
+    }
+  });
+
+  test('the Stem Extractor offers its engines', async function (assert) {
+    await visit('/stem-extractor');
+    assert.dom('.hero-title span').hasText('Audio Stem Extractor');
+    // One card per engine: the instant arithmetic one and the model one.
+    assert.dom('.stem-engine').exists({ count: 2 });
+    assert.dom('.stem-picks .math-check').exists();
+
+    // The graphics check is asynchronous and isn't something the test helpers
+    // know to wait for, so wait for it to publish what it decided.
+    await waitUntil(() => find('.fs')?.dataset.device !== 'checking', {
+      timeout: 3000,
+    });
+
+    // The invariant worth holding whichever machine this runs on: a model
+    // engine is never offered without the WebGPU to run it, because failing
+    // half way through a song is worse than not being offered at all.
+    if (find('.fs').dataset.device === 'none') {
+      assert.dom('.stem-engine.is-blocked').exists();
+      assert.dom('.stem-engine.is-selected').hasText(/Rough/);
+    } else {
+      assert.dom('.stem-engine.is-blocked').doesNotExist();
+    }
+  });
+
+  test('the SVG Optimizer actually shrinks an SVG', async function (assert) {
+    await visit('/svg-optimizer');
+    await click('.svgo .btn');
+    // The example is deliberately full of things no renderer reads, so the
+    // result has to come out meaningfully smaller than it went in.
+    const output = findAll('.svgo textarea')[1];
+    assert.ok(output, 'the optimised markup is shown');
+    assert.ok(
+      output.value.length < find('.svgo textarea').value.length,
+      'the result is smaller than the source',
+    );
+    assert.notOk(output.value.includes('sodipodi'), 'editor data is gone');
+    assert.notOk(output.value.includes('<metadata'), 'metadata is gone');
+  });
+
+  test('the Fake Data Generator is reproducible from its seed', async function (assert) {
+    await visit('/fake-data');
+    assert.dom('.fake-table tbody tr').exists();
+    const first = find('.fake-table tbody tr').textContent;
+    await click('.math-swap'); // reroll: a new seed, so different rows
+    const rerolled = find('.fake-table tbody tr').textContent;
+    assert.notStrictEqual(rerolled, first, 'a new seed gives new rows');
+    await visit('/color-picker');
+    await visit('/fake-data');
+    assert.dom('.fake-table tbody tr').hasText(rerolled, 'the seed is kept');
+  });
+
+  test('the Regex Library runs its own examples', async function (assert) {
+    await visit('/regex-library');
+    assert.dom('.rxl-card').exists({ count: 38 });
+    await click('.rxl-head');
+    assert.dom('.rxl-card.is-open .rxl-code').exists();
+    // Every pattern ships samples it should and shouldn't match; if one ever
+    // stops behaving, the card says so instead of quietly lying.
+    assert.dom('.rxl-card.is-open .rxl-pass').exists();
+  });
+
+  test('the Timezone Converter shows a clock per place', async function (assert) {
+    await visit('/timezone-converter');
+    assert.dom('.tz-row').exists({ count: 4 });
+    assert.dom('.tz-row .tz-time').exists();
+    // 24 cells across, one an hour, for finding a slot that suits everyone.
+    assert.dom('.tz-row .tz-cell').exists({ count: 96 });
+  });
+
+  test('the OSINT tools render', async function (assert) {
+    for (const [url, title] of [
+      ['/username-search', 'Username Search'],
+      ['/breach-check', 'Breach Check'],
+      ['/photo-metadata', 'Photo Metadata'],
+      ['/email-header-analyzer', 'Email Header Analyzer'],
+      ['/subdomain-finder', 'Subdomain Finder'],
+      ['/wayback-snapshots', 'Wayback Snapshots'],
+      ['/recon-sweep', 'Recon Sweep'],
+      ['/ip-lookup', 'IP Address Lookup'],
+      ['/domain-lookup', 'Domain Lookup'],
+    ]) {
+      await visit(url);
+      assert.dom('.hero-title span').hasText(title);
+    }
+  });
+
+  test('the Email Header Analyzer traces hops and flags a spoof', async function (assert) {
+    await visit('/email-header-analyzer');
+    await fillIn(
+      '.osint-textarea',
+      [
+        'Received: from mx.example.net (mx.example.net [203.0.113.9]) by mx.google.com with ESMTPS; Tue, 22 Sep 2026 10:00:05 +0000',
+        'Received: from laptop (unknown [198.51.100.7]) by mx.example.net with ESMTP; Tue, 22 Sep 2026 10:00:00 +0000',
+        'Authentication-Results: mx.google.com; spf=fail smtp.mailfrom=bank.com; dkim=none; dmarc=fail',
+        'From: "Your Bank" <security@bank.com>',
+        'Reply-To: <collect@evil.example>',
+        'Subject: Verify your account',
+      ].join('\n'),
+    );
+    assert.dom('.osint-hops li').exists({ count: 2 });
+    assert.dom('.osint-hops li:first-child').includesText('laptop');
+    assert.dom('.osint-chip.is-bad').exists();
+    assert.dom('.osint-verdict.is-bad').exists();
   });
 
   test('the newer tools render', async function (assert) {

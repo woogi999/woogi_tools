@@ -23,6 +23,15 @@
 // GET /api/roblox fetches public Roblox assets and their details for the
 // Roblox Asset Viewer, since Roblox's endpoints refuse browsers on other sites.
 //
+// GET /api/osint backs the OSINT tools, whose sources refuse browsers on
+// other sites: kind=username checks one site from app/utils/username-sites.js
+// for one name (the page asks for each site separately, so results stream in),
+// kind=subdomains reads certificate-transparency logs through crt.sh (with
+// Cert Spotter as the fallback), kind=wayback is the Internet Archive's
+// capture calendar for a URL, and kind=breaches is Have I Been Pwned's public list of
+// known breaches, and kind=leakcheck asks LeakCheck's public API which leaks
+// an email address appears in. Nothing is stored; each answer is only cached briefly.
+//
 // Disposable Emails: mail sent to <anything>@temp.woogi.xyz reaches the
 // email() handler below through Cloudflare Email Routing, is parsed, and is
 // kept in the TEMP_MAIL KV namespace for an hour. GET /api/mail?box=<name>
@@ -30,6 +39,7 @@
 // secret: the page makes a long random one and never shows it to anyone else.
 
 import PostalMime from 'postal-mime';
+import { USERNAME_SITES, checkSite } from '../app/utils/username-sites.js';
 
 export { RelayRoom } from './relay-room.js';
 
@@ -56,6 +66,7 @@ export default {
     if (url.pathname === '/api/grammar') return grammar(request, env);
     if (url.pathname === '/api/translate') return translate(request);
     if (url.pathname === '/api/roblox') return roblox(request);
+    if (url.pathname === '/api/osint') return osint(request);
     if (url.pathname === '/api/mail') return mail(request, env);
     if (url.pathname === '/api/relay-room') return relayRoom(request, env);
     if (url.pathname.startsWith('/api/'))
@@ -476,6 +487,168 @@ function cdnUrl(hash) {
   let t = 31;
   for (let i = 0; i < 32; i++) t ^= hash.charCodeAt(i);
   return `https://t${t % 8}.rbxcdn.com/${hash}`;
+}
+
+const OSINT_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36 woogi-tools-osint';
+const DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+
+async function osint(request) {
+  if (request.method !== 'GET')
+    return json({ error: 'Method not allowed' }, 405);
+  const origin = request.headers.get('Origin');
+  if (origin && origin !== new URL(request.url).origin)
+    return json({ error: 'Forbidden' }, 403);
+  const params = new URL(request.url).searchParams;
+  const kind = params.get('kind');
+  try {
+    if (kind === 'username') return await osintUsername(params);
+    if (kind === 'subdomains') return await osintSubdomains(params);
+    if (kind === 'wayback') return await osintWayback(params);
+    if (kind === 'breaches') return await osintBreaches();
+    if (kind === 'leakcheck') return await osintLeakCheck(params);
+    return json({ error: 'Unknown kind' }, 400);
+  } catch {
+    return json({ error: 'The source did not answer in time.' }, 502);
+  }
+}
+
+function osintFetch(url, timeout = 10000, init = {}) {
+  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling public OSINT sources
+  return fetch(url, {
+    redirect: 'follow',
+    ...init,
+    headers: { 'User-Agent': OSINT_UA, Accept: '*/*', ...init.headers },
+    signal: AbortSignal.timeout(timeout),
+  });
+}
+
+async function osintUsername(params) {
+  const site = USERNAME_SITES[Number(params.get('site'))];
+  if (!site) return json({ error: 'Unknown site' }, 400);
+  const result = await checkSite(site, params.get('name') ?? '');
+  return json(
+    result,
+    200,
+    result.state === 'unknown' ? 'no-store' : 'public, max-age=600',
+  );
+}
+
+async function osintSubdomains(params) {
+  const domain = (params.get('domain') ?? '').toLowerCase();
+  if (!DOMAIN.test(domain)) return json({ error: 'Bad domain' }, 400);
+  const names = new Set();
+  const add = (value) => {
+    for (const n of String(value).toLowerCase().split(/\s+/)) {
+      const clean = n.replace(/^\*\./, '');
+      // Certificates carry wildcards and placeholders (aam*.x, ?.?.x); skip them.
+      if (!/^[a-z0-9.-]+$/.test(clean)) continue;
+      if (clean === domain || clean.endsWith(`.${domain}`)) names.add(clean);
+    }
+  };
+  let source = 'crt.sh';
+  try {
+    const r = await osintFetch(
+      `https://crt.sh/?q=${encodeURIComponent(`%.${domain}`)}&output=json`,
+      25000,
+    );
+    if (!r.ok) throw new Error('crt.sh');
+    for (const row of await r.json()) add(row.name_value);
+  } catch {
+    source = 'Cert Spotter';
+    const r = await osintFetch(
+      `https://api.certspotter.com/v1/issuances?domain=${encodeURIComponent(domain)}&include_subdomains=true&expand=dns_names`,
+      15000,
+    );
+    if (!r.ok)
+      return json(
+        {
+          error:
+            'Neither certificate log search answered. Try again in a minute.',
+        },
+        502,
+      );
+    for (const row of await r.json())
+      for (const n of row.dns_names ?? []) add(n);
+  }
+  return json(
+    { source, names: [...names].sort() },
+    200,
+    'public, max-age=3600',
+  );
+}
+
+// The Wayback Machine's own calendar data (what its year/month view draws
+// from): first and last capture, and a capture count per month. The CDX index
+// can list every capture but takes a minute or times out on busy sites; this
+// answers in about a second.
+async function osintWayback(params) {
+  const target = (params.get('url') ?? '').trim();
+  if (!target || target.length > 300) return json({ error: 'Bad URL' }, 400);
+  const r = await osintFetch(
+    `https://web.archive.org/__wb/sparkline?output=json&url=${encodeURIComponent(target)}&collapse=timestamp:4`,
+    20000,
+  );
+  if (!r.ok)
+    return json({ error: 'The Internet Archive did not answer.' }, 502);
+  const body = await r.json().catch(() => null);
+  if (!body)
+    return json({ error: 'The Internet Archive did not answer.' }, 502);
+  return json(
+    {
+      first: body.first_ts ?? null,
+      last: body.last_ts ?? null,
+      years: body.years ?? {},
+    },
+    200,
+    'public, max-age=3600',
+  );
+}
+
+const EMAIL = /^[^\s@]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
+
+// LeakCheck's free public endpoint: which leaks an email turns up in (no
+// passwords or other rows, just the source names and dates).
+async function osintLeakCheck(params) {
+  const email = (params.get('email') ?? '').trim();
+  if (!EMAIL.test(email)) return json({ error: 'Bad email' }, 400);
+  const r = await osintFetch(
+    `https://leakcheck.io/api/public?check=${encodeURIComponent(email)}`,
+    15000,
+  );
+  if (r.status === 429)
+    return json({ error: 'LeakCheck is rate limiting; try again soon.' }, 429);
+  const body = await r.json().catch(() => null);
+  if (!body) return json({ error: 'LeakCheck did not answer.' }, 502);
+  return json({
+    found: body.success ? body.found : 0,
+    fields: body.fields ?? [],
+    sources: body.success ? (body.sources ?? []) : [],
+  });
+}
+
+async function osintBreaches() {
+  const r = await osintFetch(
+    'https://haveibeenpwned.com/api/v3/breaches',
+    15000,
+  );
+  if (!r.ok) return json({ error: 'Have I Been Pwned did not answer.' }, 502);
+  const list = await r.json();
+  return json(
+    list.map((b) => ({
+      name: b.Name,
+      title: b.Title,
+      domain: b.Domain,
+      date: b.BreachDate,
+      count: b.PwnCount,
+      classes: b.DataClasses,
+      verified: b.IsVerified,
+      sensitive: b.IsSensitive,
+      description: b.Description,
+    })),
+    200,
+    'public, max-age=86400',
+  );
 }
 
 function passThrough(response) {
