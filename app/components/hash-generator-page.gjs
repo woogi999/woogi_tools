@@ -108,6 +108,8 @@ export default class HashGeneratorPage extends Component {
   <template>
     <ToolPage
       @route="hash-generator"
+      @busy={{this.busy}}
+      @closeWarning="Close the Hash Generator? The file being hashed will stop."
       @subtitle="Hash text or a file with MD5, SHA-1, SHA-2 or CRC-32, then compare it to a checksum to make sure nothing’s been tampered with."
     >
       <div

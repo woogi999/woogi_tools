@@ -18,8 +18,12 @@ export const CHANGELOG = [
         text: 'OSINT: a new category for finding things out from public sources. The IP Address Lookup and Domain Lookup have moved into it from Developer.',
       },
       {
+        type: 'improved',
+        text: 'Picture-in-picture for more tools: leave the Grammar Checker, Hash Generator, Translator, Pomodoro Timer, GitHub Repo Checker, the image editors and every OSINT tool mid-job and it floats in a small window and carries on, the way the converters already did.',
+      },
+      {
         type: 'new',
-        text: 'Username Search: see which of nearly 300 sites, from Instagram, TikTok, X and Discord to small forums, have an account under a name, the way Sherlock does it.',
+        text: 'Username Search: see which of nearly 300 sites, from Instagram, TikTok, X and Discord to small forums, have an account under a name, the way Sherlock does it. Add any site it doesn’t check yourself.',
       },
       {
         type: 'new',

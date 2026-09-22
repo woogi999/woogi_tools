@@ -291,6 +291,8 @@ export default class ImageEditorPage extends Component {
     {{! template-lint-disable no-pointer-down-event-binding }}
     <ToolPage
       @route="image-editor"
+      @busy={{this.busy}}
+      @closeWarning="Close the Image Editor? The picture being saved will be lost."
       @subtitle="A darkroom for one photo: light, colour, detail and effects sliders, plus dither, pixelate and posterize for the fun stuff. Nothing is uploaded."
     >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>

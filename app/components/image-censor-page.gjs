@@ -274,6 +274,8 @@ export default class ImageCensorPage extends Component {
     {{! template-lint-disable no-pointer-down-event-binding }}
     <ToolPage
       @route="image-censor"
+      @busy={{this.busy}}
+      @closeWarning="Close Image Censor? The picture being saved will be lost."
       @subtitle="Blur, pixelate or black out the parts of a picture that shouldn't be seen: drag a box or an oval, or paint over them with a brush. Nothing leaves your device."
     >
       <div class="fs" {{acceptPastedFiles this.pasteFiles}}>

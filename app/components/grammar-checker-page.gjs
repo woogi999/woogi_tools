@@ -228,6 +228,8 @@ export default class GrammarCheckerPage extends Component {
   <template>
     <ToolPage
       @route="grammar-checker"
+      @busy={{this.busy}}
+      @closeWarning="Close the Grammar Checker? The check still running will stop."
       @subtitle="Checks your spelling, grammar, punctuation and style with LanguageTool, and says what is wrong with each one rather than just underlining it."
     >
       <div class="lt-layout pop-in">

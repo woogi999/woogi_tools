@@ -61,6 +61,8 @@ export default class SubdomainFinderPage extends Component {
   <template>
     <ToolPage
       @route="subdomain-finder"
+      @busy={{this.busy}}
+      @closeWarning="Close Subdomain Finder? The search still running will stop."
       @subtitle="Every subdomain that has ever had an HTTPS certificate, from the public certificate-transparency logs."
     >
       <div class="pop-in">

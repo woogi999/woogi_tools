@@ -129,6 +129,8 @@ export default class PhotoMetadataPage extends Component {
   <template>
     <ToolPage
       @route="photo-metadata"
+      @busy={{this.busy}}
+      @closeWarning="Close Photo Metadata? The photo being read will be dropped."
       @subtitle="What a photo gives away: where it was taken, on what, when and by whom, read from its EXIF, IPTC and XMP tags."
     >
       <div class="math-grid pop-in" {{acceptPastedFiles this.pasteFiles}}>

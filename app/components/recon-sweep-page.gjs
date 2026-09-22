@@ -73,6 +73,10 @@ export default class ReconSweepPage extends Component {
     }));
   }
 
+  get busy() {
+    return Object.values(this.status).includes('running');
+  }
+
   get records() {
     const dns = Array.isArray(this.data.dns) ? this.data.dns : [];
     const of = (type) =>
@@ -226,6 +230,8 @@ export default class ReconSweepPage extends Component {
   <template>
     <ToolPage
       @route="recon-sweep"
+      @busy={{this.busy}}
+      @closeWarning="Close Recon Sweep? The sweep still running will stop."
       @subtitle="One domain in; its registration, servers, subdomains, history and breaches out, drawn as a map of how they connect."
     >
       <div class="pop-in">

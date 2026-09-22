@@ -176,6 +176,8 @@ export default class TranslatorPage extends Component {
   <template>
     <ToolPage
       @route="translator"
+      @busy={{this.busy}}
+      @closeWarning="Close the Translator? The translation still running will stop."
       @subtitle="Type on the left and the translation appears on the right, in any of more than a hundred languages. Leave the source on detect and it works out what you wrote."
     >
       <div class="tr-layout pop-in">

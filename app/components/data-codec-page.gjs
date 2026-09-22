@@ -126,6 +126,8 @@ export default class DataCodecPage extends Component {
   <template>
     <ToolPage
       @route="data-codec"
+      @busy={{this.busy}}
+      @closeWarning="Close Data Codec? The conversion still running will stop."
       @subtitle="Compress it, encode it, decode it: Base64, URLs, hex, binary, Morse and more. Nothing leaves your browser."
     >
       <section class="tool-panel pop-in">
