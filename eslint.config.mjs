@@ -30,7 +30,7 @@ const esmParserOptions = {
 };
 
 export default defineConfig([
-  globalIgnores(['dist/', 'coverage/', '!**/.*']),
+  globalIgnores(['dist/', 'coverage/', '!**/.*', '.wrangler/']),
   js.configs.recommended,
   eslintConfigPrettier,
   ember.configs.base,
@@ -56,6 +56,18 @@ export default defineConfig([
       parserOptions: esmParserOptions,
       globals: {
         ...globals.browser,
+      },
+    },
+  },
+  /**
+   * Cloudflare Worker: the runtime's own globals on top of the browser ones.
+   */
+  {
+    files: ['worker/**/*.js'],
+    languageOptions: {
+      globals: {
+        WebSocketPair: 'readonly',
+        DurableObject: 'readonly',
       },
     },
   },

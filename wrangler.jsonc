@@ -9,28 +9,35 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*"],
   },
   "vars": {
-    "TURN_KEY_ID": "2900fc412b4c30e1bdc49baf7079dc59"
+    "TURN_KEY_ID": "2900fc412b4c30e1bdc49baf7079dc59",
   },
   // Disposable Emails: incoming mail waits here for an hour. Create the
   // namespace with `npx wrangler kv namespace create TEMP_MAIL` and paste
   // its id below; then in the dashboard enable Email Routing for
   // temp.woogi.xyz with a catch-all rule that sends to this Worker.
+  // File Share's WebSocket relay (worker/relay-room.js): one room per share
+  // code, used only when WebRTC can't connect the two browsers directly.
+  "durable_objects": {
+    "bindings": [{ "name": "RELAY_ROOM", "class_name": "RelayRoom" }],
+  },
+  // SQLite-backed, so this works on the free plan too.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayRoom"] }],
   "kv_namespaces": [
     {
       "binding": "TEMP_MAIL",
-      "id": "b2a7ddcfc12b4b86a6ca40887aeb642c"
-    }
+      "id": "b2a7ddcfc12b4b86a6ca40887aeb642c",
+    },
   ],
   // Worker logs, including one log per invocation, visible in the Cloudflare dashboard.
   "observability": {
     "logs": {
       "enabled": true,
-      "invocation_logs": true
-    }
-  }
+      "invocation_logs": true,
+    },
+  },
   // Secrets, set with `npx wrangler secret put <NAME>` (never committed):
   //   TURN_KEY_ID           the Cloudflare Realtime TURN key id
   //   TURN_KEY_API_TOKEN    that key's API token

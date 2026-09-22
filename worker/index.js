@@ -14,6 +14,12 @@
 // POST /api/translate does the same for the Translator with Google Translate's
 // public endpoint, so the page never talks to Google itself.
 //
+// GET /api/relay-room is File Share's fallback transport: a WebSocket that
+// forwards file pieces between two browsers that WebRTC could not introduce
+// to each other (see worker/relay-room.js). It is deliberately not a TURN
+// server; it is a plain socket on 443, which is what gets it through networks
+// that block UDP.
+//
 // GET /api/roblox fetches public Roblox assets and their details for the
 // Roblox Asset Viewer, since Roblox's endpoints refuse browsers on other sites.
 //
@@ -25,6 +31,8 @@
 
 import PostalMime from 'postal-mime';
 
+export { RelayRoom } from './relay-room.js';
+
 const CREDENTIAL_TTL_S = 6 * 60 * 60;
 
 // The free public service. Point LANGUAGETOOL_URL at your own instance
@@ -34,7 +42,11 @@ const LANGUAGETOOL_URL = 'https://api.languagetool.org/v2/check';
 // message rather than letting it come back as an opaque error.
 const MAX_TEXT_BYTES = 20000;
 // Google Translate, as the browser extensions and most free clients use it.
-const TRANSLATE_URL = 'https://translate.googleapis.com/translate_a/single';
+// Google's Chrome-extension translation endpoint. The older
+// translate.googleapis.com/translate_a/single answers `client=gtx` with a 429
+// for almost every datacenter address, which is what a Worker calls from, so
+// the Translator used to report "busy" more or less permanently.
+const TRANSLATE_URL = 'https://clients5.google.com/translate_a/t';
 const MAX_TRANSLATE_CHARS = 5000;
 
 export default {
@@ -45,6 +57,7 @@ export default {
     if (url.pathname === '/api/translate') return translate(request);
     if (url.pathname === '/api/roblox') return roblox(request);
     if (url.pathname === '/api/mail') return mail(request, env);
+    if (url.pathname === '/api/relay-room') return relayRoom(request, env);
     if (url.pathname.startsWith('/api/'))
       return json({ error: 'Not found' }, 404);
     return env.ASSETS.fetch(request);
@@ -145,6 +158,23 @@ async function mail(request, env) {
       .filter(Boolean)
       .sort((a, b) => (b.date > a.date ? 1 : -1)),
   });
+}
+
+// Hands the socket to the Durable Object named after the share code, so both
+// sides of one share land in the same room and no other share can see it.
+function relayRoom(request, env) {
+  if (!env.RELAY_ROOM)
+    return json({ error: 'The relay is not configured' }, 503);
+  const url = new URL(request.url);
+  const origin = request.headers.get('Origin');
+  // Only pages on this site should be opening rooms.
+  if (origin && origin !== url.origin) return json({ error: 'Forbidden' }, 403);
+  const code = (url.searchParams.get('code') || '').toUpperCase();
+  // The same alphabet File Share generates codes from (utils/file-share.js).
+  if (!/^[A-HJ-NP-Z2-9]{4,12}$/.test(code))
+    return json({ error: 'Bad room code' }, 400);
+  const room = env.RELAY_ROOM.get(env.RELAY_ROOM.idFromName(code));
+  return room.fetch(request);
 }
 
 async function turn(request, env) {
@@ -295,10 +325,9 @@ async function translate(request) {
   let response;
   try {
     const params = new URLSearchParams({
-      client: 'gtx',
+      client: 'dict-chrome-ex',
       sl: from,
       tl: to,
-      dt: 't',
       q: text,
     });
     // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Google Translate
@@ -316,13 +345,15 @@ async function translate(request) {
   if (!response.ok)
     return json({ error: 'The translator turned that down.' }, 502);
 
-  // Google's reply is a nested array: [0] holds [translated, original]
-  // segments, [2] the language it detected.
+  // The reply is a one-element array. Asked to detect the language it is
+  // [[translated, detected]]; told the language outright it is just
+  // [translated].
   const data = await response.json();
-  const segments = Array.isArray(data?.[0]) ? data[0] : [];
+  const first = Array.isArray(data) ? data[0] : null;
+  const pair = Array.isArray(first) ? first : [first, null];
   return json({
-    text: segments.map((s) => s?.[0] ?? '').join(''),
-    detected: typeof data?.[2] === 'string' ? data[2] : null,
+    text: typeof pair[0] === 'string' ? pair[0] : '',
+    detected: typeof pair[1] === 'string' ? pair[1] : null,
   });
 }
 

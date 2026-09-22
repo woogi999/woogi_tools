@@ -2364,6 +2364,42 @@ export const TOOLS = [
     ],
   },
   {
+    label: 'Video Editor',
+    route: 'video-editor',
+    icon: 'film',
+    category: 'Audio & Video',
+    description:
+      'A motion-graphics editor in the page: scenes, layers, keyframes with real easing, parenting, mattes and 145 effects.',
+    keywords: [
+      'video editor',
+      'motion graphics',
+      'after effects',
+      'timeline',
+      'keyframe',
+      'animation',
+      'easing',
+      'compositor',
+      'layers',
+      'effects',
+      'titles',
+      'lower third',
+      'edit video',
+      'trim',
+      'split',
+      'ferrite',
+    ],
+    madeWith:
+      'A port of Project Ferrite’s editor — a native Rust/Iced broadcast-graphics application — rather than a tool inspired by it. The whole authoring half came over: the menu bar and its keymap, the four docks with their tab strips, a project of scenes each with its own raster and frame rate, ten kinds of layer with an in and an out, a style whose every number can be keyframed on the same seven easing curves, a parent link that carries a transform and an opacity down a chain, track mattes, and the After Effects timeline with its twirl-down property rows, stopwatches, draggable keyframes and trim grips. The 145-effect catalogue is translated from the Rust source: each effect turns its sampled parameters into a CSS fragment in one of five slots, and because a 2D canvas takes the same filter grammar, the 112 filter-slot effects are honoured exactly as written while masks, gradients and shadows are composited by hand. None of Ferrite’s production half came over — no surface host, no WebGPU engine, no frame bridge, no browser-source outputs, no control API, no take-to-program bus — so where Ferrite hands a frame to an output, this records the composite canvas with MediaRecorder and mixes every clip’s sound through one Web Audio graph. FFmpeg in WebAssembly writes an MP4 when you ask for one. There is one renderer, which is Ferrite’s own rule: the viewport and the written-out file are the same function. Nothing leaves your device.',
+    credits: [
+      {
+        name: 'ffmpeg.wasm',
+        author: 'Jerome Wu',
+        license: 'MIT (FFmpeg: LGPL/GPL)',
+        url: 'https://github.com/ffmpegwasm/ffmpeg.wasm',
+      },
+    ],
+  },
+  {
     label: 'Barcode Generator',
     route: 'barcode-generator',
     icon: 'barcode',
