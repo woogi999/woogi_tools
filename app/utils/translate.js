@@ -8,7 +8,11 @@
 // `from` may be 'auto'; `detected` is the language Google decided it was.
 
 const ENDPOINT = '/api/translate';
-const PUBLIC_ENDPOINT = 'https://translate.googleapis.com/translate_a/single';
+// Google's Chrome-extension translation endpoint. The older
+// translate.googleapis.com/translate_a/single answers `client=gtx` with a 429
+// for most shared addresses now; this one is not throttled that way and sends
+// `Access-Control-Allow-Origin: *`, so the page can call it itself.
+const PUBLIC_ENDPOINT = 'https://clients5.google.com/translate_a/t';
 
 export const LANGUAGES = [
   { code: 'af', label: 'Afrikaans' },
@@ -118,22 +122,23 @@ export const languageLabel = (code) =>
   // Google reports a script-less code for the Chinese variants.
   (code?.startsWith('zh') ? 'Chinese' : code);
 
-// Google's reply is a nested array: [0] is a list of [translated, original]
-// segments, [2] the language it detected.
+// The reply is a one-element array. Asked to detect the language it is
+// [[translated, detected]]; told the language outright it is just [translated].
 export function parseGoogle(data) {
-  const segments = Array.isArray(data?.[0]) ? data[0] : [];
-  return {
-    text: segments.map((s) => s?.[0] ?? '').join(''),
-    detected: typeof data?.[2] === 'string' ? data[2] : null,
-  };
+  const first = Array.isArray(data) ? data[0] : null;
+  if (Array.isArray(first))
+    return {
+      text: typeof first[0] === 'string' ? first[0] : '',
+      detected: typeof first[1] === 'string' ? first[1] : null,
+    };
+  return { text: typeof first === 'string' ? first : '', detected: null };
 }
 
 export const googleUrl = (text, from, to) =>
   `${PUBLIC_ENDPOINT}?${new URLSearchParams({
-    client: 'gtx',
+    client: 'dict-chrome-ex',
     sl: from || 'auto',
     tl: to,
-    dt: 't',
     q: text,
   })}`;
 
@@ -148,10 +153,15 @@ export async function translate(text, from, to, { signal } = {}) {
       body: JSON.stringify({ text, from, to }),
       signal,
     });
-    // A static host answers the API path with the app shell or a 404.
+    // A static host answers the API path with the app shell or a 404. And
+    // Google rate-limits the Worker's datacenter address far harder than a
+    // home connection, so a 429 (or any Worker-side failure) is worth
+    // retrying straight from the page rather than reporting as "busy".
     if (
       response.status === 404 ||
       response.status === 405 ||
+      response.status === 429 ||
+      response.status >= 500 ||
       !response.headers.get('content-type')?.includes('json')
     )
       response = null;

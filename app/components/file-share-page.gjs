@@ -17,6 +17,7 @@ import {
   formatBytes,
 } from '../utils/file-share';
 import { directOrRelayedPeerOptions } from '../utils/ice';
+import { openRelayLink } from '../utils/relay-link';
 import { acceptPastedFiles } from '../utils/paste-files';
 import { holdAwake, releaseAwake } from '../utils/keep-awake';
 
@@ -35,6 +36,13 @@ const WARM_BYTES = 32 * 1024 * 1024;
 
 // After this long with nobody connected, explain what might be blocking it.
 const SLOW_CONNECT_MS = 20000;
+
+// WebRTC is given this long to introduce the two browsers directly before the
+// relay is tried as well (utils/relay-link.js). Direct is worth waiting a few
+// seconds for: it is faster and touches nothing in between. But on a network
+// that blocks UDP, or between two strict NATs, waiting longer never helps --
+// the direct attempt is not slow, it is impossible.
+const RELAY_AFTER_MS = 8000;
 
 // Chrome/Edge can stream straight to a file on disk; other browsers have to
 // buffer the pieces and hand back a single Blob once the transfer finishes.
@@ -82,11 +90,21 @@ export default class FileSharePage extends Component {
   @tracked incoming = [];
   @tracked dragging = false;
   @tracked slowToConnect = false;
+  // True once the WebSocket fallback is carrying the transfer, so the page can
+  // say so rather than claiming a direct connection it doesn't have.
+  @tracked relayed = false;
+  // Set when neither a direct connection nor the relay could be established,
+  // so the hint can stop saying "still looking".
+  @tracked relayFailed = false;
 
   peer = null;
   role = null; // 'host' | 'join'
   connections = new Map();
   slowTimer = null;
+  relayTimer = null;
+  relayAbort = null;
+  relayConnection = null;
+  relayPending = false;
   sending = false;
 
   // Keyed by transfer id: buffered chunks awaiting a save location, open
@@ -116,6 +134,7 @@ export default class FileSharePage extends Component {
       releaseAwake('file-share');
       this.peer?.destroy();
       clearTimeout(this.slowTimer);
+      this.abandonRelay();
       for (const writer of this.writers.values())
         writer.abort().catch(() => {});
       for (const t of this.incoming)
@@ -195,12 +214,75 @@ export default class FileSharePage extends Component {
     this.slowTimer = setTimeout(() => {
       if (!this.peers.length) this.slowToConnect = true;
     }, SLOW_CONNECT_MS);
+    clearTimeout(this.relayTimer);
+    this.relayTimer = setTimeout(() => this.tryRelay(), RELAY_AFTER_MS);
+  }
+
+  // The fallback: both sides join a room named after the share code on this
+  // site's own Worker, and their file pieces are forwarded over a WebSocket.
+  // Whichever transport connects first wins and the other is dropped, so a
+  // direct connection is still preferred whenever one is possible.
+  async tryRelay() {
+    // Both the timer and a WebRTC failure can ask for the relay; only the
+    // first of them should open a socket.
+    if (this.relayPending || !this.canStillRelay) return;
+    this.relayPending = true;
+    this.relayAbort = new AbortController();
+    let connection;
+    try {
+      connection = await openRelayLink(this.shareCode, {
+        signal: this.relayAbort.signal,
+      });
+    } catch {
+      this.relayPending = false;
+      // Neither transport worked. Say so rather than spinning for ever.
+      if (this.canStillRelay) {
+        this.slowToConnect = true;
+        this.relayFailed = true;
+      }
+      return;
+    }
+    this.relayPending = false;
+    // WebRTC got there while we were waiting, or the share was torn down.
+    if (this.hasPeers || !this.active) {
+      connection.close();
+      return;
+    }
+    this.relayConnection = connection;
+    connection.on('close', () => {
+      if (this.relayConnection === connection) {
+        this.relayConnection = null;
+        this.relayed = false;
+      }
+    });
+    this.relayed = true;
+    this.attachConnection(connection);
+  }
+
+  // Called once a direct connection is up: the relay is no longer wanted.
+  abandonRelay() {
+    clearTimeout(this.relayTimer);
+    this.relayTimer = null;
+    this.relayAbort?.abort();
+    this.relayAbort = null;
+    this.relayConnection?.close();
+    this.relayConnection = null;
+    this.relayPending = false;
+    this.relayed = false;
+    this.relayFailed = false;
   }
 
   attachConnection(conn) {
     conn.on('open', () => {
       clearTimeout(this.slowTimer);
       this.slowToConnect = false;
+      // A direct connection makes the relay redundant; tear it down before it
+      // can carry a duplicate copy of the same file.
+      if (conn !== this.relayConnection) {
+        const relayed = this.relayConnection;
+        this.abandonRelay();
+        if (relayed) this.dropConnection(relayed.peer);
+      }
       this.connections.set(conn.peer, conn);
       this.peers = [...this.connections.keys()];
       this.flushQueue();
@@ -217,6 +299,15 @@ export default class FileSharePage extends Component {
 
   handlePeerError(error) {
     if (this.hasPeers) return; // an already-connected share can ignore late/unrelated errors
+    // A wrong or taken code is the person's problem to fix, and no relay can
+    // help with it. Everything else is the network refusing WebRTC -- which is
+    // exactly what the relay is for, so don't tear the share down over it.
+    const fatal =
+      error?.type === 'unavailable-id' || error?.type === 'peer-unavailable';
+    if (!fatal && this.canStillRelay) {
+      this.tryRelay();
+      return;
+    }
     if (error?.type === 'private-connection') this.joinError = error.message;
     else if (error?.type === 'unavailable-id')
       this.joinError = 'That code just got taken by someone else. Try again.';
@@ -226,6 +317,12 @@ export default class FileSharePage extends Component {
       this.joinError =
         "Couldn't reach the connection service. Check your connection and try again.";
     this.startOver();
+  }
+
+  // The relay is still worth trying while the share is up and nothing else
+  // has connected -- including when it is already mid-attempt.
+  get canStillRelay() {
+    return this.active && !this.hasPeers && !this.relayConnection;
   }
 
   onMessage(peerId, message) {
@@ -246,6 +343,7 @@ export default class FileSharePage extends Component {
     this.warm.clear();
     this.peer?.destroy();
     clearTimeout(this.slowTimer);
+    this.abandonRelay();
     this.slowToConnect = false;
     this.peer = null;
     this.role = null;
@@ -600,12 +698,18 @@ export default class FileSharePage extends Component {
                   />
                   {{this.peerLabel}}
                 </p>
-                {{#if this.slowToConnect}}
+                {{#if this.relayed}}
+                  <p class="tool-hint">This network wouldn't allow a direct
+                    connection, so the files are going through this site
+                    instead. Nothing is stored — the pieces are passed straight
+                    along — but it may be slower than a direct transfer.</p>
+                {{else if this.relayFailed}}
+                  <p class="tool-hint">Couldn't connect, directly or through
+                    this site. Check that both devices are online and that the
+                    other one has the code entered, then try again.</p>
+                {{else if this.slowToConnect}}
                   <p class="tool-hint">Still looking. Keep this tab open on both
-                    devices. If it never connects, one of the networks (often
-                    mobile data, work or school Wi-Fi) is blocking direct
-                    browser-to-browser connections; try both devices on the same
-                    Wi-Fi.</p>
+                    devices, and make sure the other one has the code entered.</p>
                 {{/if}}
                 <button
                   type="button"

@@ -15,6 +15,11 @@ import ConfirmHost from '../components/confirm-host';
 import { installUiSounds } from '../utils/ui-sounds';
 import { installGamepad } from '../utils/gamepad';
 
+// Routes that take the whole window: no sidebar, no header, no theme
+// controls, no command palette. A bare route is a page in its own right and
+// is responsible for its own way back into the site.
+const BARE_ROUTES = ['video-editor'];
+
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
   @service offline;
@@ -71,6 +76,19 @@ export default class Application extends Component {
     };
   });
 
+  get bare() {
+    return BARE_ROUTES.includes(this.router.currentRouteName);
+  }
+
+  // The shell normally lets the page scroll; a bare route is a fixed layer
+  // over the whole viewport, so the scrollbar it would leave behind is taken
+  // away while it is open and given back when it closes.
+  lockScroll = modifier(() => {
+    const root = document.documentElement;
+    root.dataset.bare = 'true';
+    return () => delete root.dataset.bare;
+  });
+
   get isHome() {
     return this.router.currentRouteName === 'index';
   }
@@ -82,103 +100,111 @@ export default class Application extends Component {
   <template>
     {{pageTitle "Woogi Tools"}}
 
-    <div class="app-shell">
-      <header class="mobile-header">
-        <button
-          type="button"
-          class="mobile-menu-btn"
-          aria-label="Toggle menu"
-          aria-expanded={{if this.navOpen "true" "false"}}
-          {{on "click" this.toggleNav}}
-        >
-          <Icon @name="menu" @size={{18}} />
-        </button>
-        <LinkTo @route="index" class="mobile-brand">
-          <img
-            src="/icon_expanded.png"
-            alt="Woogi Tools"
-            class="mobile-brand-logo"
-          />
-        </LinkTo>
-        <div class="top-controls mobile-theme-toggle">
-          <VolumeButton />
-          <ThemeToggle />
-        </div>
-      </header>
-
-      {{#if this.navOpen}}
-        <button
-          type="button"
-          class="sidebar-backdrop"
-          aria-label="Close menu"
-          {{on "click" this.closeNav}}
-        ></button>
-      {{/if}}
-
-      <aside
-        class="sidebar {{if this.navOpen 'is-open'}}"
-        {{this.watchScroll this.router.currentRouteName}}
-      >
-        <LinkTo @route="index" class="sidebar-brand">
-          <span
-            class="brand-logo-wrap {{if this.collapseBrand 'is-collapsed'}}"
+    {{#if this.bare}}
+      <div {{this.lockScroll}}>
+        {{outlet}}
+      </div>
+      <ConfirmHost />
+    {{else}}
+      <div class="app-shell">
+        <header class="mobile-header">
+          <button
+            type="button"
+            class="mobile-menu-btn"
+            aria-label="Toggle menu"
+            aria-expanded={{if this.navOpen "true" "false"}}
+            {{on "click" this.toggleNav}}
           >
+            <Icon @name="menu" @size={{18}} />
+          </button>
+          <LinkTo @route="index" class="mobile-brand">
             <img
               src="/icon_expanded.png"
               alt="Woogi Tools"
-              class="brand-logo brand-logo-static"
+              class="mobile-brand-logo"
             />
-            <img
-              src="/icon_expanded.gif"
-              alt=""
-              aria-hidden="true"
-              class="brand-logo brand-logo-gif"
-            />
-          </span>
-        </LinkTo>
+          </LinkTo>
+          <div class="top-controls mobile-theme-toggle">
+            <VolumeButton />
+            <ThemeToggle />
+          </div>
+        </header>
 
-        <SidebarNav
-          @onNavigate={{this.closeNav}}
-          @collapsed={{this.collapseBrand}}
-        />
-      </aside>
+        {{#if this.navOpen}}
+          <button
+            type="button"
+            class="sidebar-backdrop"
+            aria-label="Close menu"
+            {{on "click" this.closeNav}}
+          ></button>
+        {{/if}}
 
-      <div class="content-col">
-        <div class="top-controls desktop-theme-toggle">
-          <VolumeButton />
-          <ThemeToggle />
+        <aside
+          class="sidebar {{if this.navOpen 'is-open'}}"
+          {{this.watchScroll this.router.currentRouteName}}
+        >
+          <LinkTo @route="index" class="sidebar-brand">
+            <span
+              class="brand-logo-wrap {{if this.collapseBrand 'is-collapsed'}}"
+            >
+              <img
+                src="/icon_expanded.png"
+                alt="Woogi Tools"
+                class="brand-logo brand-logo-static"
+              />
+              <img
+                src="/icon_expanded.gif"
+                alt=""
+                aria-hidden="true"
+                class="brand-logo brand-logo-gif"
+              />
+            </span>
+          </LinkTo>
+
+          <SidebarNav
+            @onNavigate={{this.closeNav}}
+            @collapsed={{this.collapseBrand}}
+          />
+        </aside>
+
+        <div class="content-col">
+          <div class="top-controls desktop-theme-toggle">
+            <VolumeButton />
+            <ThemeToggle />
+          </div>
+
+          <main>
+            {{outlet}}
+          </main>
         </div>
-
-        <main>
-          {{outlet}}
-        </main>
       </div>
-    </div>
 
-    <CommandPalette />
+      <CommandPalette />
 
-    {{! After the outlet on purpose: pages register their tools first (see services/pip.js). }}
-    <PipLayer />
+      {{! After the outlet on purpose: pages register their tools first (see services/pip.js). }}
+      <PipLayer />
 
-    <ConfirmHost />
+      <ConfirmHost />
 
-    {{#if this.offline.updateReady}}
-      <div class="update-toast pop-in" role="status">
-        <Icon @name="refresh-cw" @size={{14}} />
-        <span>A new version of Woogi Tools is ready.</span>
-        <LinkTo @route="updates" class="update-toast-link">What's new</LinkTo>
-        <button
-          type="button"
-          class="btn math-use"
-          {{on "click" this.offline.reload}}
-        >Reload</button>
-        <button
-          type="button"
-          class="qr-icon-btn"
-          aria-label="Dismiss"
-          {{on "click" this.offline.dismissUpdate}}
-        ><Icon @name="x" @size={{13}} /></button>
-      </div>
+      {{#if this.offline.updateReady}}
+        <div class="update-toast pop-in" role="status">
+          <Icon @name="refresh-cw" @size={{14}} />
+          <span>A new version of Woogi Tools is ready.</span>
+          <LinkTo @route="updates" class="update-toast-link">What's new</LinkTo>
+          <button
+            type="button"
+            class="btn math-use"
+            {{on "click" this.offline.reload}}
+          >Reload</button>
+          <button
+            type="button"
+            class="qr-icon-btn"
+            aria-label="Dismiss"
+            {{on "click" this.offline.dismissUpdate}}
+          ><Icon @name="x" @size={{13}} /></button>
+        </div>
+      {{/if}}
+
     {{/if}}
 
     <svg class="doodle-filters" aria-hidden="true">

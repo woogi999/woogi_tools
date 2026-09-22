@@ -6,6 +6,7 @@
 @use "./additions";
 @use "./mockups";
 @use "./messages";
+@use "./ferrite";
 @use "./woonopoly";
 @use "leaflet/dist/leaflet.css";
 
@@ -52,6 +53,14 @@ html,
 body {
   margin: 0;
   padding: 0;
+}
+
+// A bare route (see templates/application.gjs) is a fixed layer over the
+// whole viewport, so the page behind it must not scroll.
+html[data-bare],
+html[data-bare] body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {

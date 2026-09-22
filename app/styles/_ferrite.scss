@@ -1,0 +1,1643 @@
+// ─── Video editor ────────────────────────────────────────────────────────
+// Ferrite's editor, wearing this site's clothes.
+//
+// The upstream application is grey #232323 with one purple accent. None of
+// that is here: every surface, border and piece of text comes from the site's
+// own tokens, so the editor is the same colour as the rest of the pages and
+// follows light and dark with them. The site's idiom for "this one is on" is
+// an inversion — `background: var(--text); color: var(--bg)` — and that is
+// what marks an armed tool, a selected tab and an active toggle here too.
+//
+// What Ferrite's purple was *for* still has to be answered, though: a playhead
+// you cannot find is a playhead that wastes your time. So the one thing drawn
+// in colour is the playhead and the markers, in the site's own `--card-red`.
+//
+// The editor takes the whole window (the route renders with no site chrome at
+// all), so this is a fixed layer rather than a card in a page.
+
+.fr {
+  // ── the elevation ladder, mixed from the page's own background and text so
+  // it runs the right way in both themes: lighter as it rises in the dark,
+  // darker as it rises in the light.
+  // Kept tight on purpose. An editor is mostly chrome, and chrome that drifts
+  // up the ladder ends up a pale grey box with a picture lost in the middle of
+  // it, so each step is only just enough to read as a separate surface.
+  --fr-bg: var(--bg);
+  --fr-panel: color-mix(in oklab, var(--bg) 97%, var(--text) 3%);
+  --fr-panel-alt: color-mix(in oklab, var(--bg) 94%, var(--text) 6%);
+  --fr-raised: color-mix(in oklab, var(--bg) 90%, var(--text) 10%);
+  --fr-raised-hi: color-mix(in oklab, var(--bg) 84%, var(--text) 16%);
+
+  --fr-border: var(--border-color);
+  --fr-border-soft: color-mix(in oklab, var(--border-color) 55%, transparent);
+
+  --fr-text: var(--text);
+  --fr-text-soft: var(--text-dim);
+  --fr-dim: var(--text-dim);
+  --fr-faint: var(--text-faint);
+  --fr-accent: var(--accent);
+  --fr-error: var(--card-red);
+
+  // The playhead and the markers: the only colour in the editor.
+  --fr-playhead: var(--card-red);
+  --fr-marker: var(--card-red);
+  --fr-marker-soft: color-mix(in oklab, var(--card-red) 45%, transparent);
+
+  // ── what the timeline canvas draws with
+  --fr-grid: color-mix(in oklab, var(--text) 7%, transparent);
+  --fr-stripe: color-mix(in oklab, var(--text) 4%, transparent);
+  --fr-selection: color-mix(in oklab, var(--text) 13%, transparent);
+  --fr-bar: color-mix(in oklab, var(--bg) 84%, var(--text) 16%);
+  --fr-bar-active: color-mix(in oklab, var(--bg) 55%, var(--text) 45%);
+  --fr-grip: color-mix(in oklab, var(--text) 38%, transparent);
+  --fr-grip-active: color-mix(in oklab, var(--text) 75%, transparent);
+  --fr-key: var(--text-dim);
+  --fr-key-summary: var(--text-faint);
+  --fr-key-selected: var(--text);
+
+  --fr-menu-h: 36px;
+  --fr-toolbar-h: 34px;
+  --fr-status-h: 22px;
+  --fr-tabs-h: 26px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--fr-bg);
+  color: var(--fr-text);
+  font-size: 11px;
+  outline: none;
+  user-select: none;
+}
+
+.fr.is-dragging::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  border: 2px dashed var(--fr-accent);
+  border-radius: var(--radius-card);
+}
+
+.fr button,
+.fr input,
+.fr select,
+.fr textarea {
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--fr-text);
+}
+
+// ─── the menu bar, with the mark that leads back to the site
+.fr-menubar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--fr-menu-h);
+  padding: 0 10px;
+  background: var(--fr-panel-alt);
+  border-bottom: 1px solid var(--fr-border);
+  flex: none;
+}
+
+.fr-brand {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 10px 0 0;
+  margin-right: 6px;
+  border-right: 1px solid var(--fr-border);
+}
+
+.fr-brand img {
+  height: 20px;
+  width: auto;
+  display: block;
+}
+
+.fr-brand:hover img {
+  opacity: 0.8;
+}
+
+.fr-menu-btn {
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--fr-text-soft);
+  cursor: pointer;
+}
+
+.fr-menu-btn:hover {
+  background: var(--fr-raised);
+  color: var(--fr-text);
+}
+
+.fr-menu-btn.is-open {
+  background: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+// ─── the toolbar
+.fr-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--fr-toolbar-h);
+  padding: 0 10px;
+  background: var(--fr-panel);
+  border-bottom: 1px solid var(--fr-border);
+  flex: none;
+}
+
+.fr-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--fr-border);
+  margin: 0 4px;
+}
+
+.fr-spacer {
+  flex: 1;
+}
+
+.fr-faint {
+  color: var(--fr-faint);
+}
+
+.fr-soft {
+  color: var(--fr-text-soft);
+}
+
+.fr-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: var(--fr-status-h);
+  padding: 0 12px;
+  background: var(--fr-panel-alt);
+  border-top: 1px solid var(--fr-border);
+  color: var(--fr-text-soft);
+  font-size: 10px;
+  flex: none;
+}
+
+// ─── controls, following the site's own shapes
+.fr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-raised);
+  color: var(--fr-text);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.fr-btn:hover {
+  border-color: var(--fr-text-faint, var(--fr-dim));
+}
+
+.fr-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.fr-btn.is-accent {
+  background: var(--fr-text);
+  border-color: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+.fr-btn.is-danger {
+  border-color: var(--fr-error);
+  color: var(--fr-error);
+}
+
+.fr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--fr-text-soft);
+  cursor: pointer;
+}
+
+.fr-icon-btn:hover:not(:disabled) {
+  background: var(--fr-raised);
+  color: var(--fr-text);
+}
+
+// The site's way of saying "this one is on": invert it.
+.fr-icon-btn.is-on {
+  background: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+.fr-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.fr-chip {
+  padding: 3px 8px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--fr-raised);
+  color: var(--fr-text-soft);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.fr-chip:hover {
+  background: var(--fr-raised-hi);
+  color: var(--fr-text);
+}
+
+.fr-chip.is-on {
+  background: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+.fr-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--fr-text-soft);
+  cursor: pointer;
+}
+
+.fr-progress {
+  height: 2px;
+  background: var(--fr-panel);
+  flex: none;
+}
+
+.fr-progress-bar {
+  height: 100%;
+  background: var(--fr-text);
+}
+
+// ─── the docks
+.fr-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.fr-docks {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fr-middle {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.fr-dock {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--fr-panel);
+  flex: none;
+}
+
+.fr-dock.is-bottom {
+  width: 100%;
+}
+
+.fr-centre {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--fr-bg);
+}
+
+.fr-tabs-strip {
+  display: flex;
+  height: var(--fr-tabs-h);
+  background: var(--fr-panel-alt);
+  border-bottom: 1px solid var(--fr-border);
+  flex: none;
+}
+
+.fr-tab {
+  padding: 0 12px;
+  border: none;
+  background: none;
+  color: var(--fr-dim);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.fr-tab:hover {
+  color: var(--fr-text);
+}
+
+.fr-tab.is-on {
+  background: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+.fr-split-v,
+.fr-split-h {
+  flex: none;
+  background: var(--fr-border);
+  touch-action: none;
+}
+
+.fr-split-v {
+  width: 4px;
+  cursor: col-resize;
+}
+
+.fr-split-h {
+  height: 4px;
+  cursor: row-resize;
+}
+
+.fr-split-v:hover,
+.fr-split-h:hover {
+  background: var(--fr-text);
+}
+
+// ─── panels
+.fr-panel-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.fr-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--fr-panel-alt);
+  color: var(--fr-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  flex: none;
+}
+
+.fr-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.fr-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.fr-scroll::-webkit-scrollbar-thumb {
+  background: var(--fr-raised);
+  border-radius: var(--radius-pill);
+}
+
+.fr-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--fr-raised-hi);
+}
+
+.fr-pad {
+  padding: 12px;
+}
+
+.fr-hint {
+  padding: 5px 10px;
+  margin: 0;
+  color: var(--fr-faint);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.fr-cat {
+  padding: 8px 10px 3px;
+  color: var(--fr-text-soft);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.fr-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--fr-panel-alt);
+  color: var(--fr-dim);
+  flex: none;
+}
+
+.fr-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+}
+
+.fr-panel-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 10px;
+  color: var(--fr-dim);
+  font-size: 10px;
+  flex: none;
+}
+
+.fr-fx-row {
+  display: block;
+  width: 100%;
+  padding: 3px 10px;
+  border: none;
+  background: none;
+  color: var(--fr-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-fx-row:hover {
+  background: var(--fr-raised);
+}
+
+// ─── the project panel
+.fr-scene {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+}
+
+.fr-scene.is-selected {
+  background: var(--fr-selection);
+}
+
+.fr-scene-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-scene-name span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fr-scene-actions {
+  display: flex;
+  gap: 4px;
+  padding: 10px 8px;
+}
+
+// ─── the inspector
+.fr-insp {
+  padding-bottom: 16px;
+}
+
+.fr-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  background: var(--fr-panel-alt);
+  color: var(--fr-text-soft);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.fr-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px;
+  min-height: 22px;
+}
+
+.fr-row-wide {
+  padding: 4px 10px;
+}
+
+.fr-label {
+  width: 86px;
+  flex: none;
+  color: var(--fr-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fr-field {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+}
+
+.fr-field:focus {
+  border-color: var(--fr-text);
+  outline: none;
+}
+
+textarea.fr-field {
+  resize: vertical;
+  width: 100%;
+}
+
+.fr-mono {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+.fr-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fr-file {
+  cursor: pointer;
+}
+
+.fr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fr-tabs {
+  display: flex;
+  gap: 3px;
+}
+
+// The stopwatch in front of every keyable row, and the diamond beside it.
+.fr-watch,
+.fr-diamond,
+.fr-twirl,
+.fr-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--fr-faint);
+  cursor: pointer;
+}
+
+.fr-watch:hover,
+.fr-diamond:hover,
+.fr-twirl:hover,
+.fr-flag:hover {
+  color: var(--fr-text);
+}
+
+.fr-watch.is-on,
+.fr-diamond.is-on,
+.fr-flag.is-on {
+  color: var(--fr-text);
+}
+
+.fr-flag.is-off {
+  color: var(--fr-border);
+}
+
+// ─── the effect stack
+.fr-fx {
+  margin: 5px 8px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-panel-alt);
+  overflow: hidden;
+}
+
+.fr-fx-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--fr-border-soft);
+}
+
+// ─── the scrubby number
+.fr-num {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  min-width: 54px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+  color: var(--fr-text);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.fr-num:hover {
+  border-color: var(--fr-border);
+}
+
+.fr-num.is-editing {
+  cursor: text;
+  border-color: var(--fr-text);
+  outline: none;
+}
+
+.fr-num.is-disabled {
+  color: var(--fr-faint);
+  cursor: default;
+}
+
+.fr-unit {
+  color: var(--fr-faint);
+  font-style: normal;
+  font-size: 9px;
+}
+
+// ─── the viewer
+.fr-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.fr-viewer-bar,
+.fr-transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  background: var(--fr-panel-alt);
+  flex: none;
+}
+
+.fr-viewer-bar {
+  height: 26px;
+  border-bottom: 1px solid var(--fr-border);
+}
+
+.fr-transport {
+  height: 30px;
+  border-top: 1px solid var(--fr-border);
+}
+
+.fr-zoom {
+  width: 44px;
+  text-align: center;
+  color: var(--fr-text-soft);
+}
+
+.fr-time {
+  color: var(--fr-text);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.fr-stage-wrap {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--fr-bg);
+}
+
+// The checkerboard, so transparency reads as transparency rather than as a
+// colour — which is the difference between a key that works and one that does
+// not. Mixed from the page's own tokens so it follows the theme.
+.fr-stage {
+  position: relative;
+  --fr-check-a: color-mix(in oklab, var(--bg) 92%, var(--text) 8%);
+  --fr-check-b: color-mix(in oklab, var(--bg) 98%, var(--text) 2%);
+
+  background-image:
+    linear-gradient(45deg, var(--fr-check-a) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--fr-check-a) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--fr-check-a) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--fr-check-a) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+  background-color: var(--fr-check-b);
+  box-shadow: 0 0 0 1px var(--fr-border);
+}
+
+.fr-canvas,
+.fr-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fr-overlay {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+// ─── the timeline
+.fr-timeline {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.fr-timeline-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 10px;
+  background: var(--fr-panel-alt);
+  border-bottom: 1px solid var(--fr-border);
+  flex: none;
+}
+
+.fr-ease-actions {
+  display: flex;
+  gap: 3px;
+}
+
+.fr-ease-actions .fr-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fr-tools {
+  display: flex;
+  gap: 2px;
+  margin-left: 10px;
+}
+
+// Two columns, two rows: the head and the ruler are the first row and stay
+// pinned while the tree and the tracks scroll under them. The scrub bar is the
+// control you reach for most, so it does not get to scroll away.
+.fr-split {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  align-content: start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.fr-ruler {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-width: 0;
+  border-bottom: 1px solid var(--fr-border);
+}
+
+.fr-ruler-canvas {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: ew-resize;
+}
+
+@media (width <= 1100px) {
+  .fr-split {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+}
+
+.fr-tree {
+  border-right: 1px solid var(--fr-border);
+  min-width: 0;
+}
+
+.fr-tree-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: 22px;
+  border-right: 1px solid var(--fr-border);
+  border-bottom: 1px solid var(--fr-border);
+  padding: 0 8px;
+  background: var(--fr-panel-alt);
+  color: var(--fr-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.fr-tree-col {
+  flex: 1;
+}
+
+.fr-tree-col.is-right {
+  flex: none;
+  width: 124px;
+}
+
+.fr-trow {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.fr-trow:nth-child(even) {
+  background: var(--fr-stripe);
+}
+
+.fr-trow.is-selected {
+  background: var(--fr-selection);
+}
+
+.fr-trow.depth-1 {
+  padding-left: 24px;
+}
+
+.fr-trow.depth-2 {
+  padding-left: 38px;
+}
+
+.fr-trow-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-trow-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fr-group-name {
+  flex: 1;
+  color: var(--fr-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.fr-prop-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fr-dim);
+}
+
+.fr-link,
+.fr-ease {
+  width: 100px;
+  flex: none;
+  padding: 1px 3px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--fr-raised);
+  color: var(--fr-text-soft);
+  font-size: 9px;
+}
+
+.fr-ease {
+  width: 78px;
+  background: none;
+  color: var(--fr-faint);
+}
+
+.fr-tracks {
+  position: relative;
+  min-width: 0;
+}
+
+.fr-tracks-canvas {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+// ─── the status notice
+// What the console used to say, in one line. It is the only place the editor
+// speaks, so it has to be noticeable without being a panel.
+.fr-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 4px 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--fr-raised);
+  color: var(--fr-text);
+  max-width: 52ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fr-notice.is-warn {
+  background: color-mix(in oklab, var(--card-red) 22%, var(--fr-raised));
+}
+
+.fr-notice.is-error {
+  background: var(--card-red);
+  color: #fff;
+}
+
+// ─── the ease panel
+.fr-ease-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.fr-ease-canvas {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+}
+
+.fr-ease-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 10px;
+}
+
+// The chip that follows the cursor while an effect is being dragged. Without
+// it a drag looks like nothing is happening until the row lands.
+.fr-drag-chip {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-pill);
+  background: var(--fr-panel-alt);
+  color: var(--fr-text);
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 35%);
+}
+
+// ─── menus and modals
+.fr-backdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: transparent;
+  cursor: default;
+  z-index: 20;
+}
+
+.fr-menu {
+  position: absolute;
+  top: var(--fr-menu-h);
+  left: 10px;
+  z-index: 21;
+  width: 288px;
+  padding: 5px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-card);
+  background: var(--fr-panel-alt);
+  box-shadow: 0 10px 34px rgb(0 0 0 / 35%);
+}
+
+.fr-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-menu-row:hover {
+  background: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+.fr-menu-row:hover .fr-faint {
+  color: var(--fr-bg);
+  opacity: 0.7;
+}
+
+.fr-tick-gap {
+  display: inline-block;
+  width: 10px;
+}
+
+.fr-modal-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 22;
+  display: grid;
+  place-items: center;
+}
+
+.fr-modal-wrap .fr-backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.fr-modal {
+  position: relative;
+  z-index: 23;
+  width: min(440px, 90%);
+  max-height: 84%;
+  overflow-y: auto;
+  padding-bottom: 12px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-card);
+  background: var(--fr-panel);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 45%);
+}
+
+.fr-modal.is-wide {
+  width: min(780px, 94%);
+}
+
+.fr-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--fr-panel-alt);
+  border-bottom: 1px solid var(--fr-border);
+  font-weight: 700;
+}
+
+.fr-keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+
+.fr-key-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 10px;
+  color: var(--fr-text-soft);
+}
+
+.fr-keys-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--fr-border-soft);
+}
+
+.fr-key-btn {
+  min-width: 96px;
+  padding: 2px 6px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-raised);
+  color: var(--fr-text);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.fr-key-btn:hover {
+  background: var(--fr-raised-hi);
+}
+
+.fr-key-btn.is-capturing {
+  background: var(--fr-text);
+  color: var(--fr-bg);
+}
+
+.fr-key-row kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-raised);
+  color: var(--fr-text);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+}
+
+// ─── about
+.fr-about {
+  padding: 12px;
+  line-height: 1.55;
+  color: var(--fr-text-soft);
+}
+
+.fr-about p {
+  margin: 0 0 10px;
+}
+
+.fr-about a {
+  color: var(--fr-text);
+}
+
+.fr-credit {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 8px 0;
+  border-top: 1px solid var(--fr-border-soft);
+}
+
+.fr-credit strong {
+  color: var(--fr-text);
+}
+
+// ─── narrow screens
+// The editor wants room. Below tablet width the docks would each be a sliver,
+// so the side ones fold away and the timeline takes the bottom half.
+@media (width <= 760px) {
+  .fr-middle {
+    flex-direction: column;
+  }
+
+  .fr-dock {
+    width: 100% !important;
+    max-height: 40%;
+  }
+
+  .fr-split-v {
+    display: none;
+  }
+}
+
+.fr-ease-graph {
+  cursor: grab;
+  touch-action: none;
+}
+
+.fr-ease-graph:active {
+  cursor: grabbing;
+}
+
+// ─── the start page
+//
+// The one screen on this tool that is not a dense editor, so it gets room:
+// two columns, a comfortable rhythm, and no panel chrome. It is the only page
+// a first-time visitor reads rather than operates.
+.fr-start {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--fr-bg);
+  color: var(--fr-text);
+  overflow-y: auto;
+}
+
+.fr-start-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--fr-border);
+  background: var(--fr-panel);
+  flex: none;
+}
+
+.fr-start-title h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: -0.01em;
+}
+
+.fr-start-title p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--fr-dim);
+}
+
+.fr-start-body {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 28px;
+  padding: 28px 22px 40px;
+  align-items: start;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+@media (width <= 820px) {
+  .fr-start-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+
+.fr-start h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fr-dim);
+}
+
+.fr-start-h2 {
+  margin-top: 26px !important;
+}
+
+.fr-start-new {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-card);
+  background: var(--fr-panel);
+}
+
+.fr-start .fr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--fr-dim);
+}
+
+.fr-start .fr-field-row,
+.fr-modal .fr-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fr-field-label {
+  font-size: 12px;
+  color: var(--fr-dim);
+}
+
+.fr-input {
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+  color: var(--fr-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.fr-input:focus {
+  border-color: var(--fr-text);
+  outline: none;
+}
+
+.fr-input.is-short {
+  width: 90px;
+}
+
+.fr-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 7px;
+}
+
+.fr-preset {
+  padding: 8px 10px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+  color: var(--fr-text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-preset:hover {
+  border-color: var(--fr-dim);
+}
+
+.fr-preset.is-on {
+  border-color: var(--fr-text);
+  background: var(--fr-raised);
+}
+
+.fr-btn.is-big {
+  justify-content: center;
+  padding: 9px 14px;
+  font-size: 13px;
+}
+
+.fr-btn.is-small {
+  padding: 2px 7px;
+  font-size: 11px;
+}
+
+.fr-start-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fr-dim);
+  font-size: 11px;
+}
+
+.fr-start-or::before,
+.fr-start-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--fr-border);
+}
+
+.fr-recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fr-recent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-panel);
+}
+
+.fr-recent:hover {
+  border-color: var(--fr-dim);
+}
+
+.fr-recent-open {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-recent-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.fr-recent-text b {
+  font-size: 13px;
+}
+
+.fr-recent-text i,
+.fr-recent > i {
+  font-style: normal;
+  font-size: 11px;
+}
+
+.fr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 34px 20px;
+  border: 1px dashed var(--fr-border);
+  border-radius: var(--radius-card);
+  color: var(--fr-dim);
+  text-align: center;
+}
+
+.fr-empty p {
+  margin: 0;
+}
+
+.fr-start-tips {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--fr-dim);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+// ─── the render queue
+.fr-modal.is-render {
+  width: min(820px, 94%);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+.fr-modal-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.fr-modal-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 22px;
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+.fr-modal-col {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-width: 0;
+}
+
+.fr-modal-col h3 {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fr-dim);
+}
+
+.fr-modal .fr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--fr-dim);
+}
+
+.fr-modal .fr-hint {
+  margin: -4px 0 0;
+}
+
+.fr-engine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fr-engine {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+  color: var(--fr-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fr-engine i {
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.fr-engine.is-on {
+  border-color: var(--fr-text);
+  background: var(--fr-raised);
+}
+
+.fr-engine:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fr-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--fr-border);
+  border-radius: var(--radius-control);
+  background: var(--fr-bg);
+  font-size: 12px;
+}
+
+.fr-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fr-summary dt {
+  color: var(--fr-dim);
+}
+
+.fr-summary dd {
+  margin: 0;
+}
+
+.fr-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--fr-warn-border, var(--fr-border));
+  border-radius: var(--radius-control);
+  background: var(--fr-raised);
+  color: var(--fr-text-soft);
+  font-size: 12px;
+}
+
+.fr-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--fr-border);
+  background: var(--fr-panel-alt);
+}
+
+.fr-progress.is-inline {
+  width: 180px;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}

@@ -82,6 +82,7 @@ Router.map(function () {
   this.route('image-editor');
   this.route('image-censor');
   this.route('video-censor');
+  this.route('video-editor');
   this.route('barcode-generator');
   this.route('emoji-picker');
   this.route('ascii-art');

@@ -51,6 +51,8 @@ const TAGLINES = [
   'Hand-drawn, hand-coded, occasionally hand-wringing. Enjoy.',
   'If a tool is missing, it is probably on my list. The list is long. Sorry.',
   'Type "Gravity" in the search bar and click "I\'m Feeling Lucky" and see what happens.',
+  'FREE PALESTINE.',
+  'No to gatekeeping tools!',
 ];
 
 const eq = (a, b) => a === b;
