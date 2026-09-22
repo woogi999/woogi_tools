@@ -9,6 +9,108 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.16',
+    date: '2026-09-23',
+    title: 'A new OSINT section',
+    changes: [
+      {
+        type: 'new',
+        text: 'OSINT: a new category for finding things out from public sources. The IP Address Lookup and Domain Lookup have moved into it from Developer.',
+      },
+      {
+        type: 'new',
+        text: 'Username Search: see which of nearly 300 sites, from Instagram, TikTok, X and Discord to small forums, have an account under a name, the way Sherlock does it.',
+      },
+      {
+        type: 'new',
+        text: 'Breach Check: type an email, a password or both and get one report: every breach the email is in, from XposedOrNot and LeakCheck merged and filled in from Have I Been Pwned, and whether the password has leaked (without it leaving your device).',
+      },
+      {
+        type: 'new',
+        text: 'Photo Metadata: the GPS location, camera, owner and every other tag hidden in a photo, read in your browser.',
+      },
+      {
+        type: 'new',
+        text: 'Email Header Analyzer: the route an email took, its SPF, DKIM and DMARC results, and warnings for a spoofed sender.',
+      },
+      {
+        type: 'new',
+        text: 'Subdomain Finder: every subdomain that has had an HTTPS certificate, from the certificate-transparency logs.',
+      },
+      {
+        type: 'new',
+        text: 'Wayback Snapshots: every day the Internet Archive saved a page, laid out by year.',
+      },
+      {
+        type: 'new',
+        text: 'Recon Sweep: one domain in, every source above run at once, and the results drawn as a graph you can click through, SpiderFoot- and Maltego-style.',
+      },
+    ],
+  },
+  {
+    version: '1.0.15',
+    date: '2026-09-23',
+    title: 'The Stem Extractor gets a real model',
+    changes: [
+      {
+        type: 'improved',
+        text: 'Audio Stem Extractor: it now runs UVR\u2019s MDX-Net, an actual source-separation network, on your own graphics card. The old mode compared the left and right channels and hoped the vocal was centred; this one was trained on music and is a different class of result \u2014 roughly 9.5 dB against about 5. The weights are 64 MB, downloaded once from Hugging Face and kept by your browser afterwards, and your music still never leaves the page.',
+      },
+      {
+        type: 'improved',
+        text: 'Stem Extractor: there is now a choice of engine rather than one take-it-or-leave-it mode. Instant is the old arithmetic one \u2014 no download, a few seconds, all four parts, and rough. Good is the model. If your browser has no WebGPU the model modes are hidden rather than offered and then failing, and the page says why.',
+      },
+      {
+        type: 'fixed',
+        text: 'Stem Extractor: the transform underneath was wrong for window sizes that are not a power of two, which is exactly the size MDX-Net uses (6144). It did not fail \u2014 it quietly produced garbage \u2014 so the code now falls back to Bluestein\u2019s algorithm for those sizes, and there is a node check that compares it against a brute-force transform so it cannot drift back.',
+      },
+    ],
+  },
+  {
+    version: '1.0.14',
+    date: '2026-09-22',
+    title:
+      'Seven new tools, a File Compressor that means it, and video in the Background Remover',
+    changes: [
+      {
+        type: 'new',
+        text: 'File Compressor: the one you wanted when you typed "compressor". Tell it how many MB you need and your photo, song or clip comes back that size \u2014 pictures are re-encoded over and over until one lands just under your number, and video and audio get a bitrate worked out from how long they run. Or skip the number and just pick how hard to squeeze.',
+      },
+      {
+        type: 'new',
+        text: 'Timezone Converter: line up as many places as you like, pin a moment or follow the clock, and see it on everyone\u2019s wall at once. The strip along each row is the next 24 hours where they are \u2014 find a column that\u2019s green all the way down and that\u2019s your meeting.',
+      },
+      {
+        type: 'new',
+        text: 'SVG Optimizer: icons come out of Figma, Illustrator and Inkscape carrying metadata, wrapper groups and ten decimal places on every coordinate. This takes it out, shows you both versions side by side so you can see nothing broke, and every step is a switch you can turn off.',
+      },
+      {
+        type: 'new',
+        text: 'Auto-trace: turn a photo, a logo or a scribble into a real SVG you can blow up as big as you like. It finds the shapes, fits curves to them, and runs the result through the SVG Optimizer before handing it over.',
+      },
+      {
+        type: 'new',
+        text: 'Fake Data Generator: rows of realistic-looking nonsense for filling a mockup or a test database, as JSON, CSV, SQL, NDJSON or a Markdown table. The same seed always gives the same rows, so a fixture you generate today you can generate again next year. None of it can reach a real person: the emails, phone numbers, IPs and card numbers all come from the ranges reserved for exactly this.',
+      },
+      {
+        type: 'new',
+        text: 'Regex Library: 38 regexes worth copying, each one explained, in six languages, with the cases it quietly misses written down \u2014 because most regex lists hand you a pattern nobody has ever run. Every entry carries samples it should and shouldn\u2019t match and the page runs them as you read, so if one ever stops behaving, it says so rather than lying.',
+      },
+      {
+        type: 'new',
+        text: 'Audio Stem Extractor: split a song into vocals, instrumental, drums and bass \u2014 acapellas and karaoke tracks, made on your own machine with no model to download and nothing uploaded. It works by comparing the left and right channels (a lead vocal is almost always panned dead centre) and by telling drum hits from held notes on a spectrogram. It isn\u2019t Demucs: a mono recording or an off-centre vocal won\u2019t separate, and heavy reverb bleeds.',
+      },
+      {
+        type: 'improved',
+        text: 'Background Remover: now does video as well. Drop in a clip and it runs the same cutout over every frame, handing back a see-through WebM, an MP4 on a green screen for editors that won\u2019t take an alpha channel, or the frames as PNGs in a zip. Clips are capped at 20 seconds, because it really is the model running once per frame.',
+      },
+      {
+        type: 'improved',
+        text: 'The old File Compressor is now the File Archiver, which is what it always actually was: zip and 7z archives, unpacking (rar included), and single files through gzip, brotli or zstd. Nothing about it changed except the name and where it sits \u2014 "compressor" now means the tool that makes your file smaller in MB.',
+      },
+    ],
+  },
+  {
     version: '1.0.13',
     date: '2026-09-22',
     title:

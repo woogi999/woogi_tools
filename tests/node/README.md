@@ -1,15 +1,22 @@
-# Node checks for the Video Editor
+# Node checks
 
-Pure-JS suites for the parts of the editor that need no browser. Fast, so run
+Pure-JS suites for the parts that need no browser. Fast, so run
 them constantly while working; the Chrome acceptance suite (`npm test`) is the
 slow one that catches rendering and lifecycle bugs.
 
 ```sh
 node tests/node/ferrite-model.mjs    # scenes, keyframes, easings, effects, keymap
 node tests/node/ferrite-render.mjs   # the compositor's decisions, via a recording context
+node tests/node/stft-test.mjs        # the transform the separation models are fed through
 ```
 
-Both print a single line and exit non-zero on failure.
+Each prints a single line and exits non-zero on failure.
+
+`stft-test.mjs` matters more than it looks. A separation model handed a subtly
+wrong spectrogram does not fail — it returns noise — so the transform is
+checked against a brute-force DFT rather than only against itself. It is what
+caught the radix-2 FFT quietly mangling MDX-Net's 6144-sample window, 6144 not
+being a power of two.
 
 `ferrite-render.mjs` stubs `document.createElement('canvas')` with a context
 that writes down what it was asked to do, so it can assert paint order,

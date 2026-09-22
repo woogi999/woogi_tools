@@ -239,16 +239,21 @@ module('Acceptance | video editor', function (hooks) {
     await click('.fr-menu-btn[data-menu="Layer"]');
     await click('.fr-menu .fr-menu-row[data-row="box"]');
 
-    // The compositor sizes the canvas to the scene, not to the panel.
-    await waitUntil(() => find('.fr-canvas')?.width === 1920, {
-      timeout: 3000,
-    });
+    // The compositor sizes the canvas to the scene, not to the panel, and then
+    // paints. Those are two separate frames, so waiting on the size alone
+    // leaves a race the assertion below loses on a busy machine: wait for the
+    // paint itself, which is what is actually being checked.
+    const middlePixel = () => {
+      const canvas = find('.fr-canvas');
+      if (canvas?.width !== 1920) return null;
+      return canvas.getContext('2d').getImageData(960, 540, 1, 1).data;
+    };
+    await waitUntil(() => middlePixel()?.[3] > 0, { timeout: 3000 });
     assert.dom('.fr-canvas').hasAttribute('width', '1920');
     assert.dom('.fr-canvas').hasAttribute('height', '1080');
 
     // And it actually drew: the box layer is mid grey, so the middle pixel is.
-    const canvas = find('.fr-canvas');
-    const px = canvas.getContext('2d').getImageData(960, 540, 1, 1).data;
+    const px = middlePixel();
     assert.deepEqual(
       [px[0], px[1], px[2]],
       [0x80, 0x80, 0x80],

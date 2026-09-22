@@ -3,12 +3,14 @@ import { extensions, classicEmberSupport, ember } from '@embroider/vite';
 import { babel } from '@rollup/plugin-babel';
 import { fileURLToPath } from 'node:url';
 import offline from './lib/offline-plugin.mjs';
+import devApi from './lib/dev-api-plugin.mjs';
 
 export default defineConfig({
   plugins: [
     classicEmberSupport(),
     ember(),
     // extra plugins here
+    devApi(),
     // Must stay after ember(): it fingerprints the finished build and writes dist/sw.js.
     offline(),
     babel({

@@ -1,6 +1,12 @@
 import { htmlSafe } from '@ember/template';
 import {
   createElement,
+  Shrink,
+  Waves,
+  Archive,
+  Earth,
+  VectorSquare,
+  Split,
   PenTool,
   Crosshair,
   Diamond,
@@ -257,10 +263,28 @@ import {
   Orbit,
   Sigma,
   AtSign,
+  UserSearch,
+  ShieldAlert,
+  ScanEye,
+  MailSearch,
+  Radar,
+  Binoculars,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
 const ICONS = {
+  binoculars: Binoculars,
+  radar: Radar,
+  'mail-search': MailSearch,
+  'scan-eye': ScanEye,
+  'shield-alert': ShieldAlert,
+  'user-search': UserSearch,
+  shrink: Shrink,
+  waves: Waves,
+  archive: Archive,
+  earth: Earth,
+  'vector-square': VectorSquare,
+  split: Split,
   'panel-right-close': PanelRightClose,
   'panel-right-open': PanelRightOpen,
   gavel: Gavel,

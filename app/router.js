@@ -47,7 +47,14 @@ Router.map(function () {
   this.route('dice-roll');
   this.route('coin-toss');
   this.route('background-remover');
+  this.route('file-archiver');
   this.route('file-compressor');
+  this.route('timezone-converter');
+  this.route('svg-optimizer');
+  this.route('auto-trace');
+  this.route('fake-data');
+  this.route('regex-library');
+  this.route('stem-extractor');
   this.route('pixel-eyedropper');
   this.route('favicon-generator');
   this.route('user-agent-parser');
@@ -117,6 +124,13 @@ Router.map(function () {
   this.route('timer-alarm');
   this.route('stopwatch');
   this.route('roman-numerals');
+  this.route('recon-sweep');
+  this.route('photo-metadata');
+  this.route('username-search');
+  this.route('email-header-analyzer');
+  this.route('subdomain-finder');
+  this.route('breach-check');
+  this.route('wayback-snapshots');
   this.route('jjs-stuff');
   this.route('settings');
   this.route('updates');
