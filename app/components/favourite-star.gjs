@@ -22,7 +22,11 @@ export default class FavouriteStar extends Component {
       {{on "click" this.toggle}}
       ...attributes
     >
-      <Icon @name="star" @size={{@size}} @fill={{if this.starred "currentColor" "none"}} />
+      <Icon
+        @name="star"
+        @size={{@size}}
+        @fill={{if this.starred "currentColor" "none"}}
+      />
     </button>
   </template>
 }

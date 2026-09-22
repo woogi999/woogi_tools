@@ -3,8 +3,8 @@
 //
 // `effects.js` is generated from Ferrite's Rust and left alone, so this is the
 // seam between it and `shaders.js`. It exists because the two describe the
-// same knob differently: the catalogue speaks in the units an operator sees —
-// per cent of the layer, degrees, pixels — while a shader wants a fraction of
+// same knob differently: the catalogue speaks in the units an operator sees
+// (per cent of the layer, degrees, pixels), while a shader wants a fraction of
 // the box and radians. Doing that conversion here, once per effect, keeps both
 // sides honest: the inspector stays in the numbers a person can reason about,
 // and the shader stays in the numbers the maths wants.
@@ -24,7 +24,7 @@ const pc = (v) => v / 100;
 const NO_COLOURS = new Float32Array(16);
 
 // A CSS colour to the `vec4` a shader reads, in straight (not premultiplied)
-// components — a key compares against the colour somebody picked, not against
+// components: a key compares against the colour somebody picked, not against
 // that colour already faded by its own alpha.
 let pen = null;
 function rgba(value) {

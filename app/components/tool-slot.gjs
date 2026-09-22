@@ -18,7 +18,9 @@ export default class ToolSlot extends Component {
     // Runs during render, before the PipLayer (after the outlet) reads the sessions.
     this.pip.enter(args.route, args.component);
     // Deferred: the decision (float or discard) must not change tracked state mid-teardown.
-    registerDestructor(this, () => queueMicrotask(() => this.pip.leave(args.route)));
+    registerDestructor(this, () =>
+      queueMicrotask(() => this.pip.leave(args.route)),
+    );
   }
 
   get session() {
@@ -45,8 +47,13 @@ export default class ToolSlot extends Component {
       <div class="container">
         <div class="pip-placeholder pop-in">
           <Icon @name="picture-in-picture" @size={{28}} />
-          <p><strong>{{this.tool.label}}</strong> is open in picture-in-picture.</p>
-          <button type="button" class="btn active" {{on "click" (fn this.pip.expand this.session)}}><Icon @name="maximize" @size={{13}} /> Bring it back here</button>
+          <p><strong>{{this.tool.label}}</strong>
+            is open in picture-in-picture.</p>
+          <button
+            type="button"
+            class="btn active"
+            {{on "click" (fn this.pip.expand this.session)}}
+          ><Icon @name="maximize" @size={{13}} /> Bring it back here</button>
         </div>
       </div>
     {{/if}}

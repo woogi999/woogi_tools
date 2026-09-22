@@ -15,9 +15,9 @@ import {
 } from '../utils/github';
 import { clocRepo } from '../utils/cloc';
 
-const num = (n) => (n == null ? '—' : Number(n).toLocaleString());
+const num = (n) => (n == null ? '-' : Number(n).toLocaleString());
 const width = (share) => htmlSafe(`width: ${share.toFixed(1)}%`);
-const date = (iso) => (iso ? new Date(iso).toLocaleDateString() : '—');
+const date = (iso) => (iso ? new Date(iso).toLocaleDateString() : '-');
 
 export default class GithubRepoCheckerPage extends Component {
   @tracked query = '';

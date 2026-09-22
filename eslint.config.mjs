@@ -58,6 +58,45 @@ export default defineConfig([
         ...globals.browser,
       },
     },
+    rules: {
+      // A leading underscore marks something deliberately unused: a parameter
+      // kept to satisfy a signature, or a destructured key being skipped.
+      'no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  /**
+   * Canvas drawing code. `ctx.save()` / `ctx.restore()` are the 2D context's
+   * state stack, but warp-drive's rule reads any `.save()` as a record being
+   * persisted through the legacy store API, which these files never touch.
+   */
+  {
+    files: [
+      'app/components/color-wheel.gjs',
+      'app/utils/ferrite/gpu.js',
+      'app/utils/ferrite/render.js',
+    ],
+    rules: {
+      'warp-drive/no-legacy-request-patterns': 'off',
+    },
+  },
+  /**
+   * The effects catalogue. Every entry implements the same `render(v, col)`
+   * signature -- the parameter values and the chosen colours -- and most
+   * effects need only one of the two, so an unused parameter here is the
+   * interface being honoured rather than something left behind.
+   */
+  {
+    files: ['app/utils/ferrite/effects.js'],
+    rules: {
+      'no-unused-vars': ['error', { args: 'none' }],
+    },
   },
   /**
    * Cloudflare Worker: the runtime's own globals on top of the browser ones.

@@ -2,7 +2,7 @@
 // The notes are hand-written text, so this reads them the way a person would:
 //   **Name:**            a heading ("Gojo:", "Lapse Blue:")
 //   HONORED ONE / Vessel: headings in the tabs written without bold
-//   **— Finisher:**      a sub-heading inside the current group
+//   **- Finisher:**      a sub-heading inside the current group
 //   123456789 Label      a sound ID with what it's for, maybe a speed "(1.2x)"
 //   Lapse blue 0.483~    a move and its startup time
 //   ---                  the end of a character
@@ -80,7 +80,7 @@ const titleCase = (text) =>
       : word[0] + word.slice(1).toLowerCase(),
   );
 
-// Reads one line as a heading, or null. `dash` marks "— Finisher" style sub-headings.
+// Reads one line as a heading, or null. `dash` marks "- Finisher" style sub-headings.
 function heading(line) {
   const bold = BOLD_HEADING.exec(line);
   if (bold && !/^\d/.test(bold[2])) {

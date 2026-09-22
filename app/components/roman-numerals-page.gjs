@@ -187,7 +187,7 @@ export default class RomanNumeralsPage extends Component {
           <p class="math-big roman-result">{{if
               this.result.value
               this.result.value
-              "—"
+              "-"
             }}</p>
           {{#if this.result.note}}<p
               class="tool-hint"

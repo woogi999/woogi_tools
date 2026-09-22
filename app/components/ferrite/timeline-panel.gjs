@@ -43,7 +43,7 @@ function freePointer(element, event) {
 // the bars, the keyframes and the playhead and handles every drag.
 //
 // The two halves lay themselves out from the same flat row list, so a
-// property's name and its keyframes are always on the same line — which is the
+// property's name and its keyframes are always on the same line, which is the
 // whole reason the list is built once in the editor rather than twice here.
 const eq = (a, b) => a === b;
 const not = (a) => !a;

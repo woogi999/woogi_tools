@@ -1262,7 +1262,7 @@ export function viewFor(state, index) {
 // What someone watching sees. Deliberately not `viewFor` with a made-up seat:
 // a spectator must never be sent anybody's cards, or a player could open a
 // second window, watch, and read the table. Only what is already public goes in
-// — how many cards each player holds, the discard, whose turn it is — and there
+// (how many cards each player holds, the discard, whose turn it is) and there
 // is no hand, no playable list and nothing they could act on.
 export function spectatorView(state) {
   return {

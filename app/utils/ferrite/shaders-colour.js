@@ -6,7 +6,7 @@
 // helpers those need and the distort ones do not.
 //
 // Every one of these unpremultiplies, does its arithmetic on straight colour,
-// and repremultiplies — the pipeline holds premultiplied pixels, and doing
+// and repremultiplies: the pipeline holds premultiplied pixels, and doing
 // maths on a premultiplied value quietly darkens everything that is not fully
 // opaque.
 
@@ -276,7 +276,7 @@ void main() {
     ? abs(luma(c.rgb) - luma(uColours[0].rgb))
     : distance(c.rgb, uColours[0].rgb);
   // Inside the tolerance it is gone, outside it is kept, and the feather is
-  // the band between — which is the whole of what a key is.
+  // the band between, which is the whole of what a key is.
   float keep = smoothstep(tolerance, tolerance + feather, d);
   if (invert > 0.5) keep = 1.0 - keep;
   if (matteOnly > 0.5) { fragColour = vec4(vec3(keep), 1.0); return; }

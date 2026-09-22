@@ -6,7 +6,12 @@ import { htmlSafe } from '@ember/template';
 import { modifier } from 'ember-modifier';
 import ColourField from './colour-field';
 import Icon from './icon';
-import { flipNeutralHex, flipCanvasNeutrals, isDarkTheme, stickerExtent } from '../utils/ink';
+import {
+  flipNeutralHex,
+  flipCanvasNeutrals,
+  isDarkTheme,
+  stickerExtent,
+} from '../utils/ink';
 
 const eq = (a, b) => a === b;
 const stickerPos = (s) => htmlSafe(`left:${s.x}px;top:${s.y}px;`);
@@ -66,7 +71,9 @@ export default class NoteOverlay extends Component {
       img.onload = () => {
         if (this.canvas !== canvas) return;
         // Draw at the CSS size it was saved at, so a wider/narrower editor never stretches it.
-        const scale = this.args.doodle?.width ? this.args.doodle.width / img.width : 1 / this.ratio;
+        const scale = this.args.doodle?.width
+          ? this.args.doodle.width / img.width
+          : 1 / this.ratio;
         const layer = document.createElement('canvas');
         layer.width = canvas.width;
         layer.height = canvas.height;
@@ -74,7 +81,13 @@ export default class NoteOverlay extends Component {
         layerCtx.scale(this.ratio, this.ratio);
         layerCtx.drawImage(img, 0, 0, img.width * scale, img.height * scale);
         if (this.dark) flipCanvasNeutrals(layer);
-        this.ctx.drawImage(layer, 0, 0, layer.width / this.ratio, layer.height / this.ratio);
+        this.ctx.drawImage(
+          layer,
+          0,
+          0,
+          layer.width / this.ratio,
+          layer.height / this.ratio,
+        );
       };
       img.src = url;
     }
@@ -87,7 +100,10 @@ export default class NoteOverlay extends Component {
       this.dark = dark;
       flipCanvasNeutrals(canvas);
     });
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    theme.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
 
     return () => {
       resize.disconnect();
@@ -111,12 +127,20 @@ export default class NoteOverlay extends Component {
     canvas.width = w;
     canvas.height = h;
     this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    if (snapshot) this.ctx.drawImage(snapshot, 0, 0, snapshot.width / ratio, snapshot.height / ratio);
+    if (snapshot)
+      this.ctx.drawImage(
+        snapshot,
+        0,
+        0,
+        snapshot.width / ratio,
+        snapshot.height / ratio,
+      );
   }
 
   growTo(bottom) {
     const current = this.overlayEl.clientHeight;
-    if (bottom > current - GROW_MARGIN) this.args.onChange({ height: Math.round(current + GROW_STEP) });
+    if (bottom > current - GROW_MARGIN)
+      this.args.onChange({ height: Math.round(current + GROW_STEP) });
   }
 
   pointerPos(event) {
@@ -162,23 +186,31 @@ export default class NoteOverlay extends Component {
     this.args.onChange({
       drawingDataUrl: source.toDataURL('image/png'),
       width: this.canvas.clientWidth,
-      height: Math.round(Math.max(this.savedHeight, this.strokeBottom + BOTTOM_PAD)),
+      height: Math.round(
+        Math.max(this.savedHeight, this.strokeBottom + BOTTOM_PAD),
+      ),
     });
   };
 
   clear = () => {
     this.ctx.clearRect(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
     const stickersBottom = stickerExtent(this.stickers);
-    this.args.onChange({ drawingDataUrl: null, height: stickersBottom ? Math.round(stickersBottom + BOTTOM_PAD) : null });
+    this.args.onChange({
+      drawingDataUrl: null,
+      height: stickersBottom ? Math.round(stickersBottom + BOTTOM_PAD) : null,
+    });
   };
 
-  setPenColor = (hex) => (this.penColor = this.dark ? flipNeutralHex(hex) : hex);
+  setPenColor = (hex) =>
+    (this.penColor = this.dark ? flipNeutralHex(hex) : hex);
   setPenSize = (event) => (this.penSize = +event.target.value);
 
-  removeSticker = (id) => this.args.onChange({ stickers: this.stickers.filter((s) => s.id !== id) });
+  removeSticker = (id) =>
+    this.args.onChange({ stickers: this.stickers.filter((s) => s.id !== id) });
 
   dragSticker = (id, event) => {
-    if (!this.args.interactive || event.target.closest('.sticker-remove')) return;
+    if (!this.args.interactive || event.target.closest('.sticker-remove'))
+      return;
     event.preventDefault();
     const sticker = this.stickers.find((s) => s.id === id);
     const startX = event.clientX;
@@ -188,7 +220,9 @@ export default class NoteOverlay extends Component {
     const onMove = (e) => {
       const x = Math.max(0, originX + (e.clientX - startX));
       const y = Math.max(0, originY + (e.clientY - startY));
-      const stickers = this.stickers.map((s) => (s.id === id ? { ...s, x, y } : s));
+      const stickers = this.stickers.map((s) =>
+        s.id === id ? { ...s, x, y } : s,
+      );
       this.args.onChange({ stickers, width: this.overlayEl.clientWidth });
       this.growTo(stickerExtent(stickers.filter((s) => s.id === id)));
     };
@@ -206,15 +240,26 @@ export default class NoteOverlay extends Component {
     if (!this.args.interactive) return;
     event.preventDefault();
     const delta = event.deltaY > 0 ? -4 : 4;
-    const stickers = this.stickers.map((s) => (s.id === id ? { ...s, size: Math.max(20, Math.min(280, s.size + delta)) } : s));
+    const stickers = this.stickers.map((s) =>
+      s.id === id
+        ? { ...s, size: Math.max(20, Math.min(280, s.size + delta)) }
+        : s,
+    );
     this.args.onChange({
       stickers,
       width: this.overlayEl.clientWidth,
-      height: Math.round(Math.max(this.savedHeight, stickerExtent(stickers) + BOTTOM_PAD)),
+      height: Math.round(
+        Math.max(this.savedHeight, stickerExtent(stickers) + BOTTOM_PAD),
+      ),
     });
   };
 
+  // Both pointerdown bindings below are the start of a drag, not a click:
+  // ink is drawn between pointer down and up, and a sticker is dragged from
+  // the moment it is pressed. Bound to pointerup there would be nothing left
+  // to draw or drag, so no-pointer-down-event-binding is waived on each.
   <template>
+    {{! template-lint-disable no-pointer-down-event-binding }}
     <div class="note-overlay" {{this.registerOverlay}}>
       <canvas
         class="note-ink {{if @drawing 'is-active'}}"
@@ -226,23 +271,56 @@ export default class NoteOverlay extends Component {
       ></canvas>
       <div class="note-stickers {{unless @interactive 'is-locked'}}">
         {{#each this.stickers as |sticker|}}
-          <div class="doodle-sticker" style={{stickerPos sticker}} {{on "pointerdown" (fn this.dragSticker sticker.id)}} {{on "wheel" (fn this.growSticker sticker.id)}}>
+          <div
+            class="doodle-sticker"
+            style={{stickerPos sticker}}
+            {{on "pointerdown" (fn this.dragSticker sticker.id)}}
+            {{on "wheel" (fn this.growSticker sticker.id)}}
+          >
             {{#if (eq sticker.type "emoji")}}
-              <span class="sticker-emoji" style={{stickerFontSize sticker}}>{{sticker.content}}</span>
+              <span
+                class="sticker-emoji"
+                style={{stickerFontSize sticker}}
+              >{{sticker.content}}</span>
             {{else}}
-              <img src={{sticker.content}} alt="" style={{stickerImgSize sticker}} />
+              <img
+                src={{sticker.content}}
+                alt=""
+                style={{stickerImgSize sticker}}
+              />
             {{/if}}
             {{#if @interactive}}
-              <button type="button" class="sticker-remove" aria-label="Remove sticker" {{on "click" (fn this.removeSticker sticker.id)}}><Icon @name="x" @size={{10}} /></button>
+              <button
+                type="button"
+                class="sticker-remove"
+                aria-label="Remove sticker"
+                {{on "click" (fn this.removeSticker sticker.id)}}
+              ><Icon @name="x" @size={{10}} /></button>
             {{/if}}
           </div>
         {{/each}}
       </div>
       {{#if @drawing}}
         <div class="note-ink-toolbar pop-in">
-          <ColourField @label="Pen colour" @value={{this.shownPenColor}} @onChange={{this.setPenColor}} />
-          <input type="range" min="1" max="24" value={{this.penSize}} class="doodle-size" {{on "input" this.setPenSize}} />
-          <button type="button" class="btn" {{on "click" this.clear}}><Icon @name="trash-2" @size={{13}} /> Clear</button>
+          <ColourField
+            @label="Pen colour"
+            @value={{this.shownPenColor}}
+            @onChange={{this.setPenColor}}
+          />
+          <input
+            type="range"
+            min="1"
+            max="24"
+            value={{this.penSize}}
+            class="doodle-size"
+            aria-label="Pen size"
+            {{on "input" this.setPenSize}}
+          />
+          <button type="button" class="btn" {{on "click" this.clear}}><Icon
+              @name="trash-2"
+              @size={{13}}
+            />
+            Clear</button>
         </div>
       {{/if}}
     </div>

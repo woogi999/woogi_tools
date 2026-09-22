@@ -125,9 +125,13 @@ export default class PipService extends Service {
     if (session.mode === 'inline' || session.mode === 'minimized') {
       // New windows open in the bottom-right corner; later ones cascade up-left.
       if (session.mode === 'inline') {
-        const offset = (this.sessions.filter((s) => s.mode === 'floating').length % 5) * 28;
+        const offset =
+          (this.sessions.filter((s) => s.mode === 'floating').length % 5) * 28;
         session.width = Math.min(WINDOW_WIDTH, window.innerWidth - MARGIN * 2);
-        session.height = Math.min(WINDOW_HEIGHT, window.innerHeight - MARGIN * 2);
+        session.height = Math.min(
+          WINDOW_HEIGHT,
+          window.innerHeight - MARGIN * 2,
+        );
         session.x = window.innerWidth - session.width - MARGIN - offset;
         session.y = window.innerHeight - session.height - MARGIN - 56 - offset;
       }
@@ -156,19 +160,32 @@ export default class PipService extends Service {
   // you, or ends the game for everyone if you're hosting.
   close = async (session) => {
     const { busy, warning } = this.status(session.route);
-    if (busy && !(await askConfirm({ title: 'Close this?', message: warning || 'It’s still running.', confirmLabel: 'Hold to close', cancelLabel: 'Keep it open' }))) return;
+    if (
+      busy &&
+      !(await askConfirm({
+        title: 'Close this?',
+        message: warning || 'It’s still running.',
+        confirmLabel: 'Hold to close',
+        cancelLabel: 'Keep it open',
+      }))
+    )
+      return;
     // Already gone while the prompt was open.
     if (this.byRoute.get(session.route) !== session) return;
     this.remove(session);
     // Closed while its own page is open: that page starts afresh.
-    if (this.router.currentRouteName === session.route && this.slots.has(session.route)) {
+    if (
+      this.router.currentRouteName === session.route &&
+      this.slots.has(session.route)
+    ) {
       const fresh = this.enter(session.route, session.component);
       this.place(fresh);
     }
   };
 
   remove(session) {
-    if (this.byRoute.get(session.route) === session) this.byRoute.delete(session.route);
+    if (this.byRoute.get(session.route) === session)
+      this.byRoute.delete(session.route);
     this.sessions = [...this.byRoute.values()];
     this.frames.delete(session.id);
     session.element.remove();
@@ -181,22 +198,37 @@ export default class PipService extends Service {
   }
 
   resizeTo(session, width, height) {
-    session.width = Math.max(MIN_WIDTH, Math.min(width, window.innerWidth - MARGIN * 2));
-    session.height = Math.max(MIN_HEIGHT, Math.min(height, window.innerHeight - MARGIN * 2));
+    session.width = Math.max(
+      MIN_WIDTH,
+      Math.min(width, window.innerWidth - MARGIN * 2),
+    );
+    session.height = Math.max(
+      MIN_HEIGHT,
+      Math.min(height, window.innerHeight - MARGIN * 2),
+    );
     this.clamp(session);
   }
 
   // Keeps at least the title bar on screen.
   clamp(session) {
-    session.x = Math.min(Math.max(session.x, MARGIN - session.width + 120), window.innerWidth - 120);
+    session.x = Math.min(
+      Math.max(session.x, MARGIN - session.width + 120),
+      window.innerWidth - 120,
+    );
     session.y = Math.min(Math.max(session.y, 0), window.innerHeight - 40);
   }
 
   // ─── Placement ──────────────────────────────────────────────────────
 
   place(session) {
-    const target = session.mode === 'inline' ? this.slots.get(session.route) : session.mode === 'floating' ? this.frames.get(session.id) : this.parking;
+    const target =
+      session.mode === 'inline'
+        ? this.slots.get(session.route)
+        : session.mode === 'floating'
+          ? this.frames.get(session.id)
+          : this.parking;
     // The target may not exist yet (a window about to render); its bind call places it then.
-    if (target && session.element.parentElement !== target) target.appendChild(session.element);
+    if (target && session.element.parentElement !== target)
+      target.appendChild(session.element);
   }
 }

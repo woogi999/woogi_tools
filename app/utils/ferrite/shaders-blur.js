@@ -2,8 +2,8 @@
 // themselves with a plain `blur()`.
 //
 // CSS has exactly one blur and it is isotropic, so every blur in the catalogue
-// that is *not* a gaussian — a streak along an angle, a spin about a centre, a
-// box, an edge-preserving one — came out of the CSS fallback looking identical
+// that is *not* a gaussian (a streak along an angle, a spin about a centre, a
+// box, an edge-preserving one) came out of the CSS fallback looking identical
 // to all the others. Telling Directional Blur from Radial Blur by looking at
 // them was impossible, which is the same as not having either.
 //

@@ -96,7 +96,7 @@ function marginalTax(brackets, amount) {
 }
 
 function money(n, symbol) {
-  if (!Number.isFinite(n)) return '—';
+  if (!Number.isFinite(n)) return '-';
   return `${symbol}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 

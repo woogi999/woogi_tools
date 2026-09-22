@@ -11,8 +11,8 @@ import {
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
 import { paletteOf } from 'woogi-tools/utils/ferrite/theme';
 
-// The Video Editor is a whole application inside a page — a menu bar, four
-// docks, seven panels and two canvases — and it builds all of that from its own
+// The Video Editor is a whole application inside a page (a menu bar, four
+// docks, seven panels and two canvases) and it builds all of that from its own
 // constructor. That is precisely where a tracked write during render takes the
 // rest of the site down with it, so it is worth actually opening in a browser
 // rather than trusting that it compiled.
@@ -276,8 +276,12 @@ module('Acceptance | video editor', function (hooks) {
     const pen = document.createElement('canvas').getContext('2d');
     for (const [key, value] of Object.entries(palette)) {
       assert.notOk(
-        value.includes('color-mix') || value.includes('var('),
-        `${key} is not a raw token, got ${value}`,
+        value.includes('color-mix'),
+        `${key} is resolved, not a color-mix(), got ${value}`,
+      );
+      assert.notOk(
+        value.includes('var('),
+        `${key} is resolved, not a var(), got ${value}`,
       );
       // The real question: can a canvas paint with it? An unparseable value is
       // ignored on assignment, so the sentinel would survive.
@@ -593,7 +597,7 @@ module('Acceptance | video editor', function (hooks) {
     await click('.fr-menu-btn[data-menu="Layer"]');
     await click('.fr-menu .fr-menu-row[data-row="box"]');
 
-    // Two whips per layer row — one for the parent, one for the matte —
+    // Two whips per layer row: one for the parent, one for the matte.
     // rather than the links living off in the properties panel.
     assert
       .dom('.fr-trow.is-layer:first-child .fr-whip-btn')
@@ -785,7 +789,7 @@ module('Acceptance | video editor', function (hooks) {
     // it *prints copies of it*: a row of ghosts with gaps of background in
     // between. That is the afterimage look, and no reweighting of the taps
     // fixes it, because the pixels in the gaps were never read. This is the
-    // test that can see it — a left/right brightness check cannot.
+    // test that can see it; a left/right brightness check cannot.
     const canvas = document.createElement('canvas');
     canvas.width = 320;
     canvas.height = 60;

@@ -4,7 +4,7 @@
 // layer. Nothing here rasterises anything: an effect turns its sampled
 // parameters into a CSS fragment, and the compositor in `render.js` decides
 // what to do with the fragment. Effects in the same slot are joined in stack
-// order, which is what makes the stack an After Effects stack — the order in
+// order, which is what makes the stack an After Effects stack: the order in
 // the list is the order they apply, and any one can be switched off without
 // losing its settings.
 //
@@ -28,7 +28,7 @@ const p = (label, value, min, max, step, suffix) => ({
   choices: [],
 });
 
-// A parameter that picks from a short list. The value is the index — still a
+// A parameter that picks from a short list. The value is the index, still a
 // number, and still keyable, because a mode that could not be animated would
 // be the one thing on a layer a timeline could not describe.
 const choice = (label, value, choices) => ({
@@ -43,7 +43,7 @@ const choice = (label, value, choices) => ({
 
 // The two frames a directional effect can work in. An effect runs on a surface
 // the layer was drawn into before it was turned, so every angle is in the
-// layer's own frame and turns with it — right for a bevel, whose light is
+// layer's own frame and turns with it, right for a bevel, whose light is
 // bolted to the object, wrong for a long shadow, which is cast onto the world.
 export const SPACES = ['Layer', 'Comp'];
 const spaceParam = () => choice('Angle follows', 0, SPACES);
@@ -465,7 +465,7 @@ export const CATALOG = [
     render: (v, col) => {
       const size = Math.max(v[0], 2);
       const width = Math.min(v[1], size);
-      return `repeating-linear-gradient(0deg, {c} 0 {w}px, transparent {w}px {s}px),                  repeating-linear-gradient(90deg, {c} 0 {w}px, transparent {w}px {s}px)`;
+      return `repeating-linear-gradient(0deg, ${col[0]} 0 ${n(width)}px, transparent ${n(width)}px ${n(size)}px), repeating-linear-gradient(90deg, ${col[0]} 0 ${n(width)}px, transparent ${n(width)}px ${n(size)}px)`;
     },
   },
   {
@@ -477,7 +477,7 @@ export const CATALOG = [
     colors: [c('Colour', 'rgba(255,255,255,0.18)')],
     render: (v, col) => {
       const size = Math.max(v[0], 2);
-      return `conic-gradient({c} 0 25%, transparent 0 50%, {c} 0 75%, transparent 0)                  0 0 / {s}px {s}px`;
+      return `conic-gradient(${col[0]} 0 25%, transparent 0 50%, ${col[0]} 0 75%, transparent 0) 0 0 / ${n(size)}px ${n(size)}px`;
     },
   },
   {

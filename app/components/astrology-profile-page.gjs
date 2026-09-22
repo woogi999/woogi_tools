@@ -281,10 +281,7 @@ export default class AstrologyProfilePage extends Component {
 
         {{#if this.sunSign}}
           <section class="math-card astro-sign">
-            <span
-              class="astro-glyph"
-              aria-hidden="true"
-            ><Icon
+            <span class="astro-glyph" aria-hidden="true"><Icon
                 @name={{this.sunSign.icon}}
                 @size={{52}}
               /></span>

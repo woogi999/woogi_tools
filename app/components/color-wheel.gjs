@@ -114,9 +114,16 @@ export default class ColorWheel extends Component {
     } else {
       const { color, white, black } = triangleVertices(h);
       const denom =
-        (white.y - black.y) * (color.x - black.x) + (black.x - white.x) * (color.y - black.y);
-      let a = ((white.y - black.y) * (x - black.x) + (black.x - white.x) * (y - black.y)) / denom;
-      let b = ((black.y - color.y) * (x - black.x) + (color.x - black.x) * (y - black.y)) / denom;
+        (white.y - black.y) * (color.x - black.x) +
+        (black.x - white.x) * (color.y - black.y);
+      let a =
+        ((white.y - black.y) * (x - black.x) +
+          (black.x - white.x) * (y - black.y)) /
+        denom;
+      let b =
+        ((black.y - color.y) * (x - black.x) +
+          (color.x - black.x) * (y - black.y)) /
+        denom;
       let c = 1 - a - b;
       a = Math.max(a, 0);
       b = Math.max(b, 0);
@@ -159,7 +166,12 @@ export default class ColorWheel extends Component {
       x: a * color.x + b * white.x + c * black.x,
       y: a * color.y + b * white.y + c * black.y,
     };
-    this.drawMarker(ctx, svPoint.x, svPoint.y, `rgb(${this.args.r}, ${this.args.g}, ${this.args.b})`);
+    this.drawMarker(
+      ctx,
+      svPoint.x,
+      svPoint.y,
+      `rgb(${this.args.r}, ${this.args.g}, ${this.args.b})`,
+    );
   }
 
   drawRing(ctx) {
@@ -192,15 +204,21 @@ export default class ColorWheel extends Component {
     this.triBuffer.height = h;
     const image = this.triCtx.createImageData(w, h);
     const denom =
-      (white.y - black.y) * (color.x - black.x) + (black.x - white.x) * (color.y - black.y);
+      (white.y - black.y) * (color.x - black.x) +
+      (black.x - white.x) * (color.y - black.y);
 
     for (let py = 0; py < h; py++) {
       for (let px = 0; px < w; px++) {
         const x = minX + px + 0.5;
         const y = minY + py + 0.5;
         const a =
-          ((white.y - black.y) * (x - black.x) + (black.x - white.x) * (y - black.y)) / denom;
-        const b = ((black.y - color.y) * (x - black.x) + (color.x - black.x) * (y - black.y)) / denom;
+          ((white.y - black.y) * (x - black.x) +
+            (black.x - white.x) * (y - black.y)) /
+          denom;
+        const b =
+          ((black.y - color.y) * (x - black.x) +
+            (color.x - black.x) * (y - black.y)) /
+          denom;
         const c = 1 - a - b;
         const idx = (py * w + px) * 4;
         if (a >= -0.002 && b >= -0.002 && c >= -0.002) {

@@ -29,7 +29,7 @@ import {
   saveAs,
 } from '../utils/ferrite/projects';
 import { renderOut, formatById, sizeFor } from '../utils/ferrite/export';
-import { runFFmpeg, baseName } from '../utils/media-jobs';
+import { baseName } from '../utils/media-jobs';
 import { keepState } from '../utils/tool-state';
 import { TOOLS as TOOL_REGISTRY } from '../tools';
 import { drawScene, boxOf, handlesOf } from '../utils/ferrite/render';
@@ -104,8 +104,8 @@ function freePointer(element, event) {
 
 // Ferrite, in the page.
 //
-// This is a port of Project Ferrite's editor — a native Rust/Iced broadcast
-// graphics application — rather than a tool inspired by it. What it keeps is
+// This is a port of Project Ferrite's editor (a native Rust/Iced broadcast
+// graphics application) rather than a tool inspired by it. What it keeps is
 // the whole authoring half: the menu bar and the keymap, the four docks with
 // their tab strips, a project of scenes each with its own raster and rate, ten
 // layer kinds with an in and an out, a style whose every number can be
@@ -207,26 +207,9 @@ function loadMedia(kind, url) {
   });
 }
 
-// One console line. Pulled out of `say` so the opening greeting can be the
-// `log` field's initial value: a component's constructor runs inside Glimmer's
-// open render transaction, and reading a tracked field there and then writing
-// it is the "already been used previously in the same computation" error.
-function entry(level, text) {
-  return {
-    id: newId('g'),
-    level,
-    text,
-    at: new Date().toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }),
-  };
-}
-
 export default class VideoEditorPage extends Component {
-  // The page carries no site chrome, so the one site control worth keeping —
-  // which theme it is in — has to live in the editor's own menu bar.
+  // The page carries no site chrome, so the one site control worth keeping,
+  // which theme it is in, has to live in the editor's own menu bar.
   @service settings;
 
   /* --------------------------------------------------------- the model */
@@ -1551,6 +1534,11 @@ export default class VideoEditorPage extends Component {
     this.selectedKeys = [];
   };
 
+  // Shuts every twirled-open group, the counterpart to `reveal`.
+  collapseAll = () => {
+    this.twirls = [];
+  };
+
   reveal = (id) => {
     const which = REVEALS.find((r) => r.id === id);
     if (!which) return;
@@ -2466,7 +2454,7 @@ export default class VideoEditorPage extends Component {
       'reveal-anchor': () => this.reveal('anchor'),
       'reveal-animated': () => this.reveal('animated'),
       'reveal-effects': () => this.reveal('effects'),
-      'reveal-all': () => (this.twirls = []),
+      'reveal-all': this.collapseAll,
       'nudge-left': nudge(-1, 0),
       'nudge-right': nudge(1, 0),
       'nudge-up': nudge(0, -1),
@@ -2512,7 +2500,6 @@ export default class VideoEditorPage extends Component {
       save: this.saveHere,
       'save-as': this.saveProject,
       open: this.openProject,
-      render: this.openExport,
       home: this.goHome,
       'go-in': () => this.inMs !== null && this.seek(this.inMs),
       'go-out': () => this.outMs !== null && this.seek(this.outMs),
@@ -2586,8 +2573,8 @@ export default class VideoEditorPage extends Component {
       // A file is not the shelf: saving it in the browser afterwards makes a
       // new entry rather than writing over whichever one was open before.
       this.projectId = null;
-      // The media itself is not in the file — a project is the edit, not the
-      // footage — so any clip has to be pointed at its file again.
+      // The media itself is not in the file (a project is the edit, not the
+      // footage), so any clip has to be pointed at its file again.
       const clips = project.scenes
         .flatMap((sc) => sc.layers)
         .filter((l) => l.src).length;
@@ -2908,7 +2895,7 @@ export default class VideoEditorPage extends Component {
 
   get statusText() {
     const count = this.layers.length;
-    const gpu = hasGpu() ? 'GPU effects' : 'no WebGL2 — shader effects off';
+    const gpu = hasGpu() ? 'GPU effects' : 'no WebGL2, shader effects off';
     return `${count} layer${count === 1 ? '' : 's'} · ${this.rasterLabel} · ${this.timecodeEnd} · ${gpu}`;
   }
 
@@ -3171,7 +3158,7 @@ export default class VideoEditorPage extends Component {
           <div class="fr-drag-chip" style={{chipAt this.effectDrag}}>
             {{this.effectDrag.name}}
             {{#unless this.effectDrag.over}}
-              <span class="fr-faint">— drop on a layer</span>
+              <span class="fr-faint">or drop on a layer</span>
             {{/unless}}
           </div>
         {{/if}}
@@ -3327,7 +3314,7 @@ export default class VideoEditorPage extends Component {
                           {{on "click" (fn this.startCapture a.id)}}
                         >{{#if a.capturing}}Press a key…{{else if
                             a.binding
-                          }}{{a.binding}}{{else}}—{{/if}}</button>
+                          }}{{a.binding}}{{else}}-{{/if}}</button>
                       </div>
                     {{/each}}
                   </div>

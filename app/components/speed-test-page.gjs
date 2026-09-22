@@ -18,7 +18,7 @@ const DOWNLOAD_SIZES = [1e6, 5e6, 10e6, 25e6, 50e6];
 const UPLOAD_SIZES = [0.5e6, 2e6, 5e6, 10e6];
 const TEST_SECONDS = 8;
 const mbps = (bytes, ms) => (bytes * 8) / (ms / 1000) / 1e6;
-const fmt = (n, digits = 1) => (Number.isFinite(n) ? n.toFixed(digits) : '—');
+const fmt = (n, digits = 1) => (Number.isFinite(n) ? n.toFixed(digits) : '-');
 
 export default class SpeedTestPage extends Component {
   get pipBusy() {

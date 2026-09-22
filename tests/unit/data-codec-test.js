@@ -7,7 +7,11 @@ module('Unit | data codec', function () {
     const text = 'héllo wörld 👋 '.repeat(20);
     for (const f of FORMATS) {
       for (const level of [f.min, f.max]) {
-        assert.strictEqual(await decompress(await compress(text, f.id, level), f.id), text, `${f.id} @ ${level}`);
+        assert.strictEqual(
+          await decompress(await compress(text, f.id, level), f.id),
+          text,
+          `${f.id} @ ${level}`,
+        );
       }
     }
   });

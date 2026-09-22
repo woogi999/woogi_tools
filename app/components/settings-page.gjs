@@ -238,7 +238,7 @@ export default class SettingsPage extends Component {
 
   get offlineCacheSize() {
     return this.offline.cacheBytes === null
-      ? '—'
+      ? '-'
       : formatBytes(this.offline.cacheBytes);
   }
 
@@ -403,7 +403,9 @@ export default class SettingsPage extends Component {
             aria-selected={{if (eq this.tab t.id) "true" "false"}}
             {{on "click" (fn this.setTab t.id)}}
           >
-            <Icon @name={{t.icon}} @size={{14}} />
+            {{! the tab is named by its text; the glyph is hidden from the
+            accessibility tree rather than read out beside it }}
+            <Icon @name={{t.icon}} @size={{14}} aria-hidden="true" />
             {{t.label}}
           </button>
         {{/each}}
@@ -515,7 +517,6 @@ export default class SettingsPage extends Component {
                   type="text"
                   maxlength={{this.nameLength}}
                   value={{this.profile.name}}
-                  aria-label="Your name in games"
                   {{on "input" this.setProfileName}}
                 />
               </label>

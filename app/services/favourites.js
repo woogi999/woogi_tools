@@ -29,7 +29,9 @@ export default class FavouritesService extends Service {
   }
 
   toggle(route) {
-    this.routes = this.has(route) ? this.routes.filter((r) => r !== route) : [...this.routes, route];
+    this.routes = this.has(route)
+      ? this.routes.filter((r) => r !== route)
+      : [...this.routes, route];
     try {
       localStorage.setItem(KEY, JSON.stringify(this.routes));
     } catch {

@@ -32,45 +32,108 @@ export default class SoundMixer extends Component {
   previewMaster = () => sfx('cards.place');
 
   toggleChannel = (id) => this.prefs.toggleGroupMuted(id);
-  setChannel = (id, event) => this.prefs.setGroupVolume(id, Number(event.target.value) / 100);
+  setChannel = (id, event) =>
+    this.prefs.setGroupVolume(id, Number(event.target.value) / 100);
   preview = (channel) => sfx(channel.sample, { force: true });
   reset = () => this.prefs.resetGroups();
 
   <template>
     <div class="sound-mixer" data-sound-mixer>
       <div class="sound-channel is-master">
-        <button type="button" class="qr-icon-btn sound-channel-mute {{if this.masterSilent 'is-muted'}}" aria-pressed={{if this.masterSilent "true" "false"}} aria-label={{if this.masterSilent "Unmute all sounds" "Mute all sounds"}} {{on "click" this.toggleMaster}}>
-          <Icon @name={{if this.masterSilent "volume-x" "volume-2"}} @size={{15}} />
+        <button
+          type="button"
+          class="qr-icon-btn sound-channel-mute
+            {{if this.masterSilent 'is-muted'}}"
+          aria-pressed={{if this.masterSilent "true" "false"}}
+          aria-label={{if
+            this.masterSilent
+            "Unmute all sounds"
+            "Mute all sounds"
+          }}
+          {{on "click" this.toggleMaster}}
+        >
+          <Icon
+            @name={{if this.masterSilent "volume-x" "volume-2"}}
+            @size={{15}}
+          />
         </button>
         <span class="sound-channel-text">
           <span class="qr-label">All sounds</span>
-          <span class="tool-hint">The master volume; every channel below is a share of it.</span>
+          <span class="tool-hint">The master volume; every channel below is a
+            share of it.</span>
         </span>
-        <input type="range" min="0" max="100" step="5" value={{this.masterPercent}} aria-label="Master volume" aria-valuetext="{{this.masterPercent}}%" {{on "input" this.setMaster}} {{on "change" this.previewMaster}} />
-        <span class="volume-value">{{if this.masterSilent "Off" (percentText this.masterPercent)}}</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          value={{this.masterPercent}}
+          aria-label="Master volume"
+          aria-valuetext="{{this.masterPercent}}%"
+          {{on "input" this.setMaster}}
+          {{on "change" this.previewMaster}}
+        />
+        <span class="volume-value">{{if
+            this.masterSilent
+            "Off"
+            (percentText this.masterPercent)
+          }}</span>
       </div>
 
       <ul class="sound-channels {{if this.masterSilent 'is-dim'}}">
         {{#each this.channels key="id" as |c|}}
           <li class="sound-channel {{if c.silent 'is-silent'}}">
-            <button type="button" class="qr-icon-btn sound-channel-mute {{if c.silent 'is-muted'}}" aria-pressed={{if c.silent "true" "false"}} aria-label="{{if c.silent 'Unmute' 'Mute'}} {{c.label}}" title="{{if c.silent 'Unmute' 'Mute'}} {{c.label}}" {{on "click" (fn this.toggleChannel c.id)}}>
+            <button
+              type="button"
+              class="qr-icon-btn sound-channel-mute {{if c.silent 'is-muted'}}"
+              aria-pressed={{if c.silent "true" "false"}}
+              aria-label="{{if c.silent 'Unmute' 'Mute'}} {{c.label}}"
+              title="{{if c.silent 'Unmute' 'Mute'}} {{c.label}}"
+              {{on "click" (fn this.toggleChannel c.id)}}
+            >
               <Icon @name={{if c.silent "volume-x" c.icon}} @size={{14}} />
             </button>
             <span class="sound-channel-text">
               <span class="qr-label">{{c.label}}</span>
               <span class="tool-hint">{{c.hint}}</span>
             </span>
-            <input type="range" min="0" max="100" step="5" value={{c.percent}} aria-label="{{c.label}} volume" aria-valuetext="{{c.percent}}%" {{on "input" (fn this.setChannel c.id)}} {{on "change" (fn this.preview c)}} />
-            <span class="volume-value">{{if c.silent "Off" (percentText c.percent)}}</span>
-            <button type="button" class="qr-icon-btn" aria-label="Play a sample of {{c.label}}" title="Play a sample" {{on "click" (fn this.preview c)}}>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={{c.percent}}
+              aria-label="{{c.label}} volume"
+              aria-valuetext="{{c.percent}}%"
+              {{on "input" (fn this.setChannel c.id)}}
+              {{on "change" (fn this.preview c)}}
+            />
+            <span class="volume-value">{{if
+                c.silent
+                "Off"
+                (percentText c.percent)
+              }}</span>
+            <button
+              type="button"
+              class="qr-icon-btn"
+              aria-label="Play a sample of {{c.label}}"
+              title="Play a sample"
+              {{on "click" (fn this.preview c)}}
+            >
               <Icon @name="play" @size={{12}} />
             </button>
           </li>
         {{/each}}
       </ul>
 
-      <button type="button" class="btn math-use sound-mixer-reset" disabled={{if this.prefs.customised false true}} {{on "click" this.reset}}>
-        <Icon @name="rotate-ccw" @size={{13}} /> Reset channels
+      <button
+        type="button"
+        class="btn math-use sound-mixer-reset"
+        disabled={{if this.prefs.customised false true}}
+        {{on "click" this.reset}}
+      >
+        <Icon @name="rotate-ccw" @size={{13}} />
+        Reset channels
       </button>
     </div>
   </template>

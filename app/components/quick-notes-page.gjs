@@ -477,6 +477,7 @@ export default class QuickNotesPage extends Component {
                 <input
                   type="text"
                   placeholder="Folder name"
+                  aria-label="Folder name"
                   value={{this.newFolderName}}
                   {{on "input" this.setNewFolderName}}
                   {{on "blur" this.submitNewFolder}}
@@ -510,6 +511,7 @@ export default class QuickNotesPage extends Component {
                     type="text"
                     class="notes-title-input"
                     placeholder="Untitled"
+                    aria-label="Note title"
                     value={{this.currentNote.title}}
                     {{on "input" this.setTitle}}
                   />
@@ -713,9 +715,14 @@ export default class QuickNotesPage extends Component {
                   class="note-surface"
                   style={{surfaceStyle this.currentNote}}
                 >
+                  {{! a contenteditable surface is a multi-line text box, and
+                  saying so is what makes it reachable and announced }}
                   <div
                     class="notes-content"
                     contenteditable="true"
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-label="Note body"
                     spellcheck="true"
                     {{this.setEditorContent
                       this.selectedNoteId

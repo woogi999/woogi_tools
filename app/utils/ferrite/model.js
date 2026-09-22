@@ -2,8 +2,8 @@
 //
 // Ferrite is a native broadcast-graphics application: an Iced editor over a
 // Rust scene graph that a separate process renders through WebGPU. Its
-// production half — the output surfaces, the browser sources, the REST control
-// API, the live data gateway, the take-to-program bus — is out of scope here
+// production half (the output surfaces, the browser sources, the REST control
+// API, the live data gateway, the take-to-program bus) is out of scope here
 // and none of it is ported. Everything that makes it an *editor* is:
 //
 //   a project of scenes, each with its own raster, rate, background and
@@ -298,7 +298,7 @@ export const propsIn = (kind, group) =>
       )
     : [];
 
-// Both halves, for anything that has to touch the whole pair at once — the
+// Both halves, for anything that has to touch the whole pair at once: the
 // stopwatch, a reset, the keyframe summary.
 export const propAndPair = (prop) =>
   PROPS[prop]?.pair ? [prop, PROPS[prop].pair] : [prop];
@@ -360,7 +360,7 @@ export function makeLayer(kind, patch = {}) {
     // outside its own span.
     inMs: 0,
     outMs: 5000,
-    // How far into its own media the bar starts — a slip, not a trim.
+    // How far into its own media the bar starts: a slip, not a trim.
     offsetMs: 0,
     sourceMs: Infinity,
     style: defaultStyle(),
@@ -508,7 +508,7 @@ export function keyTimes(layer) {
 /* ----------------------------------------------------- effect sampling */
 
 // An effect parameter is keyable exactly as a layer property is, and samples
-// the same way — the track lives on the effect rather than the layer because
+// the same way: the track lives on the effect rather than the layer because
 // two copies of Gaussian Blur on one layer are two independent knobs.
 export function paramAt(fx, index, ms) {
   const keys = fx.tracks?.[index] ?? [];

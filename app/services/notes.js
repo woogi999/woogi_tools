@@ -50,7 +50,10 @@ export default class NotesService extends Service {
 
   persist() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ folders: this.folders, notes: this.notes }));
+      localStorage.setItem(
+        KEY,
+        JSON.stringify({ folders: this.folders, notes: this.notes }),
+      );
     } catch {
       // storage blocked (private mode): notes still work for this visit
     }
@@ -68,7 +71,9 @@ export default class NotesService extends Service {
 
   deleteFolder(id) {
     this.folders = this.folders.filter((f) => f.id !== id);
-    this.notes = this.notes.map((n) => (n.folderId === id ? { ...n, folderId: null } : n));
+    this.notes = this.notes.map((n) =>
+      n.folderId === id ? { ...n, folderId: null } : n,
+    );
     this.persist();
   }
 
@@ -80,20 +85,31 @@ export default class NotesService extends Service {
   }
 
   updateNote(id, patch) {
-    this.notes = this.notes.map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n));
+    this.notes = this.notes.map((n) =>
+      n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n,
+    );
     this.persist();
   }
 
   exportData() {
-    return { app: 'woogi-quick-notes', version: 1, exportedAt: new Date().toISOString(), folders: this.folders, notes: this.notes };
+    return {
+      app: 'woogi-quick-notes',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      folders: this.folders,
+      notes: this.notes,
+    };
   }
 
   // Adds folders and notes from an export, skipping any whose id already exists.
   importData(data) {
-    if (!Array.isArray(data?.notes) || !Array.isArray(data?.folders)) throw new Error('That file is not a Quick Notes export.');
+    if (!Array.isArray(data?.notes) || !Array.isArray(data?.folders))
+      throw new Error('That file is not a Quick Notes export.');
     const folderIds = new Set(this.folders.map((f) => f.id));
     const noteIds = new Set(this.notes.map((n) => n.id));
-    const folders = data.folders.filter((f) => f?.id && typeof f.name === 'string' && !folderIds.has(f.id));
+    const folders = data.folders.filter(
+      (f) => f?.id && typeof f.name === 'string' && !folderIds.has(f.id),
+    );
     const notes = data.notes.filter((n) => n?.id && !noteIds.has(n.id));
     this.folders = [...this.folders, ...folders];
     this.notes = [...notes, ...this.notes];

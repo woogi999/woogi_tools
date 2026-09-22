@@ -44,7 +44,9 @@ export default class GameChat extends Component {
     if (this.isOpen) return 0;
     const chat = this.room.chat;
     const seen = chat.findIndex((m) => m.id === this.seenId);
-    return chat.slice(seen + 1).filter((m) => !m.system && m.from !== this.room.selfId).length;
+    return chat
+      .slice(seen + 1)
+      .filter((m) => !m.system && m.from !== this.room.selfId).length;
   }
 
   markSeen() {
@@ -70,25 +72,62 @@ export default class GameChat extends Component {
 
   <template>
     {{#unless this.room.isBusy}}
-      <section class="game-chat {{if @floating 'is-floating'}} {{if this.isOpen 'is-open'}} {{@class}}" aria-label="Chat">
+      <section
+        class="game-chat
+          {{if @floating 'is-floating'}}
+          {{if this.isOpen 'is-open'}}
+          {{@class}}"
+        aria-label="Chat"
+      >
         {{#if @floating}}
-          <button type="button" class="game-chat-toggle" aria-expanded={{if this.open "true" "false"}} {{on "click" this.toggle}}>
+          <button
+            type="button"
+            class="game-chat-toggle"
+            aria-expanded={{if this.open "true" "false"}}
+            {{on "click" this.toggle}}
+          >
             <Icon @name={{if this.open "x" "message-circle"}} @size={{15}} />
             <span>{{if this.open "Close chat" "Chat"}}</span>
-            {{#if this.unread}}<span class="game-chat-unread">{{this.unread}}</span>{{/if}}
+            {{#if this.unread}}<span
+                class="game-chat-unread"
+              >{{this.unread}}</span>{{/if}}
           </button>
         {{else}}
-          <h3 class="lobby-panel-title"><Icon @name="message-circle" @size={{14}} /> Chat{{#if this.room.debugOn}} <span class="lobby-tag is-debug"><Icon @name="terminal" @size={{10}} /> Debug on</span>{{/if}}</h3>
+          <h3 class="lobby-panel-title"><Icon
+              @name="message-circle"
+              @size={{14}}
+            />
+            Chat{{#if this.room.debugOn}}
+              <span class="lobby-tag is-debug"><Icon
+                  @name="terminal"
+                  @size={{10}}
+                />
+                Debug on</span>{{/if}}</h3>
         {{/if}}
 
         {{#if this.isOpen}}
-          <ol class="game-chat-list" aria-live="polite" {{stickToBottom this.messages.length}}>
+          <ol
+            class="game-chat-list"
+            aria-live="polite"
+            {{stickToBottom this.messages.length}}
+          >
             {{#each this.messages key="id" as |m|}}
               {{#if m.system}}
-                <li class="game-chat-system {{if m.debug 'is-debug'}}">{{#if m.debug}}<Icon @name="terminal" @size={{11}} /> {{/if}}{{m.text}}</li>
+                <li class="game-chat-system {{if m.debug 'is-debug'}}">{{#if
+                    m.debug
+                  }}<Icon @name="terminal" @size={{11}} />
+                  {{/if}}{{m.text}}</li>
               {{else}}
-                <li class="game-chat-msg {{if m.mine 'is-mine'}} {{if m.bot 'is-bot'}}">
-                  <span class="game-chat-name">{{#if m.bot}}<Icon @name="bot" @size={{11}} /> {{/if}}{{if m.mine "You" m.name}}</span>
+                <li
+                  class="game-chat-msg
+                    {{if m.mine 'is-mine'}}
+                    {{if m.bot 'is-bot'}}"
+                >
+                  <span class="game-chat-name">{{#if m.bot}}<Icon
+                        @name="bot"
+                        @size={{11}}
+                      />
+                    {{/if}}{{if m.mine "You" m.name}}</span>
                   <span class="game-chat-text">{{m.text}}</span>
                 </li>
               {{/if}}
@@ -97,8 +136,29 @@ export default class GameChat extends Component {
             {{/each}}
           </ol>
           <form class="game-chat-form" {{on "submit" this.send}}>
-            <input type="text" placeholder={{if this.room.iHaveDebug "Message, or a /command" (if this.room.isOnline "Message the room" "Say something to the table")}} aria-label="Chat message" maxlength={{this.maxLength}} value={{this.draft}} {{on "input" this.setDraft}} {{on "keydown" this.stopKeys}} />
-            <button type="submit" class="btn" aria-label="Send" disabled={{if this.draft false true}}><Icon @name="send" @size={{13}} /></button>
+            <input
+              type="text"
+              placeholder={{if
+                this.room.iHaveDebug
+                "Message, or a /command"
+                (if
+                  this.room.isOnline
+                  "Message the room"
+                  "Say something to the table"
+                )
+              }}
+              aria-label="Chat message"
+              maxlength={{this.maxLength}}
+              value={{this.draft}}
+              {{on "input" this.setDraft}}
+              {{on "keydown" this.stopKeys}}
+            />
+            <button
+              type="submit"
+              class="btn"
+              aria-label="Send"
+              disabled={{if this.draft false true}}
+            ><Icon @name="send" @size={{13}} /></button>
           </form>
         {{/if}}
       </section>

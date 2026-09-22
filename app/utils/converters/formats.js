@@ -12,7 +12,13 @@ const CATEGORY_LABELS = {
   font: 'Fonts',
 };
 
-const list = (category, entries) => entries.map(([ext, label, mime]) => ({ ext, label, category, mime: mime ?? 'application/octet-stream' }));
+const list = (category, entries) =>
+  entries.map(([ext, label, mime]) => ({
+    ext,
+    label,
+    category,
+    mime: mime ?? 'application/octet-stream',
+  }));
 
 const ALL = [
   ...list('image', [
@@ -120,11 +126,23 @@ const ALL = [
   ]),
   ...list('document', [
     ['pdf', 'PDF', 'application/pdf'],
-    ['docx', 'Word DOCX', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    [
+      'docx',
+      'Word DOCX',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
     ['odt', 'OpenDocument Text', 'application/vnd.oasis.opendocument.text'],
     ['rtf', 'Rich Text', 'application/rtf'],
-    ['pptx', 'PowerPoint PPTX', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
-    ['xlsx', 'Excel XLSX', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    [
+      'pptx',
+      'PowerPoint PPTX',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ],
+    [
+      'xlsx',
+      'Excel XLSX',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
     ['epub', 'EPUB e-book', 'application/epub+zip'],
     ['fb2', 'FictionBook'],
     ['html', 'HTML', 'text/html'],

@@ -1,14 +1,14 @@
 // The editor's colours, read off the page rather than kept as a second copy.
 //
-// Everything the canvases draw — the timeline, the selection handles, the ease
-// curve — has to match the chrome around it, and the chrome is styled from the
+// Everything the canvases draw (the timeline, the selection handles, the ease
+// curve) has to match the chrome around it, and the chrome is styled from the
 // site's own tokens. So the canvas asks the page what colour to use instead of
 // carrying its own palette, which is what keeps the two from drifting apart
 // when the site's theme changes or somebody flips to light mode.
 //
 // The awkward part is getting from a token to something a canvas will paint
-// with. Reading a custom property hands back its raw token sequence —
-// `color-mix(in oklab, …)` and all — so the value is first bounced through a
+// with. Reading a custom property hands back its raw token sequence,
+// `color-mix(in oklab, …)` and all, so the value is first bounced through a
 // real `color` property, whose computed value is a resolved colour. That is
 // still not enough: it resolves in whatever space it was authored in, and the
 // site's greys land on `oklch(0.985 0 none)`. A `fillStyle` that cannot be
@@ -33,7 +33,7 @@ function probeIn(element) {
 // Whether a canvas can actually paint with this colour, and what it calls it.
 //
 // Resolving a custom property gives back whatever colour space it was authored
-// in — the site's greys compute to `oklch(0.985 0 none)` — and assigning
+// in (the site's greys compute to `oklch(0.985 0 none)`), and assigning
 // something a canvas cannot parse is silently ignored, which leaves the
 // *previous* colour in `fillStyle` and paints the wrong thing. So the value is
 // offered to a real canvas twice from two different starting colours: if both

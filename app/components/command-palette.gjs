@@ -27,7 +27,8 @@ function noteSnippet(note, needle) {
   return {
     before: (from > 0 ? '…' : '') + content.slice(from, i),
     match: content.slice(i, i + needle.length),
-    after: content.slice(i + needle.length, to) + (to < content.length ? '…' : ''),
+    after:
+      content.slice(i + needle.length, to) + (to < content.length ? '…' : ''),
   };
 }
 
@@ -38,7 +39,11 @@ function findRanges(root, query) {
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.parentElement?.checkVisibility()) continue;
     const text = node.data.toLowerCase();
-    for (let i = text.indexOf(needle); i !== -1; i = text.indexOf(needle, i + needle.length)) {
+    for (
+      let i = text.indexOf(needle);
+      i !== -1;
+      i = text.indexOf(needle, i + needle.length)
+    ) {
       const range = new Range();
       range.setStart(node, i);
       range.setEnd(node, i + needle.length);
@@ -62,7 +67,10 @@ function snippet(range) {
 
 function isFindShortcut(event) {
   const mod = event.ctrlKey || event.metaKey;
-  return (mod && (event.code === 'KeyF' || event.code === 'KeyG')) || event.key === 'F3';
+  return (
+    (mod && (event.code === 'KeyF' || event.code === 'KeyG')) ||
+    event.key === 'F3'
+  );
 }
 
 // Global Ctrl/Cmd+F, FX-Console style: finds words on the page first,
@@ -89,7 +97,9 @@ export default class CommandPalette extends Component {
 
   get tools() {
     if (!this.query.trim()) return [];
-    return searchTools(this.query).filter((tool) => this.toolVisibility.isVisible(tool));
+    return searchTools(this.query).filter((tool) =>
+      this.toolVisibility.isVisible(tool),
+    );
   }
 
   // Expanded Ctrl+F: while inside Quick Notes, also search every note's
@@ -103,9 +113,17 @@ export default class CommandPalette extends Component {
     if (!this.inNotesTool || !query) return [];
     const needle = query.toLowerCase();
     return this.notes.notes
-      .filter((n) => `${n.title}\n${htmlToPlainText(n.contentHtml)}`.toLowerCase().includes(needle))
+      .filter((n) =>
+        `${n.title}\n${htmlToPlainText(n.contentHtml)}`
+          .toLowerCase()
+          .includes(needle),
+      )
       .slice(0, NOTE_LIMIT)
-      .map((note) => ({ note, title: note.title || 'Untitled', ...noteSnippet(note, query) }));
+      .map((note) => ({
+        note,
+        title: note.title || 'Untitled',
+        ...noteSnippet(note, query),
+      }));
   }
 
   selectNote = (note) => {
@@ -127,7 +145,10 @@ export default class CommandPalette extends Component {
   }
 
   get matchLabel() {
-    if (!this.query.trim()) return this.inNotesTool ? 'Type to search your notes and tools' : 'Type to search this page and your tools';
+    if (!this.query.trim())
+      return this.inNotesTool
+        ? 'Type to search your notes and tools'
+        : 'Type to search this page and your tools';
     if (!this.matches.length) return 'No matches on this page';
     return `${this.current + 1} of ${this.matches.length} on this page`;
   }
@@ -136,7 +157,13 @@ export default class CommandPalette extends Component {
     if (isFindShortcut(event)) {
       event.preventDefault();
       event.stopPropagation();
-      if (this.isOpen && this.matches.length && !event.ctrlKey && !event.metaKey) this.step(event.shiftKey ? -1 : 1);
+      if (
+        this.isOpen &&
+        this.matches.length &&
+        !event.ctrlKey &&
+        !event.metaKey
+      )
+        this.step(event.shiftKey ? -1 : 1);
       else this.open();
       return;
     }
@@ -180,13 +207,17 @@ export default class CommandPalette extends Component {
   };
 
   step(delta) {
-    this.goTo((this.current + delta + this.matches.length) % this.matches.length);
+    this.goTo(
+      (this.current + delta + this.matches.length) % this.matches.length,
+    );
   }
 
   goTo = (index) => {
     this.current = index;
     this.highlight();
-    document.querySelector('.palette-match.current')?.scrollIntoView({ block: 'nearest' });
+    document
+      .querySelector('.palette-match.current')
+      ?.scrollIntoView({ block: 'nearest' });
   };
 
   highlight() {
@@ -195,7 +226,10 @@ export default class CommandPalette extends Component {
     const range = this.matches[this.current];
     if (range) {
       CSS.highlights.set('search-current', new Highlight(range));
-      range.startContainer.parentElement.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      range.startContainer.parentElement.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth',
+      });
     } else {
       CSS.highlights.delete('search-current');
     }
@@ -216,11 +250,15 @@ export default class CommandPalette extends Component {
 
   <template>
     {{#if this.isOpen}}
+      {{! the backdrop and panel only route stray clicks; every command is
+      reachable from the input and the list below }}
+      {{! template-lint-disable no-invalid-interactive }}
       <div
         class="command-palette-backdrop {{if this.isClosing 'closing'}}"
         {{on "click" this.close}}
       >
         <div class="command-palette" {{on "click" this.stop}}>
+          {{! template-lint-enable no-invalid-interactive }}
           <div class="command-palette-bar">
             <Icon @name="search" @size={{14}} />
             <input
@@ -235,7 +273,10 @@ export default class CommandPalette extends Component {
           </div>
           <div class="command-palette-status">
             {{this.matchLabel}}
-            {{#if this.matches.length}}<kbd>Enter</kbd> next · <kbd>Shift+Enter</kbd> prev{{/if}}
+            {{#if this.matches.length}}<kbd>Enter</kbd>
+              next ·
+              <kbd>Shift+Enter</kbd>
+              prev{{/if}}
           </div>
 
           {{#if this.matches.length}}
@@ -245,15 +286,18 @@ export default class CommandPalette extends Component {
                 <li>
                   <button
                     type="button"
-                    class="command-palette-result palette-match {{if item.isCurrent 'current'}}"
+                    class="command-palette-result palette-match
+                      {{if item.isCurrent 'current'}}"
                     {{on "click" (fn this.goTo item.index)}}
                   >
-                    <span class="palette-snippet">{{item.before}}<mark>{{item.match}}</mark>{{item.after}}</span>
+                    <span class="palette-snippet">{{item.before}}<mark
+                      >{{item.match}}</mark>{{item.after}}</span>
                   </button>
                 </li>
               {{/each}}
               {{#if this.hiddenCount}}
-                <li class="command-palette-empty">+{{this.hiddenCount}} more, refine your search</li>
+                <li class="command-palette-empty">+{{this.hiddenCount}}
+                  more, refine your search</li>
               {{/if}}
             </ul>
           {{/if}}
@@ -263,9 +307,15 @@ export default class CommandPalette extends Component {
             <ul class="command-palette-results">
               {{#each this.noteMatches as |item|}}
                 <li>
-                  <button type="button" class="command-palette-result" {{on "click" (fn this.selectNote item.note)}}>
+                  <button
+                    type="button"
+                    class="command-palette-result"
+                    {{on "click" (fn this.selectNote item.note)}}
+                  >
                     <Icon @name="sticky-note" @size={{14}} />
-                    <span class="palette-snippet">{{item.title}}: {{item.before}}<mark>{{item.match}}</mark>{{item.after}}</span>
+                    <span class="palette-snippet">{{item.title}}:
+                      {{item.before}}<mark
+                      >{{item.match}}</mark>{{item.after}}</span>
                   </button>
                 </li>
               {{/each}}
@@ -277,7 +327,11 @@ export default class CommandPalette extends Component {
             <ul class="command-palette-results">
               {{#each this.tools as |tool|}}
                 <li>
-                  <button type="button" class="command-palette-result" {{on "click" (fn this.select tool)}}>
+                  <button
+                    type="button"
+                    class="command-palette-result"
+                    {{on "click" (fn this.select tool)}}
+                  >
                     <Icon @name={{tool.icon}} @size={{14}} />
                     <span>{{tool.label}}</span>
                   </button>

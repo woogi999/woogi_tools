@@ -5,7 +5,7 @@
 // live and the start screen shows both:
 //
 //   * here, in local storage, which is what "save" means when you have not
-//     asked for a file — it survives a reload and nothing else;
+//     asked for a file: it survives a reload and nothing else;
 //   * a `.woogi.json` file you asked for, which survives anything and is the
 //     one to keep.
 //
@@ -109,7 +109,7 @@ export const loadStored = (id) =>
 /**
  * Puts a project on the shelf under `id`, replacing what was there.
  *
- * Returns false if it would not fit — local storage is a few megabytes, and a
+ * Returns false if it would not fit: local storage is a few megabytes, and a
  * project with a lot of keyframes can reach that. The caller says so rather
  * than pretending the save happened.
  */

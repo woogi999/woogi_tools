@@ -27,7 +27,7 @@ import { askConfirm } from '../utils/confirm';
 //   @levelEditor  this game has custom levels, so the lobby links to the editor
 //   @spectatable  the game can show a spectator its game, so the lobby offers
 //                 watching instead of playing
-//   @botLevels        { [seatId]: level } — with @botLevelOptions and
+//   @botLevels        { [seatId]: level }, with @botLevelOptions and
 //   @botLevelOptions  [{ id, label }]       @onSetBotLevel, each computer
 //   @onSetBotLevel    (seatId, level)       player gets its own difficulty
 //   @onStart      host only

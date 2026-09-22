@@ -35,7 +35,8 @@ export function createGovernor(renderer, { max, min = 0.75 } = {}) {
       if (now - changedAt < SETTLE_MS) return;
       let next = ratio;
       if (average > SLOW_MS && ratio > min) next = Math.max(min, ratio - STEP);
-      else if (average < FAST_MS && ratio < max) next = Math.min(max, ratio + STEP);
+      else if (average < FAST_MS && ratio < max)
+        next = Math.min(max, ratio + STEP);
       if (next === ratio) return;
       ratio = next;
       changedAt = now;
@@ -45,4 +46,5 @@ export function createGovernor(renderer, { max, min = 0.75 } = {}) {
   };
 }
 
-export const tabHidden = () => typeof document !== 'undefined' && document.hidden;
+export const tabHidden = () =>
+  typeof document !== 'undefined' && document.hidden;

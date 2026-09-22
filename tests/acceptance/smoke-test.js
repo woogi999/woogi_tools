@@ -14,17 +14,20 @@ module('Acceptance | smoke', function (hooks) {
   });
 
   test('every tool page renders its starred heading and credits', async function (assert) {
-    for (const [url, title] of [
-      ['/color-picker', 'Colour Picker'],
-      ['/data-codec', 'Data Codec'],
-      ['/qr-code', 'QR Code Generator'],
+    for (const [url, title, hasLibraries] of [
+      ['/color-picker', 'Colour Picker', false],
+      ['/data-codec', 'Data Codec', true],
+      ['/qr-code', 'QR Code Generator', true],
     ]) {
       await visit(url);
       assert.dom('.hero-title span').hasText(title);
       assert.dom('.hero-title .star-btn').exists();
-      assert
-        .dom('.made-with .credit-list')
-        .exists({ count: url === '/color-picker' ? 1 : 2 });
+      // Every tool page explains how it is made; the list of libraries is
+      // only there when the tool actually leans on one.
+      assert.dom('.made-with').exists();
+      if (hasLibraries)
+        assert.dom('.made-with .credit-list').exists({ count: 1 });
+      else assert.dom('.made-with .credit-list').doesNotExist();
     }
   });
 
@@ -107,7 +110,7 @@ module('Acceptance | smoke', function (hooks) {
       ['/dice-roll', 'Dice Roll'],
       ['/coin-toss', 'Coin Toss'],
       ['/geometry-calculator', 'Geometry Calculator'],
-      ['/image-editor', 'Image Editor'],
+      ['/image-editor', 'Image Darkroom'],
       ['/image-censor', 'Image Censor'],
       ['/video-censor', 'Video Censor'],
       ['/subtitle-baker', 'Subtitle Baker'],
@@ -136,8 +139,10 @@ module('Acceptance | smoke', function (hooks) {
     assert.dom('.ep-cell').exists();
     await visit('/dice-roll');
     await click('.dice-roll-btn');
-    await waitUntil(() => find('.die'), { timeout: 3000 });
-    assert.dom('.die').exists();
+    // The dice land in a 3D scene where WebGL will run and as flat faces
+    // where it won't, so the roll's total is what both paths agree on.
+    await waitUntil(() => find('.math-result .math-big'), { timeout: 8000 });
+    assert.dom('.math-result .math-big').exists();
   });
 
   test('the currency converter renders with its watchlist', async function (assert) {
@@ -201,7 +206,7 @@ module('Acceptance | smoke', function (hooks) {
     await visit('/qr-code');
     await waitUntil(() => find('.qr-image svg'));
     assert.dom('.qr-image svg').exists();
-    assert.dom('.qr-export').exists({ count: 3 });
+    assert.dom('.qr-export').exists({ count: 4 });
 
     await fillIn('.colour-field .colour-hex', '#FF0000');
     assert.dom('.colour-field input[type=color]').hasValue('#ff0000');

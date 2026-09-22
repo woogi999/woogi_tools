@@ -19,8 +19,8 @@ import { timecode } from '../../utils/ferrite/model';
 // that follow from both shown at the bottom before anything starts.
 //
 // The one place it departs is the engine switch, which After Effects has no
-// use for. A browser can either record the canvas as it plays — fast, carries
-// the sound, drops frames when the comp is heavy — or draw every frame in
+// use for. A browser can either record the canvas as it plays (fast, carries
+// the sound, drops frames when the comp is heavy) or draw every frame in
 // order and encode them, which is exact and silent. Neither is the right
 // default for everyone, so the choice is on the panel with the consequence
 // spelled out next to it rather than buried.
@@ -81,7 +81,7 @@ export default class ExportModal extends Component {
     return `${timecode(this.o.fromMs, this.o.fps)} → ${timecode(this.o.toMs, this.o.fps)}`;
   }
 
-  // Escape closes it, as every other dialog on the site does — but not while
+  // Escape closes it, as every other dialog on the site does, but not while
   // a render is running, because there would be nothing to go back to.
   trap = modifier((element) => {
     element.querySelector('select, button')?.focus();
@@ -199,12 +199,13 @@ export default class ExportModal extends Component {
               </div>
             {{/if}}
 
-            <label class="fr-field">
+            <div class="fr-field">
               <span>Frame rate</span>
               <span class="fr-field-row">
                 <input
                   type="number"
                   class="fr-input is-short"
+                  aria-label="Frame rate"
                   min="1"
                   max="120"
                   value={{this.o.fps}}
@@ -216,7 +217,7 @@ export default class ExportModal extends Component {
                   {{on "click" @editor.useCompFps}}
                 >Use comp ({{@editor.fps}})</button>
               </span>
-            </label>
+            </div>
 
             <label class="fr-field">
               <span>Quality</span>
@@ -315,7 +316,7 @@ export default class ExportModal extends Component {
               />
               Include sound</label>
             {{#if (eq this.o.engine "exact")}}
-              <p class="fr-hint">Frame-by-frame renders are silent — sound is a
+              <p class="fr-hint">Frame-by-frame renders are silent; sound is a
                 live graph and there is no clock to play it against. Use real
                 time if you need the audio.</p>
             {{/if}}

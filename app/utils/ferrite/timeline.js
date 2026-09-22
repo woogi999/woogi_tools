@@ -7,8 +7,8 @@
 // wins. Drawing the *editor* this way is exactly where a canvas belongs.
 //
 // So this is the same drawing on a 2D context: the ruler with its markers, the
-// layer bars with a grip at each end, keyframe diamonds — small and summarised
-// on a layer or group row, full size and grabbable on a property row — the
+// layer bars with a grip at each end, keyframe diamonds, small and summarised
+// on a layer or group row, full size and grabbable on a property row. The
 // playhead, the rubber band, and the time bar underneath that pans and zooms
 // the visible span. Hit testing lives here too, so what you can grab and what
 // you can see are decided by the same numbers.
@@ -92,7 +92,7 @@ export const canvasHeight = (rows) => rows.length * ROW_H + TIME_BAR_H;
 // The ruler is its own canvas, pinned to the top of the timeline while the
 // tracks scroll under it. It used to be the first band of the tracks canvas,
 // which meant scrolling down to a layer scrolled the scrub bar off the screen
-// — and the scrub bar is the one control you reach for constantly.
+// and the scrub bar is the one control you reach for constantly.
 export function drawRuler(canvas, map, options) {
   const {
     timeMs,

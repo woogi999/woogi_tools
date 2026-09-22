@@ -622,58 +622,10 @@ export default class FileSharePage extends Component {
           <span><strong>Only share with people you trust.</strong>
             Files go directly between your devices for speed, so the other
             person's browser can see your IP address (roughly where you are and
-            which network you're on). When a direct link isn't possible, the
-            files go through a public relay (the Open Relay Project) instead,
-            which is slower.</span></p>
-        {{#unless this.active}}
-          <div class="fs-frame pop-in">
-            <div class="fs-start">
-              <div class="fs-start-col">
-                <h3 class="qr-heading">Share files</h3>
-                <p class="tool-hint">Drop files below to get a code and link you
-                  can send to someone.</p>
-                <label
-                  class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}"
-                  {{on "dragover" this.dragOver}}
-                  {{on "dragleave" this.dragOver}}
-                  {{on "drop" this.dropFiles}}
-                >
-                  <Icon @name="upload" @size={{22}} />
-                  <span>{{if
-                      this.dragging
-                      "Drop files here"
-                      "Drop files, or click to browse"
-                    }}</span>
-                  <input
-                    type="file"
-                    multiple
-                    class="sr-only"
-                    {{on "change" this.selectFiles}}
-                  />
-                </label>
-              </div>
-              <div class="fs-start-col">
-                <h3 class="qr-heading">Get a file</h3>
-                <p class="tool-hint">Got a code from someone? Enter it below to
-                  receive their files.</p>
-                <form class="fs-join" {{on "submit" this.requestFile}}>
-                  <input
-                    type="text"
-                    class="fs-code-input"
-                    placeholder="Share code"
-                    maxlength="8"
-                    value={{this.joinInput}}
-                    {{on "input" this.setJoinInput}}
-                  />
-                  <button type="submit" class="btn active">Get File</button>
-                </form>
-                {{#if this.joinError}}<p
-                    class="tool-error"
-                  >{{this.joinError}}</p>{{/if}}
-              </div>
-            </div>
-          </div>
-        {{else}}
+            which network you're on). If the network won't allow a direct link,
+            the files are passed along through this site instead, which hides
+            your address but is slower. Nothing is stored either way.</span></p>
+        {{#if this.active}}
           <div class="fs-frame pop-in">
             <div class="fs-room">
               <div class="fs-room-info">
@@ -701,8 +653,8 @@ export default class FileSharePage extends Component {
                 {{#if this.relayed}}
                   <p class="tool-hint">This network wouldn't allow a direct
                     connection, so the files are going through this site
-                    instead. Nothing is stored — the pieces are passed straight
-                    along — but it may be slower than a direct transfer.</p>
+                    instead. Nothing is stored; the pieces are passed straight
+                    along, but it may be slower than a direct transfer.</p>
                 {{else if this.relayFailed}}
                   <p class="tool-hint">Couldn't connect, directly or through
                     this site. Check that both devices are online and that the
@@ -780,7 +732,56 @@ export default class FileSharePage extends Component {
               </div>
             </div>
           </div>
-        {{/unless}}
+        {{else}}
+          <div class="fs-frame pop-in">
+            <div class="fs-start">
+              <div class="fs-start-col">
+                <h3 class="qr-heading">Share files</h3>
+                <p class="tool-hint">Drop files below to get a code and link you
+                  can send to someone.</p>
+                <label
+                  class="qr-drop fs-drop {{if this.dragging 'is-dragging'}}"
+                  {{on "dragover" this.dragOver}}
+                  {{on "dragleave" this.dragOver}}
+                  {{on "drop" this.dropFiles}}
+                >
+                  <Icon @name="upload" @size={{22}} />
+                  <span>{{if
+                      this.dragging
+                      "Drop files here"
+                      "Drop files, or click to browse"
+                    }}</span>
+                  <input
+                    type="file"
+                    multiple
+                    class="sr-only"
+                    {{on "change" this.selectFiles}}
+                  />
+                </label>
+              </div>
+              <div class="fs-start-col">
+                <h3 class="qr-heading">Get a file</h3>
+                <p class="tool-hint">Got a code from someone? Enter it below to
+                  receive their files.</p>
+                <form class="fs-join" {{on "submit" this.requestFile}}>
+                  <input
+                    type="text"
+                    class="fs-code-input"
+                    placeholder="Share code"
+                    aria-label="Share code"
+                    maxlength="8"
+                    value={{this.joinInput}}
+                    {{on "input" this.setJoinInput}}
+                  />
+                  <button type="submit" class="btn active">Get File</button>
+                </form>
+                {{#if this.joinError}}<p
+                    class="tool-error"
+                  >{{this.joinError}}</p>{{/if}}
+              </div>
+            </div>
+          </div>
+        {{/if}}
       </div>
     </ToolPage>
   </template>

@@ -1,7 +1,7 @@
 // The render queue's engine: one scene, one span of time, one file out.
 //
-// Ferrite renders offline — it walks the timeline a frame at a time and hands
-// each finished frame to an encoder — and that is the only way a render is
+// Ferrite renders offline: it walks the timeline a frame at a time and hands
+// each finished frame to an encoder, and that is the only way a render is
 // *exact*. A browser's `MediaRecorder` records a canvas in real time, so a
 // frame that took too long to draw is simply not in the file, and a comp that
 // takes 40ms a frame comes out of a "30fps" export at whatever rate the
@@ -9,9 +9,9 @@
 //
 // So there are two engines here, and the modal makes you choose:
 //
-//   * `live`  — captureStream + MediaRecorder. Fast, and the only one that
+//   * `live`  is captureStream + MediaRecorder. Fast, and the only one that
 //               can carry the sound, because the mixer is a live graph.
-//   * `exact` — every frame drawn, seeked and encoded in order through
+//   * `exact` is every frame drawn, seeked and encoded in order through
 //               FFmpeg. Slower, frame-accurate, silent.
 //
 // Nothing here touches the editor's state. The caller passes a `drawAt(ms)`
@@ -365,8 +365,8 @@ async function toMp4(webm, { seconds, quality, onProgress }) {
 }
 
 // The comp is always drawn at its own size and then scaled into the output,
-// never drawn small. `drawScene` resets the transform on every call — it has
-// to, it is compositing — so a scale set on the context before it would be
+// never drawn small. `drawScene` resets the transform on every call (it has
+// to, it is compositing), so a scale set on the context before it would be
 // thrown away, and a half render would come out as the top-left quarter.
 function makeSurface(options) {
   const { width, height } = sizeFor(options);

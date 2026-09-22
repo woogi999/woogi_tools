@@ -1,6 +1,6 @@
 # Woogi Tools
 
-A collection of small, single-purpose utilities — a calculator here, a converter there, a password generator, a QR code maker — with a bit of personality. No accounts, no tracking, and (with the exception of a couple of engines that fetch a WebAssembly binary or a model file from a CDN the first time you use them) nothing ever leaves your browser.
+A collection of small, single-purpose utilities (a calculator here, a converter there, a password generator, a QR code maker) with a bit of personality. No accounts, no tracking, and (with the exception of a couple of engines that fetch a WebAssembly binary or a model file from a CDN the first time you use them) nothing ever leaves your browser.
 
 ## What's inside
 
@@ -28,20 +28,20 @@ Word Counter · Text Case Converter · Text Diff · Line Tools
 
 ### Fun
 
-Chess · Snake · Uno — each playable against the computer or peer-to-peer with a friend
+Chess · Snake · Uno, each playable against the computer or peer-to-peer with a friend
 
 ### Other
 
 QR Code Generator · P2P File Share · Password Generator · Lorem Ipsum Generator · Pomodoro Timer · Random Picker · Quick Notes
 
-The full, current list — with descriptions, keywords and "how it's made" notes — lives in [`app/tools.js`](app/tools.js), which drives the sidebar, the home page and the command palette (`Ctrl`/`Cmd` + `F`) from a single source.
+The full, current list, with descriptions, keywords and "how it's made" notes, lives in [`app/tools.js`](app/tools.js), which drives the sidebar, the home page and the command palette (`Ctrl`/`Cmd` + `F`) from a single source.
 
 ## How it's built
 
 - **Ember.js** (Octane edition, `.gjs` template-tag components) on **Vite** via Embroider, rather than the classic ember-cli broccoli pipeline.
 - No backend and no database. Preferences, notes and favourites are kept in `localStorage` under a `woogi-` prefix (see Settings → Reset).
 - Works offline after the first visit. `vite build` runs a small plugin ([`lib/offline-plugin.mjs`](lib/offline-plugin.mjs)) that hashes the whole build into a build ID and writes `dist/sw.js` from [`lib/service-worker.js`](lib/service-worker.js). Pages are network-first (so online visitors always get the latest deploy), hashed assets are cache-first, and a new build ID makes browsers download the new version in the background next time they're online. Status and cache size are in Settings → Your data.
-- Heavier engines — ImageMagick, FFmpeg, Pandoc, 7-Zip, the background-removal model — are WebAssembly builds loaded lazily, only when a tool that needs them is actually used.
+- Heavier engines (ImageMagick, FFmpeg, Pandoc, 7-Zip, the background-removal model) are WebAssembly builds loaded lazily, only when a tool that needs them is actually used.
 - P2P File Share uses [PeerJS](https://peerjs.com) for the WebRTC signalling handshake; the transfer itself is a direct connection between the two browsers. The games' online mode connects the same way; chess rules come from [chess.js](https://github.com/jhlywa/chess.js).
 
 ## Prerequisites
@@ -85,13 +85,13 @@ app/
 lib/             build-time offline support: the service worker template and the Vite plugin that fills it in
 ```
 
-Releasing: add an entry to the top of [`app/changelog.js`](app/changelog.js) (it drives the Updates page and the version shown in Settings) and bump `version` in `package.json` to match. Nothing else — the service worker picks up any change to the build on its own.
+Releasing: add an entry to the top of [`app/changelog.js`](app/changelog.js) (it drives the Updates page and the version shown in Settings) and bump `version` in `package.json` to match. Nothing else: the service worker picks up any change to the build on its own.
 
 Adding a tool means: a route in `router.js`, a template in `app/templates/`, a component in `app/components/`, and an entry in `app/tools.js`.
 
 ## Licensing note
 
-Everything here is MIT-licensed except the Background Remover, which uses [`@imgly/background-removal`](https://github.com/imgly/background-removal-js) — **AGPL-3.0**. If you deploy this project publicly with that tool enabled, the AGPL's network-use clause means you're expected to make the complete corresponding source of the running service available to your users. Remove or replace that tool (or get IMG.LY's commercial license) if that doesn't work for your deployment.
+Everything here is MIT-licensed except the Background Remover, which uses [`@imgly/background-removal`](https://github.com/imgly/background-removal-js), which is **AGPL-3.0**. If you deploy this project publicly with that tool enabled, the AGPL's network-use clause means you're expected to make the complete corresponding source of the running service available to your users. Remove or replace that tool (or get IMG.LY's commercial license) if that doesn't work for your deployment.
 
 ## Credits
 
