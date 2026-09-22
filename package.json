@@ -1,6 +1,6 @@
 {
   "name": "woogi-tools",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "description": "Small description for woogi-tools goes here",
   "repository": "",
@@ -18,7 +18,7 @@
     "build": "vite build",
     "format": "prettier . --cache --write",
     "lint": "concurrently \"npm:lint:*(!fix)\" --names \"lint:\" --prefixColors auto",
-    "lint:css": "stylelint \"**/*.css\"",
+    "lint:css": "stylelint \"**/*.css\" --allow-empty-input",
     "lint:css:fix": "concurrently \"npm:lint:css -- --fix\"",
     "lint:fix": "concurrently \"npm:lint:*:fix\" --names \"fix:\" --prefixColors auto && npm run format",
     "lint:format": "prettier . --cache --check",

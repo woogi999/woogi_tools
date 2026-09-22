@@ -4,8 +4,8 @@
 // menus quote. Menus read this rather than carrying their own copies, so a
 // rebound shortcut never leaves a menu advertising the key it used to be.
 //
-// The production actions — take, clear program, fullscreen output, the Live
-// and Automate workspaces — are not here, because none of them is.
+// The production actions (take, clear program, fullscreen output, the Live
+// and Automate workspaces) are not here, because none of them is.
 
 export const ACTIONS = [
   // Transport

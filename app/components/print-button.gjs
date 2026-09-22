@@ -29,7 +29,8 @@ export default class PrintButton extends Component {
   // A blob: URL is this page's own memory, so reading it back costs nothing.
   async blobOf() {
     if (this.args.get) return this.args.get();
-    if (this.args.blob ?? this.args.file) return this.args.blob ?? this.args.file;
+    if (this.args.blob ?? this.args.file)
+      return this.args.blob ?? this.args.file;
     if (!this.args.url) return null;
     // eslint-disable-next-line warp-drive/no-external-request-patterns -- reading back a blob: URL this page made, not app data
     const response = await fetch(this.args.url);
@@ -49,8 +50,15 @@ export default class PrintButton extends Component {
 
   <template>
     {{#if this.shown}}
-      <button type="button" class="btn" title="Print this" disabled={{this.busy}} {{on "click" this.print}}>
-        <Icon @name="printer" @size={{13}} /> {{if @label @label "Print"}}
+      <button
+        type="button"
+        class="btn"
+        title="Print this"
+        disabled={{this.busy}}
+        {{on "click" this.print}}
+      >
+        <Icon @name="printer" @size={{13}} />
+        {{if @label @label "Print"}}
       </button>
     {{/if}}
   </template>

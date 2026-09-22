@@ -62,7 +62,7 @@ export default class AspectRatioPage extends Component {
   }
 
   get simplified() {
-    if (!this.valid) return '—';
+    if (!this.valid) return '-';
     if (Number.isInteger(this.w) && Number.isInteger(this.h)) {
       const d = gcd(this.w, this.h);
       return `${this.w / d}:${this.h / d}`;
@@ -71,7 +71,7 @@ export default class AspectRatioPage extends Component {
   }
 
   get decimal() {
-    return this.valid ? round(this.w / this.h).toString() : '—';
+    return this.valid ? round(this.w / this.h).toString() : '-';
   }
 
   get closest() {

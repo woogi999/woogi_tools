@@ -3,13 +3,13 @@
 // Ferrite implements its effects twice. The real one is WGSL, in
 // `ferrite-gpu/src/shaders.rs`; the CSS fragment each effect also emits was
 // only ever the fallback for its browser-document output, and for anything CSS
-// has no word for — a twirl, a chroma key, a kaleidoscope — that fallback is
+// has no word for (a twirl, a chroma key, a kaleidoscope), that fallback is
 // an identity value like `blur(0px)`. We translated the catalogue faithfully
 // and so inherited sixty-odd effects that politely do nothing.
 //
 // This is the other half: a WebGL2 context that takes a layer's surface, runs
 // the real shader over it, and hands the surface back. The compositor stays in
-// charge — this never sees the scene, only one layer's pixels at a time.
+// charge: this never sees the scene, only one layer's pixels at a time.
 //
 // Two rules it must keep:
 //
@@ -185,7 +185,7 @@ function targetsFor(width, height) {
  * onto it, so the caller's surface is the same object afterwards and nothing
  * downstream has to know a shader ran.
  *
- * Returns true if the passes ran, false if they could not — in which case the
+ * Returns true if the passes ran, false if they could not, in which case the
  * surface is untouched and the caller should keep whatever the CSS fallback
  * gave it.
  */
@@ -280,8 +280,8 @@ export function runPasses(source, passes, onError) {
     //
     // A 2D canvas counts rows from the top; GL counts them from the bottom.
     // Everything inside this pipeline agrees with the texture it was uploaded
-    // from — `vUv` is image space, so a shader that reaches "down" reaches the
-    // way the picture looks — and a stack of passes stays consistent. The
+    // from (`vUv` is image space, so a shader that reaches "down" reaches the
+    // way the picture looks), and a stack of passes stays consistent. The
     // mismatch is only at the handover, so it is resolved once, by reading the
     // source rectangle bottom to top.
     gl.blitFramebuffer(

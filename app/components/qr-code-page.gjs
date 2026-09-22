@@ -853,6 +853,7 @@ export default class QrCodePage extends Component {
                       type="checkbox"
                       role="switch"
                       checked={{this.showInfo}}
+                      aria-checked={{if this.showInfo "true" "false"}}
                       {{on "change" (fn this.toggle "showInfo")}}
                     />
                     <span class="qr-switch-track" aria-hidden="true"></span>
@@ -1056,7 +1057,7 @@ export default class QrCodePage extends Component {
                 <div class="qr-group-body">
                   {{#if this.logo}}
                     <div class="qr-logo-current">
-                      <img src={{this.logo}} alt="Logo" />
+                      <img src={{this.logo}} alt="The mark you added" />
                       <button
                         type="button"
                         class="btn"

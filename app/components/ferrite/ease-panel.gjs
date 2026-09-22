@@ -11,7 +11,7 @@ const gt = (a, b) => a > b;
 // The Ease panel, ported from `ferrite-app/src/ui/easing.rs`.
 //
 // A curve is the one property of a keyframe you cannot read off a number, so
-// the panel is mostly a picture — and the picture is the control. Both handles
+// the panel is mostly a picture, and the picture is the control. Both handles
 // are draggable, the way After Effects' graph editor and Keyframe Wingman
 // work: grab one, pull, and the motion changes under you.
 //
@@ -99,8 +99,8 @@ export default class EasePanel extends Component {
   move = (event) => {
     if (this.dragging === null) return;
     const at = this.point(event);
-    // X stays inside the frame — a control point behind the start or past the
-    // end is a curve that doubles back in time — but Y is free, because
+    // X stays inside the frame (a control point behind the start or past the
+    // end is a curve that doubles back in time), but Y is free, because
     // overshoot is exactly what a back or an elastic ease is.
     const next = [...this.bezier];
     next[this.dragging * 2] = Math.min(1, Math.max(0, at.x / SIZE));
@@ -240,8 +240,8 @@ export default class EasePanel extends Component {
         {{/if}}
         {{#if (gt this.count 1)}}
           <p class="fr-hint">{{this.count}}
-            keyframes selected — a preset applies to all of them, the handles
-            shape the first.</p>
+            keyframes selected, since a preset applies to all of them, the
+            handles shape the first.</p>
         {{/if}}
       {{else}}
         <p class="fr-hint">No keyframe selected.</p>

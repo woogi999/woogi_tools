@@ -34,8 +34,16 @@ const paint = modifier((canvas, [avatar, size, pose]) => {
     });
 });
 
-const sizeStyle = (size) => htmlSafe(`width: ${Number(size)}px; height: ${Number(size)}px`);
+const sizeStyle = (size) =>
+  htmlSafe(`width: ${Number(size)}px; height: ${Number(size)}px`);
 
 <template>
-  <canvas class="avatar-portrait" style={{sizeStyle @size}} width="0" height="0" aria-hidden="true" {{paint @avatar @size @pose}}></canvas>
+  <canvas
+    class="avatar-portrait"
+    style={{sizeStyle @size}}
+    width="0"
+    height="0"
+    aria-hidden="true"
+    {{paint @avatar @size @pose}}
+  ></canvas>
 </template>

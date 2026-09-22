@@ -16,7 +16,7 @@ const fmt = (n) =>
     ? parseFloat(n.toPrecision(8)).toLocaleString(undefined, {
         maximumFractionDigits: 6,
       })
-    : '—';
+    : '-';
 const eq = (a, b) => a === b;
 const { PI, sqrt, sin, tan } = Math;
 

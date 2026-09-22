@@ -55,17 +55,50 @@ export default class VolumeButton extends Component {
 
   <template>
     <div class="volume-button" {{this.dismiss}}>
-      <button type="button" class="theme-toggle {{if this.silent 'is-muted'}}" aria-label="Sound: {{if this.silent 'muted' (concat this.percent)}}" aria-expanded={{if this.open "true" "false"}} title="Sound" {{on "click" this.toggleOpen}}>
+      <button
+        type="button"
+        class="theme-toggle {{if this.silent 'is-muted'}}"
+        aria-label="Sound: {{if this.silent 'muted' (concat this.percent)}}"
+        aria-expanded={{if this.open "true" "false"}}
+        title="Sound"
+        {{on "click" this.toggleOpen}}
+      >
         <Icon @name={{this.icon}} @size={{15}} />
       </button>
       {{#if this.open}}
         <div class="volume-panel pop-in" role="dialog" aria-label="Sound">
-          <button type="button" class="qr-icon-btn" aria-pressed={{if this.silent "true" "false"}} aria-label={{if this.silent "Unmute" "Mute"}} {{on "click" this.toggleMute}}>
+          <button
+            type="button"
+            class="qr-icon-btn"
+            aria-pressed={{if this.silent "true" "false"}}
+            aria-label={{if this.silent "Unmute" "Mute"}}
+            {{on "click" this.toggleMute}}
+          >
             <Icon @name={{this.icon}} @size={{14}} />
           </button>
-          <input type="range" min="0" max="100" step="5" value={{this.percent}} aria-label="Volume" aria-valuetext="{{this.percent}}%" {{on "input" this.setVolume}} {{on "change" this.preview}} />
-          <span class="volume-value">{{if this.silent "Off" (concat this.percent "%")}}</span>
-          <LinkTo @route="settings" class="qr-icon-btn" aria-label="More sound settings" title="Sound mixer: pick which sounds to turn down" {{on "click" this.openMixer}}>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={{this.percent}}
+            aria-label="Volume"
+            aria-valuetext="{{this.percent}}%"
+            {{on "input" this.setVolume}}
+            {{on "change" this.preview}}
+          />
+          <span class="volume-value">{{if
+              this.silent
+              "Off"
+              (concat this.percent "%")
+            }}</span>
+          <LinkTo
+            @route="settings"
+            class="qr-icon-btn"
+            aria-label="More sound settings"
+            title="Sound mixer: pick which sounds to turn down"
+            {{on "click" this.openMixer}}
+          >
             <Icon @name="sliders-vertical" @size={{14}} />
           </LinkTo>
         </div>

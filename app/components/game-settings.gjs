@@ -24,7 +24,7 @@ import { padState, pushPadHandler } from '../utils/gamepad';
 // Everything here writes to the same saved preferences as site Settings, so a
 // volume or a rebound key set from a game stays set the next time you play it.
 //
-// Args: @game — 'snake', 'mines', 'chess' or 'woono'. @compact for the icon-only
+// Args: @game is 'snake', 'mines', 'chess' or 'woono'. @compact for the icon-only
 // button used in a game's corner overlay.
 
 // The channels that play over the top of any game, after the game's own.

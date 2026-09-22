@@ -26,7 +26,7 @@ function freePointer(element, event) {
 // Ferrite's scrubby number: a value you can drag sideways as well as type into.
 //
 // Every number in the inspector and every property row in the timeline is one
-// of these, because a motion graphic is dialled in rather than typed — you want
+// of these, because a motion graphic is dialled in rather than typed: you want
 // to see the picture move while the number changes, and a text field only tells
 // you what happened after you press Enter.
 //

@@ -29,7 +29,9 @@ const lightQuery = () => window.matchMedia('(prefers-color-scheme: light)');
 
 export default class SettingsService extends Service {
   // 'system' | 'light' | 'dark'
-  @tracked themePreference = ['light', 'dark'].includes(read(THEME_KEY)) ? read(THEME_KEY) : 'system';
+  @tracked themePreference = ['light', 'dark'].includes(read(THEME_KEY))
+    ? read(THEME_KEY)
+    : 'system';
   @tracked systemDark = !lightQuery().matches;
   // 'system' follows the OS; 'reduce' switches animations off regardless.
   @tracked motion = read(MOTION_KEY) === 'reduce' ? 'reduce' : 'system';
@@ -44,13 +46,16 @@ export default class SettingsService extends Service {
       this.applyTheme();
     };
     query.addEventListener('change', onChange);
-    registerDestructor(this, () => query.removeEventListener('change', onChange));
+    registerDestructor(this, () =>
+      query.removeEventListener('change', onChange),
+    );
     this.applyTheme();
     this.applyMotion();
   }
 
   get theme() {
-    if (this.themePreference === 'system') return this.systemDark ? 'dark' : 'light';
+    if (this.themePreference === 'system')
+      return this.systemDark ? 'dark' : 'light';
     return this.themePreference;
   }
 

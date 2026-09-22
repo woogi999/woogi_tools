@@ -277,6 +277,9 @@ export default class GraphCalculatorPage extends Component {
     return { px: event.clientX - rect.left, py: event.clientY - rect.top };
   }
 
+  // Panning starts on pointerdown, not pointerup: by the time the pointer
+  // comes back up there is nothing left to drag. Hence the lint waiver on the
+  // canvas in the template.
   startPan = (event) => {
     if (event.button !== 0) return;
     this.canvas.setPointerCapture(event.pointerId);
@@ -411,6 +414,7 @@ export default class GraphCalculatorPage extends Component {
 
         <section class="math-card graph-plot">
           <div class="graph-canvas-wrap">
+            {{! template-lint-disable no-pointer-down-event-binding }}
             <canvas
               class="graph-canvas"
               aria-label="Graph"

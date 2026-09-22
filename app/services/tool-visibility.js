@@ -36,16 +36,22 @@ export default class ToolVisibilityService extends Service {
 
   // A tool is visible if neither it nor its category is hidden.
   isVisible(tool) {
-    return !this.isCategoryHidden(tool.category) && !this.isToolHidden(tool.route);
+    return (
+      !this.isCategoryHidden(tool.category) && !this.isToolHidden(tool.route)
+    );
   }
 
   toggleTool(route) {
-    this.hiddenTools = this.isToolHidden(route) ? this.hiddenTools.filter((r) => r !== route) : [...this.hiddenTools, route];
+    this.hiddenTools = this.isToolHidden(route)
+      ? this.hiddenTools.filter((r) => r !== route)
+      : [...this.hiddenTools, route];
     save(TOOLS_KEY, this.hiddenTools);
   }
 
   toggleCategory(category) {
-    this.hiddenCategories = this.isCategoryHidden(category) ? this.hiddenCategories.filter((c) => c !== category) : [...this.hiddenCategories, category];
+    this.hiddenCategories = this.isCategoryHidden(category)
+      ? this.hiddenCategories.filter((c) => c !== category)
+      : [...this.hiddenCategories, category];
     save(CATEGORIES_KEY, this.hiddenCategories);
   }
 

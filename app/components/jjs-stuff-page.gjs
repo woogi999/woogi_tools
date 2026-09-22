@@ -153,8 +153,8 @@ export default class JjsStuffPage extends Component {
             {{/each}}
           </div>
           <div class="jjs-search-row">
-            <label class="jjs-search">
-              <Icon @name="search" @size={{15}} />
+            <div class="jjs-search">
+              <Icon @name="search" @size={{15}} aria-hidden="true" />
               <input
                 type="search"
                 class="math-input"
@@ -171,7 +171,7 @@ export default class JjsStuffPage extends Component {
                   {{on "click" this.clearQuery}}
                 ><Icon @name="x" @size={{14}} /></button>
               {{/if}}
-            </label>
+            </div>
             {{#if this.sections.length}}
               <select
                 class="jjs-jump"

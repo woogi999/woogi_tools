@@ -25,7 +25,10 @@ function encode(payload) {
   const bytes = deflateSync(strToU8(JSON.stringify(payload)), { level: 9 });
   let binary = '';
   for (const b of bytes) binary += String.fromCharCode(b);
-  return 'WOOGI1' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return (
+    'WOOGI1' +
+    btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  );
 }
 
 const payload = { t: 'offer', id: 'lan-AB12CD34', sdp };

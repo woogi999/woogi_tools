@@ -299,7 +299,7 @@ assert.equal(K.keyFor('duplicate-selected'), 'Ctrl+D');
 }
 
 console.log(
-  'all good —',
+  'all good -',
   FX.CATALOG.length,
   'effects,',
   K.ACTIONS.length,

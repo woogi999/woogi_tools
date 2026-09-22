@@ -9,6 +9,26 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.13',
+    date: '2026-09-22',
+    title:
+      'The Video Editor, and File Share that connects on locked-down networks',
+    changes: [
+      {
+        type: 'new',
+        text: 'Video Editor: a motion-graphics editor that runs in the page. Scenes, layers and a real timeline, keyframes with easing you can drag by hand, parenting and mattes, 145 effects, and a render straight out to a video file. Nothing is uploaded; it all happens on your own machine.',
+      },
+      {
+        type: 'fixed',
+        text: 'Translator: it said "the translator is busy right now" almost every time. It was asking Google through an endpoint that turns away shared addresses, which is what the site talks from, so the answer was nearly always a refusal. It now uses one that does not, and if that ever fails your browser quietly asks Google itself.',
+      },
+      {
+        type: 'fixed',
+        text: 'File Share: it would not connect on a lot of networks. The public relay it fell back on when two devices could not reach each other directly had quietly shut down, so there was nothing behind the fallback at all. When a direct link is not possible the files now pass through this site instead, over an ordinary web connection, which also gets through school, office and hotel networks that block the kind of traffic the old relay needed. Direct is still tried first, and nothing is stored either way.',
+      },
+    ],
+  },
+  {
     version: '1.0.12',
     date: '2026-09-19',
     title: 'A dozen more tools, archives in the compressor, and the Darkroom',

@@ -10,7 +10,7 @@ import { CATALOG, CATEGORIES } from '../../utils/ferrite/effects';
 //
 // Every effect the compositor knows how to render lives here, grouped the way
 // After Effects groups them: a search box and a plain list of names. Click one
-// to apply it to the selected layer. One line, one name — the description
+// to apply it to the selected layer. One line, one name; the description
 // belongs in a tooltip at most, and an icon would say nothing the category
 // heading above it does not already say.
 export default class EffectsPanel extends Component {
@@ -110,7 +110,7 @@ export default class EffectsPanel extends Component {
               <button
                 type="button"
                 class="fr-fx-row"
-                title="{{def.description}} — click to apply, or drag onto a layer"
+                title="{{def.description}}. Click to apply, or drag onto a layer"
                 {{this.dragEffect def.name}}
                 {{on "click" (fn this.apply def.name)}}
               >{{def.name}}</button>

@@ -53,7 +53,13 @@ export default class Joystick extends Component {
   });
 
   <template>
-    <div class="joystick {{@class}}" role="application" aria-label={{@label}} data-sound="off" {{this.stick}}>
+    <div
+      class="joystick {{@class}}"
+      role="application"
+      aria-label={{@label}}
+      data-sound="off"
+      {{this.stick}}
+    >
       <span class="joystick-knob"></span>
     </div>
   </template>

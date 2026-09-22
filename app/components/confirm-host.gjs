@@ -12,7 +12,15 @@ export default class ConfirmHost extends Component {
   <template>
     {{#if this.state.request}}
       {{#let this.state.request as |r|}}
-        <HoldConfirm @title={{r.title}} @message={{r.message}} @confirmLabel={{r.confirmLabel}} @cancelLabel={{r.cancelLabel}} @holdMs={{r.holdMs}} @onConfirm={{this.confirm}} @onCancel={{this.cancel}} />
+        <HoldConfirm
+          @title={{r.title}}
+          @message={{r.message}}
+          @confirmLabel={{r.confirmLabel}}
+          @cancelLabel={{r.cancelLabel}}
+          @holdMs={{r.holdMs}}
+          @onConfirm={{this.confirm}}
+          @onCancel={{this.cancel}}
+        />
       {{/let}}
     {{/if}}
   </template>

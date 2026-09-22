@@ -14,20 +14,42 @@ export default class CardHand extends Component {
 
   @cached
   get items() {
-    return (this.args.cards ?? []).map((card) => ({ key: card.tool.route, className: card.suit.black ? 'is-black' : 'is-red', card }));
+    return (this.args.cards ?? []).map((card) => ({
+      key: card.tool.route,
+      className: card.suit.black ? 'is-black' : 'is-red',
+      card,
+    }));
   }
 
   open = (route) => this.router.transitionTo(route);
 
   <template>
-    <FanHand @items={{this.items}} @activeKey={{@activeRoute}} @onActivate={{@onActivate}} @onOpen={{this.open}} as |item showFace|>
-      <span class="card-corner card-corner-tl"><span class="card-rank">{{item.card.rank}}</span><span class="card-suit">{{item.card.suit.symbol}}</span></span>
+    <FanHand
+      @items={{this.items}}
+      @activeKey={{@activeRoute}}
+      @onActivate={{@onActivate}}
+      @onOpen={{this.open}}
+      as |item showFace|
+    >
+      <span class="card-corner card-corner-tl"><span
+          class="card-rank"
+        >{{item.card.rank}}</span><span
+          class="card-suit"
+        >{{item.card.suit.symbol}}</span></span>
       {{#if showFace}}
-        <span class="card-corner card-corner-br"><span class="card-rank">{{item.card.rank}}</span><span class="card-suit">{{item.card.suit.symbol}}</span></span>
+        <span class="card-corner card-corner-br"><span
+            class="card-rank"
+          >{{item.card.rank}}</span><span
+            class="card-suit"
+          >{{item.card.suit.symbol}}</span></span>
         <Icon @name={{item.card.tool.icon}} @size={{34}} class="tool-icon" />
         <span class="fan-card-title">{{item.card.tool.label}}</span>
-        {{#if item.card.tool.category}}<span class="fan-card-category">{{item.card.tool.category}}</span>{{/if}}
-        {{#if item.card.tool.description}}<p class="fan-card-description">{{item.card.tool.description}}</p>{{/if}}
+        {{#if item.card.tool.category}}<span
+            class="fan-card-category"
+          >{{item.card.tool.category}}</span>{{/if}}
+        {{#if item.card.tool.description}}<p
+            class="fan-card-description"
+          >{{item.card.tool.description}}</p>{{/if}}
       {{/if}}
     </FanHand>
   </template>

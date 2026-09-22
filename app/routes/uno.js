@@ -8,7 +8,9 @@ export default class UnoRoute extends Route {
 
   beforeModel() {
     if (window.location.search) {
-      window.location.replace(window.location.href.replace(/\/uno(?=[?#]|$)/, '/woono'));
+      window.location.replace(
+        window.location.href.replace(/\/uno(?=[?#]|$)/, '/woono'),
+      );
       return;
     }
     this.router.replaceWith('woono');

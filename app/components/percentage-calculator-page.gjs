@@ -9,7 +9,7 @@ const num = (v) => (v === '' || v === null ? NaN : Number(v));
 const fmt = (n, suffix = '') =>
   Number.isFinite(n)
     ? `${parseFloat(n.toFixed(6)).toLocaleString(undefined, { maximumFractionDigits: 6 })}${suffix}`
-    : '—';
+    : '-';
 
 // Each card is a sentence with blanks; `solve` turns the two inputs into an answer.
 const PROBLEMS = [
@@ -115,7 +115,7 @@ export default class PercentageCalculatorPage extends Component {
       const result =
         Number.isFinite(na) && Number.isFinite(nb)
           ? p.solve(na, nb)
-          : { answer: '—', working: 'Fill in both numbers.' };
+          : { answer: '-', working: 'Fill in both numbers.' };
       return { ...p, a, b, ...result };
     });
   }

@@ -41,7 +41,7 @@ export default class WinrateCalculatorPage extends Component {
   }
 
   get rateText() {
-    return this.games ? percent(this.rate) : '—';
+    return this.games ? percent(this.rate) : '-';
   }
 
   get countedDraws() {
@@ -82,7 +82,7 @@ export default class WinrateCalculatorPage extends Component {
   }
 
   get ratio() {
-    if (!this.losses) return this.wins ? `${this.wins} : 0` : '—';
+    if (!this.losses) return this.wins ? `${this.wins} : 0` : '-';
     return parseFloat((this.wins / this.losses).toFixed(2)).toString();
   }
 
@@ -238,7 +238,7 @@ export default class WinrateCalculatorPage extends Component {
                 max="100"
                 step="0.01"
                 class="math-input"
-                placeholder="—"
+                placeholder="-"
                 value={{this.rateValue}}
                 {{on "input" this.setRate}}
               />

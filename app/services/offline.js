@@ -7,7 +7,8 @@ const CACHE_PREFIX = 'woogi-offline-';
 const UPDATE_CHECK_MS = 30 * 60 * 1000;
 
 // Stamped into index.html by lib/offline-plugin.mjs; missing in development.
-const pageBuild = () => document.querySelector('meta[name="woogi-build"]')?.content ?? null;
+const pageBuild = () =>
+  document.querySelector('meta[name="woogi-build"]')?.content ?? null;
 
 // Owns the service worker that makes the site work offline (lib/service-worker.js).
 export default class OfflineService extends Service {
@@ -106,7 +107,9 @@ export default class OfflineService extends Service {
           count++;
           const length = Number(response?.headers.get('content-length'));
           // Opaque (cross-origin font) responses hide their size; they're tiny.
-          total += length || (response?.type === 'opaque' ? 0 : (await response.blob()).size);
+          total +=
+            length ||
+            (response?.type === 'opaque' ? 0 : (await response.blob()).size);
         }
       }
       this.cacheBytes = total;
@@ -125,10 +128,15 @@ export default class OfflineService extends Service {
 
   // Removes the worker and every offline copy. The next visit starts over.
   async clear() {
-    const registrations = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+    const registrations =
+      (await navigator.serviceWorker?.getRegistrations()) ?? [];
     await Promise.all(registrations.map((r) => r.unregister()));
     const names = window.caches ? await caches.keys() : [];
-    await Promise.all(names.filter((n) => n.startsWith(CACHE_PREFIX)).map((n) => caches.delete(n)));
+    await Promise.all(
+      names
+        .filter((n) => n.startsWith(CACHE_PREFIX))
+        .map((n) => caches.delete(n)),
+    );
     this.registration = null;
     this.cacheBytes = 0;
     this.cacheFiles = 0;

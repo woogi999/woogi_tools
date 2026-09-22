@@ -27,18 +27,22 @@ const dec = new TextDecoder();
 
 function packString(bytes, str) {
   const utf8 = enc.encode(str);
-  if (utf8.length > 255) throw new Error('That field is too long to fit in a nearby code.');
+  if (utf8.length > 255)
+    throw new Error('That field is too long to fit in a nearby code.');
   bytes.push(utf8.length, ...utf8);
 }
 
 function fingerprintToBytes(hex) {
   const parts = hex.split(':');
-  if (parts.length !== 32) throw new Error('Unexpected fingerprint from this browser.');
+  if (parts.length !== 32)
+    throw new Error('Unexpected fingerprint from this browser.');
   return parts.map((h) => parseInt(h, 16));
 }
 
 function bytesToFingerprint(bytes) {
-  return [...bytes].map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join(':');
+  return [...bytes]
+    .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+    .join(':');
 }
 
 // Pulls just the bits that vary out of a real, browser-generated SDP.
@@ -46,11 +50,19 @@ function readSdp(sdp) {
   const ufrag = /^a=ice-ufrag:(\S+)/m.exec(sdp)?.[1];
   const pwd = /^a=ice-pwd:(\S+)/m.exec(sdp)?.[1];
   const fingerprint = /^a=fingerprint:sha-256 ([0-9A-Fa-f:]+)/m.exec(sdp)?.[1];
-  const candidates = [...sdp.matchAll(/^a=candidate:\S+ (\d+) (udp|UDP) \S+ (\S+) (\d+) typ host/gm)]
+  const candidates = [
+    ...sdp.matchAll(
+      /^a=candidate:\S+ (\d+) (udp|UDP) \S+ (\S+) (\d+) typ host/gm,
+    ),
+  ]
     .filter((m) => m[1] === '1')
     .map((m) => ({ address: m[3], port: Number(m[4]) }));
-  if (!ufrag || !pwd || !fingerprint) throw new Error('Couldn’t read the connection details from this browser.');
-  if (!candidates.length) throw new Error('No network address was found to connect over. Try again once you’re on Wi-Fi.');
+  if (!ufrag || !pwd || !fingerprint)
+    throw new Error('Couldn’t read the connection details from this browser.');
+  if (!candidates.length)
+    throw new Error(
+      'No network address was found to connect over. Try again once you’re on Wi-Fi.',
+    );
   return { ufrag, pwd, fingerprint, candidates };
 }
 
@@ -69,13 +81,20 @@ export function encode({ type, id, sdp }) {
   }
   let binary = '';
   for (const b of bytes) binary += String.fromCharCode(b);
-  return PREFIX + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return (
+    PREFIX +
+    btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  );
 }
 
 export function decode(code) {
   const clean = String(code ?? '').replace(/\s+/g, '');
-  if (!clean.startsWith(PREFIX)) throw new Error('That isn’t a Woogi nearby-play code.');
-  const base64 = clean.slice(PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+  if (!clean.startsWith(PREFIX))
+    throw new Error('That isn’t a Woogi nearby-play code.');
+  const base64 = clean
+    .slice(PREFIX.length)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
   let binary;
   try {
     binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
@@ -85,7 +104,8 @@ export function decode(code) {
   const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
   let i = 0;
   const need = (n) => {
-    if (i + n > bytes.length) throw new Error('That code looks incomplete. Check it and try again.');
+    if (i + n > bytes.length)
+      throw new Error('That code looks incomplete. Check it and try again.');
   };
   const byte = () => {
     need(1);
@@ -112,7 +132,11 @@ export function decode(code) {
     const port = (byte() << 8) | byte();
     candidates.push({ address, port });
   }
-  return { type, id, sdp: buildSdp({ type, ufrag, pwd, fingerprint, candidates }) };
+  return {
+    type,
+    id,
+    sdp: buildSdp({ type, ufrag, pwd, fingerprint, candidates }),
+  };
 }
 
 // Rebuilds a full, spec-shaped SDP around the handful of fields that were
@@ -128,7 +152,10 @@ function buildSdp({ type, ufrag, pwd, fingerprint, candidates }) {
     'a=msid-semantic: WMS',
     'm=application 9 UDP/DTLS/SCTP webrtc-datachannel',
     'c=IN IP4 0.0.0.0',
-    ...candidates.map((c, i) => `a=candidate:${i + 1} 1 udp ${2113937151 - i} ${c.address} ${c.port} typ host generation 0`),
+    ...candidates.map(
+      (c, i) =>
+        `a=candidate:${i + 1} 1 udp ${2113937151 - i} ${c.address} ${c.port} typ host generation 0`,
+    ),
     'a=end-of-candidates',
     `a=ice-ufrag:${ufrag}`,
     `a=ice-pwd:${pwd}`,

@@ -1,8 +1,22 @@
 import { HANDLERS } from './handlers';
-import { FORMATS, CATEGORY_ORDER, categoryLabel, detectFormat, stripExtension, formatsIn } from './formats';
+import {
+  FORMATS,
+  CATEGORY_ORDER,
+  categoryLabel,
+  detectFormat,
+  stripExtension,
+  formatsIn,
+} from './formats';
 import { ENGINE_INFO, ENGINE_LOADERS } from './engines';
 
-export { detectFormat, stripExtension, categoryLabel, CATEGORY_ORDER, formatsIn, FORMATS };
+export {
+  detectFormat,
+  stripExtension,
+  categoryLabel,
+  CATEGORY_ORDER,
+  formatsIn,
+  FORMATS,
+};
 
 // Longest chain of handlers we'll try, e.g. DOCX → TXT → PDF.
 const MAX_STEPS = 3;
@@ -13,7 +27,8 @@ for (const handler of HANDLERS) {
   for (const [froms, tos] of handler.pairs) {
     for (const from of froms) {
       if (!EDGES.has(from)) EDGES.set(from, []);
-      for (const to of tos) if (to !== from) EDGES.get(from).push({ to, handler });
+      for (const to of tos)
+        if (to !== from) EDGES.get(from).push({ to, handler });
     }
   }
 }
@@ -66,8 +81,23 @@ export function routeDescription(sourceExt, targetExt) {
 // Picks a sensible default: another format from the same family first.
 export function defaultTarget(source) {
   const routes = cachedRoutes(source.ext);
-  const preferred = { image: ['png', 'jpg'], raw: ['jpg', 'png'], audio: ['mp3', 'wav'], video: ['mp4', 'webm'], document: ['pdf', 'docx', 'md'], data: ['json', 'yaml'], archive: ['zip', '7z'], font: ['woff2', 'ttf'] }[source.category] ?? [];
-  return preferred.find((ext) => ext !== source.ext && routes.has(ext)) ?? formatsIn(source.category).find((f) => routes.has(f.ext))?.ext ?? routes.keys().next().value ?? null;
+  const preferred =
+    {
+      image: ['png', 'jpg'],
+      raw: ['jpg', 'png'],
+      audio: ['mp3', 'wav'],
+      video: ['mp4', 'webm'],
+      document: ['pdf', 'docx', 'md'],
+      data: ['json', 'yaml'],
+      archive: ['zip', '7z'],
+      font: ['woff2', 'ttf'],
+    }[source.category] ?? [];
+  return (
+    preferred.find((ext) => ext !== source.ext && routes.has(ext)) ??
+    formatsIn(source.category).find((f) => routes.has(f.ext))?.ext ??
+    routes.keys().next().value ??
+    null
+  );
 }
 
 export function canConvert(sourceExt) {
@@ -76,9 +106,17 @@ export function canConvert(sourceExt) {
 
 // Runs every step of the route. `onStatus` receives human-readable progress
 // text and `onProgress` a 0–1 fraction across the whole chain.
-export async function convertFile(file, source, targetExt, { onStatus = () => {}, onProgress = () => {} } = {}) {
+export async function convertFile(
+  file,
+  source,
+  targetExt,
+  { onStatus = () => {}, onProgress = () => {} } = {},
+) {
   const route = cachedRoutes(source.ext).get(targetExt);
-  if (!route) throw new Error(`Can't convert ${source.label} to ${FORMATS.get(targetExt)?.label ?? targetExt}`);
+  if (!route)
+    throw new Error(
+      `Can't convert ${source.label} to ${FORMATS.get(targetExt)?.label ?? targetExt}`,
+    );
 
   const baseName = stripExtension(file.name);
   let blob = file;
@@ -89,7 +127,11 @@ export async function convertFile(file, source, targetExt, { onStatus = () => {}
       onStatus(`Loading ${ENGINE_INFO[step.handler.engine]}…`);
       await ENGINE_LOADERS[step.handler.engine]();
     }
-    onStatus(route.length > 1 ? `Converting (step ${index + 1} of ${route.length})…` : 'Converting…');
+    onStatus(
+      route.length > 1
+        ? `Converting (step ${index + 1} of ${route.length})…`
+        : 'Converting…',
+    );
     const result = await step.handler.convert(blob, step.from, step.to, {
       baseName,
       progress: (p) => onProgress((index + p) / route.length),
@@ -98,7 +140,10 @@ export async function convertFile(file, source, targetExt, { onStatus = () => {}
       blob = result;
       ext = step.to;
     } else {
-      if (!isLast) throw new Error(`This file produced a ${result.ext.toUpperCase()} partway through, so it can only be converted to ${FORMATS.get(step.to).label} directly`);
+      if (!isLast)
+        throw new Error(
+          `This file produced a ${result.ext.toUpperCase()} partway through, so it can only be converted to ${FORMATS.get(step.to).label} directly`,
+        );
       blob = result.blob;
       ext = result.ext;
     }

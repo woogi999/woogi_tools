@@ -2,7 +2,7 @@
 //
 // Ferrite's hardest-won lesson is in its README: it used to hand a browser a
 // generated document and hope the browser arrived at the same picture the
-// engine had, and it could not — different text shaping broke lines at
+// engine had, and it could not: different text shaping broke lines at
 // different words, different clocks resampled the same easing a frame apart,
 // and any effect CSS could not express simply was not there. So there is one
 // renderer here too. The viewport, the thumbnails and the written-out file are
@@ -280,8 +280,8 @@ function paintContent(ctx, layer, ms, w, h, source, scene, settings) {
 // Runs the layer's effect stack over its surface, in the order it was authored.
 //
 // The CSS steps are applied by drawing the surface through `ctx.filter` onto
-// itself; the shader steps go to `gpu.js`. A shader step that cannot run —
-// no WebGL2, a shader that will not compile — leaves the surface alone and
+// itself; the shader steps go to `gpu.js`. A shader step that cannot run
+// (no WebGL2, a shader that will not compile) leaves the surface alone and
 // reports it, rather than quietly producing a different picture.
 function applyStack(surface, steps, w, h, onNote) {
   let filterTail = 'none';
@@ -381,7 +381,7 @@ function paintShadows(ctx, surface, shadows, w, h, inset) {
       giveBack(ring);
     } else {
       ctx.save();
-      // A coloured copy of the layer's silhouette, offset and softened — which
+      // A coloured copy of the layer's silhouette, offset and softened, which
       // is what a drop shadow is.
       const silhouette = borrow(w, h);
       const sctx = silhouette.getContext('2d');
@@ -402,7 +402,7 @@ function paintShadows(ctx, surface, shadows, w, h, inset) {
 
 // Draws a scene onto a 2D context at a time in milliseconds.
 //
-// `sources` maps a layer id to whatever holds its pixels — a <video> already
+// `sources` maps a layer id to whatever holds its pixels: a <video> already
 // seeked to the right frame, or an <img>. Audio layers draw nothing.
 export function drawScene(ctx, scene, settings, ms, sources, options = {}) {
   const raster = rasterOf(scene, settings);
@@ -439,8 +439,8 @@ export function drawScene(ctx, scene, settings, ms, sources, options = {}) {
     if (isMatteFor) continue;
 
     // What the render settings switched off. After Effects lets a render
-    // ignore the comp's own switches — draft a version with no effects, or
-    // render the whole thing while a layer is soloed for working on — and a
+    // ignore the comp's own switches (draft a version with no effects, or
+    // render the whole thing while a layer is soloed for working on), and a
     // render that could not would send you round the comp turning things off
     // and back on again afterwards.
     const decls = options.noEffects ? [] : effectDeclarations(layer, ms);

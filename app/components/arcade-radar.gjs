@@ -31,19 +31,21 @@ export default class ArcadeRadar extends Component {
     const ctx = canvas.getContext('2d');
     const arrows = new Map(); // id -> element
     let mapAt = 0;
-    let frame = requestAnimationFrame(function step(now) {
-      if ((this.redraw || now - mapAt > MAP_EVERY_MS) && canvas.offsetWidth) {
-        mapAt = now;
-        this.redraw = false;
-        const scale = Math.min(2, window.devicePixelRatio || 1);
-        const size = Math.round(canvas.offsetWidth * scale);
-        if (canvas.width !== size) canvas.width = canvas.height = size;
-        ctx.clearRect(0, 0, size, size);
-        this.args.drawMap?.(ctx, size, scale);
-      }
-      this.placeArrows(layer, arrows);
-      frame = requestAnimationFrame(step.bind(this));
-    }.bind(this));
+    let frame = requestAnimationFrame(
+      function step(now) {
+        if ((this.redraw || now - mapAt > MAP_EVERY_MS) && canvas.offsetWidth) {
+          mapAt = now;
+          this.redraw = false;
+          const scale = Math.min(2, window.devicePixelRatio || 1);
+          const size = Math.round(canvas.offsetWidth * scale);
+          if (canvas.width !== size) canvas.width = canvas.height = size;
+          ctx.clearRect(0, 0, size, size);
+          this.args.drawMap?.(ctx, size, scale);
+        }
+        this.placeArrows(layer, arrows);
+        frame = requestAnimationFrame(step.bind(this));
+      }.bind(this),
+    );
     return () => cancelAnimationFrame(frame);
   });
 
@@ -57,19 +59,24 @@ export default class ArcadeRadar extends Component {
         x = -x;
         y = -y;
       }
-      const onScreen = !m.behind && Math.abs(x) < EDGE_X && Math.abs(y) < EDGE_Y;
+      const onScreen =
+        !m.behind && Math.abs(x) < EDGE_X && Math.abs(y) < EDGE_Y;
       if (onScreen) continue;
       seen.add(m.id);
       let el = arrows.get(m.id);
       if (!el) {
         el = document.createElement('div');
         el.className = 'arcade-arrow';
-        el.innerHTML = '<span class="arcade-arrow-head"></span><span class="arcade-arrow-name"></span>';
+        el.innerHTML =
+          '<span class="arcade-arrow-head"></span><span class="arcade-arrow-name"></span>';
         layer.append(el);
         arrows.set(m.id, el);
       }
       const sy = -y; // screen y runs down
-      const scale = Math.min(EDGE_X / Math.max(Math.abs(x), 1e-3), EDGE_Y / Math.max(Math.abs(sy), 1e-3));
+      const scale = Math.min(
+        EDGE_X / Math.max(Math.abs(x), 1e-3),
+        EDGE_Y / Math.max(Math.abs(sy), 1e-3),
+      );
       const px = x * scale;
       const py = sy * scale;
       el.style.left = `${((px + 1) / 2) * 100}%`;
@@ -89,7 +96,14 @@ export default class ArcadeRadar extends Component {
     <div class="arcade-radar" {{this.setup}}>
       <div class="arcade-arrows" aria-hidden="true"></div>
       {{! template-lint-disable no-invalid-interactive }}
-      <canvas class="uno-overlay arcade-minimap {{if @hideMap 'is-hidden'}} {{if @expandable 'is-expandable'}} {{if this.big 'is-big'}}" aria-hidden="true" {{on "click" this.toggleBig}}></canvas>
+      <canvas
+        class="uno-overlay arcade-minimap
+          {{if @hideMap 'is-hidden'}}
+          {{if @expandable 'is-expandable'}}
+          {{if this.big 'is-big'}}"
+        aria-hidden="true"
+        {{on "click" this.toggleBig}}
+      ></canvas>
     </div>
   </template>
 }

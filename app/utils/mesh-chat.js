@@ -41,10 +41,11 @@ import {
 // never send to a server.
 //
 // Calls (voice, video and screen sharing) go the same way: direct where the
-// two networks allow it, and through the Open Relay Project's free public
-// relay where they don't. They deliberately never touch this site's own
-// Cloudflare relay, because an hour of group video would cost the site real
-// money for something it isn't needed for.
+// two networks allow it. The Open Relay Project's free service that used to
+// catch the rest has shut down, and this site's own Cloudflare relay is
+// deliberately not used, because an hour of group video would cost the site
+// real money. File Share's WebSocket fallback (utils/relay-link.js) is the
+// pattern to follow if these ever need one.
 //
 // The one thing to know: a member is a device, not a person. Joining from
 // your phone as well as your laptop puts two members in the chat with the

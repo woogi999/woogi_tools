@@ -26,7 +26,9 @@ export default class ColourField extends Component {
 
   type = (event) => {
     const rgb = parseHex(event.target.value);
-    const next = rgb ? toHex(rgb.r, rgb.g, rgb.b) : this.args.value.toUpperCase();
+    const next = rgb
+      ? toHex(rgb.r, rgb.g, rgb.b)
+      : this.args.value.toUpperCase();
     this.draftFor = next;
     this.draft = event.target.value;
     if (rgb) this.args.onChange(next);
@@ -38,9 +40,15 @@ export default class ColourField extends Component {
 
   <template>
     <div class="colour-field {{if @disabled 'is-disabled'}}">
-      <label class="colour-swatch" style={{this.swatchStyle}}>
-        <input type="color" value={{@value}} disabled={{@disabled}} aria-label="{{@label}} picker" {{on "input" this.pick}} />
-      </label>
+      <span class="colour-swatch" style={{this.swatchStyle}}>
+        <input
+          type="color"
+          value={{@value}}
+          disabled={{@disabled}}
+          aria-label="{{@label}} picker"
+          {{on "input" this.pick}}
+        />
+      </span>
       <input
         type="text"
         class="colour-hex"

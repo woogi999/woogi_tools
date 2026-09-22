@@ -33,7 +33,7 @@ export default class CompassPage extends Component {
   }
 
   get headingText() {
-    return this.heading === null ? '—' : `${Math.round(this.heading)}°`;
+    return this.heading === null ? '-' : `${Math.round(this.heading)}°`;
   }
 
   get point() {
@@ -211,7 +211,7 @@ export default class CompassPage extends Component {
                 <span class="math-big">{{if
                     this.coords.altitude
                     this.coords.altitude
-                    "—"
+                    "-"
                   }}</span>
                 {{#unless this.coords.altitude}}
                   <span class="tool-hint">Only a GPS fix gives an altitude; a

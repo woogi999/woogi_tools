@@ -12,7 +12,7 @@ export default class ThemeToggle extends Component {
     <button
       type="button"
       class="theme-toggle"
-      aria-label="Switch to {{if this.settings.isDark "light" "dark"}} mode"
+      aria-label="Switch to {{if this.settings.isDark 'light' 'dark'}} mode"
       {{on "click" this.toggle}}
       ...attributes
     >

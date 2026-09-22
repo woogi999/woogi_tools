@@ -5,7 +5,7 @@
 // that is here: every surface, border and piece of text comes from the site's
 // own tokens, so the editor is the same colour as the rest of the pages and
 // follows light and dark with them. The site's idiom for "this one is on" is
-// an inversion — `background: var(--text); color: var(--bg)` — and that is
+// an inversion (`background: var(--text); color: var(--bg)`) and that is
 // what marks an armed tool, a selected tab and an active toggle here too.
 //
 // What Ferrite's purple was *for* still has to be answered, though: a playhead
@@ -749,7 +749,7 @@ textarea.fr-field {
 }
 
 // The checkerboard, so transparency reads as transparency rather than as a
-// colour — which is the difference between a key that works and one that does
+// colour, which is the difference between a key that works and one that does
 // not. Mixed from the page's own tokens so it follows the theme.
 .fr-stage {
   position: relative;

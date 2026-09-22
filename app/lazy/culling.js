@@ -1,4 +1,12 @@
-import { Box3, Frustum, Matrix4, Quaternion, Ray, Vector3, Sphere } from 'three';
+import {
+  Box3,
+  Frustum,
+  Matrix4,
+  Quaternion,
+  Ray,
+  Vector3,
+  Sphere,
+} from 'three';
 
 // Cheap visibility culling for the 3D scenes, on every device.
 //
@@ -52,7 +60,11 @@ export function createCuller(camera, { checkMs = CHECK_MS } = {}) {
       const geometry = child.geometry;
       if (!geometry) return;
       if (!geometry.boundingBox) geometry.computeBoundingBox();
-      const childBox = geometry.boundingBox.clone().applyMatrix4(new Matrix4().multiplyMatrices(inverse, child.matrixWorld));
+      const childBox = geometry.boundingBox
+        .clone()
+        .applyMatrix4(
+          new Matrix4().multiplyMatrices(inverse, child.matrixWorld),
+        );
       box.union(childBox);
     });
     if (box.isEmpty()) return null;
@@ -77,7 +89,9 @@ export function createCuller(camera, { checkMs = CHECK_MS } = {}) {
     if (occluder.type === 'sphere') {
       occluder.object.getWorldPosition(sphere.center);
       sphere.radius = occluder.radius;
-      return ray.intersectSphere(sphere, hit) ? origin.distanceTo(hit) : Infinity;
+      return ray.intersectSphere(sphere, hit)
+        ? origin.distanceTo(hit)
+        : Infinity;
     }
     return Infinity;
   }
@@ -87,13 +101,24 @@ export function createCuller(camera, { checkMs = CHECK_MS } = {}) {
     object.updateWorldMatrix(true, false);
     const { local, corners } = entry;
     worldBox.makeEmpty();
-    const points = [local.min.x, local.max.x].flatMap((x) => [local.min.y, local.max.y].flatMap((y) => [local.min.z, local.max.z].map((z) => [x, y, z])));
+    const points = [local.min.x, local.max.x].flatMap((x) =>
+      [local.min.y, local.max.y].flatMap((y) =>
+        [local.min.z, local.max.z].map((z) => [x, y, z]),
+      ),
+    );
     points.forEach(([x, y, z], i) => {
       corners[i].set(x, y, z).applyMatrix4(object.matrixWorld);
       worldBox.expandByPoint(corners[i]);
     });
     // Off-screen tests use a generous box, so a group is already drawn as it turns into view.
-    if (!frustum.intersectsBox(worldBox.clone().expandByScalar(worldBox.getSize(boxSize).length() * 0.2))) return 'outside';
+    if (
+      !frustum.intersectsBox(
+        worldBox
+          .clone()
+          .expandByScalar(worldBox.getSize(boxSize).length() * 0.2),
+      )
+    )
+      return 'outside';
     // Occluded only if one occluder covers every corner.
     for (const occluder of occluders) {
       if (occluder.ignore?.(object)) continue;
@@ -124,7 +149,10 @@ export function createCuller(camera, { checkMs = CHECK_MS } = {}) {
     track(object) {
       const local = localBox(object);
       if (!local) return;
-      tracked.set(object, { local, corners: Array.from({ length: 8 }, () => new Vector3()) });
+      tracked.set(object, {
+        local,
+        corners: Array.from({ length: 8 }, () => new Vector3()),
+      });
       nextCheck = 0;
     },
     untrack(object) {
@@ -136,12 +164,17 @@ export function createCuller(camera, { checkMs = CHECK_MS } = {}) {
     },
     update(now = performance.now()) {
       camera.updateMatrixWorld();
-      const turned = camera.getWorldQuaternion(new Quaternion()).angleTo(lastTurn) > TURN_RECHECK;
+      const turned =
+        camera.getWorldQuaternion(new Quaternion()).angleTo(lastTurn) >
+        TURN_RECHECK;
       if (now < nextCheck && !turned) return;
       camera.getWorldQuaternion(lastTurn);
       camera.getWorldPosition(eye);
       nextCheck = now + checkMs;
-      projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      projection.multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      );
       frustum.setFromProjectionMatrix(projection);
       let hidden = 0;
       let occluded = 0;

@@ -36,7 +36,7 @@ const DEFAULT_WATCH = ['EUR', 'GBP', 'JPY', 'PHP'];
 const eq = (a, b) => a === b;
 
 function formatCurrency(value, currency) {
-  if (!Number.isFinite(value)) return '—';
+  if (!Number.isFinite(value)) return '-';
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',

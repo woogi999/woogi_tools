@@ -1,4 +1,4 @@
-# Video Editor — where the work is up to
+# Video Editor: where the work is up to
 
 Working notes for whoever picks this up next (including a later session of me,
 after a context reset). Everything here has been measured, not guessed.
@@ -8,7 +8,7 @@ after a context reset). Everything here has been measured, not guessed.
 ## What exists and works
 
 `/video-editor` is a port of **Project Ferrite** (`E:\coding_projects\Project_Ferrite`,
-a native Rust/Iced broadcast-graphics app) — its _editor_ half only. It is a
+a native Rust/Iced broadcast-graphics app), its _editor_ half only. It is a
 bare route: no site chrome, full viewport, its own menu bar with the logo
 linking home.
 
@@ -16,7 +16,7 @@ linking home.
 | -------------------------------------- | --------------------------------------------------------------------- |
 | `app/utils/ferrite/model.js`           | Scenes, layers, style, keyframes, 7 easings, parenting, mattes, clock |
 | `app/utils/ferrite/effects.js`         | The 145-effect catalogue, generated from Rust (see below)             |
-| `app/utils/ferrite/render.js`          | The compositor — one `drawScene` for viewport _and_ export            |
+| `app/utils/ferrite/render.js`          | The compositor: one `drawScene` for viewport _and_ export             |
 | `app/utils/ferrite/timeline.js`        | The timeline canvas: ruler, bars, keyframes, playhead, hit testing    |
 | `app/utils/ferrite/theme.js`           | Resolves site CSS tokens into canvas-safe colours                     |
 | `app/utils/ferrite/keymap.js`          | 68 actions, 62 bound                                                  |
@@ -27,11 +27,11 @@ linking home.
 | `app/components/ferrite/*.gjs`         | The seven panels                                                      |
 | `app/styles/_ferrite.scss`             | Theme, built entirely on the site's own tokens                        |
 
-**Tests — use these, they have caught every real bug so far.**
+**Tests: use these, they have caught every real bug so far.**
 
 - `npm test` → real Chrome, `tests/acceptance/video-editor-test.js` (17 tests).
 - `node tests/node/ferrite-model.mjs` and `node tests/node/ferrite-render.mjs`
-  — fast, no browser. See `tests/node/README.md`.
+  Fast, no browser. See `tests/node/README.md`.
 - 3 failures in `tests/acceptance/smoke-test.js` are **pre-existing and not
   ours** (an "Image Editor" → "Image Darkroom" rename in commit `96b6d3c`, a
   `.qr-export` count, a `.credit-list` count). Files untouched by this work.
@@ -59,7 +59,7 @@ pass:
 
 **77 effects are shader-backed**; the other 88 were always fine as CSS. Two
 acceptance tests guard it: _"the shader pass runs and moves pixels"_ and
-_"every mapped shader compiles"_ — a shader that will not compile is reported,
+_"every mapped shader compiles"_: a shader that will not compile is reported,
 not thrown, so that second test is the only way to notice.
 
 ### The blur that was a row of copies
@@ -70,14 +70,14 @@ right; the **gaps between them** were the problem. A 90px directional blur over
 25 taps puts them nearly 8px apart, so 7 of every 8 pixels along the streak
 were never read, and what you see is a row of ghosts.
 
-No reweighting fixes that — the information was not sampled. The fix is to make
+No reweighting fixes that; the information was not sampled. The fix is to make
 each tap cover its own gap by reading from a **mip level whose texels are as
 wide as the spacing**: `lodFor(gapInTexels)` in the shader common, `tapLod` /
 `tapBoxLod` instead of `tapAt`, and `gl.generateMipmap` on the input texture and
 on every pass output in `gpu.js`. It is also cheaper than the tap count it
 replaces.
 
-Every blur computes its own gap, and the radial blur computes it _per pixel_ —
+Every blur computes its own gap, and the radial blur computes it _per pixel_,
 the taps spread with the distance from the centre, which is why a radial blur is
 sharp in the middle and smeared at the rim.
 
@@ -90,7 +90,7 @@ A brightness comparison cannot see ghosting; a hole check can.
 A layer is painted into a surface exactly its own size, and the effect stack
 runs on that surface, so a blur has nowhere to spread past the layer's edge.
 After Effects grows the buffer instead. Fixing it means padding the surface by
-the stack's reach and offsetting the draw — contained, but it touches the matte,
+the stack's reach and offsetting the draw: contained, but it touches the matte,
 shadow and motion-blur paths, so it is written down rather than done.
 
 ### The start page and the render queue
@@ -107,9 +107,9 @@ site data), `saveProject` writes a `.woogi.json` (survives anything).
 The render queue (`export.js`, `export-modal.gjs`) has two engines, because a
 browser cannot do what Ferrite does in one way:
 
-- `live` — `captureStream` + `MediaRecorder`. Carries the sound, drops frames
+- `live` is `captureStream` + `MediaRecorder`. Carries the sound, drops frames
   when the comp is heavy, so a "30fps" file is whatever the machine managed.
-- `exact` — every frame drawn, seeked and encoded through FFmpeg. Frame
+- `exact` is every frame drawn, seeked and encoded through FFmpeg. Frame
   accurate, slower, and silent: the mixer is a live graph with no clock to play
   it against offline.
 
@@ -128,7 +128,7 @@ panel warns above ~700MB rather than letting the tab die.
 Every shader pass was **vertically flipping the picture**. A 2D canvas counts
 rows from the top and GL counts them from the bottom, and the mismatch was at
 the handover. It went unnoticed because the test that guarded the pass used a
-_left/right_ split — which cannot see a vertical flip. It only showed up when
+_left/right_ split, which cannot see a vertical flip. It only showed up when
 the user noticed Channel Mixer "flipping my layer upside down": a colour shader
 cannot flip anything, so the flip had to be in the pipeline.
 
@@ -160,13 +160,13 @@ top/bottom split.
    `SHADERS`. WGSL→GLSL is mechanical: `vec2<f32>` → `vec2`,
    `textureSampleLevel(tex_a, samp, uv, 0.0)` → `texture(uTex, uv)`,
    `fx.params[i].x` → `uParams[i].x`, `select(a, b, c)` → `c ? b : a`.
-   **`box_uv`/`from_box_uv` are identity here** — each layer already owns a
+   **`box_uv`/`from_box_uv` are identity here**: each layer already owns a
    surface exactly its own size.
 2. Add the `SHADER_EFFECTS` entry. Check the catalogue's parameter order first;
    it rarely matches the shader's.
 3. `node tests/node/ferrite-model.mjs`, then `npm test`.
 
-## Gotchas already paid for — do not rediscover these
+## Gotchas already paid for: do not rediscover these
 
 1. **Never write a tracked field in a component constructor.** Glimmer runs it
    inside an open render transaction; reading then writing throws "already been
@@ -179,12 +179,12 @@ top/bottom split.
    using one. Icons come from `sketchyicons`, not lucide.
 4. **Canvas `fillStyle` silently ignores what it cannot parse.** The site's
    greys compute to `oklch(0.985 0 none)`. `theme.js` normalises every colour
-   through a real canvas before use — keep doing that for any new colour.
-5. **`nth-child` on the menu bar is off by one** — the brand logo is the first
+   through a real canvas before use; keep doing that for any new colour.
+5. **`nth-child` on the menu bar is off by one**: the brand logo is the first
    child. Select menus with `[data-menu="Layer"]`.
 6. In `.gjs`, only JavaScript may appear outside `<template>`; a `{{! }}`
    comment there is a parse error.
-7. **`setPointerCapture` throws** when the pointer has already gone — a
+7. **`setPointerCapture` throws** when the pointer has already gone, so a
    synthetic event, a cancelled gesture. Optional chaining does not help: the
    method exists, it just refuses, and the throw escapes as a global error that
    fails a whole QUnit module. Use the `grabPointer`/`freePointer` helpers.
@@ -192,7 +192,7 @@ top/bottom split.
    listens for `pointerdown`/`pointerup` is unreachable by click, by keyboard
    and by assistive tech. Keep an `on click` alongside any drag gesture.
 9. **Menu rows carry `data-row` slugs** and menu buttons `data-menu`. Select by
-   those, never `nth-child` — adding a row silently moves everything below it.
+   those, never `nth-child`; adding a row silently moves everything below it.
 10. **A test that cannot see the bug is worse than no test.** The shader guard
     used a left/right split and missed a vertical flip in all 77 effects for
     weeks. Choose fixtures that are asymmetric in every axis the code touches.
@@ -209,7 +209,7 @@ engine, the frame bridge, browser-source outputs, the REST control API, the
 live data gateway, take-to-program, and the Live and Automate workspaces. The
 workspace rail that used to hold the last two has been removed.
 
-_Scene animations_ were kept — without a program bus there is nothing to trigger
+_Scene animations_ were kept, but without a program bus there is nothing to trigger
 them, but they still work as named sub-compositions. Removable if unwanted.
 
 **11.** **A blanket string replace in a test file will rewrite the helper it

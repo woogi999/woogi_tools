@@ -13,9 +13,11 @@ import { tracked } from '@glimmer/tracking';
 // both sides ring each other at the same moment and the call comes up twice.
 //
 // Where the media goes: the same route the chat itself takes (see
-// mesh-chat.js). Direct between the two networks wherever they allow it, and
-// through the Open Relay Project's free public relay when they don't, never
-// through this site's own Cloudflare relay.
+// mesh-chat.js). Direct between the two networks, and nowhere else. The Open
+// Relay Project's free service, which this used to fall back on, has shut
+// down, and this site's own Cloudflare relay is deliberately not used, since
+// an hour of group video would cost real money. A pair of networks that
+// refuse a direct link therefore will not carry a call.
 
 const AUDIO = {
   echoCancellation: true,

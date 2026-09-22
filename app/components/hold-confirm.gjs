@@ -39,12 +39,16 @@ export default class HoldConfirm extends Component {
     };
   });
 
+  // The hold begins on pointerdown and is the confirmation itself, so the
+  // press cannot wait for pointerup; hence the lint waiver in the template.
   start = (event) => {
-    if (event.type === 'keydown' && event.key !== ' ' && event.key !== 'Enter') return;
+    if (event.type === 'keydown' && event.key !== ' ' && event.key !== 'Enter')
+      return;
     if (event.type === 'keydown' && event.repeat) return;
     event.preventDefault();
     if (this.holding !== null) return;
-    if (event.pointerId !== undefined) event.currentTarget.setPointerCapture?.(event.pointerId);
+    if (event.pointerId !== undefined)
+      event.currentTarget.setPointerCapture?.(event.pointerId);
     this.holding = performance.now();
     sfx('ui.hold');
     const tick = (now) => {
@@ -62,7 +66,8 @@ export default class HoldConfirm extends Component {
   };
 
   stop = (event) => {
-    if (event?.type === 'keyup' && event.key !== ' ' && event.key !== 'Enter') return;
+    if (event?.type === 'keyup' && event.key !== ' ' && event.key !== 'Enter')
+      return;
     if (this.holding === null) return;
     this.holding = null;
     cancelAnimationFrame(this.frame);
@@ -76,19 +81,36 @@ export default class HoldConfirm extends Component {
   };
 
   <template>
-    <dialog class="hold-confirm" aria-labelledby="hold-confirm-title" {{this.open}} {{on "cancel" this.cancel}}>
+    {{! template-lint-disable no-pointer-down-event-binding }}
+    <dialog
+      class="hold-confirm"
+      aria-labelledby="hold-confirm-title"
+      {{this.open}}
+      {{on "cancel" this.cancel}}
+    >
       <div class="hold-confirm-body pop-in">
-        <span class="hold-confirm-icon"><Icon @name="triangle-alert" @size={{22}} /></span>
+        <span class="hold-confirm-icon"><Icon
+            @name="triangle-alert"
+            @size={{22}}
+          /></span>
         <h2 id="hold-confirm-title" class="hold-confirm-title">{{@title}}</h2>
         <p class="hold-confirm-text">{{@message}}</p>
         {{yield}}
         <div class="hold-confirm-actions">
-          <button type="button" class="btn" {{on "click" this.cancel}}>{{if @cancelLabel @cancelLabel "Keep playing"}}</button>
+          <button type="button" class="btn" {{on "click" this.cancel}}>{{if
+              @cancelLabel
+              @cancelLabel
+              "Keep playing"
+            }}</button>
           <button
             type="button"
             class="btn hold-btn {{if this.progress 'is-holding'}}"
             style={{this.fillStyle}}
-            aria-label="{{if @confirmLabel @confirmLabel 'Confirm'}}: press and hold for {{this.seconds}} seconds"
+            aria-label="{{if
+              @confirmLabel
+              @confirmLabel
+              'Confirm'
+            }}: press and hold for {{this.seconds}} seconds"
             {{on "pointerdown" this.start}}
             {{on "pointerup" this.stop}}
             {{on "pointercancel" this.stop}}
@@ -98,10 +120,17 @@ export default class HoldConfirm extends Component {
             {{on "contextmenu" this.preventMenu}}
           >
             <span class="hold-btn-fill" aria-hidden="true"></span>
-            <span class="hold-btn-label"><Icon @name="hand" @size={{13}} /> {{if this.progress (holdText this.seconds) (if @confirmLabel @confirmLabel "Hold to confirm")}}</span>
+            <span class="hold-btn-label"><Icon @name="hand" @size={{13}} />
+              {{if
+                this.progress
+                (holdText this.seconds)
+                (if @confirmLabel @confirmLabel "Hold to confirm")
+              }}</span>
           </button>
         </div>
-        <p class="hold-confirm-hint">Press and hold for {{secondsOf this.holdMs}} seconds.</p>
+        <p class="hold-confirm-hint">Press and hold for
+          {{secondsOf this.holdMs}}
+          seconds.</p>
       </div>
     </dialog>
   </template>

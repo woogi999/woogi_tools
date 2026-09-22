@@ -11,7 +11,7 @@ import { PRESETS, whenSaved } from '../../utils/ferrite/projects';
 //
 // Opening a native editor to an empty timeline is fine: the project you want
 // is a file on your disk and you know where it is. Opening a *web* editor to
-// an empty timeline is a question with no answer on screen — is my work still
+// an empty timeline is a question with no answer on screen: is my work still
 // here? where did it go? So this page answers it before anything else: here is
 // what is on this machine, here is how to make a new one, here is how to bring
 // one in from a file.

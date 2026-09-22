@@ -11,7 +11,7 @@
 // Every distortion works the same way round, and it is worth saying once
 // because it is the thing that looks backwards on first reading: the shader is
 // handed the pixel it is *writing* and has to decide where that came from. So
-// the maths is the inverse of the description — a bulge that magnifies samples
+// the maths is the inverse of the description: a bulge that magnifies samples
 // *closer* to its own centre than it was asked.
 
 import { COLOUR_COMMON, COLOUR_SHADERS } from './shaders-colour.js';
@@ -47,7 +47,7 @@ float lodFor(float gapInTexels) {
 
 vec4 tapLod(vec2 uv, float lod) { return textureLod(uTex, uv, lod); }
 
-// The same, but nothing outside the layer's box — as sampleBox does, so a
+// The same, but nothing outside the layer's box, as sampleBox does, so a
 // blur fades off the edge instead of dragging the edge pixel outward.
 vec4 tapBoxLod(vec2 uv, float lod) {
   if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))))

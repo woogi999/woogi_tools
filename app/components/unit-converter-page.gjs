@@ -129,7 +129,7 @@ function fromCelsius(value, unit) {
 }
 
 function formatNumber(n) {
-  if (!Number.isFinite(n)) return '—';
+  if (!Number.isFinite(n)) return '-';
   const rounded = parseFloat(n.toPrecision(6));
   return rounded.toLocaleString(undefined, { maximumFractionDigits: 10 });
 }
@@ -177,7 +177,7 @@ export default class UnitConverterPage extends Component {
   }
 
   get resultText() {
-    return this.result === null ? '—' : formatNumber(this.result);
+    return this.result === null ? '-' : formatNumber(this.result);
   }
 
   // A quick reference table: 1 "from" unit converted into every other unit in the category.
