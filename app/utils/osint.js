@@ -22,6 +22,11 @@ async function api(params, signal) {
 export const checkUsernames = (sites, name, signal) =>
   api({ kind: 'username', sites: sites.join(','), name }, signal);
 
+// What up to 10 found accounts say about their owner, in the same order:
+// { profiles: [{ name, bio, location, image, links, … } | null] }.
+export const profileAccounts = (sites, name, signal) =>
+  api({ kind: 'profile', sites: sites.join(','), name }, signal);
+
 // A site the person added themselves: { url: 'https://…/{}', absent: '' }.
 export const checkCustomSite = ({ url, absent }, name, signal) =>
   api({ kind: 'username', url, absent: absent ?? '', name }, signal);

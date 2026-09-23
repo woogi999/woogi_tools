@@ -27,7 +27,7 @@
     "lint:js": "eslint . --cache",
     "lint:js:fix": "eslint . --fix",
     "start": "vite",
-    "dev": "vite",
+    "dev": "node lib/dev.mjs",
     "test": "vite build --mode development && ember test --path dist"
   },
   "devDependencies": {

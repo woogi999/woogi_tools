@@ -3418,15 +3418,18 @@ export const TOOLS = [
     credits: [],
   },
   {
-    label: 'Username Search',
+    label: 'User Profiling',
     route: 'username-search',
     icon: 'user-search',
     category: 'OSINT',
     description:
-      'Which sites have an account under a username: Instagram, TikTok, X, Facebook, Discord, Reddit and nearly 300 more, checked at once.',
+      'One username in, a profile of the person out: every account under it across thousands of sites, the names, locations, links and pictures those profiles give away, other usernames they point to, and a graph of how it connects. Exports to PDF and JSON.',
     keywords: [
       'sherlock',
       'username',
+      'user profiling',
+      'username search',
+      'username lookup',
       'osint',
       'social media',
       'accounts',

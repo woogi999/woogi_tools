@@ -23,7 +23,7 @@ export const CHANGELOG = [
       },
       {
         type: 'new',
-        text: 'Username Search: see which of nearly 300 sites, from Instagram, TikTok, X and Discord to small forums, have an account under a name, the way Sherlock does it. Add any site it doesn’t check yourself.',
+        text: 'User Profiling: one username in, a profile of the person out, the way Maigret does it. It checks over 4,000 sites (Instagram, TikTok, X, Discord, Reddit and thousands of smaller ones, from the Sherlock, WhatsMyName and Maigret lists, each tested before it went in), reads what every account it finds says about its owner (names, locations, links, pictures, when they joined), follows any other usernames those profiles point to, and draws it all as a graph. Save the report as a PDF or JSON. Adult sites are left out unless you tick the box, and you can add any site it doesn’t check yourself.',
       },
       {
         type: 'new',
