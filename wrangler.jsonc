@@ -47,4 +47,12 @@
   //   LANGUAGETOOL_URL       a self-hosted LanguageTool's check endpoint
   //   LANGUAGETOOL_USERNAME  a LanguageTool Premium account, if you have one
   //   LANGUAGETOOL_API_KEY   that account's key
+  //
+  // Optional, for the Video Downloader (worker/video.js). Without these it
+  // still saves from X, TikTok, Facebook, Reddit and Streamable on its own;
+  // with them, YouTube, Instagram, Vimeo and the rest go through a cobalt
+  // instance you run yourself (https://github.com/imputnet/cobalt). Not
+  // api.cobalt.tools: that one isn't for other sites to use.
+  //   COBALT_API_URL         your instance's API address, e.g. https://cobalt.example.com/
+  //   COBALT_API_KEY         its API key, if the instance requires one
 }
