@@ -196,6 +196,12 @@ function meta(html, key) {
   return tag ? (tag.match(/content=["']([^"']*)["']/i)?.[1] ?? null) : null;
 }
 
+// Titles and image captions that are a call to action or the site's own
+// slogan, not a person's name: "follow me on Shelf…", "Buy X a Coffee",
+// "Check out my…". These slip past length checks, so name them here.
+const TITLE_BOILERPLATE =
+  /^(follow|buy|check|see|discover|join|sign|log|welcome|support|subscribe|download|get|make|find|explore|watch|read|shop|visit|create|start|share|listen|view|meet|tips?|link|home|the\s)\b|\b(on\s+\w+\s+for|my\s+(music|links?|profile|page|content|art|store|shop)|for\s+(my|the)\b|and\s+(reading|watching)\b)/i;
+
 // "Jane Doe (@jane) • Instagram photos and videos" → "Jane Doe"
 function tidyTitle(title, username) {
   let t = clean(title, 200)
@@ -204,7 +210,27 @@ function tidyTitle(title, username) {
     .replace(/^@/, '')
     .trim();
   if (username && t.toLowerCase() === username.toLowerCase()) t = '';
+  if (TITLE_BOILERPLATE.test(t)) t = '';
   return t.length > 1 && t.length < 80 ? t : null;
+}
+
+// A profile avatar in the page's markup, when the og:image is a generated
+// share-card rather than the person's own picture (Shelf, Linktree and the
+// like). The first <img> whose class or alt calls it an avatar wins.
+function avatarImg(html, pageUrl) {
+  for (const [tag] of html.matchAll(/<img\s[^>]*>/gi)) {
+    if (!/\b(avatar|profile[-_ ]?(pic|photo|image)|userpic)\b/i.test(tag))
+      continue;
+    const src = tag.match(/\bsrc=["']([^"']+)["']/i)?.[1];
+    if (!src) continue;
+    try {
+      const url = decode(new URL(src, pageUrl).href);
+      if (isUrl(url) && !/\.svg([?#]|$)/i.test(url)) return url;
+    } catch {
+      // a data: URI or junk src; keep looking
+    }
+  }
+  return null;
 }
 
 function fromHtml(html, pageUrl, username, out) {
@@ -255,6 +281,12 @@ function fromHtml(html, pageUrl, username, out) {
     meta(html, 'og:title') ?? meta(html, 'twitter:title') ?? '',
     username,
   );
+  // "Jenn on Shelf" (og:image:alt) names the owner when the title is a
+  // slogan; tidyName downstream strips the "on <site>" tail.
+  out.name ??= tidyTitle(
+    meta(html, 'og:image:alt') ?? meta(html, 'twitter:image:alt') ?? '',
+    username,
+  );
   const desc =
     meta(html, 'og:description') ??
     meta(html, 'description') ??
@@ -270,6 +302,9 @@ function fromHtml(html, pageUrl, username, out) {
     if (who.some((w) => d.toLowerCase().includes(w)) && !boiler.test(d))
       out.bio = d;
   }
+  // An explicit avatar element is the person's own picture; the og:image is
+  // often a generated share-card, so it only fills in when there's no avatar.
+  out.image ??= avatarImg(html, pageUrl);
   const img = meta(html, 'og:image') ?? meta(html, 'twitter:image');
   if (img && isUrl(img)) out.image ??= decode(img);
   // Links: rel="me" ones (explicitly the owner's) and any outbound link.

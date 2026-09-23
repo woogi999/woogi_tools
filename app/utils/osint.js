@@ -34,8 +34,17 @@ export const checkCustomSite = ({ url, absent }, name, signal) =>
 export const findSubdomains = (domain, signal) =>
   api({ kind: 'subdomains', domain }, signal);
 
+// An email address's public Gravatar profile: { profile: {…} | null }.
+export const gravatarProfile = (email, signal) =>
+  api({ kind: 'gravatar', email }, signal);
+
 export const leakCheck = (email, signal) =>
   api({ kind: 'leakcheck', email }, signal);
+
+// Which well-known services an email address is registered with:
+// { accounts: [{ site, url, state }] }.
+export const emailAccountsLookup = (email, signal) =>
+  api({ kind: 'emailaccounts', email }, signal);
 
 export const waybackSnapshots = (url, signal) =>
   api({ kind: 'wayback', url }, signal);

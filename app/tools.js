@@ -3400,7 +3400,7 @@ export const TOOLS = [
     icon: 'at-sign',
     category: 'OSINT',
     description:
-      'Who a domain is registered to, when it expires, and where it points: the WHOIS successor and the DNS records in one place.',
+      'Everything public about a domain: who registered it and when it expires, its DNS, every subdomain it has had, how long it has been online and whether it has been breached, drawn as a map.',
     keywords: [
       'whois',
       'rdap',
@@ -3412,10 +3412,38 @@ export const TOOLS = [
       'expiry',
       'mx record',
       'a record',
+      'subdomain',
+      'subdomains',
+      'subdomain finder',
+      'amass',
+      'sublist3r',
+      'crt.sh',
+      'certificate transparency',
+      'recon',
+      'recon sweep',
+      'reconnaissance',
+      'spiderfoot',
+      'maltego',
+      'footprint',
+      'attack surface',
+      'osint',
     ],
     madeWith:
-      "Registration data comes over RDAP, the registries' JSON replacement for WHOIS, reached through the rdap.org directory which forwards each domain to its own registry; the records people want are picked out of the nested reply. DNS answers come from Cloudflare's DNS-over-HTTPS resolver. Both are asked straight from your browser; the site's server is not involved.",
-    credits: [],
+      "Runs every passive source at once, the way a SpiderFoot scan does. Registration data comes over RDAP, the registries' JSON replacement for WHOIS, reached through the rdap.org directory; DNS answers come from Cloudflare's DNS-over-HTTPS resolver. Subdomains come from certificate-transparency logs: the site's Worker asks crt.sh for every certificate under the domain (falling back to SSLMate's Cert Spotter when crt.sh is overloaded) and hands back the de-duplicated names. The Internet Archive says how long the domain has been captured, Have I Been Pwned's list says whether it has been breached, and the first address is placed with the IP Lookup's geolocation. The Map tab draws it all around the domain as a link graph, Maltego-style. Nothing ever contacts the domain itself.",
+    credits: [
+      {
+        name: 'crt.sh',
+        author: 'Sectigo',
+        license: 'Free public service',
+        url: 'https://crt.sh',
+      },
+      {
+        name: 'Cert Spotter API',
+        author: 'SSLMate',
+        license: 'Free tier',
+        url: 'https://sslmate.com/ct_search_api/',
+      },
+    ],
   },
   {
     label: 'User Profiling',
@@ -3423,12 +3451,16 @@ export const TOOLS = [
     icon: 'user-search',
     category: 'OSINT',
     description:
-      'One username in, a profile of the person out: every account under it across thousands of sites, the names, locations, links and pictures those profiles give away, other usernames they point to, and a graph of how it connects. Exports to PDF and JSON.',
+      'Usernames, emails or IP addresses in, a profile of the person out: accounts across thousands of sites, what those profiles give away, email breaches and Gravatar, IP location and network, all on one graph. Save profiles, edit them and export to PDF or JSON.',
     keywords: [
       'sherlock',
       'username',
       'user profiling',
       'username search',
+      'email osint',
+      'email lookup',
+      'ip osint',
+      'holehe',
       'username lookup',
       'osint',
       'social media',
@@ -3561,41 +3593,6 @@ export const TOOLS = [
     credits: [],
   },
   {
-    label: 'Subdomain Finder',
-    route: 'subdomain-finder',
-    icon: 'network',
-    category: 'OSINT',
-    description:
-      'Every subdomain of a site that has ever had an HTTPS certificate, from the public certificate-transparency logs.',
-    keywords: [
-      'subdomain',
-      'subdomains',
-      'amass',
-      'sublist3r',
-      'crt.sh',
-      'certificate transparency',
-      'recon',
-      'attack surface',
-      'osint',
-    ],
-    madeWith:
-      'Every public HTTPS certificate is written to certificate-transparency logs, and crt.sh indexes them; the site’s Worker asks it for every certificate under the domain (falling back to SSLMate’s Cert Spotter when crt.sh is overloaded, which it often is) and hands back the de-duplicated names. Nothing touches the domain itself.',
-    credits: [
-      {
-        name: 'crt.sh',
-        author: 'Sectigo',
-        license: 'Free public service',
-        url: 'https://crt.sh',
-      },
-      {
-        name: 'Cert Spotter API',
-        author: 'SSLMate',
-        license: 'Free tier',
-        url: 'https://sslmate.com/ct_search_api/',
-      },
-    ],
-  },
-  {
     label: 'Wayback Snapshots',
     route: 'wayback-snapshots',
     icon: 'history',
@@ -3622,28 +3619,6 @@ export const TOOLS = [
         url: 'https://web.archive.org',
       },
     ],
-  },
-  {
-    label: 'Recon Sweep',
-    route: 'recon-sweep',
-    icon: 'radar',
-    category: 'OSINT',
-    description:
-      'One domain in; its registration, servers, subdomains, history and breaches out, drawn as a graph of how they connect.',
-    keywords: [
-      'spiderfoot',
-      'maltego',
-      'recon',
-      'reconnaissance',
-      'footprint',
-      'attack surface',
-      'domain',
-      'graph',
-      'osint',
-    ],
-    madeWith:
-      'Runs every passive source the other OSINT tools use at once (RDAP and Cloudflare DNS from the Domain Lookup, certificate logs from the Subdomain Finder, the Internet Archive, Have I Been Pwned’s breach list and the IP Address Lookup’s geolocation) the way a SpiderFoot scan does, then draws what came back around the domain as an SVG link graph, Maltego-style. Click a subdomain to sweep it next.',
-    credits: [],
   },
   {
     label: 'Unlock PDF',

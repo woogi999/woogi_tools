@@ -26,7 +26,7 @@
 // GET /api/osint backs the OSINT tools, whose sources refuse browsers on
 // other sites: kind=username checks a batch of sites from app/utils/username-sites.js
 // for one name (25 to a request, so results stream in batch by batch),
-// kind=profile reads what found accounts say about their owner (name, bio,
+// kind=gravatar is an email address's public Gravatar profile, kind=profile reads what found accounts say about their owner (name, bio,
 // location, links), kind=subdomains reads certificate-transparency logs through crt.sh (with
 // Cert Spotter as the fallback), kind=wayback is the Internet Archive's
 // capture calendar for a URL, and kind=breaches is Have I Been Pwned's public list of
@@ -45,6 +45,7 @@ import {
   checkSite,
   profileSite,
 } from '../app/utils/username-sites.js';
+import { emailAccounts } from '../app/utils/email-accounts.js';
 
 export { RelayRoom } from './relay-room.js';
 
@@ -509,10 +510,12 @@ async function osint(request) {
   try {
     if (kind === 'username') return await osintUsername(params);
     if (kind === 'profile') return await osintProfile(params);
+    if (kind === 'gravatar') return await osintGravatar(params);
     if (kind === 'subdomains') return await osintSubdomains(params);
     if (kind === 'wayback') return await osintWayback(params);
     if (kind === 'breaches') return await osintBreaches();
     if (kind === 'leakcheck') return await osintLeakCheck(params);
+    if (kind === 'emailaccounts') return await osintEmailAccounts(params);
     return json({ error: 'Unknown kind' }, 400);
   } catch {
     return json({ error: 'The source did not answer in time.' }, 502);
@@ -574,6 +577,49 @@ async function osintProfile(params) {
     ids.map((i) => profileSite(USERNAME_SITES[i], name)),
   );
   return json({ profiles }, 200, 'public, max-age=600');
+}
+
+// Gravatar's public profile for an email address: the name, location, bio,
+// work and the accounts its owner verified there. Gravatar keys profiles by
+// the SHA-256 of the address, so that is all that is sent on.
+async function osintGravatar(params) {
+  const email = (params.get('email') ?? '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return json({ error: 'Bad email' }, 400);
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(email),
+  );
+  const hash = [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  const r = await osintFetch(
+    `https://api.gravatar.com/v3/profiles/${hash}`,
+    10000,
+  );
+  if (r.status === 404)
+    return json({ profile: null }, 200, 'public, max-age=3600');
+  if (!r.ok) return json({ error: 'Gravatar did not answer.' }, 502);
+  const p = await r.json();
+  return json(
+    {
+      profile: {
+        name: p.display_name || null,
+        url: p.profile_url || null,
+        image: p.avatar_url || null,
+        location: p.location || null,
+        bio: p.description || null,
+        job: p.job_title || null,
+        company: p.company || null,
+        pronouns: p.pronouns || null,
+        accounts: (p.verified_accounts ?? [])
+          .filter((a) => !a.is_hidden && a.url)
+          .map((a) => ({ service: a.service_label, url: a.url })),
+      },
+    },
+    200,
+    'public, max-age=3600',
+  );
 }
 
 // A site someone added on the page: a profile URL with {} for the name, and
@@ -685,6 +731,15 @@ async function osintLeakCheck(params) {
     fields: body.fields ?? [],
     sources: body.success ? (body.sources ?? []) : [],
   });
+}
+
+// Which well-known services an email address is registered with (see
+// email-accounts.js). Only the yes/no verdict per service travels back.
+async function osintEmailAccounts(params) {
+  const email = (params.get('email') ?? '').trim().toLowerCase();
+  if (!EMAIL.test(email)) return json({ error: 'Bad email' }, 400);
+  const accounts = await emailAccounts(email);
+  return json({ accounts }, 200, 'public, max-age=600');
 }
 
 async function osintBreaches() {
