@@ -66,6 +66,7 @@ Router.map(function () {
   this.route('watermarker');
   this.route('audio-extractor');
   this.route('video-muter');
+  this.route('video-downloader');
   this.route('trimmer');
   this.route('metadata-editor');
   this.route('auto-subtitle');

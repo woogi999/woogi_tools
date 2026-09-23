@@ -38,6 +38,9 @@
 // kept in the TEMP_MAIL KV namespace for an hour. GET /api/mail?box=<name>
 // lists a box, and &id=<id> fetches one message. The box name is the only
 // secret: the page makes a long random one and never shows it to anyone else.
+//
+// /api/video, /api/video/resolve and /api/video/file back the Video
+// Downloader; see worker/video.js for what each site allows and why.
 
 import PostalMime from 'postal-mime';
 import {
@@ -47,6 +50,7 @@ import {
 } from '../app/utils/username-sites.js';
 import { emailAccounts } from '../app/utils/email-accounts.js';
 import { NAME_SOURCES, searchName } from '../app/utils/name-search.js';
+import { video } from './video.js';
 
 export { RelayRoom } from './relay-room.js';
 
@@ -76,6 +80,8 @@ export default {
     if (url.pathname === '/api/osint') return osint(request);
     if (url.pathname === '/api/mail') return mail(request, env);
     if (url.pathname === '/api/relay-room') return relayRoom(request, env);
+    if (url.pathname === '/api/video' || url.pathname.startsWith('/api/video/'))
+      return video(request, env);
     if (url.pathname.startsWith('/api/'))
       return json({ error: 'Not found' }, 404);
     return env.ASSETS.fetch(request);

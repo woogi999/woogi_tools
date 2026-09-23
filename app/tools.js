@@ -1659,6 +1659,37 @@ export const TOOLS = [
     ],
   },
   {
+    label: 'Video Downloader',
+    route: 'video-downloader',
+    icon: 'download',
+    category: 'Audio & Video',
+    description:
+      'Paste a link to a public video on X, TikTok, Facebook, Reddit and more, and save it.',
+    keywords: [
+      'video downloader',
+      'download video',
+      'save video',
+      'tiktok downloader',
+      'twitter video downloader',
+      'x video downloader',
+      'reddit video downloader',
+      'facebook video downloader',
+      'youtube',
+      'instagram',
+      'mp4',
+    ],
+    madeWith:
+      'The site’s Worker looks the link up from Cloudflare’s network and hands back what the site itself lists: X’s embed service, TikTok’s video page, Facebook’s embeddable player, a Reddit post’s feed and its DASH manifest, Streamable’s API. Most files then come straight from the site’s own servers into your browser; TikTok only lets whoever loaded the page fetch them, so those pass through the Worker. Reddit keeps picture and sound apart, and FFmpeg (WebAssembly, in your browser) joins them without re-encoding. YouTube, Instagram and Vimeo refuse servers, so they give a title and thumbnail only, unless the site owner connects their own cobalt instance. Only public videos: nothing signs in anywhere or gets around a site’s restrictions.',
+    credits: [
+      {
+        name: 'ffmpeg.wasm',
+        author: 'Jerome Wu',
+        license: 'MIT (FFmpeg: LGPL/GPL)',
+        url: 'https://github.com/ffmpegwasm/ffmpeg.wasm',
+      },
+    ],
+  },
+  {
     label: 'Video Muter',
     route: 'video-muter',
     icon: 'volume-x',

@@ -1,0 +1,201 @@
+// ─── Video Downloader ────────────────────────────────────────────────────
+// The form reuses the .dl-form from Domain Lookup; everything else is here.
+
+.vd-detect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 14px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.vd-detect.is-ok svg {
+  color: var(--accent);
+}
+
+.vd-detect.is-limited svg {
+  color: var(--card-red, #ff5c72);
+}
+
+.vd-detect strong {
+  color: var(--text);
+}
+
+.vd-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.vd-result {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vd-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.vd-thumb {
+  flex: 0 0 auto;
+  width: 200px;
+  max-height: 200px;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  background: var(--bg-elevated-2);
+}
+
+.vd-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.vd-platform {
+  align-self: flex-start;
+  padding: 2px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.vd-title {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.vd-author,
+.vd-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.vd-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.vd-sub a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vd-formats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vd-format {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated);
+}
+
+.vd-format > svg {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+}
+
+.vd-format.is-failed {
+  border-color: var(--card-red, #ff5c72);
+}
+
+.vd-format-info {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vd-format-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.vd-format-meta,
+.vd-format-status {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.vd-format .btn {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+}
+
+.vd-site-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.vd-site-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  font-size: 0.8rem;
+}
+
+.vd-site-list li span {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.vd-site-list li.is-ok span {
+  color: var(--accent);
+}
+
+@media (width <= 560px) {
+  .vd-head {
+    flex-direction: column;
+  }
+
+  .vd-thumb {
+    width: 100%;
+    max-height: 240px;
+  }
+
+  .vd-format {
+    flex-wrap: wrap;
+  }
+
+  .vd-format .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
