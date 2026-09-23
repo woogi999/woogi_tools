@@ -8300,3 +8300,55 @@ video.media-preview {
 .osint-link-button:focus-visible code {
   text-decoration: underline;
 }
+
+// User Profiling: the search-by picker, name-search hits and username ideas.
+.dl-form .math-input.osint-by {
+  flex: 0 0 auto;
+}
+
+.osint-name-hits {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.osint-idea {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.osint-idea:hover {
+  text-decoration: underline;
+}
+
+.osint-chips-list li:has(.osint-idea) {
+  background: color-mix(in srgb, #3498db 16%, transparent);
+}
+
+.osint-name-hits a.is-match {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  color: #2ecc71;
+}
+
+.osint-values li.is-backed {
+  border-left: 3px solid #2ecc71;
+  padding-left: 8px;
+}
+
+.osint-evidence {
+  font-size: 0.75rem;
+  color: #2ecc71;
+}
+
+.osint-chips-list li:has(.osint-idea.is-mentioned) {
+  background: color-mix(in srgb, #2ecc71 22%, transparent);
+  font-weight: 600;
+}
