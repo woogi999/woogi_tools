@@ -17,10 +17,18 @@ import {
   USERNAME_PATTERN,
   fill,
 } from '../utils/username-sites';
-import { priorityOf } from '../utils/priority-sites';
+import { priorityOf, PRIORITY_SITES } from '../utils/priority-sites';
+import {
+  usernamesFromName,
+  suggestUsernames,
+  nameSearchLinks,
+  namesAgree,
+  mentionsOf,
+} from '../utils/username-ideas';
 import {
   buildReport,
   buildGraph,
+  accountFromLink,
   exportJson,
   exportPdf,
   NODE_KINDS,
@@ -80,6 +88,11 @@ const lower = (s) => String(s).toLowerCase();
 export default class UsernameSearchPage extends Component {
   @tracked input = '';
   @tracked names = [];
+  // 'handle' for usernames, emails and IPs; 'name' for a person's full name.
+  @tracked by = 'handle';
+  // Full names searched: the usernames guessed from each, and which of the
+  // big networks have an account under each guess.
+  @tracked people = [];
   @tracked emails = [];
   @tracked ips = [];
   @tracked rows = [];
@@ -193,7 +206,13 @@ export default class UsernameSearchPage extends Component {
   }
 
   get hasTargets() {
-    return this.names.length + this.emails.length + this.ips.length > 0;
+    return (
+      this.names.length +
+        this.emails.length +
+        this.ips.length +
+        this.people.length >
+      0
+    );
   }
 
   get done() {
@@ -331,6 +350,7 @@ export default class UsernameSearchPage extends Component {
 
   get targetLine() {
     return [
+      ...this.people.map((p) => p.name),
       ...this.names.map((n) => `@${n}`),
       ...this.emails.map((e) => e.email),
       ...this.ips.map((i) => i.ip),
@@ -367,6 +387,151 @@ export default class UsernameSearchPage extends Component {
       via: l.via.join(', '),
       searched: this.names.some((n) => lower(n) === lower(l.username)),
     }));
+  }
+
+  // Each full name searched, its guessed usernames with the most accounts
+  // first.
+  // Guesses backed by what's already known come first: an account whose
+  // name is the name searched, or a guess another profile links to or
+  // spells out.
+  get peopleView() {
+    const sources = this.mentionSources;
+    return this.people.map((p) => {
+      const candidates = p.candidates
+        .map((c) => {
+          const hits = c.hits.map((h) => ({
+            ...h,
+            title: h.profileName
+              ? `Shown as “${h.profileName}”${h.match ? ' — the name searched' : ''}`
+              : 'No name on the page',
+          }));
+          const matches = hits.filter((h) => h.match).map((h) => h.site);
+          const mentions = mentionsOf(c.username, sources);
+          return {
+            ...c,
+            hits,
+            matches: matches.join(', '),
+            mentions: mentions.join(', '),
+            backed: matches.length > 0 || mentions.length > 0,
+            score: (matches.length + mentions.length) * 10 + c.hits.length,
+            checking: c.left > 0,
+            searched: this.names.some((n) => lower(n) === lower(c.username)),
+          };
+        })
+        .sort((a, b) => b.score - a.score);
+      // Accounts the matching profiles link to (a Linktree, a connected
+      // TikTok…): the same person's other usernames, whatever they are.
+      const known = new Set(candidates.map((c) => lower(c.username)));
+      const leads = new Map();
+      for (const c of p.candidates)
+        for (const h of c.hits)
+          if (h.match)
+            for (const link of h.links ?? []) {
+              const a = accountFromLink(link);
+              if (!a || known.has(lower(a.username))) continue;
+              const key = lower(a.username);
+              const lead = leads.get(key) ?? {
+                username: a.username,
+                via: [],
+                searched: this.names.some((n) => lower(n) === key),
+              };
+              const via = `${h.site} (${c.username})`;
+              if (!lead.via.includes(via)) lead.via.push(via);
+              leads.set(key, lead);
+            }
+      return {
+        ...p,
+        candidates,
+        leads: [...leads.values()].map((l) => ({
+          ...l,
+          via: l.via.join(', '),
+        })),
+      };
+    });
+  }
+
+  // Everything collected that could mention a username: each found
+  // account's profile (name, bio, links), the name-search hits' profiles,
+  // and the accounts Gravatar lists for an email.
+  get mentionSources() {
+    const texts = (p) =>
+      [p.name, p.bio, p.alternate, p.website, p.email, p.twitter].filter(
+        Boolean,
+      );
+    const links = (p) => [
+      ...(p.links ?? []),
+      ...(p.twitter ? [`https://x.com/${p.twitter}`] : []),
+      ...(p.website ? [p.website] : []),
+    ];
+    const out = [];
+    for (const r of this.found)
+      if (r.profile)
+        out.push({
+          site: r.site,
+          owner: r.username,
+          texts: texts(r.profile),
+          links: links(r.profile),
+        });
+    for (const p of this.people)
+      for (const c of p.candidates)
+        for (const h of c.hits)
+          if (h.links?.length || h.profileName || h.bio)
+            out.push({
+              site: h.site,
+              owner: c.username,
+              texts: [h.profileName, h.bio].filter(Boolean),
+              links: h.links ?? [],
+            });
+    for (const e of this.emails)
+      if (e.gravatar)
+        out.push({
+          site: 'Gravatar',
+          owner: '',
+          texts: [e.gravatar.bio].filter(Boolean),
+          links: (e.gravatar.accounts ?? []).map((a) => a.url),
+        });
+    return out;
+  }
+
+  // Usernames this person might also use, from their names, email addresses
+  // and the usernames already known.
+  get ideas() {
+    const r = this.report;
+    const fullNames = [
+      ...this.people.map((p) => p.name),
+      ...(r.personal.find((f) => f.key === 'name')?.values ?? [])
+        .slice(0, 2)
+        .map((v) => v.value),
+    ];
+    const exclude = [
+      ...this.names,
+      ...r.linked.map((l) => l.username),
+      ...this.people.flatMap((p) => p.candidates.map((c) => c.username)),
+    ];
+    const sources = this.mentionSources;
+    return suggestUsernames(
+      {
+        usernames: this.names,
+        emails: this.emails.map((e) => e.email),
+        fullNames,
+      },
+      exclude,
+    )
+      .map((idea) => {
+        const mentions = mentionsOf(idea.username, sources);
+        return {
+          ...idea,
+          mentioned: mentions.length > 0,
+          why: mentions.length
+            ? `Mentioned on ${mentions.join(', ')} · ${idea.why}`
+            : idea.why,
+        };
+      })
+      .sort((a, b) => b.mentioned - a.mentioned);
+  }
+
+  get byName() {
+    return this.by === 'name';
   }
 
   get emailCards() {
@@ -410,6 +575,7 @@ export default class UsernameSearchPage extends Component {
   setInput = (event) => (this.input = event.target.value);
   setTab = (tab) => (this.tab = tab);
   setScope = (event) => (this.scope = event.target.value);
+  setBy = (event) => (this.by = event.target.value);
   toggleAdult = (event) => (this.adult = event.target.checked);
   setStateFilter = (id) => {
     this.stateFilter = id;
@@ -424,6 +590,7 @@ export default class UsernameSearchPage extends Component {
 
   submit = (event) => {
     event.preventDefault();
+    if (this.byName) return this.submitNames();
     const targets = sortTargets(this.input);
     if (targets.invalid.length) {
       this.error = `Not a username, email or IP address: ${targets.invalid.join(', ')}`;
@@ -435,7 +602,7 @@ export default class UsernameSearchPage extends Component {
       !targets.ips.length
     ) {
       this.error =
-        'Type one or more usernames, email addresses or IP addresses, separated by commas or spaces.';
+        'Type one or more usernames, email addresses or IP addresses, separated by commas or spaces. To search a person’s name, pick “Full name”.';
       return;
     }
     this.error = null;
@@ -443,6 +610,25 @@ export default class UsernameSearchPage extends Component {
     if (!this.profileId) this.reset();
     this.addTargets(targets);
   };
+
+  submitNames() {
+    const people = this.input
+      .split(/[,;\n]+/)
+      .map((n) => n.trim().replace(/\s+/g, ' '))
+      .filter(Boolean);
+    const bad = people.filter((n) => !usernamesFromName(n).length);
+    if (!people.length || bad.length) {
+      this.error = bad.length
+        ? `Not a name: ${bad.join(', ')}`
+        : 'Type a full name, like Juan Dela Cruz. Separate several with commas.';
+      return;
+    }
+    this.error = null;
+    if (!this.profileId) this.reset();
+    for (const name of people)
+      if (!this.people.some((p) => lower(p.name) === lower(name)))
+        this.lookName(name);
+  }
 
   newProfile = () => {
     this.reset();
@@ -460,6 +646,7 @@ export default class UsernameSearchPage extends Component {
     this.controller = new AbortController();
     this.profileQueue = [];
     this.names = [];
+    this.people = [];
     this.emails = [];
     this.ips = [];
     this.rows = [];
@@ -605,6 +792,109 @@ export default class UsernameSearchPage extends Component {
       i.ip === ip ? { ...result, ready: true } : i,
     );
     this.looking--;
+  }
+
+  // A full name: guess the usernames it gives, and check each guess on the
+  // big networks only (not every site), so a name costs a few hundred
+  // checks rather than tens of thousands. A guess with accounts can then be
+  // profiled in full.
+  async lookName(full) {
+    const signal = this.controller.signal;
+    const excluded = new Set(this.excluded);
+    const sites = PRIORITY_SITES.map((n) =>
+      USERNAME_SITES.findIndex((s) => s.name === n),
+    ).filter(
+      (i) =>
+        i >= 0 &&
+        (this.adult || !USERNAME_SITES[i].nsfw) &&
+        !excluded.has(USERNAME_SITES[i].name),
+    );
+    const candidates = usernamesFromName(full).map((username) => ({
+      username,
+      hits: [],
+      left: sites.length,
+    }));
+    this.people = [
+      ...this.people,
+      { name: full, candidates, links: nameSearchLinks(full) },
+    ];
+    // The name typed is the person's name, whatever the accounts say.
+    if (
+      !this.manual.some(
+        (m) => m.field === 'name' && lower(m.value) === lower(full),
+      )
+    )
+      this.manual = [...this.manual, { field: 'name', value: full }];
+    const answered = (username, hit) =>
+      (this.people = this.people.map((p) =>
+        p.name !== full
+          ? p
+          : {
+              ...p,
+              candidates: p.candidates.map((c) =>
+                c.username !== username
+                  ? c
+                  : {
+                      ...c,
+                      left: c.left - 1,
+                      hits: hit ? [...c.hits, hit] : c.hits,
+                    },
+              ),
+            },
+      ));
+    const jobs = candidates.flatMap((c) => sites.map((i) => [c.username, i]));
+    let next = 0;
+    const worker = async () => {
+      while (next < jobs.length && !signal.aborted) {
+        const [username, i] = jobs[next++];
+        const site = USERNAME_SITES[i];
+        let result = cachedResult(site.name, username);
+        if (!result) {
+          try {
+            result = (await checkUsernames([i], username, signal)).results[0];
+            cacheResult(site.name, username, {
+              state: result.state,
+              note: result.note ?? '',
+              profile: null,
+            });
+          } catch {
+            result = { state: 'unknown' };
+          }
+        }
+        let hit = null;
+        if (result.state === 'found') {
+          // Read the account so its display name and links can say whether
+          // it's this person.
+          let profile = result.profile;
+          if (profile === undefined || profile === null) {
+            try {
+              profile = (await profileAccounts([i], username, signal))
+                .profiles[0];
+              cacheProfile(site.name, username, profile ?? null);
+            } catch {
+              profile = null;
+            }
+          }
+          hit = {
+            site: site.name,
+            url: fill(site.url, username),
+            profileName: profile?.name ?? null,
+            bio: profile?.bio ?? null,
+            image: profile?.image ?? null,
+            links: [
+              ...(profile?.links ?? []),
+              ...(profile?.twitter ? [`https://x.com/${profile.twitter}`] : []),
+            ],
+            match: Boolean(profile?.name && namesAgree(profile.name, full)),
+          };
+        }
+        if (signal.aborted) return;
+        answered(username, hit);
+      }
+    };
+    this.looking++;
+    await Promise.all(Array.from({ length: PARALLEL }, worker));
+    if (!signal.aborted) this.looking--;
   }
 
   async search(name) {
@@ -879,6 +1169,10 @@ export default class UsernameSearchPage extends Component {
       manual: this.manual,
       hidden: this.hidden,
       names: this.names,
+      people: this.people.map((p) => ({
+        ...p,
+        candidates: p.candidates.map((c) => ({ ...c, left: 0 })),
+      })),
       emails: this.emails.filter((e) => e.ready),
       ips: this.ips.filter((i) => i.ready),
       accounts: this.found.map((r) => ({
@@ -928,6 +1222,7 @@ export default class UsernameSearchPage extends Component {
     this.manual = record.manual ?? [];
     this.hidden = record.hidden ?? [];
     this.names = record.names ?? [];
+    this.people = record.people ?? [];
     this.emails = (record.emails ?? []).map((e) => ({ ...e, ready: true }));
     this.ips = (record.ips ?? []).map((i) => ({ ...i, ready: true }));
     // Indexes shift when the site list is rebuilt; find each site by name.
@@ -1105,13 +1400,32 @@ export default class UsernameSearchPage extends Component {
           aria-label="Profile usernames, emails or IP addresses"
           {{on "submit" this.submit}}
         >
+          <select
+            class="math-input osint-by"
+            aria-label="Search by"
+            {{on "change" this.setBy}}
+          >
+            <option
+              value="handle"
+              selected={{unless this.byName true}}
+            >Username, email or IP</option>
+            <option value="name" selected={{this.byName}}>Full name</option>
+          </select>
           <input
             type="text"
             class="math-input"
-            placeholder="usernames, emails or IPs: alice, bob@mail.com, 1.2.3.4"
+            placeholder={{if
+              this.byName
+              "full name: Juan Dela Cruz, Maria Santos"
+              "usernames, emails or IPs: alice, bob@mail.com, 1.2.3.4"
+            }}
             spellcheck="false"
             autocapitalize="off"
-            aria-label="Usernames, emails or IP addresses"
+            aria-label={{if
+              this.byName
+              "Full names"
+              "Usernames, emails or IP addresses"
+            }}
             value={{this.input}}
             {{on "input" this.setInput}}
           />
@@ -1261,6 +1575,94 @@ export default class UsernameSearchPage extends Component {
                 </ul>
               {{/if}}
 
+              {{#each this.peopleView as |person|}}
+                <div class="osint-target-card">
+                  <h4><Icon @name="user-round" @size={{14}} />
+                    {{person.name}}</h4>
+                  <p class="tool-hint">Usernames this name often becomes, and
+                    which big networks have an account under each. An account
+                    under a guessed username may belong to someone else, so open
+                    it before you rely on it. A tick means the account shows
+                    this name; "mentioned" means another profile links to or
+                    spells out that username.</p>
+                  <ul class="osint-values">
+                    {{#each person.candidates as |c|}}
+                      <li class={{if c.backed "is-backed"}}>
+                        <strong>{{c.username}}</strong>
+                        {{#if c.hits.length}}
+                          <span class="osint-name-hits">
+                            {{#each c.hits as |h|}}
+                              <a
+                                class={{if h.match "is-match"}}
+                                href={{h.url}}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={{h.title}}
+                              >{{#if h.match}}<Icon
+                                    @name="check"
+                                    @size={{11}}
+                                  />{{/if}}{{h.site}}</a>
+                            {{/each}}
+                          </span>
+                        {{else}}
+                          <small class="is-muted">{{if
+                              c.checking
+                              "checking…"
+                              "no account on the big networks"
+                            }}</small>
+                        {{/if}}
+                        {{#if c.checking}}<span
+                            class="osint-dot is-checking"
+                          ></span>{{/if}}
+                        {{#if c.matches}}<small class="osint-evidence">name
+                            matches on
+                            {{c.matches}}</small>{{/if}}
+                        {{#if c.mentions}}<small
+                            class="osint-evidence"
+                          >mentioned on {{c.mentions}}</small>{{/if}}
+                        {{#unless c.searched}}
+                          <button
+                            type="button"
+                            class="btn"
+                            {{on "click" (fn this.follow c.username)}}
+                          ><Icon @name="plus" @size={{12}} />
+                            Profile this</button>
+                        {{/unless}}
+                      </li>
+                    {{/each}}
+                  </ul>
+                  {{#if person.leads.length}}
+                    <h4 class="osint-field">Their matching accounts link to</h4>
+                    <ul class="osint-values">
+                      {{#each person.leads as |l|}}
+                        <li>
+                          <strong>{{l.username}}</strong>
+                          <small class="is-muted">from {{l.via}}</small>
+                          {{#unless l.searched}}
+                            <button
+                              type="button"
+                              class="btn"
+                              {{on "click" (fn this.follow l.username)}}
+                            ><Icon @name="plus" @size={{12}} />
+                              Profile this</button>
+                          {{/unless}}
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{/if}}
+                  <h4 class="osint-field">Search the name yourself</h4>
+                  <ul class="osint-chips-list is-unknown">
+                    {{#each person.links as |l|}}
+                      <li><a
+                          href={{l.url}}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >{{l.site}}</a></li>
+                    {{/each}}
+                  </ul>
+                </div>
+              {{/each}}
+
               {{#each this.emailCards as |e|}}
                 <div class="osint-target-card">
                   <h4><Icon @name="at-sign" @size={{14}} /> {{e.email}}</h4>
@@ -1406,6 +1808,22 @@ export default class UsernameSearchPage extends Component {
                           Profile this too</button>
                       {{/unless}}
                     </li>
+                  {{/each}}
+                </ul>
+              {{/if}}
+
+              {{#if this.ideas.length}}
+                <h4 class="osint-field">Usernames they might also use</h4>
+                <p class="tool-hint">Guesses from their names, email addresses
+                  and usernames. Click one to profile it too.</p>
+                <ul class="osint-chips-list">
+                  {{#each this.ideas as |idea|}}
+                    <li><button
+                        type="button"
+                        class="osint-idea {{if idea.mentioned 'is-mentioned'}}"
+                        title={{idea.why}}
+                        {{on "click" (fn this.follow idea.username)}}
+                      >{{idea.username}}</button></li>
                   {{/each}}
                 </ul>
               {{/if}}

@@ -14,6 +14,18 @@ export const CHANGELOG = [
     title: 'User Profiling takes emails and IPs, and Domain Lookup does it all',
     changes: [
       {
+        type: 'new',
+        text: 'User Profiling searches by full name: pick “Full name”, type a name like Juan Dela Cruz, and it guesses the usernames that name usually becomes, checks each on the big networks, and links to each network’s own people search. Each account found is read: a tick marks one whose name is the name searched, guesses that other profiles link to or mention (a Linktree button, a connected account, “ig: @…” in a bio) rise to the top, and the other accounts a matching profile links to are listed too. Any guess can be profiled in full.',
+      },
+      {
+        type: 'new',
+        text: 'User Profiling suggests usernames the person might also use, drawn from their names, email addresses and the usernames already found; the ones another profile already links to or mentions come first. Click one to add it to the profile.',
+      },
+      {
+        type: 'fixed',
+        text: 'User Profiling: Instagram and Facebook answer again on the live site. Instagram had started sending our server to its login page, so it is now asked through its embed page, and Facebook can now say a name is not there. Threads refuses our server outright, so it stays under “Check these yourself”.',
+      },
+      {
         type: 'improved',
         text: 'User Profiling: the big networks — Instagram, Facebook, X, Threads, TikTok, Discord, Tumblr, Bluesky, Substack and the rest — are now checked first and one at a time, so they answer even when you search all 4,000 sites, and the headline picture is drawn from the most telling one that has an avatar.',
       },
