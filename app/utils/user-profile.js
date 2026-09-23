@@ -96,6 +96,11 @@ function tidyName(value, account) {
     /\b(profile|user|member|account|private|page|home|official|years?|click|here|chat|welcome|log ?in|sign ?up|personal)\b/i.test(
       v,
     ) ||
+    // Gates, interstitials and error pages a site shows instead of the
+    // profile ("Age Verification", "Just a moment…", "Access denied").
+    /\b(verif\w*|age|adults?|nsfw|consent|cookies?|captcha|security|attention|moment|redirect\w*|loading|denied|forbidden|blocked|error|not found|oops|sorry|warning|content|required|restricted|unavailable|suspended|banned|continue|confirm|robot|human|access|notice|terms|privacy|policy|settings|search|results?|explore|trending|feed|dashboard|messages?|notifications?|untitled|unknown|anonymous|null|undefined|default)\b/i.test(
+      v,
+    ) ||
     v.split(/\s+/).length > 5 ||
     /^[a-z]+$/.test(v)
   )
@@ -106,6 +111,41 @@ function tidyName(value, account) {
   if (norm(account.site).includes(n) || n.includes(norm(account.site)))
     return null;
   return v;
+}
+
+// Names agree when one's words are all in the other's: "Jenn", "Jenn Smith"
+// and "jenn smith" are the same person, so each is backed by every site that
+// gave any of them. The headline is then the name most sites back — the
+// fullest version of it on a tie — rather than whichever came back first.
+const words = (v) => new Set(norm(v).split(/\s+/).filter(Boolean));
+const within = (a, b) => [...a].every((w) => b.has(w));
+
+function rankNames(values) {
+  const sets = values.map((v) => words(v.value));
+  const scored = values.map((v, i) => {
+    let support = 0;
+    values.forEach((o, j) => {
+      if (within(sets[i], sets[j]) || within(sets[j], sets[i]))
+        support += o.weight;
+    });
+    return {
+      v,
+      you: v.sources.includes('You'),
+      support,
+      size: Math.min(sets[i].size, 3),
+      best: Math.min(...v.sources.map(priorityOf)),
+    };
+  });
+  return scored
+    .sort(
+      (a, b) =>
+        b.you - a.you ||
+        b.support - a.support ||
+        b.v.weight - a.v.weight ||
+        b.size - a.size ||
+        a.best - b.best,
+    )
+    .map((s) => s.v);
 }
 
 // The key a personal-data value is hidden by.
@@ -256,7 +296,10 @@ export function buildReport(usernames, found, extra = {}) {
     personal: FIELDS.map(([key, label]) => ({
       key,
       label,
-      values: ranked(key, fields[key]),
+      values:
+        key === 'name'
+          ? rankNames(ranked(key, fields[key]))
+          : ranked(key, fields[key]),
     })).filter((f) => f.values.length),
     linked: [...linked.values()].sort((a, b) => b.via.length - a.via.length),
     links: [...links.values()],

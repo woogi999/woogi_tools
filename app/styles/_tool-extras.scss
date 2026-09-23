@@ -7652,16 +7652,34 @@ video.media-preview {
 
 .osint-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  align-content: flex-start;
+  gap: 2px 8px;
+  min-width: 0;
   padding: 6px 10px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 0.85rem;
 }
 
+.osint-row > a {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// One line each: the state (with any note) and the profile snippet are cut
+// short with the whole text on hover, so a long note never stretches a card.
 .osint-state {
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.72rem;
 }
 
@@ -7685,7 +7703,8 @@ video.media-preview {
   background: #f5a524;
 }
 
-.osint-row.is-pending .osint-dot {
+.osint-row.is-pending .osint-dot,
+.osint-dot.is-checking {
   animation: osint-pulse 1s ease-in-out infinite alternate;
 }
 
@@ -8034,13 +8053,50 @@ video.media-preview {
   margin-bottom: 8px;
 }
 
-.osint-profile-head img {
+.osint-photos {
+  position: relative;
+  flex: none;
   width: 88px;
   height: 88px;
-  flex: none;
+  margin: 0 0 18px;
+}
+
+// Every avatar is stacked in place; only the current one is visible, and
+// swapping fades between them.
+.osint-photos img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   object-fit: cover;
   background: var(--surface-2, rgba(128, 128, 128, 0.15));
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.osint-photos img.is-active {
+  opacity: 1;
+}
+
+.osint-photos figcaption {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 3px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  opacity: 0.65;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .osint-photos img {
+    transition: none;
+  }
 }
 
 .osint-profile-head h3 {
@@ -8081,10 +8137,13 @@ video.media-preview {
 
 .osint-snippet {
   flex-basis: 100%;
-  padding-left: 18px;
+  min-width: 0;
+  padding-left: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.75rem;
   opacity: 0.8;
-  overflow-wrap: anywhere;
 }
 
 .osint-graph .osint-node text {
@@ -8092,7 +8151,7 @@ video.media-preview {
 }
 
 @media (max-width: 560px) {
-  .osint-profile-head img {
+  .osint-photos {
     width: 64px;
     height: 64px;
   }

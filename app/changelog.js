@@ -34,6 +34,10 @@ export const CHANGELOG = [
         text: 'User Profiling: the graph and the notes & edits now sit under Overview, and the graph can be zoomed with the scroll wheel or buttons and dragged to pan. Saved profiles can be renamed.',
       },
       {
+        type: 'improved',
+        text: 'User Profiling: the profile name is now the one most sites agree on (counting "Jenn" and "Jenn Smith" as the same), page titles like "Age Verification" are no longer taken for names, the header photo fades through every avatar that loads, and account cards stay compact. Right-click any site to check it again, and saved profiles keep their "Check these yourself" list.',
+      },
+      {
         type: 'fixed',
         text: 'User Profiling: Instagram, Facebook, Threads and X are back. On the live site they were answering our server with a login page, which read as “no such user”. X is now checked through its own embed service, and when Instagram, Facebook or Threads show a login page the site lands in a “Check these yourself” list with a link, instead of disappearing.',
       },
