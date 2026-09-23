@@ -204,9 +204,7 @@ module('Acceptance | smoke', function (hooks) {
       ['/breach-check', 'Breach Check'],
       ['/photo-metadata', 'Photo Metadata'],
       ['/email-header-analyzer', 'Email Header Analyzer'],
-      ['/subdomain-finder', 'Subdomain Finder'],
       ['/wayback-snapshots', 'Wayback Snapshots'],
-      ['/recon-sweep', 'Recon Sweep'],
       ['/ip-lookup', 'IP Address Lookup'],
       ['/domain-lookup', 'Domain Lookup'],
     ]) {

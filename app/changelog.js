@@ -9,6 +9,61 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.17',
+    date: '2026-09-23',
+    title: 'User Profiling takes emails and IPs, and Domain Lookup does it all',
+    changes: [
+      {
+        type: 'improved',
+        text: 'User Profiling: the big networks — Instagram, Facebook, X, Threads, TikTok, Discord, Tumblr, Bluesky, Substack and the rest — are now checked first and one at a time, so they answer even when you search all 4,000 sites, and the headline picture is drawn from the most telling one that has an avatar.',
+      },
+      {
+        type: 'fixed',
+        text: 'User Profiling: many profiles now show the right name and picture. Sites like Shelf were reading a page’s slogan (“follow me on Shelf…”) as the person’s name; the name now comes from the profile’s own caption, and the avatar from the picture on the page rather than a generated share-card.',
+      },
+      {
+        type: 'new',
+        text: 'User Profiling: Ko-fi and Carousell are now checked, and results are remembered — search the same name again, or reopen the page, and sites you’ve already checked come back instantly. Each site has a retest button to ask again.',
+      },
+      {
+        type: 'new',
+        text: 'User Profiling: email addresses are now checked against Spotify, Firefox and Duolingo to see where they’re registered, alongside the existing breach, Gravatar and mail-provider checks.',
+      },
+      {
+        type: 'improved',
+        text: 'User Profiling: the graph and the notes & edits now sit under Overview, and the graph can be zoomed with the scroll wheel or buttons and dragged to pan. Saved profiles can be renamed.',
+      },
+      {
+        type: 'fixed',
+        text: 'User Profiling: Instagram, Facebook, Threads and X are back. On the live site they were answering our server with a login page, which read as “no such user”. X is now checked through its own embed service, and when Instagram, Facebook or Threads show a login page the site lands in a “Check these yourself” list with a link, instead of disappearing.',
+      },
+      {
+        type: 'fixed',
+        text: 'User Profiling: the accounts found are now the first thing on the page. Before, the page opened on a summary that could be empty even when dozens of accounts had turned up.',
+      },
+      {
+        type: 'new',
+        text: 'User Profiling: type several usernames, email addresses and IP addresses at once, separated by commas. Emails get their breaches, their Gravatar profile, who handles their mail, and a one-click search for the username before the @; IPs get their location, network, hostnames and links to AbuseIPDB, Shodan and VirusTotal.',
+      },
+      {
+        type: 'new',
+        text: 'User Profiling: save a profile and come back to it. Give it a title and notes, add names, places or links you know yourself, hide anything that belongs to someone else, and it all goes into the graph and the PDF and JSON exports. Saved profiles stay in your browser.',
+      },
+      {
+        type: 'new',
+        text: 'User Profiling: choose between the 500 best-known sites (the default, and quick) and all 4,000, and exclude any site you never want checked.',
+      },
+      {
+        type: 'improved',
+        text: 'User Profiling: the list of every site checked shows 100 at a time, with a search box and a filter for found, not found and couldn’t tell, instead of drawing all 4,000 at once.',
+      },
+      {
+        type: 'improved',
+        text: 'Domain Lookup now does what Recon Sweep and the Subdomain Finder did: registration, DNS, every subdomain, archive history and breaches in one look, with Subdomains and Map tabs. The old links take you there.',
+      },
+    ],
+  },
+  {
     version: '1.0.16',
     date: '2026-09-23',
     title: 'A new OSINT section',

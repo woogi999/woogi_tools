@@ -11,6 +11,8 @@
 //              of the `present` ones ({} in them is the name)
 //   redirect – any answer that isn't a 2xx straight away (it redirects away)
 // `code`, when set, is the only status a real profile answers with.
+// `strict` sites need positive proof either way (`present` for found,
+// `absent` for missing); a page with neither, like a login wall, is unknown.
 //
 // `probe` is the URL actually fetched when it differs from the profile a
 // person would open; `method`, `body` (an object sent as JSON, or a string
@@ -171,6 +173,14 @@ export async function checkSite(site, name, timeout = 8000) {
     }
     const has = (list) =>
       [list].flat().some((s) => text.includes(s.replaceAll('{}', name)));
+    // Strict sites show strangers a login wall that looks nothing like
+    // either answer: only a page that says one or the other counts, and
+    // anything else is unknown rather than a guess.
+    if (site.strict) {
+      if (ok && has(site.present)) return { state: 'found' };
+      if (site.absent && has(site.absent)) return { state: 'absent' };
+      return { state: 'unknown', note: 'shows a login page' };
+    }
     const found =
       ok &&
       (!site.present || has(site.present)) &&

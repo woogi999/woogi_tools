@@ -7858,6 +7858,29 @@ video.media-preview {
   width: 100%;
   max-width: 900px;
   margin: 0 auto;
+  cursor: grab;
+  touch-action: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.osint-graph-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+
+  h4 {
+    margin: 0;
+  }
+}
+
+.osint-zoom {
+  display: flex;
+  gap: 0.35rem;
 }
 
 .osint-edge {
@@ -8073,4 +8096,148 @@ video.media-preview {
     width: 64px;
     height: 64px;
   }
+}
+
+.osint-saved-bar,
+.osint-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.osint-saved-bar select {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.osint-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.osint-options select {
+  width: auto;
+}
+
+.osint-save-note {
+  font-size: 0.8rem;
+}
+
+.osint-chips-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.osint-chips-list li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: color-mix(in srgb, #2ecc71 16%, transparent);
+}
+
+.osint-chips-list.is-unknown li {
+  background: color-mix(in srgb, #f5b841 18%, transparent);
+}
+
+.osint-target-card {
+  margin: 14px 0;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, currentcolor 14%, transparent);
+}
+
+.osint-target-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+
+.osint-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.8rem;
+}
+
+.osint-hide {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.osint-hide:hover,
+.osint-hide:focus-visible {
+  opacity: 1;
+}
+
+.osint-list-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.osint-list-tools .osint-tabs {
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.osint-list-tools input {
+  flex: 0 1 240px;
+}
+
+.osint-label {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+
+.osint-notes textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.osint-add-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.osint-add-info input {
+  flex: 1 1 200px;
+}
+
+.osint-link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.osint-link-button:hover code,
+.osint-link-button:focus-visible code {
+  text-decoration: underline;
 }

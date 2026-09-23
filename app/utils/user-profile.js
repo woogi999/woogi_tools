@@ -4,6 +4,7 @@
 // profile-extract.js); this only combines what came back.
 
 import { USERNAME_SITES } from './username-sites';
+import { priorityOf } from './priority-sites';
 import { loadJsPdf } from './converters/engines';
 
 // ─── Which known site a link points to, and whose account it is ─────────
@@ -107,8 +108,39 @@ function tidyName(value, account) {
   return v;
 }
 
+// The key a personal-data value is hidden by.
+export const hideKey = (field, value) => `${field}:${norm(value)}`;
+
 // accounts: [{ username, site, url, profile }]
-export function buildReport(usernames, accounts) {
+// extra: {
+//   emails:  emailIntel() results,
+//   ips:     ipIntel() results,
+//   manual:  [{ field, value }] added by hand,
+//   hidden:  [hideKey] values hidden by hand,
+// }
+export function buildReport(usernames, found, extra = {}) {
+  const { emails = [], ips = [], manual = [], hidden = [] } = extra;
+  const hiddenSet = new Set(hidden);
+  // A Gravatar profile is one more account, found by email rather than name.
+  const accounts = [
+    ...found,
+    ...emails
+      .filter((e) => e.gravatar)
+      .map((e) => ({
+        username: e.email,
+        site: 'Gravatar',
+        url: e.gravatar.url ?? `https://gravatar.com`,
+        viaEmail: true,
+        profile: {
+          name: e.gravatar.name,
+          location: e.gravatar.location,
+          bio: e.gravatar.bio,
+          company: e.gravatar.company,
+          image: e.gravatar.image,
+          links: e.gravatar.accounts.map((a) => a.url),
+        },
+      })),
+  ];
   const fields = Object.fromEntries(FIELDS.map(([k]) => [k, new Map()]));
   const add = (field, value, account) => {
     if (value == null || value === '') return;
@@ -131,6 +163,11 @@ export function buildReport(usernames, accounts) {
     entry.ids.push(`${account.site}:${account.username}`);
     fields[field].set(key, entry);
   };
+  // What was typed in counts as known, and what was added by hand is
+  // credited to "You".
+  const you = { site: 'You', username: '', url: '' };
+  for (const e of emails) add('email', e.email, { ...you, site: 'Searched' });
+  for (const m of manual) if (fields[m.field]) add(m.field, m.value, you);
   const known = new Set(usernames.map((u) => u.toLowerCase()));
   const linked = new Map(); // username -> { username, via: [site] }
   const links = new Map(); // other outbound pages -> { url, sources }
@@ -198,21 +235,36 @@ export function buildReport(usernames, accounts) {
 
   // Ranked by how many different sites say it, counting fl.ru and
   // www.fl.ru (listed twice by the site lists) once.
-  const ranked = (map) =>
+  const ranked = (field, map) =>
     [...map.values()]
-      .sort((a, b) => b.domains.size - a.domains.size)
-      .map(({ domains, ...entry }) => ({ ...entry, weight: domains.size }));
+      .filter((entry) => !hiddenSet.has(hideKey(field, entry.value)))
+      .sort(
+        (a, b) =>
+          b.sources.includes('You') - a.sources.includes('You') ||
+          b.domains.size - a.domains.size,
+      )
+      .map(({ domains, ...entry }) => ({
+        ...entry,
+        weight: domains.size,
+        hideKey: hideKey(field, entry.value),
+      }));
   return {
     usernames,
     accounts,
+    emails,
+    ips,
     personal: FIELDS.map(([key, label]) => ({
       key,
       label,
-      values: ranked(fields[key]),
+      values: ranked(key, fields[key]),
     })).filter((f) => f.values.length),
     linked: [...linked.values()].sort((a, b) => b.via.length - a.via.length),
     links: [...links.values()],
-    images: images.slice(0, 24),
+    // Big networks first, so the headline avatar is the one from Instagram or
+    // Facebook rather than some obscure forum's default egg.
+    images: images
+      .sort((a, b) => priorityOf(a.site) - priorityOf(b.site))
+      .slice(0, 24),
     earliest,
     followers,
   };
@@ -222,6 +274,8 @@ export function buildReport(usernames, accounts) {
 
 export const NODE_KINDS = {
   username: { label: 'Username', colour: '#f5b841' },
+  target: { label: 'Email or IP searched', colour: '#ffd166' },
+  breach: { label: 'Breach', colour: '#c0392b' },
   account: { label: 'Account', colour: '#4f9dff' },
   name: { label: 'Name', colour: '#2ecc71' },
   location: { label: 'Location', colour: '#ff9f43' },
@@ -243,6 +297,20 @@ export function buildGraph(report) {
   const edge = (a, b) => edges.push([a, b]);
 
   for (const u of report.usernames) node(`u:${u.toLowerCase()}`, 'username', u);
+  // Searched emails and IPs sit at the middle too, with what hangs off them.
+  for (const e of report.emails) {
+    const id = node(`u:${e.email}`, 'target', e.email);
+    for (const b of e.breaches.slice(0, 10))
+      edge(id, node(`b:${b.name.toLowerCase()}`, 'breach', b.name));
+  }
+  for (const ip of report.ips) {
+    const id = node(`ip:${ip.ip}`, 'target', ip.ip);
+    if (ip.place)
+      edge(id, node(`location:${norm(ip.place)}`, 'location', ip.place));
+    if (ip.isp) edge(id, node(`company:${norm(ip.isp)}`, 'company', ip.isp));
+    for (const h of ip.hostnames.slice(0, 4))
+      edge(id, node(`website:${norm(h)}`, 'website', h));
+  }
   // Accounts with something to say first, so a big search stays readable.
   const accounts = [...report.accounts]
     .sort((a, b) => Boolean(b.profile?.name) - Boolean(a.profile?.name))
@@ -278,9 +346,10 @@ function layout(nodes, edges, size = 1000) {
   const index = new Map(nodes.map((n, i) => [n.id, i]));
   const n = nodes.length;
   const k = Math.sqrt((size * size) / Math.max(n, 1)) * 0.7;
-  const users = nodes.filter((d) => d.kind === 'username');
+  const centre = (d) => d.kind === 'username' || d.kind === 'target';
+  const users = nodes.filter(centre);
   const pos = nodes.map((d, i) => {
-    if (d.kind === 'username') {
+    if (centre(d)) {
       const j = users.indexOf(d);
       const a = (j / users.length) * Math.PI * 2;
       const r = users.length > 1 ? size * 0.12 : 0;
@@ -342,7 +411,7 @@ function layout(nodes, edges, size = 1000) {
       x: pos[i].x,
       y: pos[i].y,
       colour: NODE_KINDS[d.kind].colour,
-      r: d.kind === 'username' ? 11 : d.kind === 'account' ? 6 : 5,
+      r: centre(d) ? 11 : d.kind === 'account' ? 6 : 5,
       short: d.label.length > 28 ? `${d.label.slice(0, 27)}…` : d.label,
     })),
     edges: links.map(([a, b]) => ({
@@ -366,14 +435,28 @@ function save(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
-const fileName = (report, ext) =>
-  `profile-${report.usernames.join('-').slice(0, 60)}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+// Everything that was searched: usernames, then emails, then IPs.
+const targets = (report) => [
+  ...report.usernames.map((u) => `@${u}`),
+  ...report.emails.map((e) => e.email),
+  ...report.ips.map((i) => i.ip),
+];
 
-export function exportJson(report) {
+const fileName = (report, ext, title) =>
+  `profile-${(title || targets(report).join('-'))
+    .replace(/[^\w@.-]+/g, '-')
+    .slice(0, 60)}-${new Date().toISOString().slice(0, 10)}.${ext}`;
+
+// notes: { title, text } written on the page.
+export function exportJson(report, notes = {}) {
   const data = {
     generator: 'woogi tools · User Profiling',
     generated: new Date().toISOString(),
+    title: notes.title || null,
+    notes: notes.text || null,
     usernames: report.usernames,
+    emails: report.emails,
+    ips: report.ips,
     summary: {
       accounts: report.accounts.length,
       earliestAccount: report.earliest,
@@ -393,7 +476,7 @@ export function exportJson(report) {
   };
   save(
     new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
-    fileName(report, 'json'),
+    fileName(report, 'json', notes.title),
   );
 }
 
@@ -444,7 +527,7 @@ async function graphPng(graph) {
   }
 }
 
-export async function exportPdf(report, graph) {
+export async function exportPdf(report, graph, notes = {}) {
   const JsPdf = await loadJsPdf();
   const doc = new JsPdf({ unit: 'pt', format: 'a4', compress: true });
   const W = doc.internal.pageSize.getWidth();
@@ -480,11 +563,8 @@ export async function exportPdf(report, graph) {
     text(value, { size: 14, bold: true, gap: 8 });
   };
 
-  text('User profile', { size: 22, bold: true, gap: 6 });
-  text(report.usernames.map((u) => `@${u}`).join(', '), {
-    size: 13,
-    colour: 80,
-  });
+  text(notes.title || 'User profile', { size: 22, bold: true, gap: 6 });
+  text(targets(report).join(', '), { size: 13, colour: 80 });
   text(
     `${report.accounts.length} accounts found · generated ${new Date().toLocaleString()} by woogi tools`,
     { size: 9, colour: 120, gap: 12 },
@@ -495,6 +575,46 @@ export async function exportPdf(report, graph) {
     );
   if (report.followers)
     text(`Followers across accounts: ${report.followers.toLocaleString()}`);
+
+  if (notes.text) {
+    heading('Notes');
+    text(notes.text, { size: 10 });
+  }
+
+  for (const e of report.emails) {
+    heading(`Email: ${e.email}`);
+    if (e.mail.provider) text(`Mail handled by ${e.mail.provider}`);
+    else text('The domain accepts no mail (no MX records).');
+    if (e.gravatar)
+      text(
+        `Gravatar: ${[e.gravatar.name, e.gravatar.location, e.gravatar.job, e.gravatar.company].filter(Boolean).join(' · ')}`,
+      );
+    text(
+      e.breaches.length
+        ? `In ${e.breaches.length} known breaches:`
+        : 'In no known breach.',
+      { bold: true, size: 10 },
+    );
+    for (const b of e.breaches.slice(0, 40))
+      text(
+        `• ${b.name}${b.year ? ` (${b.year})` : ''}${b.data ? `: ${b.data}` : ''}`,
+        {
+          size: 8,
+        },
+      );
+  }
+
+  for (const ip of report.ips) {
+    heading(`IP address: ${ip.ip}`);
+    const lines = [
+      ip.place && `Location: ${ip.place}`,
+      ip.isp && `Network: ${ip.isp}${ip.asn ? ` (${ip.asn})` : ''}`,
+      ip.org && ip.org !== ip.isp && `Organisation: ${ip.org}`,
+      ip.timezone && `Time zone: ${ip.timezone}`,
+      ip.hostnames.length && `Hostnames: ${ip.hostnames.join(', ')}`,
+    ].filter(Boolean);
+    for (const line of lines) text(line);
+  }
 
   heading('Personal data');
   if (!report.personal.length) text('Nothing was found beyond the accounts.');
@@ -568,5 +688,5 @@ export async function exportPdf(report, graph) {
     { size: 8, colour: 120 },
   );
   // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- jsPDF's own download, not a request
-  doc.save(fileName(report, 'pdf'));
+  doc.save(fileName(report, 'pdf', notes.title));
 }
