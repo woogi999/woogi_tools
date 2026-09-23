@@ -1,7 +1,7 @@
 import Component from '@glimmer/component';
 import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
-import { fn } from '@ember/helper';
+import { fn, concat } from '@ember/helper';
 import { registerDestructor } from '@ember/destroyable';
 import { htmlSafe } from '@ember/template';
 import ToolPage from './tool-page';
@@ -65,6 +65,7 @@ const TABS = [
 const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 8;
 const ZOOM_STEP = 1.2;
+const PHOTO_EVERY = 3500; // ms each avatar shows for
 const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
 const STATES = [
   ['found', 'Found'],
@@ -136,6 +137,10 @@ export default class UsernameSearchPage extends Component {
   panFrom = null;
   panMoved = false;
 
+  // The header avatar slideshow, and the avatar links that didn't load.
+  @tracked photoIndex = 0;
+  @tracked brokenPhotos = [];
+
   constructor(owner, args) {
     super(owner, args);
     keepState(this, 'username-search', [
@@ -145,7 +150,13 @@ export default class UsernameSearchPage extends Component {
       'scope',
       'excluded',
     ]);
-    registerDestructor(this, () => this.controller.abort());
+    const timer = setInterval(() => {
+      if (this.photos.length > 1) this.photoIndex += 1;
+    }, PHOTO_EVERY);
+    registerDestructor(this, () => {
+      this.controller.abort();
+      clearInterval(timer);
+    });
   }
 
   // ─── Which sites a search covers ──────────────────────────────────
@@ -190,7 +201,11 @@ export default class UsernameSearchPage extends Component {
   }
 
   get found() {
-    return this.rows.filter((r) => r.state === 'found');
+    // A site being checked again stays where it was until the answer comes.
+    return this.rows.filter(
+      (r) =>
+        r.state === 'found' || (r.was === 'found' && r.state === 'pending'),
+    );
   }
 
   get profiled() {
@@ -200,7 +215,10 @@ export default class UsernameSearchPage extends Component {
   // Big sites that couldn't be checked from our server: worth a manual look.
   get checkYourself() {
     return this.rows.filter(
-      (r) => r.state === 'unknown' && USERNAME_SITES[r.index]?.top,
+      (r) =>
+        (r.state === 'unknown' ||
+          (r.was === 'unknown' && r.state === 'pending')) &&
+        USERNAME_SITES[r.index]?.top,
     );
   }
 
@@ -269,17 +287,39 @@ export default class UsernameSearchPage extends Component {
 
   // The picture from an account that gave the headline name, so it's the
   // person's own avatar rather than some site's default logo.
-  get photo() {
+  // Every avatar that actually loads, the headline name's own first, then the
+  // biggest networks' (images are already priority-sorted). The header fades
+  // from one to the next.
+  get photos() {
     const r = this.report;
     const top = r.personal.find((f) => f.key === 'name')?.values[0];
-    // The picture from the account that gave the headline name; failing that,
-    // the highest-ranked network's avatar (images are already priority-sorted).
-    return (
-      (top && r.images.find((i) => top.ids.includes(i.id))) ??
-      r.images[0] ??
-      null
-    );
+    const broken = new Set(this.brokenPhotos);
+    const seen = new Set();
+    return [
+      ...(top ? r.images.filter((i) => top.ids.includes(i.id)) : []),
+      ...r.images,
+    ].filter((i) => {
+      if (broken.has(i.url) || seen.has(i.url)) return false;
+      seen.add(i.url);
+      return true;
+    });
   }
+
+  get photo() {
+    const list = this.photos;
+    return list.length ? list[this.photoIndex % list.length] : null;
+  }
+
+  get photoSlides() {
+    const current = this.photo;
+    return this.photos.map((p) => ({ ...p, active: p === current }));
+  }
+
+  photoFailed = (event) => {
+    const url = event.target.getAttribute('src');
+    if (!this.brokenPhotos.includes(url))
+      this.brokenPhotos = [...this.brokenPhotos, url];
+  };
 
   get headline() {
     return (
@@ -431,6 +471,8 @@ export default class UsernameSearchPage extends Component {
     this.query = '';
     this.shownCount = PAGE;
     this.zoom = 1;
+    this.photoIndex = 0;
+    this.brokenPhotos = [];
     this.panX = 0;
     this.panY = 0;
   }
@@ -493,6 +535,8 @@ export default class UsernameSearchPage extends Component {
   zoomOut = () => this.zoomButton(1 / ZOOM_STEP);
   resetZoom = () => {
     this.zoom = 1;
+    this.photoIndex = 0;
+    this.brokenPhotos = [];
     this.panX = 0;
     this.panY = 0;
   };
@@ -755,6 +799,7 @@ export default class UsernameSearchPage extends Component {
     const signal = this.controller.signal;
     this.checking++;
     const [pending] = this.update([target], () => ({
+      was: target.state,
       state: 'pending',
       note: '',
       profile: null,
@@ -772,6 +817,7 @@ export default class UsernameSearchPage extends Component {
     }
     if (signal.aborted) return;
     const [updated] = this.update([pending], () => ({
+      was: undefined,
       state: result.state,
       note: result.note ?? '',
       cached: false,
@@ -785,6 +831,12 @@ export default class UsernameSearchPage extends Component {
     if (updated.state === 'found' && !updated.custom)
       this.queueProfiles([updated]);
     this.checking--;
+  };
+
+  // Right-clicking a site checks it again instead of opening the menu.
+  retestMenu = (row, event) => {
+    event.preventDefault();
+    this.retest(row);
   };
 
   // ─── Actions: editing the profile ─────────────────────────────────
@@ -837,6 +889,16 @@ export default class UsernameSearchPage extends Component {
         adult: r.adult,
         profile: r.profile,
       })),
+      // The big sites that couldn't be checked, so the reminder to look at
+      // them by hand survives a reload.
+      unchecked: this.checkYourself.map((r) => ({
+        index: r.index,
+        username: r.username,
+        site: r.site,
+        url: r.url,
+        adult: r.adult,
+        note: r.note,
+      })),
       ...extra,
     };
   }
@@ -870,13 +932,22 @@ export default class UsernameSearchPage extends Component {
     this.ips = (record.ips ?? []).map((i) => ({ ...i, ready: true }));
     // Indexes shift when the site list is rebuilt; find each site by name.
     const byName = new Map(USERNAME_SITES.map((s, i) => [s.name, i]));
-    this.rows = (record.accounts ?? []).map((a) => ({
-      ...a,
-      index: byName.get(a.site) ?? a.index,
-      state: 'found',
-      note: '',
-      profiled: true,
-    }));
+    this.rows = [
+      ...(record.accounts ?? []).map((a) => ({
+        ...a,
+        index: byName.get(a.site) ?? a.index,
+        state: 'found',
+        note: '',
+        profiled: true,
+      })),
+      ...(record.unchecked ?? []).map((a) => ({
+        ...a,
+        index: byName.get(a.site) ?? a.index,
+        state: 'unknown',
+        note: a.note ?? '',
+        profile: null,
+      })),
+    ];
     this.saveNote = `Opened, last saved ${day(record.updated)}. New searches add to it.`;
   };
 
@@ -1117,12 +1188,18 @@ export default class UsernameSearchPage extends Component {
             <section class="math-card osint-profile">
               <div class="osint-profile-head">
                 {{#if this.photo}}
-                  <img
-                    src={{this.photo.url}}
-                    alt="Avatar on {{this.photo.site}}"
-                    referrerpolicy="no-referrer"
-                    loading="lazy"
-                  />
+                  <figure class="osint-photos" title={{this.photo.site}}>
+                    {{#each this.photoSlides as |p|}}
+                      <img
+                        class={{if p.active "is-active"}}
+                        src={{p.url}}
+                        alt="Avatar on {{p.site}}"
+                        referrerpolicy="no-referrer"
+                        {{on "error" this.photoFailed}}
+                      />
+                    {{/each}}
+                    <figcaption>{{this.photo.site}}</figcaption>
+                  </figure>
                 {{/if}}
                 <div>
                   <h3>{{this.headline}}</h3>
@@ -1142,10 +1219,16 @@ export default class UsernameSearchPage extends Component {
                         href={{row.url}}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={{row.profile.name}}
+                        title="{{if
+                          row.profile.name
+                          (concat row.profile.name ' · ')
+                        }}Right-click to check again"
+                        {{on "contextmenu" (fn this.retestMenu row)}}
                       >{{row.site}}</a>{{#if row.adult}}<span
                           class="osint-adult"
-                        >18+</span>{{/if}}</li>
+                        >18+</span>{{/if}}{{#if row.was}}<span
+                          class="osint-dot is-checking"
+                        ></span>{{/if}}</li>
                   {{/each}}
                 </ul>
               {{else if this.names.length}}
@@ -1166,8 +1249,14 @@ export default class UsernameSearchPage extends Component {
                         href={{row.url}}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={{row.note}}
-                      >{{row.site}}</a></li>
+                        title="{{if
+                          row.note
+                          (concat row.note ' · ')
+                        }}Right-click to check again"
+                        {{on "contextmenu" (fn this.retestMenu row)}}
+                      >{{row.site}}</a>{{#if row.was}}<span
+                          class="osint-dot is-checking"
+                        ></span>{{/if}}</li>
                   {{/each}}
                 </ul>
               {{/if}}
@@ -1367,14 +1456,19 @@ export default class UsernameSearchPage extends Component {
                     href={{row.url}}
                     target="_blank"
                     rel="noopener noreferrer"
+                    title="Right-click to check again"
+                    {{on "contextmenu" (fn this.retestMenu row)}}
                   >{{row.site}}</a>
                   {{#if row.adult}}<span class="osint-adult">18+</span>{{/if}}
                   {{#if (moreThanOne this.names)}}<small
                       class="is-muted"
                     >@{{row.username}}</small>{{/if}}
-                  <span class="is-muted osint-state">{{row.state}}{{#if
-                      row.note
-                    }}, {{row.note}}{{/if}}{{#if row.cached}}
+                  <span
+                    class="is-muted osint-state"
+                    title="{{row.state}}{{if row.note ', '}}{{row.note}}"
+                  >{{row.state}}{{#if row.note}}, {{row.note}}{{/if}}{{#if
+                      row.cached
+                    }}
                       · remembered{{/if}}</span>
                   <button
                     type="button"
@@ -1391,9 +1485,12 @@ export default class UsernameSearchPage extends Component {
                     {{on "click" (fn this.exclude row)}}
                   ><Icon @name="x" @size={{11}} /></button>
                   {{#if row.profile.name}}
-                    <span class="osint-snippet">{{row.profile.name}}{{#if
-                        row.profile.location
-                      }} · {{row.profile.location}}{{/if}}</span>
+                    <span
+                      class="osint-snippet"
+                      title={{row.profile.name}}
+                    >{{row.profile.name}}{{#if row.profile.location}}
+                        ·
+                        {{row.profile.location}}{{/if}}</span>
                   {{/if}}
                 </li>
               {{else}}
