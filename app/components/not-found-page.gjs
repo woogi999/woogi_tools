@@ -21,7 +21,7 @@ const MESSAGES = [
   },
   {
     title: 'Well, this is awkward...',
-    body: "You showed up, the page didn't. Let's both pretend this never happened.",
+    body: "Looks like this page stood you up. Let's both pretend this never happened.",
   },
   {
     title: 'You entered left on the crossroads',
@@ -32,12 +32,16 @@ const MESSAGES = [
     body: "No goodbye, no forwarding address. It's gone and it's not coming back.",
   },
   {
-    title: 'Nothing to see here, fr',
+    title: 'Nothing to see here :D',
     body: 'Either the link is broken, the page moved, or someone made a typo. (Not naming names.)',
   },
   {
     title: 'You found the void',
     body: "Congrats, you've reached the end of the internet. There's nothing out here except this message.",
+  },
+  {
+    title: 'You found the farlands',
+    body: "Pretend im making villager noises. Hrmmm.",
   },
   {
     title: 'Plot twist: no page',
@@ -96,12 +100,24 @@ const MESSAGES = [
     body: "But you kinda are. That's okay, home is one click away.",
   },
   {
-    title: 'Bro got ghosted by a URL',
-    body: 'The page left you on read. Time to move on to better things.',
+    title: 'You just got ghosted!',
+    body: 'Social skills so bad you got ghosted by a page. Time to move on to better things.',
   },
   {
     title: 'You drew a blank',
     body: 'No page in this hand. Try drawing again from the deck below.',
+  },
+  {
+    title: 'This page was promised to you 3000 years ago',
+    body: "Too bad it doesn't exist. Find another one.",
+  },
+  {
+    title: '页面未找到',
+    body: "You've caught me in a very chinese time of my life.",
+  },
+  {
+    title: 'You are lost lost lost sahur',
+    body: "skibidi rizz whatever the kids say nowadays",
   },
 ];
 

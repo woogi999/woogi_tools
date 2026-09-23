@@ -8352,3 +8352,17 @@ video.media-preview {
   background: color-mix(in srgb, #2ecc71 22%, transparent);
   font-weight: 600;
 }
+
+// Accounts that came up searching a person's name on each network.
+.osint-name-found li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+
+  img {
+    border-radius: 50%;
+    object-fit: cover;
+    flex: none;
+  }
+}

@@ -27,6 +27,11 @@ export const checkUsernames = (sites, name, signal) =>
 export const profileAccounts = (sites, name, signal) =>
   api({ kind: 'profile', sites: sites.join(','), name }, signal);
 
+// Who goes by a full name on one network (a key of NAME_SOURCES):
+// { people: [{ site, name, username, url, image }] }.
+export const searchPeople = (source, name, signal) =>
+  api({ kind: 'people', source, name }, signal);
+
 // A site the person added themselves: { url: 'https://…/{}', absent: '' }.
 export const checkCustomSite = ({ url, absent }, name, signal) =>
   api({ kind: 'username', url, absent: absent ?? '', name }, signal);

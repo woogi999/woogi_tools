@@ -22,6 +22,14 @@ export const CHANGELOG = [
         text: 'User Profiling suggests usernames the person might also use, drawn from their names, email addresses and the usernames already found; the ones another profile already links to or mentions come first. Click one to add it to the profile.',
       },
       {
+        type: 'new',
+        text: 'Searching a full name in User Profiling now searches the name itself on Facebook (its public people directory), YouTube, Bluesky, Mastodon and Threads, GitHub, and Instagram, TikTok and X through Brave Search, and lists the accounts that come up with their usernames, pictures and the name each one shows. Any of them can be profiled in full.',
+      },
+      {
+        type: 'new',
+        text: 'A saved User Profiling profile has a Run again button that searches every username, email, IP address and name in it afresh, skipping remembered answers, while keeping its title, notes and what you added by hand.',
+      },
+      {
         type: 'fixed',
         text: 'User Profiling: Instagram and Facebook answer again on the live site. Instagram had started sending our server to its login page, so it is now asked through its embed page, and Facebook can now say a name is not there. Threads refuses our server outright, so it stays under “Check these yourself”.',
       },
