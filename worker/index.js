@@ -26,7 +26,8 @@
 // GET /api/osint backs the OSINT tools, whose sources refuse browsers on
 // other sites: kind=username checks a batch of sites from app/utils/username-sites.js
 // for one name (25 to a request, so results stream in batch by batch),
-// kind=subdomains reads certificate-transparency logs through crt.sh (with
+// kind=profile reads what found accounts say about their owner (name, bio,
+// location, links), kind=subdomains reads certificate-transparency logs through crt.sh (with
 // Cert Spotter as the fallback), kind=wayback is the Internet Archive's
 // capture calendar for a URL, and kind=breaches is Have I Been Pwned's public list of
 // known breaches, and kind=leakcheck asks LeakCheck's public API which leaks
@@ -39,7 +40,11 @@
 // secret: the page makes a long random one and never shows it to anyone else.
 
 import PostalMime from 'postal-mime';
-import { USERNAME_SITES, checkSite } from '../app/utils/username-sites.js';
+import {
+  USERNAME_SITES,
+  checkSite,
+  profileSite,
+} from '../app/utils/username-sites.js';
 
 export { RelayRoom } from './relay-room.js';
 
@@ -503,6 +508,7 @@ async function osint(request) {
   const kind = params.get('kind');
   try {
     if (kind === 'username') return await osintUsername(params);
+    if (kind === 'profile') return await osintProfile(params);
     if (kind === 'subdomains') return await osintSubdomains(params);
     if (kind === 'wayback') return await osintWayback(params);
     if (kind === 'breaches') return await osintBreaches();
@@ -550,6 +556,24 @@ async function osintUsername(params) {
     200,
     settled ? 'public, max-age=600' : 'no-store',
   );
+}
+
+// What each found account's page says about its owner, for User Profiling.
+// Profile pages are bigger than yes/no checks, so fewer go in one request.
+const PROFILE_BATCH = 10;
+
+async function osintProfile(params) {
+  const name = params.get('name') ?? '';
+  const ids = (params.get('sites') ?? '')
+    .split(',')
+    .slice(0, PROFILE_BATCH)
+    .map(Number);
+  if (!ids.length || ids.some((i) => !USERNAME_SITES[i]))
+    return json({ error: 'Unknown site' }, 400);
+  const profiles = await Promise.all(
+    ids.map((i) => profileSite(USERNAME_SITES[i], name)),
+  );
+  return json({ profiles }, 200, 'public, max-age=600');
 }
 
 // A site someone added on the page: a profile URL with {} for the name, and

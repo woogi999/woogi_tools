@@ -200,7 +200,7 @@ module('Acceptance | smoke', function (hooks) {
 
   test('the OSINT tools render', async function (assert) {
     for (const [url, title] of [
-      ['/username-search', 'Username Search'],
+      ['/username-search', 'User Profiling'],
       ['/breach-check', 'Breach Check'],
       ['/photo-metadata', 'Photo Metadata'],
       ['/email-header-analyzer', 'Email Header Analyzer'],

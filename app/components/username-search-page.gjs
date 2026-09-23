@@ -3,32 +3,66 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { registerDestructor } from '@ember/destroyable';
+import { htmlSafe } from '@ember/template';
 import ToolPage from './tool-page';
 import Icon from './icon';
 import { keepState } from '../utils/tool-state';
-import { checkUsernames, checkCustomSite } from '../utils/osint';
+import {
+  checkUsernames,
+  checkCustomSite,
+  profileAccounts,
+} from '../utils/osint';
 import {
   USERNAME_SITES,
   USERNAME_PATTERN,
   fill,
 } from '../utils/username-sites';
+import {
+  buildReport,
+  buildGraph,
+  exportJson,
+  exportPdf,
+  NODE_KINDS,
+} from '../utils/user-profile';
 
+// User Profiling, the way Maigret does it: find every account under a
+// username, read what each one says about its owner, merge that into one
+// picture of the person, and follow any other usernames it turns up.
+//
 // Sites go to the Worker 25 to a request (its limit), a few requests at a
-// time, so results fill in batch by batch instead of all at the end.
+// time, so results fill in batch by batch. Found accounts are then read for
+// their profile data 10 to a request, while the search carries on.
 const BATCH = 25;
-const PARALLEL = 8;
+const PARALLEL = 16;
+const PROFILE_BATCH = 10;
+const PROFILE_PARALLEL = 4;
 const ADULT_COUNT = USERNAME_SITES.filter((s) => s.nsfw).length;
 const SAFE_COUNT = USERNAME_SITES.length - ADULT_COUNT;
+const TABS = [
+  ['profile', 'Profile'],
+  ['accounts', 'Accounts'],
+  ['graph', 'Graph'],
+];
+
+const day = (iso) => new Date(iso).toLocaleDateString();
 
 export default class UsernameSearchPage extends Component {
   @tracked input = '';
-  @tracked name = null;
+  @tracked names = [];
   @tracked rows = [];
-  @tracked busy = false;
+  @tracked checking = 0;
+  @tracked profiling = 0;
   @tracked error = null;
   @tracked showAll = false;
   @tracked adult = false;
+  @tracked tab = 'profile';
+  @tracked exporting = null;
   adultCount = ADULT_COUNT;
+  tabs = TABS;
+  kinds = Object.values(NODE_KINDS).map((k) => ({
+    ...k,
+    swatch: htmlSafe(`background: ${k.colour}`),
+  }));
 
   // Sites the person added themselves, kept in this browser.
   @tracked customSites = [];
@@ -39,12 +73,23 @@ export default class UsernameSearchPage extends Component {
   @tracked adding = false;
   @tracked addError = null;
 
-  controller = null;
+  controller = new AbortController();
+  profileQueue = [];
 
   constructor(owner, args) {
     super(owner, args);
     keepState(this, 'username-search', ['input', 'customSites', 'adult']);
-    registerDestructor(this, () => this.controller?.abort());
+    registerDestructor(this, () => this.controller.abort());
+  }
+
+  // ─── What the page shows ──────────────────────────────────────────
+
+  get busy() {
+    return this.checking > 0 || this.profiling > 0;
+  }
+
+  get siteCount() {
+    return (this.adult ? USERNAME_SITES.length : SAFE_COUNT).toLocaleString();
   }
 
   get done() {
@@ -55,18 +100,282 @@ export default class UsernameSearchPage extends Component {
     return this.rows.filter((r) => r.state === 'found');
   }
 
+  get profiled() {
+    return this.found.filter((r) => r.profiled).length;
+  }
+
   get shown() {
     return this.showAll ? this.rows : this.found;
   }
 
+  get report() {
+    return buildReport(
+      this.names,
+      this.found.map((r) => ({
+        username: r.username,
+        site: r.site,
+        url: r.url,
+        profile: r.profile,
+      })),
+    );
+  }
+
+  // The picture from an account that gave the headline name, so it's the
+  // person's own avatar rather than some site's default logo.
+  get photo() {
+    const r = this.report;
+    const top = r.personal.find((f) => f.key === 'name')?.values[0];
+    return top ? (r.images.find((i) => top.ids.includes(i.id)) ?? null) : null;
+  }
+
+  get headline() {
+    const r = this.report;
+    return r.personal.find((f) => f.key === 'name')?.values[0]?.value ?? null;
+  }
+
+  get facts() {
+    const r = this.report;
+    const out = [
+      ['Accounts', String(r.accounts.length)],
+      ['Usernames', r.usernames.join(', ')],
+    ];
+    if (r.earliest)
+      out.push([
+        'Oldest account',
+        `${r.earliest.site}, ${day(r.earliest.date)}`,
+      ]);
+    if (r.followers) out.push(['Followers', r.followers.toLocaleString()]);
+    return out.map(([label, value]) => ({ label, value }));
+  }
+
+  get personal() {
+    return this.report.personal.map((f) => ({
+      ...f,
+      values: f.values.slice(0, f.key === 'bio' ? 6 : 12).map((v) => ({
+        ...v,
+        sources: v.sources.join(', '),
+        isLink: /^https?:\/\//.test(v.value),
+      })),
+    }));
+  }
+
+  get linked() {
+    return this.report.linked.map((l) => ({
+      ...l,
+      via: l.via.join(', '),
+      searched: this.names.some(
+        (n) => n.toLowerCase() === l.username.toLowerCase(),
+      ),
+    }));
+  }
+
+  // The layout is the expensive part, so it's redone only when what it
+  // draws has changed.
+  memo = { key: null, graph: null };
+  get graph() {
+    const key = `${this.names.join(',')}|${this.found.length}|${this.profiled}`;
+    const memo = this.memo;
+    if (key !== memo.key) {
+      memo.key = key;
+      memo.graph = buildGraph(this.report);
+    }
+    return memo.graph;
+  }
+
+  get isProfile() {
+    return this.tab === 'profile';
+  }
+
+  get isAccounts() {
+    return this.tab === 'accounts';
+  }
+
+  get isGraph() {
+    return this.tab === 'graph';
+  }
+
+  // ─── Actions ──────────────────────────────────────────────────────
+
   setInput = (event) => (this.input = event.target.value);
   toggleAll = (event) => (this.showAll = event.target.checked);
   toggleAdult = (event) => (this.adult = event.target.checked);
-
-  get siteCount() {
-    return (this.adult ? USERNAME_SITES.length : SAFE_COUNT).toLocaleString();
-  }
+  setTab = (tab) => (this.tab = tab);
   setNew = (field, event) => (this[field] = event.target.value);
+
+  submit = (event) => {
+    event.preventDefault();
+    const name = this.input.trim().replace(/^@/, '');
+    if (!USERNAME_PATTERN.test(name)) {
+      this.error =
+        'Type a username: letters, numbers, dots, dashes and underscores.';
+      return;
+    }
+    // A new search starts a new investigation.
+    this.controller.abort();
+    this.controller = new AbortController();
+    this.profileQueue = [];
+    this.names = [];
+    this.rows = [];
+    this.checking = 0;
+    this.profiling = 0;
+    this.tab = 'profile';
+    this.search(name);
+  };
+
+  // Adds another username (one the profiles linked to) to this investigation.
+  follow = (name) => {
+    if (this.names.some((n) => n.toLowerCase() === name.toLowerCase())) return;
+    if (!USERNAME_PATTERN.test(name)) return;
+    this.search(name);
+  };
+
+  openNode = (node) => {
+    if (node.kind === 'linked') this.follow(node.label);
+    else if (node.url) window.open(node.url, '_blank', 'noopener,noreferrer');
+  };
+
+  async search(name) {
+    const signal = this.controller.signal;
+    this.error = null;
+    this.names = [...this.names, name];
+    const fresh = [
+      ...this.customSites.map((custom) => ({
+        custom,
+        username: name,
+        site: `${custom.name} (yours)`,
+        url: fill(custom.url, name),
+      })),
+      ...USERNAME_SITES.flatMap((site, index) =>
+        site.nsfw && !this.adult
+          ? []
+          : [
+              {
+                index,
+                username: name,
+                site: site.name,
+                adult: Boolean(site.nsfw),
+                url: fill(site.url, name),
+              },
+            ],
+      ),
+    ].map((r) => ({ ...r, state: 'pending', note: '', profile: null }));
+    this.rows = [...this.rows, ...fresh];
+    // Each job is one custom site, or a batch of up to BATCH listed ones.
+    const listed = fresh.filter((r) => !r.custom);
+    const jobs = [
+      ...fresh.filter((r) => r.custom).map((r) => [r]),
+      ...Array.from({ length: Math.ceil(listed.length / BATCH) }, (_, i) =>
+        listed.slice(i * BATCH, (i + 1) * BATCH),
+      ),
+    ];
+    let next = 0;
+    const worker = async () => {
+      while (next < jobs.length && !signal.aborted) {
+        const batch = jobs[next++];
+        let results;
+        try {
+          results = batch[0].custom
+            ? [await checkCustomSite(batch[0].custom, name, signal)]
+            : (
+                await checkUsernames(
+                  batch.map((r) => r.index),
+                  name,
+                  signal,
+                )
+              ).results;
+        } catch {
+          results = batch.map(() => ({ state: 'unknown', note: 'no answer' }));
+        }
+        if (signal.aborted) return;
+        const updated = this.update(batch, (row, i) => ({
+          state: results[i].state,
+          note: results[i].note ?? '',
+          profiled: row.custom ? true : undefined,
+        }));
+        this.queueProfiles(
+          updated.filter((r) => r.state === 'found' && !r.custom),
+        );
+      }
+    };
+    this.checking++;
+    await Promise.all(Array.from({ length: PARALLEL }, worker));
+    if (!signal.aborted) this.checking--;
+  }
+
+  // Replaces rows with changed copies; returns the new copies.
+  update(rows, change) {
+    const byRow = new Map(rows.map((row, i) => [row, change(row, i)]));
+    const updated = [];
+    this.rows = this.rows.map((r) => {
+      const patch = byRow.get(r);
+      if (!patch) return r;
+      const copy = { ...r, ...patch };
+      updated.push(copy);
+      return copy;
+    });
+    return updated;
+  }
+
+  queueProfiles(rows) {
+    this.profileQueue.push(...rows);
+    while (
+      this.profiling < PROFILE_PARALLEL &&
+      this.profileQueue.length &&
+      !this.controller.signal.aborted
+    )
+      this.profileWorker();
+  }
+
+  async profileWorker() {
+    const signal = this.controller.signal;
+    this.profiling++;
+    while (this.profileQueue.length && !signal.aborted) {
+      // One request per username, so take a batch that shares one.
+      const first = this.profileQueue[0];
+      const batch = this.profileQueue
+        .filter((r) => r.username === first.username)
+        .slice(0, PROFILE_BATCH);
+      this.profileQueue = this.profileQueue.filter((r) => !batch.includes(r));
+      let profiles;
+      try {
+        ({ profiles } = await profileAccounts(
+          batch.map((r) => r.index),
+          first.username,
+          signal,
+        ));
+      } catch {
+        profiles = [];
+      }
+      if (signal.aborted) return;
+      // Rows may have been replaced since they were queued; match by identity
+      // of site and username instead.
+      const want = new Map(
+        batch.map((r, i) => [`${r.index}:${r.username}`, profiles[i] ?? null]),
+      );
+      const current = this.rows.filter((r) =>
+        want.has(`${r.index}:${r.username}`),
+      );
+      this.update(current, (r) => ({
+        profile: want.get(`${r.index}:${r.username}`),
+        profiled: true,
+      }));
+    }
+    if (!signal.aborted) this.profiling--;
+  }
+
+  exportJson = () => exportJson(this.report);
+
+  exportPdf = async () => {
+    this.exporting = 'pdf';
+    try {
+      await exportPdf(this.report, this.graph);
+    } catch (error) {
+      this.error = `Couldn't make the PDF: ${error.message}`;
+    }
+    this.exporting = null;
+  };
+
+  // ─── Sites the person adds ────────────────────────────────────────
 
   removeSite = (site) =>
     (this.customSites = this.customSites.filter((s) => s !== site));
@@ -128,94 +437,19 @@ export default class UsernameSearchPage extends Component {
     return null;
   }
 
-  submit = async (event) => {
-    event.preventDefault();
-    const name = this.input.trim().replace(/^@/, '');
-    if (!USERNAME_PATTERN.test(name)) {
-      this.error =
-        'Type a username: letters, numbers, dots, dashes and underscores.';
-      return;
-    }
-    this.controller?.abort();
-    const controller = (this.controller = new AbortController());
-    this.error = null;
-    this.name = name;
-    this.busy = true;
-    this.rows = [
-      ...this.customSites.map((custom) => ({
-        custom,
-        site: `${custom.name} (yours)`,
-        url: fill(custom.url, name),
-        state: 'pending',
-        note: '',
-      })),
-      ...USERNAME_SITES.flatMap((site, index) =>
-        site.nsfw && !this.adult
-          ? []
-          : [
-              {
-                index,
-                site: site.name,
-                adult: Boolean(site.nsfw),
-                url: fill(site.url, name),
-                state: 'pending',
-                note: '',
-              },
-            ],
-      ),
-    ];
-    // Each job is one custom site, or a batch of up to BATCH listed ones.
-    const listed = this.rows.filter((r) => !r.custom);
-    const jobs = [
-      ...this.rows.filter((r) => r.custom).map((r) => [r]),
-      ...Array.from({ length: Math.ceil(listed.length / BATCH) }, (_, i) =>
-        listed.slice(i * BATCH, (i + 1) * BATCH),
-      ),
-    ];
-    const settle = (batch, results) => {
-      const byRow = new Map(batch.map((row, i) => [row, results[i]]));
-      this.rows = this.rows.map((r) => {
-        const result = byRow.get(r);
-        return result
-          ? { ...r, state: result.state, note: result.note ?? '' }
-          : r;
-      });
-    };
-    let next = 0;
-    const worker = async () => {
-      while (next < jobs.length && !controller.signal.aborted) {
-        const batch = jobs[next++];
-        let results;
-        try {
-          results = batch[0].custom
-            ? [await checkCustomSite(batch[0].custom, name, controller.signal)]
-            : (
-                await checkUsernames(
-                  batch.map((r) => r.index),
-                  name,
-                  controller.signal,
-                )
-              ).results;
-        } catch {
-          results = batch.map(() => ({ state: 'unknown', note: 'no answer' }));
-        }
-        if (controller.signal.aborted) return;
-        settle(batch, results);
-      }
-    };
-    await Promise.all(Array.from({ length: PARALLEL }, worker));
-    if (!controller.signal.aborted) this.busy = false;
-  };
-
   <template>
     <ToolPage
       @route="username-search"
       @busy={{this.busy}}
-      @closeWarning="Close Username Search? The sites not yet checked will be skipped."
-      @subtitle="Type a username and see which of {{this.siteCount}} sites have an account by that name."
+      @closeWarning="Close User Profiling? The sites not yet checked will be skipped."
+      @subtitle="One username in; every account under it across {{this.siteCount}} sites, what those profiles say about their owner, and how it all connects."
     >
       <div class="pop-in">
-        <form class="dl-form" {{on "submit" this.submit}}>
+        <form
+          class="dl-form"
+          aria-label="Profile a username"
+          {{on "submit" this.submit}}
+        >
           <input
             type="text"
             class="math-input"
@@ -228,7 +462,7 @@ export default class UsernameSearchPage extends Component {
           />
           <button type="submit" class="btn active" disabled={{this.busy}}>
             <Icon @name="search" @size={{13}} />
-            {{if this.busy "Searching…" "Search"}}</button>
+            {{if this.busy "Profiling…" "Profile"}}</button>
         </form>
         <label class="osint-toggle osint-adult-toggle"><input
             type="checkbox"
@@ -240,51 +474,235 @@ export default class UsernameSearchPage extends Component {
           more)</label>
         {{#if this.error}}<p class="tool-error">{{this.error}}</p>{{/if}}
 
-        {{#if this.name}}
+        {{#if this.names.length}}
           <div class="osint-bar">
             <span><strong>{{this.found.length}}</strong>
-              found · checked
-              {{this.done}}/{{this.rows.length}}</span>
+              accounts · checked
+              {{this.done}}/{{this.rows.length}}
+              · profiles read
+              {{this.profiled}}/{{this.found.length}}</span>
+            <span class="osint-exports">
+              <button type="button" class="btn" {{on "click" this.exportJson}}>
+                <Icon @name="download" @size={{12}} />
+                JSON</button>
+              <button
+                type="button"
+                class="btn"
+                disabled={{this.exporting}}
+                {{on "click" this.exportPdf}}
+              >
+                <Icon @name="file-text" @size={{12}} />
+                {{if this.exporting "Making PDF…" "PDF"}}</button>
+            </span>
+          </div>
+
+          <div class="osint-tabs" role="tablist">
+            {{#each this.tabs as |t|}}
+              <button
+                type="button"
+                role="tab"
+                class="btn {{if (eqTab this.tab t) 'active'}}"
+                aria-selected={{if (eqTab this.tab t) "true" "false"}}
+                {{on "click" (fn this.setTab (tabId t))}}
+              >{{tabLabel t}}</button>
+            {{/each}}
+          </div>
+
+          {{#if this.isProfile}}
+            <section class="math-card osint-profile">
+              <div class="osint-profile-head">
+                {{#if this.photo}}
+                  <img
+                    src={{this.photo.url}}
+                    alt="Avatar on {{this.photo.site}}"
+                    referrerpolicy="no-referrer"
+                    loading="lazy"
+                  />
+                {{/if}}
+                <div>
+                  <h3>{{if
+                      this.headline
+                      this.headline
+                      (atName this.names)
+                    }}</h3>
+                  <dl class="rbx-facts">
+                    {{#each this.facts as |f|}}
+                      <dt>{{f.label}}</dt><dd>{{f.value}}</dd>
+                    {{/each}}
+                  </dl>
+                </div>
+              </div>
+
+              {{#each this.personal as |field|}}
+                <h4 class="osint-field">{{field.label}}</h4>
+                <ul class="osint-values">
+                  {{#each field.values as |v|}}
+                    <li>
+                      {{#if v.isLink}}
+                        <a
+                          href={{v.value}}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >{{v.value}}</a>
+                      {{else}}
+                        <span>{{v.value}}</span>
+                      {{/if}}
+                      <small class="is-muted">{{v.sources}}</small>
+                    </li>
+                  {{/each}}
+                </ul>
+              {{else}}
+                <p class="tool-hint">{{if
+                    this.busy
+                    "Reading the profiles as they're found…"
+                    "None of the profiles said anything about their owner beyond the account itself."
+                  }}</p>
+              {{/each}}
+
+              {{#if this.linked.length}}
+                <h4 class="osint-field">Other usernames found</h4>
+                <ul class="osint-values">
+                  {{#each this.linked as |l|}}
+                    <li>
+                      <strong>{{l.username}}</strong>
+                      <small class="is-muted">linked from {{l.via}}</small>
+                      {{#unless l.searched}}
+                        <button
+                          type="button"
+                          class="btn"
+                          {{on "click" (fn this.follow l.username)}}
+                        ><Icon @name="plus" @size={{12}} />
+                          Profile this too</button>
+                      {{/unless}}
+                    </li>
+                  {{/each}}
+                </ul>
+              {{/if}}
+
+              {{#if this.report.links.length}}
+                <details class="osint-details">
+                  <summary>Other links on the profiles ({{this.report.links.length}})</summary>
+                  <ul class="osint-values">
+                    {{#each this.report.links as |l|}}
+                      <li><a
+                          href={{l.url}}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >{{l.url}}</a>
+                        <small class="is-muted">{{l.source}}</small></li>
+                    {{/each}}
+                  </ul>
+                </details>
+              {{/if}}
+            </section>
+          {{/if}}
+
+          {{#if this.isAccounts}}
             <label class="osint-toggle"><input
                 type="checkbox"
                 checked={{this.showAll}}
                 {{on "change" this.toggleAll}}
               />
-              Show every site</label>
-          </div>
-          <ul class="osint-results">
-            {{#each this.shown as |row|}}
-              <li class="osint-row is-{{row.state}}">
-                <span class="osint-dot"></span>
-                <a
-                  href={{row.url}}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >{{row.site}}</a>
-                {{#if row.adult}}<span class="osint-adult">18+</span>{{/if}}
-                <span class="is-muted osint-state">{{row.state}}{{#if
-                    row.note
-                  }}, {{row.note}}{{/if}}</span>
-              </li>
-            {{else}}
-              <li class="tool-hint">{{if
-                  this.busy
-                  "Nothing yet…"
-                  "No accounts found by that name."
-                }}</li>
-            {{/each}}
-          </ul>
+              Show every site checked</label>
+            <ul class="osint-results">
+              {{#each this.shown as |row|}}
+                <li class="osint-row is-{{row.state}}">
+                  <span class="osint-dot"></span>
+                  <a
+                    href={{row.url}}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >{{row.site}}</a>
+                  {{#if row.adult}}<span class="osint-adult">18+</span>{{/if}}
+                  {{#if (moreThanOne this.names)}}<small
+                      class="is-muted"
+                    >@{{row.username}}</small>{{/if}}
+                  <span class="is-muted osint-state">{{row.state}}{{#if
+                      row.note
+                    }}, {{row.note}}{{/if}}</span>
+                  {{#if row.profile.name}}
+                    <span class="osint-snippet">{{row.profile.name}}{{#if
+                        row.profile.location
+                      }} · {{row.profile.location}}{{/if}}</span>
+                  {{/if}}
+                </li>
+              {{else}}
+                <li class="tool-hint">{{if
+                    this.busy
+                    "Nothing yet…"
+                    "No accounts found by that name."
+                  }}</li>
+              {{/each}}
+            </ul>
+          {{/if}}
+
+          {{#if this.isGraph}}
+            <section class="math-card osint-graph-card">
+              <svg
+                class="osint-graph"
+                viewBox={{this.graph.viewBox}}
+                role="img"
+                aria-label="How {{atName
+                  this.names
+                }}'s accounts and details connect"
+              >
+                {{#each this.graph.edges as |e|}}
+                  <line
+                    x1={{e.x1}}
+                    y1={{e.y1}}
+                    x2={{e.x2}}
+                    y2={{e.y2}}
+                    stroke={{e.colour}}
+                    class="osint-edge"
+                  />
+                {{/each}}
+                {{#each this.graph.nodes as |n|}}
+                  <g
+                    class="osint-node {{if (clickable n) 'is-pivot'}}"
+                    role={{if (clickable n) "button"}}
+                    tabindex={{if (clickable n) "0"}}
+                    {{on "click" (fn this.openNode n)}}
+                  >
+                    <title>{{n.label}}{{if
+                        (isLinked n)
+                        ": click to profile this username too"
+                      }}</title>
+                    <circle cx={{n.x}} cy={{n.y}} r={{n.r}} fill={{n.colour}} />
+                    <text
+                      x={{labelX n}}
+                      y={{n.y}}
+                      dominant-baseline="middle"
+                      class={{if (isUser n) "osint-centre-label"}}
+                    >{{n.short}}</text>
+                  </g>
+                {{/each}}
+              </svg>
+              <div class="osint-legend">
+                {{#each this.kinds as |k|}}
+                  <span><i style={{k.swatch}}></i>{{k.label}}</span>
+                {{/each}}
+              </div>
+              <p class="tool-hint">Click an account to open it, or a linked
+                username to add it to this profile. Up to 120 accounts are
+                drawn, the ones with the most to say first.</p>
+            </section>
+          {{/if}}
+
           <p class="tool-hint">A match means an account with that exact name
-            exists, not that it belongs to the person you have in mind. Sites
-            that block automated checks show as unknown; open them to see for
-            yourself.</p>
+            exists, not that it belongs to the person you have in mind, and what
+            a profile says about its owner is only what they chose to write.
+            Sites that block automated checks show as unknown.</p>
         {{/if}}
 
         <details class="math-card osint-details">
           <summary>Add a site we don't check{{#if this.customSites.length}}
               ({{this.customSites.length}}
               added){{/if}}</summary>
-          <form class="osint-add-site" {{on "submit" this.addSite}}>
+          <form
+            class="osint-add-site"
+            aria-label="Add a site"
+            {{on "submit" this.addSite}}
+          >
             <input
               type="text"
               class="math-input"
@@ -351,12 +769,24 @@ export default class UsernameSearchPage extends Component {
             found". Your sites are kept in this browser and checked first.</p>
         </details>
 
-        {{#unless this.name}}
-          <p class="tool-hint">Works like Sherlock: each site is asked for the
-            profile page (or its public API), and a real profile is told apart
-            from a "no such user" page by its status code or wording.</p>
+        {{#unless this.names.length}}
+          <p class="tool-hint">Works like Maigret: each site is asked for the
+            profile (or its public API), found profiles are read for the name,
+            bio, location, links and picture their owner put there, and any
+            other usernames those links reveal can be profiled in turn. The site
+            lists come from Sherlock, WhatsMyName and Maigret.</p>
         {{/unless}}
       </div>
     </ToolPage>
   </template>
 }
+
+const tabId = (t) => t[0];
+const tabLabel = (t) => t[1];
+const eqTab = (current, t) => current === t[0];
+const atName = (names) => names.map((n) => `@${n}`).join(', ');
+const moreThanOne = (list) => list.length > 1;
+const clickable = (n) => n.kind === 'linked' || Boolean(n.url);
+const isLinked = (n) => n.kind === 'linked';
+const isUser = (n) => n.kind === 'username';
+const labelX = (n) => n.x + n.r + 4;

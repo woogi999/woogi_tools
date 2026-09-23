@@ -7992,3 +7992,85 @@ video.media-preview {
   color: #fff;
   background: #d9434b;
 }
+
+.osint-exports {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.osint-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.osint-profile-head {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.osint-profile-head img {
+  width: 88px;
+  height: 88px;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--surface-2, rgba(128, 128, 128, 0.15));
+}
+
+.osint-profile-head h3 {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+  overflow-wrap: anywhere;
+}
+
+.osint-field {
+  margin: 16px 0 6px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.osint-values {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.osint-values li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.osint-values .btn {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+.osint-snippet {
+  flex-basis: 100%;
+  padding-left: 18px;
+  font-size: 0.75rem;
+  opacity: 0.8;
+  overflow-wrap: anywhere;
+}
+
+.osint-graph .osint-node text {
+  font-size: 11px;
+}
+
+@media (max-width: 560px) {
+  .osint-profile-head img {
+    width: 64px;
+    height: 64px;
+  }
+}
