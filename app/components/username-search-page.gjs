@@ -11,7 +11,9 @@ import {
   checkUsernames,
   checkCustomSite,
   profileAccounts,
+  searchPeople,
 } from '../utils/osint';
+import { NAME_SOURCES } from '../utils/name-search';
 import {
   USERNAME_SITES,
   USERNAME_PATTERN,
@@ -23,6 +25,7 @@ import {
   suggestUsernames,
   nameSearchLinks,
   namesAgree,
+  nameParts,
   mentionsOf,
 } from '../utils/username-ideas';
 import {
@@ -407,13 +410,22 @@ export default class UsernameSearchPage extends Component {
           }));
           const matches = hits.filter((h) => h.match).map((h) => h.site);
           const mentions = mentionsOf(c.username, sources);
+          const listed = (p.accounts ?? [])
+            .filter(
+              (a) => a.username && lower(a.username) === lower(c.username),
+            )
+            .map((a) => a.site);
           return {
             ...c,
             hits,
             matches: matches.join(', '),
             mentions: mentions.join(', '),
-            backed: matches.length > 0 || mentions.length > 0,
-            score: (matches.length + mentions.length) * 10 + c.hits.length,
+            listed: listed.join(', '),
+            backed:
+              matches.length > 0 || mentions.length > 0 || listed.length > 0,
+            score:
+              (matches.length + mentions.length + listed.length) * 10 +
+              c.hits.length,
             checking: c.left > 0,
             searched: this.names.some((n) => lower(n) === lower(c.username)),
           };
@@ -439,8 +451,21 @@ export default class UsernameSearchPage extends Component {
               if (!lead.via.includes(via)) lead.via.push(via);
               leads.set(key, lead);
             }
+      const accounts = (p.accounts ?? [])
+        .map((a) => ({
+          ...a,
+          searched:
+            Boolean(a.username) &&
+            this.names.some((n) => lower(n) === lower(a.username)),
+          // Only plain usernames can be run through every site.
+          followable: Boolean(a.username) && USERNAME_PATTERN.test(a.username),
+        }))
+        .sort((a, b) => Number(b.match) - Number(a.match));
       return {
         ...p,
+        accounts,
+        searching: (p.searching ?? 0) > 0,
+        failed: (p.failed ?? []).join(', '),
         candidates,
         leads: [...leads.values()].map((l) => ({
           ...l,
@@ -662,7 +687,32 @@ export default class UsernameSearchPage extends Component {
     this.brokenPhotos = [];
     this.panX = 0;
     this.panY = 0;
+    this.fresh = new Set();
   }
+
+  // Targets being run again skip remembered answers so every site is asked anew.
+  fresh = new Set();
+  remembered = (site, username) =>
+    this.fresh.has(lower(username)) ? null : cachedResult(site, username);
+
+  // Runs every search in the open profile again from scratch, keeping its
+  // title, notes and what was added by hand.
+  rerun = () => {
+    const usernames = [...this.names];
+    const emails = this.emails.map((e) => e.email);
+    const ips = this.ips.map((i) => i.ip);
+    const people = this.people.map((p) => p.name);
+    if (!usernames.length && !emails.length && !ips.length && !people.length)
+      return;
+    this.reset();
+    this.error = null;
+    for (const u of usernames) this.fresh.add(lower(u));
+    for (const person of people)
+      for (const u of usernamesFromName(person)) this.fresh.add(lower(u));
+    this.addTargets({ usernames, emails, ips });
+    for (const person of people) this.lookName(person);
+    this.saveNote = 'Running every search again. Save to keep the new results.';
+  };
 
   addTargets({ usernames, emails, ips }) {
     for (const name of usernames)
@@ -816,8 +866,16 @@ export default class UsernameSearchPage extends Component {
     }));
     this.people = [
       ...this.people,
-      { name: full, candidates, links: nameSearchLinks(full) },
+      {
+        name: full,
+        candidates,
+        links: nameSearchLinks(full),
+        accounts: [],
+        searching: Object.keys(NAME_SOURCES).length,
+        failed: [],
+      },
     ];
+    this.searchNameEverywhere(full, signal);
     // The name typed is the person's name, whatever the accounts say.
     if (
       !this.manual.some(
@@ -848,7 +906,7 @@ export default class UsernameSearchPage extends Component {
       while (next < jobs.length && !signal.aborted) {
         const [username, i] = jobs[next++];
         const site = USERNAME_SITES[i];
-        let result = cachedResult(site.name, username);
+        let result = this.remembered(site.name, username);
         if (!result) {
           try {
             result = (await checkUsernames([i], username, signal)).results[0];
@@ -897,6 +955,44 @@ export default class UsernameSearchPage extends Component {
     if (!signal.aborted) this.looking--;
   }
 
+  // Searches the name itself on each network, the way someone would type it
+  // into Facebook's search box: the accounts going by it, with usernames.
+  searchNameEverywhere(full, signal) {
+    const parts = nameParts(full);
+    const squash = (s) => lower(s).replace(/[^a-z0-9]/g, '');
+    const relevant = (a) =>
+      (a.name && namesAgree(a.name, full)) ||
+      (a.username &&
+        parts.length > 1 &&
+        squash(a.username).includes(parts[0]) &&
+        squash(a.username).includes(parts.at(-1)));
+    const settle = (change) =>
+      (this.people = this.people.map((p) =>
+        p.name === full
+          ? { ...p, ...change(p), searching: p.searching - 1 }
+          : p,
+      ));
+    for (const [source, { label }] of Object.entries(NAME_SOURCES))
+      searchPeople(source, full, signal)
+        .then(({ people }) => {
+          if (signal.aborted) return;
+          settle((p) => {
+            const seen = new Set(p.accounts.map((a) => a.url));
+            const fresh = people
+              .filter((a) => !seen.has(a.url) && relevant(a))
+              .map((a) => ({
+                ...a,
+                match: Boolean(a.name && namesAgree(a.name, full)),
+              }));
+            return { accounts: [...p.accounts, ...fresh] };
+          });
+        })
+        .catch(() => {
+          if (!signal.aborted)
+            settle((p) => ({ failed: [...(p.failed ?? []), label] }));
+        });
+  }
+
   async search(name) {
     const signal = this.controller.signal;
     this.names = [...this.names, name];
@@ -918,7 +1014,7 @@ export default class UsernameSearchPage extends Component {
     this.rows = [...this.rows, ...fresh];
     // Answers we already remember for this name skip the network entirely.
     const cached = fresh
-      .map((row) => ({ row, hit: cachedResult(row.site, name) }))
+      .map((row) => ({ row, hit: this.remembered(row.site, name) }))
       .filter((c) => c.hit);
     const cachedRows = new Set(cached.map((c) => c.row));
     if (cached.length) {
@@ -1171,6 +1267,7 @@ export default class UsernameSearchPage extends Component {
       names: this.names,
       people: this.people.map((p) => ({
         ...p,
+        searching: 0,
         candidates: p.candidates.map((c) => ({ ...c, left: 0 })),
       })),
       emails: this.emails.filter((e) => e.ready),
@@ -1383,6 +1480,14 @@ export default class UsernameSearchPage extends Component {
             <button type="button" class="btn" {{on "click" this.renameCurrent}}>
               <Icon @name="square-pen" @size={{12}} />
               Rename</button>
+            <button
+              type="button"
+              class="btn"
+              title="Search every username, email, IP and name in this profile again"
+              {{on "click" this.rerun}}
+            >
+              <Icon @name="refresh-cw" @size={{12}} />
+              Run again</button>
             <button type="button" class="btn" {{on "click" this.deleteCurrent}}>
               <Icon @name="trash-2" @size={{12}} />
               Delete</button>
@@ -1579,6 +1684,64 @@ export default class UsernameSearchPage extends Component {
                 <div class="osint-target-card">
                   <h4><Icon @name="user-round" @size={{14}} />
                     {{person.name}}</h4>
+                  <h4 class="osint-field">Found by searching the name
+                    {{#if person.searching}}<span
+                        class="osint-dot is-checking"
+                      ></span>{{/if}}</h4>
+                  {{#if person.accounts.length}}
+                    <p class="tool-hint">Accounts that come up when the name is
+                      searched on each network. Many people share a name, so
+                      open each one before you rely on it. A tick means the
+                      account shows this name exactly.</p>
+                    <ul class="osint-values osint-name-found">
+                      {{#each person.accounts as |acct|}}
+                        <li class={{if acct.match "is-backed"}}>
+                          {{#if acct.image}}<img
+                              src={{acct.image}}
+                              alt=""
+                              width="28"
+                              height="28"
+                              loading="lazy"
+                              referrerpolicy="no-referrer"
+                            />{{/if}}
+                          <a
+                            href={{acct.url}}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >{{#if acct.match}}<Icon
+                                @name="check"
+                                @size={{11}}
+                              />{{/if}}{{acct.site}}</a>
+                          {{#if acct.username}}
+                            <strong>{{acct.username}}</strong>
+                          {{else}}
+                            <small class="is-muted">no username set{{#if acct.id}},
+                                ID
+                                {{acct.id}}{{/if}}</small>
+                          {{/if}}
+                          {{#if acct.name}}<small>“{{acct.name}}”</small>{{/if}}
+                          {{#if acct.followable}}{{#unless acct.searched}}
+                              <button
+                                type="button"
+                                class="btn"
+                                {{on "click" (fn this.follow acct.username)}}
+                              ><Icon @name="plus" @size={{12}} />
+                                Profile this</button>
+                            {{/unless}}{{/if}}
+                        </li>
+                      {{/each}}
+                    </ul>
+                  {{else}}
+                    <p class="is-muted">{{if
+                        person.searching
+                        "Searching the name on each network…"
+                        "Nothing came up for the name itself."
+                      }}</p>
+                  {{/if}}
+                  {{#if person.failed}}<p class="tool-hint">Couldn't search
+                      {{person.failed}}
+                      this time; use the links at the bottom.</p>{{/if}}
+                  <h4 class="osint-field">Usernames the name often becomes</h4>
                   <p class="tool-hint">Usernames this name often becomes, and
                     which big networks have an account under each. An account
                     under a guessed username may belong to someone else, so open
@@ -1617,6 +1780,9 @@ export default class UsernameSearchPage extends Component {
                         {{#if c.matches}}<small class="osint-evidence">name
                             matches on
                             {{c.matches}}</small>{{/if}}
+                        {{#if c.listed}}<small class="osint-evidence">found by
+                            name on
+                            {{c.listed}}</small>{{/if}}
                         {{#if c.mentions}}<small
                             class="osint-evidence"
                           >mentioned on {{c.mentions}}</small>{{/if}}

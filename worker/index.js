@@ -46,6 +46,7 @@ import {
   profileSite,
 } from '../app/utils/username-sites.js';
 import { emailAccounts } from '../app/utils/email-accounts.js';
+import { NAME_SOURCES, searchName } from '../app/utils/name-search.js';
 
 export { RelayRoom } from './relay-room.js';
 
@@ -510,6 +511,7 @@ async function osint(request) {
   try {
     if (kind === 'username') return await osintUsername(params);
     if (kind === 'profile') return await osintProfile(params);
+    if (kind === 'people') return await osintPeople(params);
     if (kind === 'gravatar') return await osintGravatar(params);
     if (kind === 'subdomains') return await osintSubdomains(params);
     if (kind === 'wayback') return await osintWayback(params);
@@ -582,6 +584,31 @@ async function osintProfile(params) {
 // Gravatar's public profile for an email address: the name, location, bio,
 // work and the accounts its owner verified there. Gravatar keys profiles by
 // the SHA-256 of the address, so that is all that is sent on.
+// People going by a full name on one network: { people: [{ site, name,
+// username, url, image }] }. See app/utils/name-search.js.
+async function osintPeople(params) {
+  const source = params.get('source') ?? '';
+  const name = (params.get('name') ?? '').trim();
+  if (!Object.hasOwn(NAME_SOURCES, source))
+    return json({ error: 'Unknown source' }, 400);
+  if (name.length < 2 || name.length > 80)
+    return json({ error: 'Type a name' }, 400);
+  try {
+    const found = await searchName(source, name, (url, agent) =>
+      osintFetch(url, 12000, {
+        headers: {
+          'User-Agent': agent,
+          Accept: 'text/html,application/json,*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      }),
+    );
+    return json(found, 200, 'public, max-age=3600');
+  } catch (error) {
+    return json({ error: error.message }, 502);
+  }
+}
+
 async function osintGravatar(params) {
   const email = (params.get('email') ?? '').trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
