@@ -7,7 +7,6 @@ import { htmlSafe } from '@ember/template';
 import { registerDestructor } from '@ember/destroyable';
 import { modifier } from 'ember-modifier';
 import { LinkTo } from '@ember/routing';
-import { pageTitle } from 'ember-page-title';
 import Icon from './icon';
 import ProjectPanel from './ferrite/project-panel';
 import ViewerPanel from './ferrite/viewer-panel';
@@ -2901,7 +2900,6 @@ export default class VideoEditorPage extends Component {
 
   <template>
     {{! template-lint-disable no-pointer-down-event-binding }}
-    {{pageTitle "Video Editor"}}
     <div
       class="fr {{if this.dragging 'is-dragging'}}"
       tabindex="-1"

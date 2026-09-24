@@ -14,6 +14,7 @@ import VolumeButton from '../components/volume-button';
 import ConfirmHost from '../components/confirm-host';
 import { installUiSounds } from '../utils/ui-sounds';
 import { installGamepad } from '../utils/gamepad';
+import { pageMeta, SITE_NAME } from '../utils/page-meta';
 
 // Routes that take the whole window: no sidebar, no header, no theme
 // controls, no command palette. A bare route is a page in its own right and
@@ -93,12 +94,18 @@ export default class Application extends Component {
     return this.router.currentRouteName === 'index';
   }
 
+  // The tab title follows the page you're on ("Colour Picker | Woogi Tools").
+  get title() {
+    const route = this.router.currentRouteName;
+    return route ? pageMeta(route.split('.')[0]).title : SITE_NAME;
+  }
+
   get collapseBrand() {
     return this.isHome && this.homeSearchVisible;
   }
 
   <template>
-    {{pageTitle "Woogi Tools"}}
+    {{pageTitle this.title}}
 
     {{#if this.bare}}
       <div {{this.lockScroll}}>

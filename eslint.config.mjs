@@ -107,6 +107,7 @@ export default defineConfig([
       globals: {
         WebSocketPair: 'readonly',
         DurableObject: 'readonly',
+        HTMLRewriter: 'readonly',
       },
     },
   },

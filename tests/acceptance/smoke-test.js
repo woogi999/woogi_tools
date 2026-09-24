@@ -7,6 +7,7 @@ import {
   find,
   findAll,
 } from '@ember/test-helpers';
+import { getPageTitle } from 'ember-page-title/test-support';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
 
 module('Acceptance | smoke', function (hooks) {
@@ -35,6 +36,19 @@ module('Acceptance | smoke', function (hooks) {
       if (hasLibraries)
         assert.dom('.made-with .credit-list').exists({ count: 1 });
       else assert.dom('.made-with .credit-list').doesNotExist();
+    }
+  });
+
+  test('the tab title follows the page', async function (assert) {
+    for (const [url, title] of [
+      ['/', 'Woogi Tools'],
+      ['/color-picker', 'Colour Picker | Woogi Tools'],
+      ['/privacy', 'Privacy Policy | Woogi Tools'],
+      ['/video-editor', 'Video Editor | Woogi Tools'],
+      ['/no-such-page', 'Page not found | Woogi Tools'],
+    ]) {
+      await visit(url);
+      assert.strictEqual(getPageTitle(), title, url);
     }
   });
 
