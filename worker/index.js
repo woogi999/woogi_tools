@@ -1,5 +1,6 @@
 // The site's Worker. Almost everything is a static file served straight from
-// the build (see "assets" in wrangler.jsonc); only /api/* runs this code.
+// the build (see "assets" in wrangler.jsonc); only /api/* and page loads run
+// this code.
 //
 // GET /api/turn hands the browser short-lived Cloudflare TURN credentials, so
 // games and File Share can relay their WebRTC traffic through Cloudflare and
@@ -41,6 +42,13 @@
 //
 // /api/video, /api/video/resolve and /api/video/file back the Video
 // Downloader; see worker/video.js for what each site allows and why.
+//
+// Page loads (everything outside the static asset folders listed in
+// wrangler.jsonc) also pass through here, so each page's HTML carries its own
+// title, description and link-preview tags. Facebook, Messenger, Instagram,
+// Discord, X, Slack, WhatsApp and the rest read those tags without running
+// JavaScript, so setting them in the app alone would leave every link
+// previewing as the home page.
 
 import PostalMime from 'postal-mime';
 import {
@@ -51,8 +59,19 @@ import {
 import { emailAccounts } from '../app/utils/email-accounts.js';
 import { NAME_SOURCES, searchName } from '../app/utils/name-search.js';
 import { video } from './video.js';
+import { pageMeta, SITE_NAME } from '../app/utils/page-meta.js';
 
 export { RelayRoom } from './relay-room.js';
+
+// A 1200x630 card, the size Facebook, X and Discord all show full width.
+const PREVIEW_IMAGE = {
+  path: '/social-preview.png',
+  width: 1200,
+  height: 630,
+  alt: 'The Woogi Tools logo above "Small, fun, single-purpose web tools."',
+};
+// The pink of the logo; Discord uses it for the embed's side stripe.
+const THEME_COLOUR = '#ff7b9e';
 
 const CREDENTIAL_TTL_S = 6 * 60 * 60;
 
@@ -84,7 +103,7 @@ export default {
       return video(request, env);
     if (url.pathname.startsWith('/api/'))
       return json({ error: 'Not found' }, 404);
-    return env.ASSETS.fetch(request);
+    return page(request, env);
   },
 
   async email(message, env) {
@@ -199,6 +218,64 @@ function relayRoom(request, env) {
     return json({ error: 'Bad room code' }, 400);
   const room = env.RELAY_ROOM.get(env.RELAY_ROOM.idFromName(code));
   return room.fetch(request);
+}
+
+// Serves a page (the SPA's index.html, whatever the path) with the title,
+// description and Open Graph / Twitter card tags for the page it's showing.
+// Anything that isn't HTML (sw.js, robots.txt, the favicon) passes untouched.
+async function page(request, env) {
+  const response = await env.ASSETS.fetch(request);
+  const type = response.headers.get('Content-Type') || '';
+  if (!response.ok || !type.includes('text/html')) return response;
+
+  const url = new URL(request.url);
+  const meta = pageMeta(url.pathname.split('/')[1] || 'index');
+  const image = url.origin + PREVIEW_IMAGE.path;
+  const tags = [
+    ['property', 'og:type', 'website'],
+    ['property', 'og:site_name', SITE_NAME],
+    ['property', 'og:title', meta.label || SITE_NAME],
+    ['property', 'og:description', meta.description],
+    ['property', 'og:url', url.href],
+    ['property', 'og:image', image],
+    ['property', 'og:image:secure_url', image],
+    ['property', 'og:image:type', 'image/png'],
+    ['property', 'og:image:width', PREVIEW_IMAGE.width],
+    ['property', 'og:image:height', PREVIEW_IMAGE.height],
+    ['property', 'og:image:alt', PREVIEW_IMAGE.alt],
+    ['property', 'og:locale', 'en_GB'],
+    ['name', 'twitter:card', 'summary_large_image'],
+    ['name', 'twitter:title', meta.title],
+    ['name', 'twitter:description', meta.description],
+    ['name', 'twitter:image', image],
+    ['name', 'twitter:image:alt', PREVIEW_IMAGE.alt],
+    ['name', 'theme-color', THEME_COLOUR],
+  ]
+    .map(
+      ([attr, key, value]) =>
+        `<meta ${attr}="${key}" content="${escapeAttr(value)}">`,
+    )
+    .join('\n    ');
+
+  return new HTMLRewriter()
+    .on('title', {
+      element: (el) => el.setInnerContent(meta.title),
+    })
+    .on('meta[name="description"]', {
+      element: (el) => {
+        el.setAttribute('content', meta.description);
+        el.after(`\n    ${tags}`, { html: true });
+      },
+    })
+    .transform(response);
+}
+
+function escapeAttr(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 async function turn(request, env) {

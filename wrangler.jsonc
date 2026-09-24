@@ -3,13 +3,25 @@
   "compatibility_date": "2026-09-13",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
-  // Only /api/* runs the Worker; every other request is a static file from the build.
+  // /api/* and page loads run the Worker (page loads so it can add each page's
+  // link-preview tags); the build's asset folders below are served straight
+  // from the build without it.
   "main": "./worker/index.js",
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": [
+      "/*",
+      "!/@embroider/*",
+      "!/assets/*",
+      "!/fonts/*",
+      "!/hero_banners/*",
+      "!/legal/*",
+      "!/models/*",
+      "!/search_assets/*",
+      "!/sounds/*",
+    ],
   },
   "vars": {
     "TURN_KEY_ID": "2900fc412b4c30e1bdc49baf7079dc59",
