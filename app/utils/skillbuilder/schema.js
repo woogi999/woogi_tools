@@ -67,8 +67,8 @@ export const REQ_KINDS = [
 //   num · str · bool · vec3 ("x, y, z") · color ("r, g, b") · pair ([a, b])
 //   anim ([a, b] or a name) · branch (a branch's name) · choice (options)
 
-const EFFECTS = ['Clash', 'Field of View', 'Mesh', 'Melee Trail', 'Wind Expand', 'Glow', 'Sparks', 'Screen Color', 'Billboard', 'Circle Glow', 'Overlay', 'Shake Heavy', 'Shake Medium', 'Shake Light', 'Beams', 'Beam', 'Light', '360 Wind', 'Whirl Slash', 'Distortion', 'Wind Streak', 'Flames', 'Weak Lightning', 'Afterimage', 'Afterimage2', 'Cleave', 'Visibility', 'Black Flash', 'Cancel', 'Mass Hit', 'Camera', 'Sphere', 'Energy Sparks', 'Star', 'Shine', 'Cursed Energy', 'Ring'];
-const STATES = ['Stun', 'NoDash', 'NoJump', 'NoM1', 'NoSprint', 'InSkill', 'IFrame', 'Block', 'SpeedMultiplier', 'HealthMultiplier', 'DirectionLock', 'DisableChase'];
+const EFFECTS = ['Clash', 'Field of View', 'Mesh', 'Melee Trail', 'Wind Expand', 'Glow', 'Sparks', 'Screen Color', 'Billboard', 'Circle Glow', 'Overlay', 'Shake Heavy', 'Shake Medium', 'Shake Light', 'Beams', 'Beam', 'Light', '360 Wind', 'Whirl Slash', 'Distortion', 'Wind Streak', 'Flames', 'Weak Lightning', 'Afterimage', 'Afterimage2', 'Cleave', 'Visibility', 'Black Flash', 'Cancel', 'Mass Hit', 'Camera', 'Sphere', 'Energy Sparks', 'Star', 'Shine', 'Cursed Energy', 'Ring', 'Burst', 'Slash', 'Wind Ring'];
+const STATES = ['Stun', 'NoDash', 'NoJump', 'NoM1', 'NoSprint', 'InSkill', 'IFrame', 'Block', 'SpeedMultiplier', 'HealthMultiplier', 'DirectionLock', 'DisableChase', 'Scale', 'NoBlock'];
 const BODY_PARTS = ['HumanoidRootPart', 'Head', 'Torso', 'Right Arm', 'Left Arm', 'Right Leg', 'Left Leg'];
 const EASING_STYLES = ['Linear', 'Quad', 'Cubic', 'Exponential', 'Sine', 'Back'];
 const EASING_DIRECTIONS = ['In', 'Out', 'InOut'];
@@ -153,6 +153,19 @@ export const NODES = [
     about: 'Sets the melee combo counter.',
     fields: [f('COMBO', 'num', 1), f('OFFSET', 'num', 0), lastHit],
     summary: (n) => `combo ${n.COMBO ?? 1}`,
+  },
+  {
+    kind: 'SKILL', label: 'SKILL', color: '#ffc38a', icon: 'zap', group: 'Combat',
+    about: 'Uses a move. Seen once, as MOVE “Cancel”, to cancel the move being used (a block that swaps stances).',
+    fields: [
+      f('MOVE', 'str', 'Cancel', { label: 'Move' }),
+      f('START', 'num', 0, { label: 'Start at (s)' }),
+      f('SPEED', 'num', 1),
+      f('HOLD FOR', 'num', 0, { label: 'Hold for (s)' }),
+      f('ENABLE VARIANTS', 'bool', true),
+      f('CANCEL LAST', 'bool', false),
+    ],
+    summary: (n) => n.MOVE || '—',
   },
   {
     kind: 'ANIM', label: 'ANIMATION', color: '#fff27a', icon: 'person-standing', group: 'Look',

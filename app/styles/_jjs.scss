@@ -243,3 +243,167 @@
   align-items: center;
   gap: 6px;
 }
+
+// ─── Templates ───────────────────────────────────────────────────────────
+// The templates down the side, the picked one's form beside them.
+
+.jjs-tpl {
+  display: grid;
+  grid-template-columns: minmax(200px, 250px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.jjs-tpl-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jjs-tpl-pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.jjs-tpl-pick:hover {
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+
+.jjs-tpl-pick.active {
+  border: 2px dashed var(--text-faint);
+  color: var(--text);
+}
+
+.jjs-tpl-pick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.jjs-tpl-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.jjs-tpl-from {
+  color: var(--text-dim);
+  font-size: 0.68rem;
+}
+
+.jjs-tpl-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.jjs-tpl-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jjs-tpl-head :is(.qr-heading, .tool-hint) {
+  margin: 0;
+}
+
+.jjs-tpl-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+}
+
+.jjs-tpl-section {
+  margin: 0;
+  padding: 10px 14px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+}
+
+.jjs-tpl-section legend {
+  padding: 0 6px;
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.jjs-tpl-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+  align-items: start;
+}
+
+.jjs-tpl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+
+.jjs-tpl-field small {
+  line-height: 1.3;
+}
+
+.jjs-tpl-wide {
+  grid-column: 1 / -1;
+}
+
+// Starts a row of its own, so each hit's animation, length and trail line up.
+.jjs-tpl-row {
+  grid-column-start: 1;
+}
+
+.jjs-tpl-out {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jjs-tpl-out .tool-hint {
+  margin: 0;
+}
+
+.jjs-tpl-error {
+  color: var(--card-red);
+}
+
+.jjs-tpl-code {
+  resize: vertical;
+  word-break: break-all;
+}
+
+.jjs-tpl-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jjs-tpl-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (width <= 720px) {
+  .jjs-tpl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jjs-tpl-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

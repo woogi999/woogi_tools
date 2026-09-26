@@ -5,13 +5,15 @@ import { fn } from '@ember/helper';
 import { registerDestructor } from '@ember/destroyable';
 import ToolPage from './tool-page';
 import Icon from './icon';
+import JjsTemplates, { matchTemplates } from './jjs-templates';
 import { TABS, parseNotes, filterGroups } from '../utils/jjs';
 
 const eq = (a, b) => a === b;
 const COPIED_MS = 1200;
 
 // Jujutsu Shenanigans Skill Builder notes: sound IDs, animation directions,
-// move startups and presets, sorted into tabs you can search and copy from.
+// move startups, presets and ready-made skills, sorted into tabs you can search
+// and copy from.
 export default class JjsStuffPage extends Component {
   tabs = TABS;
 
@@ -53,6 +55,10 @@ export default class JjsStuffPage extends Component {
     return this.tab === 'presets';
   }
 
+  get isTemplates() {
+    return this.tab === 'templates';
+  }
+
   get presets() {
     const q = this.query.trim().toLowerCase();
     const all = this.data?.PRESETS ?? [];
@@ -84,7 +90,9 @@ export default class JjsStuffPage extends Component {
     const searching = Boolean(this.query.trim());
     return TABS.map((t) => {
       let count = null;
-      if (searching && this.parsed)
+      if (t.id === 'templates')
+        count = searching ? matchTemplates(this.query).length : null;
+      else if (searching && this.parsed)
         count = t.source
           ? this.results[t.id].reduce((n, g) => n + g.rows.length, 0)
           : this.presets.length;
@@ -132,7 +140,7 @@ export default class JjsStuffPage extends Component {
   <template>
     <ToolPage
       @route="jjs-stuff"
-      @subtitle="Everything for the Jujutsu Shenanigans Skill Builder in one spot: sound IDs, emote music, punch, kick and flip directions, animations, startups and presets. Tap an ID to copy it."
+      @subtitle="Everything for the Jujutsu Shenanigans Skill Builder in one spot: sound IDs, emote music, punch, kick and flip directions, animations, startups, presets and templates. Tap an ID to copy it."
     >
       <div class="jjs pop-in">
         <div class="jjs-bar">
@@ -188,7 +196,9 @@ export default class JjsStuffPage extends Component {
           <p class="tool-hint">{{this.current.hint}}</p>
         </div>
 
-        {{#if this.failed}}
+        {{#if this.isTemplates}}
+          <JjsTemplates @query={{this.query}} />
+        {{else if this.failed}}
           <p class="tool-error">Couldn’t load the notes. Check your connection
             and reload the page.</p>
         {{else if this.data}}

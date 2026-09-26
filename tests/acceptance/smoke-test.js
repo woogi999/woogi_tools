@@ -459,6 +459,41 @@ module('Acceptance | smoke', function (hooks) {
     assert.true(designs.size >= 3, 'in more than one design');
   });
 
+  test('Magnum Opus wears orange, and the tags show in the sidebar as text', async function (assert) {
+    await visit('/');
+    const link = (label) =>
+      findAll('.sidebar-nav .nav-link').find((a) =>
+        a.textContent.includes(label),
+      );
+    assert.dom(link('Video Editor').querySelector('.nav-tag')).hasText('beta');
+    assert
+      .dom(link('Webskill Shenanigans').querySelector('.nav-tag'))
+      .hasText('beta');
+    assert
+      .dom(link('Woogidex').querySelector('.nav-tag'))
+      .hasText('other site');
+    assert.dom(link('QR Code').querySelector('.nav-tag')).doesNotExist();
+    assert.dom(link('Woogidex')).hasClass('is-opus');
+    assert.dom(link('QR Code')).doesNotHaveClass('is-opus');
+
+    const card = (label) =>
+      findAll('.tool-card').find((c) =>
+        c.querySelector('.tool-card-link')?.textContent.includes(label),
+      );
+    const colour = (el) => getComputedStyle(el).color;
+    const title = (label) => card(label).querySelector('.tool-card-link');
+    assert.dom(card('Video Editor')).hasClass('is-opus');
+    assert.strictEqual(
+      colour(title('Video Editor')),
+      colour(title('Woogidex')),
+    );
+    assert.notStrictEqual(
+      colour(title('Video Editor')),
+      colour(title('QR Code')),
+      'in a colour of their own',
+    );
+  });
+
   test('a stinger plays over the jump into a full-window tool and back', async function (assert) {
     const stinger = this.owner.lookup('service:stinger');
     stinger.enabled = true;

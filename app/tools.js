@@ -37,7 +37,6 @@ export const TOOLS = [
     label: 'Woogidex',
     href: 'https://dex.woogi.xyz/',
     icon: 'sparkles',
-    accent: '#FFF77B',
     category: 'Magnum Opus',
     tag: 'other site',
     description: 'A Fakemon creation tool, over on its own site.',
@@ -2415,7 +2414,7 @@ export const TOOLS = [
     icon: 'swords',
     category: 'Games',
     description:
-      'Jujutsu Shenanigans Skill Builder cheat sheet: sound IDs, emotes, animations, startups and presets.',
+      'Jujutsu Shenanigans Skill Builder cheat sheet: sound IDs, emotes, animations, startups, presets and ready-made skill templates.',
     keywords: [
       'jjs',
       'jujutsu shenanigans',
@@ -2431,6 +2430,9 @@ export const TOOLS = [
       'presets',
       'moveset',
       'startup',
+      'templates',
+      'm1',
+      'sheath',
       'gojo',
       'sukuna',
       'yuji',
@@ -3944,6 +3946,9 @@ const categoryRank = (name) => {
   const at = CATEGORY_ORDER.indexOf(name);
   return at < 0 ? CATEGORY_ORDER.length : at;
 };
+
+// The showpieces, which wear the site's orange wherever they're listed.
+export const isOpus = (tool) => tool.category === 'Magnum Opus';
 
 // A tool's own category first, then any others it's also listed under.
 export const categoriesOf = (tool) =>

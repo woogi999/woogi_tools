@@ -3,12 +3,9 @@ import { tracked } from '@glimmer/tracking';
 import { on } from '@ember/modifier';
 import { LinkTo } from '@ember/routing';
 import { service } from '@ember/service';
-import { htmlSafe } from '@ember/template';
 import { modifier } from 'ember-modifier';
 import Icon from './icon';
-import { searchTools, groupTools } from '../tools';
-
-const accentStyle = (accent) => htmlSafe(accent ? `color:${accent};` : '');
+import { searchTools, groupTools, isOpus } from '../tools';
 
 export default class SidebarNav extends Component {
   @service router;
@@ -78,23 +75,26 @@ export default class SidebarNav extends Component {
           {{#if tool.href}}
             <a
               href={{tool.href}}
-              class="nav-link nav-link-external"
+              class="nav-link nav-link-external {{if (isOpus tool) 'is-opus'}}"
               target="_blank"
               rel="noopener noreferrer"
-              style={{accentStyle tool.accent}}
             >
               <Icon @name={{tool.icon}} @size={{15}} />
-              <span>{{tool.label}}</span>
+              <span class="nav-label">{{tool.label}}{{#if tool.tag}}<span
+                    class="nav-tag"
+                  >{{tool.tag}}</span>{{/if}}</span>
             </a>
           {{else}}
             <LinkTo
               @route={{tool.route}}
-              class="nav-link"
+              class="nav-link {{if (isOpus tool) 'is-opus'}}"
               activeClass="active"
               {{on "click" (if @onNavigate @onNavigate this.noop)}}
             >
               <Icon @name={{tool.icon}} @size={{15}} />
-              <span>{{tool.label}}</span>
+              <span class="nav-label">{{tool.label}}{{#if tool.tag}}<span
+                    class="nav-tag"
+                  >{{tool.tag}}</span>{{/if}}</span>
             </LinkTo>
           {{/if}}
         {{/each}}
