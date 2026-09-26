@@ -77,6 +77,21 @@ module('Unit | JJS templates', function () {
     );
   });
 
+  test('a progress bar can be client sided', function (assert) {
+    const billboards = (values) =>
+      buildTemplate(template('progress-bar'), {
+        ids: '1 2',
+        ...values,
+      })[0].DATA.Branch['0'].Line.filter((n) => n.EFFECT === 'Billboard');
+    assert.false(
+      billboards({})[0]['CLIENT SIDED'],
+      'seen by everyone by default',
+    );
+    const mine = billboards({ clientSided: true })[0];
+    assert.true(mine['CLIENT SIDED'], 'or only by the player');
+    assert.false(mine['RUN ON SERVER'], 'which is a different switch');
+  });
+
   test('auto-sheathing, with its defaults, is the owner’s SheathPassive', async function (assert) {
     const real = (await decodeMoveset(KATANA)).find(
       (s) => s.NAME === 'SheathPassive',

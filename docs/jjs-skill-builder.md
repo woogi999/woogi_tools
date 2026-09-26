@@ -204,6 +204,15 @@ Sine, Back), `EASING DIRECTION` (In, Out, InOut), `SIZE 2`/`ALT SIZE 2`
 The effect **eases from the plain values to the `ALT` ones over `TIME`**
 (inferred from pairs like `SIZE 0.01 → ALT SIZE 7`).
 
+- **`Billboard`** is placed **pseudo-2D** (confirmed by the owner in-game): its
+  `POSITION` is on the screen around the body part, not in the world.
+  **x** goes across, and negative is to the **right**. **y** goes up and down
+  (negative is down). **z** is a **layer**, like a z-index: negative draws it
+  in front of the character, positive behind. A y only sticks if **`ALT
+  POSITION`** holds **minus twice** that y: `POSITION "0, 4, 0"` wants
+  `ALT POSITION "0, -8, 0"`. The Progress Bar Maker writes the pair for you
+  (`billboardAlt` in `app/utils/jjs-skill.js`), and its 3D preview
+  (`app/lazy/bar-scene.js`) places the billboard this way.
 - **`Mesh`**: `AMOUNT` is the **mesh ID** and `TEXTURE` its texture (inferred:
   a katana is `AMOUNT 10447572102, TEXTURE 10447572165`). With `TIME 1e38`,
   `CANCEL ON INTERRUPT` and a `VISUAL TAG`, it's a **worn item**.
@@ -385,7 +394,48 @@ Webskill Shenanigans labels `SETCD` "COOLDOWN", `SETMELEE` "MELEE",
 ### Displaying a value: the progress bar skill (confirmed in-game)
 
 The Progress Bar Maker's export (`app/utils/jjs-skill.js`) is a passive state
-machine on one tag:
+machine on one tag, in one of two styles. Both start the same way and share
+the `-` dispatcher (the checks from the top step down, the rails, `BRANCH "-"`).
+
+**Complex** (the default; the owner's lag-proof version, matched exactly by a
+test). Each step is shown **once, for ever**, and taken off by `Cancel`
+effects that name its `VISUAL TAG`, so nothing is drawn again until the tag
+changes:
+
+```
+"N":           VISUAL Billboard, step N's image, TIME 1e38, VISUAL TAG "BarN"
+               VISUAL Cancel "BarLesser", "BarGreater" (the rails' billboards)
+               VISUAL Cancel, VISUAL TAG "BarK"   for every other step K
+               BRANCH ">Checks"                    (comment)
+               TAG Bar == K CHECK → "K"            for every other K, top down
+               BRANCH ">Safety Rails"              (comment, with the rails)
+               TAG Bar "<0" → SafetyLesser; TAG Bar ">top" → SafetyGreater
+               WAIT 0.05
+               LOOP BACK (other steps + 2 rails + 3), LOOP AMOUNT 1e38
+SafetyLesser:  the empty picture under its own tag "BarLesser"; Cancel every
+               step; BRANCH "SafetyLesserHold"
+SafetyLesserHold:
+               the tag cleared and set to 0 (SET, TIME 0; SET, for ever);
+               then the same checks (not for 0) and loop, but "<0" comes back
+               here: a pseudo-min
+SafetyGreater / SafetyGreaterHold: the same with the full picture,
+               "BarGreater" and the top step: a pseudo-max
+```
+
+**Why the Holds** (a fix on the owner's version): in that version a rail's own
+loop sent a second push past its end back to the rail, which drew another
+billboard on top of the first without cancelling it. A bar kept at full by
+regen (or spammed past an end) piled them up, and the picture thickened. The
+Hold re-clamps the tag without drawing, so a billboard is only drawn when the
+picture on show changes. (Cancelling the rail's own tag before drawing would
+also stop the pile-up, but it would redraw on every push, and could flicker.)
+
+`LOOP BACK` counts the nodes from `>Checks` to the `WAIT`: the checks, the two
+comments and the wait (without rails: the checks, `>Checks` and the wait). It
+lands on `>Checks`, so the loop only ever checks.
+
+**Legacy** (the first version). Each step is shown briefly and the dispatcher
+runs again, which draws it again, for ever:
 
 ```
 entry:   TAG Bar = top step (for ever); BRANCH "-"
@@ -402,7 +452,7 @@ Safety*: VISUAL (the end's image); TAG clear (SET, TIME 0); TAG set to the end
 It comes with **`<name> Regen`** (a passive, `Prop REP2`, adding `+n` every
 `s` seconds) and **`Debug: Add / Remove <name>`** (keys 1 and 2, one TAG node
 each, `Prop []`). All four match the owner's hand-built versions exactly
-(tests).
+(tests), and are the same in both styles.
 
 ### Auto-sheathing (confirmed from the owner's katana export)
 

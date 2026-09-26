@@ -91,7 +91,9 @@ module('Acceptance | JJS progress bar maker', function (hooks) {
     await click(byText('.pb-kinds button', 'Rectangle'));
     await dragOnPicture([700, 100], [900, 300]);
     assert.dom('.pb-layer.is-active').includesText('Rectangle');
-    assert.dom('.pb-tabs button').exists({ count: 3 }, 'Shape, Effects and Layer');
+    assert
+      .dom('.pb-tabs button')
+      .exists({ count: 3 }, 'Shape, Effects and Layer');
     await waitUntil(() => isWhite(pixelAt(800, 200)), { timeout: 3000 });
     assert.false(isWhite(pixelAt(600, 200)), 'only where it was drawn');
   });
@@ -197,6 +199,21 @@ module('Acceptance | JJS progress bar maker', function (hooks) {
     assert.dom('.pb-props').includesText('KanjiVG');
   });
 
+  test('the JJS export shows the billboard in 3D, step by step', async function (assert) {
+    await visit('/jjs-progress-bar-maker');
+    await fillIn('.pb-steps', '4');
+    await click('.pb-export-btn');
+    await click('.pb-jjs-tab');
+    await waitUntil(() => find('.pb-bar3d-view canvas'), { timeout: 10000 });
+    assert.dom('.pb-bar3d-view canvas').exists('the character and the bar');
+    await fillIn('.pb-bar3d-step input', '0');
+    assert
+      .dom('.pb-bar3d-step')
+      .includesText('Step 0 of 4', 'any step can be looked at');
+    await click('.pb-bar3d-reset');
+    assert.dom('.pb-bar3d .pb-warn').doesNotExist('it started');
+  });
+
   test('the JJS skill export turns image IDs into skill code', async function (assert) {
     await visit('/jjs-progress-bar-maker');
     await fillIn('.pb-steps', '4');
@@ -212,8 +229,29 @@ module('Acceptance | JJS progress bar maker', function (hooks) {
 
     await fillIn('.pb-ids', '111\n222\n333\n444\n555');
     await fillIn('.pb-skill-tag', 'CE');
-    await fillIn('.pb-skill-wait', '0.2');
+    await fillIn('.pb-skill-check', '0.1');
     await waitUntil(() => find('.pb-skill-code')?.value, { timeout: 3000 });
+    const complex = JSON.parse(
+      (await decodeSkill(find('.pb-skill-code').value))[0].DATA,
+    );
+    assert.dom('.pb-style-complex').hasClass('active', 'Complex by default');
+    const held = complex.Branch['2'].Line;
+    assert.deepEqual(
+      [held[0]['VISUAL TAG'], held[0].TEXTURE],
+      ['CE2', 333],
+      'each step kept under its own tag',
+    );
+    assert.strictEqual(held.at(-2).TIME, 0.1, 'checked as often as set');
+    assert
+      .dom('.pb-skill-wait')
+      .doesNotExist('Legacy’s timings are for Legacy');
+
+    const before = find('.pb-skill-code').value;
+    await click('.pb-style-legacy');
+    await fillIn('.pb-skill-wait', '0.2');
+    await waitUntil(() => find('.pb-skill-code')?.value !== before, {
+      timeout: 3000,
+    });
     const skill = await decodeSkill(find('.pb-skill-code').value);
     const data = JSON.parse(skill[0].DATA);
     assert.deepEqual(
@@ -222,7 +260,11 @@ module('Acceptance | JJS progress bar maker', function (hooks) {
       'each step shows its picture',
     );
     assert.strictEqual(data.Line[0].TAG, 'CE');
-    assert.strictEqual(data.Branch['0'].Line[0].TIME, 0.12, 'billboard time default');
+    assert.strictEqual(
+      data.Branch['0'].Line[0].TIME,
+      0.12,
+      'billboard time default',
+    );
     assert.strictEqual(data.Branch['0'].Line[1].TIME, 0.2, 'the wait as set');
     assert.strictEqual(skill[0].KEY, 99);
     assert.dom('.pb-skill-rails').isChecked('Safety Rails on by default');

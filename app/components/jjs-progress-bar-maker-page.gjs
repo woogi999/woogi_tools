@@ -473,6 +473,47 @@ export default class JjsProgressBarMakerPage extends Component {
 
   // The overlay takes the pointer and draws the selection. It is watched for
   // size so the handles stay the same size on screen at any zoom.
+  // ─── The 3D preview of the billboard ─────────────────────────────────
+  // The step on show in the editor, at the skill's size and offset, on an R6
+  // character (lazy/bar-scene.js, loaded only when the Skill section opens).
+
+  @tracked barViewError = null;
+  barScene = null;
+
+  bindBarView = modifier((element) => {
+    let gone = false;
+    import('../lazy/bar-scene')
+      .then(({ mountBarScene }) => {
+        if (gone) return;
+        this.barScene = mountBarScene(element);
+        this.feedBar();
+      })
+      .catch(
+        (error) =>
+          (this.barViewError = error?.message ?? 'The 3D view couldn’t start'),
+      );
+    return () => {
+      gone = true;
+      this.barScene?.dispose();
+      this.barScene = null;
+    };
+  });
+
+  // Its arguments are only there so it runs again when one of them changes.
+  showBar = modifier((_element, [_doc, _frame, _size, _position]) => {
+    this.feedBar();
+  });
+
+  feedBar() {
+    this.barScene?.update({
+      canvas: render(this.doc, this.frame, { resolve: this.resolve }),
+      size: this.jjs.size,
+      position: this.jjs.position,
+    });
+  }
+
+  resetBarView = () => this.barScene?.resetCamera();
+
   bindOverlay = modifier((element) => {
     this.overlay = element;
     const watcher = new ResizeObserver(() => this.measure());
@@ -970,6 +1011,7 @@ export default class JjsProgressBarMakerPage extends Component {
           : event.target.value;
     if (key === 'size') value = Math.max(0.1, value);
     if (key === 'showFor' || key === 'waitFor') value = Math.max(0, value);
+    if (key === 'checkEvery') value = Math.max(0.01, value);
     if (key === 'regenEvery') value = Math.max(0.05, value);
     this.change(setIn(this.doc, ['jjs', key], value), `doc:jjs:${key}`);
     this.refreshSkill();
@@ -977,6 +1019,11 @@ export default class JjsProgressBarMakerPage extends Component {
 
   setJjsStart = (start) => {
     this.change(setIn(this.doc, ['jjs', 'start'], start));
+    this.refreshSkill();
+  };
+
+  setJjsStyle = (style) => {
+    this.change(setIn(this.doc, ['jjs', 'style'], style));
     this.refreshSkill();
   };
 
@@ -992,7 +1039,7 @@ export default class JjsProgressBarMakerPage extends Component {
         : null;
       return;
     }
-    const { name, tag, start, size, position, showFor, waitFor, rails, regen, regenAmount, regenEvery } = this.jjs;
+    const { name, tag, start, size, position, style, checkEvery, showFor, waitFor, rails, clientSided, regen, regenAmount, regenEvery } = this.jjs;
     const code = await encodeSkill(
       buildSkill({
         textures: ids,
@@ -1001,9 +1048,12 @@ export default class JjsProgressBarMakerPage extends Component {
         start,
         size,
         position: position.trim() || '0, 0, 0',
+        style,
+        checkEvery,
         showFor,
         waitFor,
         rails,
+        clientSided,
         regen: regen ? { amount: regenAmount, every: regenEvery } : null,
       }),
     );
@@ -2492,23 +2542,57 @@ export default class JjsProgressBarMakerPage extends Component {
                           value={{this.jjs.position}}
                           {{on "change" (fn this.setJjs "position")}}
                         /></label>
-                      <label class="pb-num"><span>Shown for (s)</span><input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          class="math-input pb-skill-show"
-                          value={{this.jjs.showFor}}
-                          {{on "change" (fn this.setJjs "showFor")}}
-                        /></label>
-                      <label class="pb-num"><span>Wait (s)</span><input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          class="math-input pb-skill-wait"
-                          value={{this.jjs.waitFor}}
-                          {{on "change" (fn this.setJjs "waitFor")}}
-                        /></label>
+                      {{#if (eq this.jjs.style "legacy")}}
+                        <label class="pb-num"><span>Shown for (s)</span><input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="math-input pb-skill-show"
+                            value={{this.jjs.showFor}}
+                            {{on "change" (fn this.setJjs "showFor")}}
+                          /></label>
+                        <label class="pb-num"><span>Wait (s)</span><input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            class="math-input pb-skill-wait"
+                            value={{this.jjs.waitFor}}
+                            {{on "change" (fn this.setJjs "waitFor")}}
+                          /></label>
+                      {{else}}
+                        <label class="pb-num"><span>Check every (s)</span><input
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            class="math-input pb-skill-check"
+                            value={{this.jjs.checkEvery}}
+                            {{on "change" (fn this.setJjs "checkEvery")}}
+                          /></label>
+                      {{/if}}
                     </div>
+                    <div class="pb-row">
+                      <span class="pb-row-label">Style</span>
+                      <div class="pb-seg" role="group" aria-label="Style">
+                        <button
+                          type="button"
+                          class="pb-style-complex
+                            {{if (eq this.jjs.style 'complex') 'active'}}"
+                          {{on "click" (fn this.setJjsStyle "complex")}}
+                        >Complex</button>
+                        <button
+                          type="button"
+                          class="pb-style-legacy
+                            {{if (eq this.jjs.style 'legacy') 'active'}}"
+                          {{on "click" (fn this.setJjsStyle "legacy")}}
+                        >Legacy</button>
+                      </div>
+                    </div>
+                    <p class="pb-hint">{{#if (eq this.jjs.style "legacy")}}Legacy
+                        shows the step again and again, every wait: simple,
+                        but it can lag.{{else}}Complex shows each step once and
+                        keeps it, cancelling the others by their visual tags,
+                        then loops on its checks: lag-proof, and far too many
+                        nodes to build by hand.{{/if}}</p>
                     <div class="pb-row">
                       <span class="pb-row-label">Starts</span>
                       <div class="pb-seg" role="group" aria-label="Starts">
@@ -2524,6 +2608,46 @@ export default class JjsProgressBarMakerPage extends Component {
                         >Empty</button>
                       </div>
                     </div>
+                    <div class="pb-bar3d">
+                      <div
+                        class="pb-bar3d-view"
+                        {{this.bindBarView}}
+                        {{this.showBar
+                          this.doc
+                          this.frame
+                          this.jjs.size
+                          this.jjs.position
+                        }}
+                      ></div>
+                      <div class="pb-bar3d-bar">
+                        <label class="pb-opt pb-bar3d-step"><span>Step
+                            {{this.frame}}
+                            of
+                            {{this.doc.frames}}</span><input
+                            type="range"
+                            min="0"
+                            max={{this.doc.frames}}
+                            value={{this.frame}}
+                            {{on "input" this.setFrame}}
+                          /></label>
+                        <button
+                          type="button"
+                          class="btn pb-bar3d-reset"
+                          {{on "click" this.resetBarView}}
+                        >Reset view</button>
+                      </div>
+                      {{#if this.barViewError}}
+                        <p class="pb-hint pb-warn">{{this.barViewError}}</p>
+                      {{else}}
+                        <p class="pb-hint">Where the billboard sits on you, at
+                          this Size and Offset. The offset is on the screen: x
+                          across (negative is right), y up, z the layer
+                          (negative in front of you, positive behind); the y is
+                          paired with its ALT POSITION for you. Drag to look
+                          around. The picture is the step on the slider, as you
+                          drew it.</p>
+                      {{/if}}
+                    </div>
                     <label class="math-check"><input
                         type="checkbox"
                         class="pb-skill-rails"
@@ -2534,6 +2658,15 @@ export default class JjsProgressBarMakerPage extends Component {
                     <p class="pb-hint">Keeps the tag between 0 and
                       {{this.doc.frames}}: anything that pushes it past either
                       end is put back at that end.</p>
+                    <label class="math-check"><input
+                        type="checkbox"
+                        class="pb-skill-client"
+                        checked={{this.jjs.clientSided}}
+                        {{on "change" (fn this.setJjs "clientSided")}}
+                      />
+                      Client sided</label>
+                    <p class="pb-hint">Only the player sees their own bar;
+                      nobody else does. (Not the same as Run on server.)</p>
                     <div class="pb-inline">
                       <label class="math-check"><input
                           type="checkbox"
