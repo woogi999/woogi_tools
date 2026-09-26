@@ -38,7 +38,8 @@ export const TOOLS = [
     href: 'https://dex.woogi.xyz/',
     icon: 'sparkles',
     accent: '#FFF77B',
-    category: 'Other Sites',
+    category: 'Magnum Opus',
+    tag: 'other site',
     description: 'A Fakemon creation tool, over on its own site.',
     keywords: ['fakemon', 'pokemon', 'dex', 'pokedex', 'creature', 'creator'],
   },
@@ -2332,6 +2333,40 @@ export const TOOLS = [
     ],
   },
   {
+    label: 'Webskill Shenanigans',
+    route: 'webskill-shenanigans',
+    icon: 'wand',
+    category: 'Magnum Opus',
+    tag: 'beta',
+    description:
+      'JJS’s Skill Builder in the browser: open a moveset’s code, edit it node by node, play skills on a 3D character, copy the code back.',
+    keywords: [
+      'jjs',
+      'jujutsu shenanigans',
+      'skill builder',
+      'skillbuilder',
+      'moveset',
+      'roblox',
+      'skill editor',
+      'import code',
+      'export code',
+      'hitbox',
+      'combo',
+      'awakening',
+      'simulator',
+    ],
+    madeWith:
+      'A Skill Builder code is base64 of Zstandard-compressed JSON: a list of skills, each with its program as a JSON string of its own. Codes are read and written losslessly, down to JJS’s quirks (empty tables written as [], “for ever” as 1e38). The node kinds, their fields and what they do were worked out by reading real movesets exported from the game, and are written up in the site’s Skill Builder handbook. Skills are played by a small simulator: each character runs its own lines of nodes in time order; branches jump only when their conditions hold, loops rewind, tags and states count down, and a hitbox or projectile that reaches the dummy starts one branch on you and another on them. The 3D view is Three.js: an R6 character and a dummy, with JJS’s effects drawn by family and Billboard and Overlay effects showing their real Roblox textures, fetched through the site’s Worker. JJS’s animations aren’t public, so animations are stand-in poses.',
+    credits: [
+      {
+        name: 'three.js',
+        author: 'mrdoob & contributors',
+        license: 'MIT',
+        url: 'https://threejs.org',
+      },
+    ],
+  },
+  {
     label: 'JJS Progress Bar Maker',
     route: 'jjs-progress-bar-maker',
     icon: 'battery-medium',
@@ -2647,7 +2682,10 @@ export const TOOLS = [
     label: 'Video Editor',
     route: 'video-editor',
     icon: 'film',
-    category: 'Audio & Video',
+    category: 'Magnum Opus',
+    // Also listed with the other media tools; a search shows it once, here.
+    alsoIn: ['Audio & Video'],
+    tag: 'beta',
     description:
       'A motion-graphics editor in the page: scenes, layers, keyframes with real easing, parenting, mattes and 145 effects.',
     keywords: [
@@ -3887,7 +3925,7 @@ export function searchTools(query) {
 
 // The order the categories are shown in, in the sidebar and on the home page.
 export const CATEGORY_ORDER = [
-  'Other Sites',
+  'Magnum Opus',
   'Images',
   'Colour & Design',
   'Audio & Video',
@@ -3907,12 +3945,19 @@ const categoryRank = (name) => {
   return at < 0 ? CATEGORY_ORDER.length : at;
 };
 
-export function groupTools(tools) {
+// A tool's own category first, then any others it's also listed under.
+export const categoriesOf = (tool) =>
+  tool.category ? [tool.category, ...(tool.alsoIn ?? [])] : [''];
+
+// `copies: false` lists every tool once, under its own category (for searches).
+export function groupTools(tools, { copies = true } = {}) {
   const groups = new Map();
   for (const tool of tools) {
-    const key = tool.category ?? '';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(tool);
+    const keys = copies ? categoriesOf(tool) : [tool.category ?? ''];
+    for (const key of keys) {
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(tool);
+    }
   }
   return [...groups]
     .map(([name, items]) => ({ name, items }))

@@ -20,7 +20,7 @@ import { compressBytes, decompressBytes } from './codec';
 // JJS writes this as 1e38 ("for ever"); JSON.stringify would write 1e+38.
 const FOREVER = '__FOREVER__';
 
-function visual(texture, { size, position }) {
+function visual(texture, { size, position, time }) {
   return {
     SIZE: size,
     'RELATIVE FROM BRANCH': false,
@@ -38,7 +38,7 @@ function visual(texture, { size, position }) {
     'ALT POSITION': '0, 0, 0',
     'EASING STYLE': 'Linear',
     'ALT SIZE': 1,
-    TIME: 0.06,
+    TIME: time,
     'BODY PART': 'HumanoidRootPart',
     'SIZE 2': '-1, -1, -1',
     'CLIENT SIDED': false,
@@ -53,83 +53,174 @@ function visual(texture, { size, position }) {
 
 const back = { 'LAST HIT': -1, BRANCH: '-', K_NAME: 'BRANCH' };
 
+// A TAG node that checks the bar's tag and branches when it matches.
+const check = (tag, value, branch) => ({
+  'ADD/REMOVE': false,
+  TIME: 1,
+  TAG: tag,
+  SET: false,
+  K_NAME: 'TAG',
+  'LAST HIT': -1,
+  BRANCH: branch,
+  VALUE: value,
+  CHECK: true,
+});
+
+// A TAG node that replaces the tag's value: with TIME 0 it clears it, with
+// FOREVER it sets it for good.
+const set = (tag, value, time) => ({
+  'ADD/REMOVE': true,
+  TIME: time,
+  TAG: tag,
+  CHECK: false,
+  K_NAME: 'TAG',
+  'LAST HIT': -1,
+  VALUE: value,
+  SET: true,
+});
+
+// A skill as JJS stores it, with its program serialised into DATA.
+const skillOf = (name, key, data) => ({
+  ADD: true,
+  NAME: name,
+  K_NAME: 'SKILL',
+  KEY: key,
+  'TOOL TIP': '',
+  DATA: JSON.stringify(data).replaceAll(`"${FOREVER}"`, '1e38'),
+  COOLDOWN: 0,
+});
+
+// A branch that doesn't exist does nothing when taken, so a BRANCH node to a
+// name like this is a comment in the Skill Builder.
+const comment = (text) => ({ 'LAST HIT': -1, BRANCH: `>${text}`, K_NAME: 'BRANCH' });
+
+// Adds `value` (a signed number) to the tag once.
+const nudge = (tag, value) => ({
+  TAG: tag,
+  VALUE: value,
+  K_NAME: 'TAG',
+  TIME: FOREVER,
+  SET: false,
+});
+
 /**
- * The skill, as the object JJS exports.
+ * The skills, as the array JJS exports: the bar itself, then the helpers.
  *
- * textures  one image ID per step, step 0 (empty) first
- * name      the skill's name in the builder
- * tag       the tag that holds the bar's step
- * key       the key code that uses the skill (99 is C)
- * start     'full' or 'empty': which step the bar starts on
- * size      the billboard's size
- * position  its offset from the body part, "x, y, z"
+ * textures     one image ID per step, step 0 (empty) first
+ * name         the bar skill's name; the helpers are named after it
+ * tag          the tag that holds the bar's step
+ * start        'full' or 'empty': which step the bar starts on
+ * size         the billboard's size
+ * position     its offset from the body part, "x, y, z"
+ * showFor      how long each billboard is shown for, in seconds
+ * waitFor      the wait before the tag is checked again, in seconds
+ * rails        keep the tag between 0 and the top step: anything that
+ *              pushes it past either end is put back at that end
+ * regen        { amount, every }: add `amount` to the tag every `every`
+ *              seconds, in a passive skill of its own; null for none
+ *
+ * Two debug skills always come last: key 1 adds one step, key 2 takes one
+ * away, for trying the bar out in the builder.
  */
 export function buildSkill({
   textures,
   name = 'Bar',
   tag = 'Bar',
-  key = 99,
   start = 'full',
   size = 2,
   position = '0, 0, 0',
+  showFor = 0.12,
+  waitFor = 0.1,
+  rails = true,
+  regen = { amount: 1, every: 1 },
 }) {
   const top = textures.length - 1;
   const steps = textures.map((_, i) => String(i));
-  const branches = {
-    '-': {
-      Line: [
-        // Highest first, as JJS's own export has them.
-        ...[...steps].reverse().map((step) => ({
-          'ADD/REMOVE': false,
-          TIME: 1,
-          TAG: tag,
-          SET: false,
-          K_NAME: 'TAG',
-          'LAST HIT': -1,
-          BRANCH: step,
-          VALUE: step,
-          CHECK: true,
-        })),
-        back,
-      ],
-      Req: [],
-    },
-  };
+  const billboard = (texture) =>
+    visual(Number(texture), { size, position, time: showFor });
+  const dispatch = [
+    // Highest first, as JJS's own export has them.
+    ...[...steps].reverse().map((step) => check(tag, step, step)),
+  ];
+  if (rails)
+    dispatch.push(
+      comment('Safety Rails'),
+      check(tag, '<0', 'SafetyLesser'),
+      check(tag, `>${top}`, 'SafetyGreater'),
+    );
+  dispatch.push(back);
+  const branches = { '-': { Line: dispatch, Req: [] } };
   textures.forEach((texture, i) => {
     branches[String(i)] = {
-      Line: [
-        visual(Number(texture), { size, position }),
-        { TIME: 0.05, K_NAME: 'WAIT' },
-        back,
-      ],
+      Line: [billboard(texture), { TIME: waitFor, K_NAME: 'WAIT' }, back],
       Req: [],
     };
   });
-  const data = {
-    Req: [],
+  // Past an end: show the end it's going back to, clear the tag and set it
+  // to that end for good.
+  const clamp = (texture, value) => ({
     Line: [
-      {
-        TAG: tag,
-        K_NAME: 'TAG',
-        TIME: FOREVER,
-        VALUE: String(start === 'empty' ? 0 : top),
-      },
-      { BRANCH: '-', K_NAME: 'BRANCH' },
+      billboard(texture),
+      set(tag, value, 0),
+      set(tag, value, FOREVER),
+      { TIME: waitFor, K_NAME: 'WAIT' },
+      back,
     ],
-    Prop: { USE: true, AWK: true, NOSTUN: true, AWK2: true, NOCANCEL: true },
-    Branch: branches,
-  };
-  return [
-    {
-      ADD: true,
-      NAME: name,
-      K_NAME: 'SKILL',
-      KEY: key,
-      'TOOL TIP': '',
-      DATA: JSON.stringify(data).replace(`"${FOREVER}"`, '1e38'),
-      COOLDOWN: 0,
-    },
+    Req: [],
+  });
+  if (rails) {
+    branches.SafetyLesser = clamp(textures[0], '0');
+    branches.SafetyGreater = clamp(textures[top], String(top));
+  }
+  const skills = [
+    skillOf(name, 99, {
+      Req: [],
+      Line: [
+        {
+          TAG: tag,
+          K_NAME: 'TAG',
+          TIME: FOREVER,
+          VALUE: String(start === 'empty' ? 0 : top),
+        },
+        { BRANCH: '-', K_NAME: 'BRANCH' },
+      ],
+      Prop: { USE: true, AWK: true, NOSTUN: true, AWK2: true, NOCANCEL: true },
+      Branch: branches,
+    }),
   ];
+  if (regen)
+    skills.push(
+      skillOf(`${name} Regen`, 99, {
+        Req: [],
+        Line: [{ BRANCH: '-', K_NAME: 'BRANCH' }],
+        // REP2 keeps it repeating.
+        Prop: { USE: true, REP2: true, NOSTUN: true, AWK2: true, AWK: true, NOCANCEL: true },
+        Branch: {
+          '-': {
+            Line: [
+              {
+                'ADD/REMOVE': true,
+                TIME: FOREVER,
+                SET: false,
+                TAG: tag,
+                K_NAME: 'TAG',
+                'LAST HIT': -1,
+                CHECK: false,
+                VALUE: String(regen.amount),
+              },
+              { TIME: regen.every, K_NAME: 'WAIT' },
+              back,
+            ],
+            Req: [],
+          },
+        },
+      }),
+    );
+  skills.push(
+    skillOf(`Debug: Add ${name}`, 1, { Line: [nudge(tag, '1')], Req: [], Prop: [] }),
+    skillOf(`Debug: Remove ${name}`, 2, { Line: [nudge(tag, '-1')], Req: [], Prop: [] }),
+  );
+  return skills;
 }
 
 const toBase64 = (bytes) => {
@@ -157,10 +248,3 @@ export async function decodeSkill(code) {
 
 // "123, 456\n789" → ['123', '456', '789']: IDs typed or pasted any way.
 export const parseIds = (text) => String(text ?? '').match(/\d+/g) ?? [];
-
-// A key as typed ("c", "C", "99") to the key code JJS stores.
-export function keyCode(value) {
-  const text = String(value ?? '').trim();
-  if (/^\d+$/.test(text)) return Number(text);
-  return text ? text[0].toLowerCase().charCodeAt(0) : 99;
-}

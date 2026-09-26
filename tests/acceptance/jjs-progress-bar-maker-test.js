@@ -212,6 +212,7 @@ module('Acceptance | JJS progress bar maker', function (hooks) {
 
     await fillIn('.pb-ids', '111\n222\n333\n444\n555');
     await fillIn('.pb-skill-tag', 'CE');
+    await fillIn('.pb-skill-wait', '0.2');
     await waitUntil(() => find('.pb-skill-code')?.value, { timeout: 3000 });
     const skill = await decodeSkill(find('.pb-skill-code').value);
     const data = JSON.parse(skill[0].DATA);
@@ -221,6 +222,22 @@ module('Acceptance | JJS progress bar maker', function (hooks) {
       'each step shows its picture',
     );
     assert.strictEqual(data.Line[0].TAG, 'CE');
+    assert.strictEqual(data.Branch['0'].Line[0].TIME, 0.12, 'billboard time default');
+    assert.strictEqual(data.Branch['0'].Line[1].TIME, 0.2, 'the wait as set');
+    assert.strictEqual(skill[0].KEY, 99);
+    assert.dom('.pb-skill-rails').isChecked('Safety Rails on by default');
+    assert.deepEqual(
+      skill.map((k) => [k.NAME, k.KEY]),
+      [
+        ['Untitled bar', 99],
+        ['Untitled bar Regen', 99],
+        ['Debug: Add Untitled bar', 1],
+        ['Debug: Remove Untitled bar', 2],
+      ],
+      'the bar, its regen and the two debug skills',
+    );
+    assert.true('SafetyLesser' in data.Branch, 'with the rails');
+    assert.dom('.pb-skill-fields').doesNotIncludeText('Key');
     assert.strictEqual(skill[0].NAME, 'Untitled bar', 'named after the design');
   });
 });

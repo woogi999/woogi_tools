@@ -16,12 +16,13 @@ import {
   CATEGORY_ORDER,
   searchTools,
   fuzzyScore,
+  categoriesOf,
 } from '../tools';
 import { toolsForFile } from '../utils/file-tools';
 import { startGravity } from '../utils/gravity';
 
 const CARDS = TOOLS.filter((t) => t.category);
-const CATEGORIES = [...new Set(CARDS.map((t) => t.category))].sort(
+const CATEGORIES = [...new Set(CARDS.flatMap(categoriesOf))].sort(
   (a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b),
 );
 
@@ -355,7 +356,7 @@ export default class HomePage extends Component {
       .filter(
         (tool) =>
           !this.filterCategories.length ||
-          this.filterCategories.includes(tool.category),
+          categoriesOf(tool).some((c) => this.filterCategories.includes(c)),
       )
       .filter((tool) => !this.favouritesOnly || this.favourites.has(tool.route))
       .map(
@@ -385,13 +386,16 @@ export default class HomePage extends Component {
   get groupedCards() {
     const groups = new Map();
     for (const card of this.cards) {
-      const key = card.tool.category ?? '';
-      if (this.browseCategory && key !== this.browseCategory) continue;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(card);
+      for (const key of categoriesOf(card.tool)) {
+        if (this.browseCategory && key !== this.browseCategory) continue;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(card);
+      }
     }
+    // The showpieces lead; the rest are alphabetical.
+    const lead = (name) => (name === 'Magnum Opus' ? 0 : 1);
     return [...groups]
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => lead(a) - lead(b) || a.localeCompare(b))
       .map(([name, items]) => ({
         name,
         items: items.sort((a, b) => a.tool.label.localeCompare(b.tool.label)),
@@ -895,12 +899,21 @@ function hover(onHover, route) {
 
 const accentStyle = (accent) => htmlSafe(accent ? `color:${accent};` : '');
 
+// A tagged card wears a price sticker; which of the designs is fixed by its name.
+const STICKERS = ['tag', 'burst', 'round', 'tape', 'label'];
+const stickerFor = (tool) =>
+  STICKERS[
+    [...tool.label].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) %
+      STICKERS.length
+  ];
+
 const ToolCard = <template>
   <div
     class="tool-card
       {{if @reveal 'scroll-card'}}
       {{if @card.suit.black 'is-black' 'is-red'}}
-      {{if @active 'is-active'}}"
+      {{if @active 'is-active'}}
+      {{if @card.tool.tag 'has-sticker'}}"
     {{revealOnScroll @reveal}}
     {{on "mouseenter" (hover @onHover @card.tool.route)}}
     {{on "mouseleave" (hover @onHover null)}}
@@ -938,5 +951,10 @@ const ToolCard = <template>
       >{{@card.tool.label}}</LinkTo>
     {{/if}}
     <p>{{@card.tool.description}}</p>
+    {{#if @card.tool.tag}}
+      <span class="card-sticker sticker-{{stickerFor @card.tool}}"><span
+          class="sticker-text"
+        >{{@card.tool.tag}}</span></span>
+    {{/if}}
   </div>
 </template>;

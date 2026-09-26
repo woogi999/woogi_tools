@@ -6,6 +6,7 @@ import {
   waitUntil,
   find,
   findAll,
+  currentURL,
 } from '@ember/test-helpers';
 import { getPageTitle } from 'ember-page-title/test-support';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
@@ -388,17 +389,109 @@ module('Acceptance | smoke', function (hooks) {
   test('decompressed JSON comes out laid out to read', async function (assert) {
     await visit('/data-codec');
     await click(byText('.mode-toggle .btn', 'Decode'));
-    const packed = await compress('{"move":"Hollow Purple","cost":5}', 'gzip', 6);
+    const packed = await compress(
+      '{"move":"Hollow Purple","cost":5}',
+      'gzip',
+      6,
+    );
     await fillIn('#codec-input', packed);
     await waitUntil(() => find('#codec-output')?.value.includes('\n'), {
       timeout: 3000,
     });
-    assert.dom('#codec-output').hasValue('{\n  "move": "Hollow Purple",\n  "cost": 5\n}');
+    assert
+      .dom('#codec-output')
+      .hasValue('{\n  "move": "Hollow Purple",\n  "cost": 5\n}');
 
-    await click(byText('.codec-output-tools .math-check', 'Pretty-print').querySelector('input'));
+    await click(
+      byText('.codec-output-tools .math-check', 'Pretty-print').querySelector(
+        'input',
+      ),
+    );
     await waitUntil(() => !find('#codec-output')?.value.includes('\n'), {
       timeout: 3000,
     });
-    assert.dom('#codec-output').hasValue('{"move":"Hollow Purple","cost":5}', 'or as it was');
+    assert
+      .dom('#codec-output')
+      .hasValue('{"move":"Hollow Purple","cost":5}', 'or as it was');
+  });
+
+  test('Magnum Opus: listed first, the editor in two places, found once', async function (assert) {
+    await visit('/qr-code');
+    const labels = findAll('.nav-group-label').map((e) => e.textContent.trim());
+    assert.strictEqual(labels[0], 'Magnum Opus');
+    const editorLinks = () =>
+      findAll('.sidebar-nav .nav-link').filter((a) =>
+        a.textContent.includes('Video Editor'),
+      );
+    assert.strictEqual(editorLinks().length, 2, 'there and in Audio & Video');
+    await fillIn('.sidebar-search input', 'video editor');
+    assert.strictEqual(editorLinks().length, 1, 'but a search shows it once');
+    const group = editorLinks()[0].closest('.sidebar-nav');
+    assert.ok(
+      [...group.querySelectorAll('.nav-group-label')].some(
+        (e) => e.textContent.trim() === 'Magnum Opus',
+      ),
+      'under Magnum Opus',
+    );
+  });
+
+  test('tagged cards wear price stickers', async function (assert) {
+    await visit('/');
+    const card = (label) =>
+      findAll('.tool-card').find((c) =>
+        c.querySelector('.tool-card-link')?.textContent.includes(label),
+      );
+    assert
+      .dom(card('Video Editor').querySelector('.card-sticker'))
+      .hasText('beta');
+    assert
+      .dom(card('Webskill Shenanigans').querySelector('.card-sticker'))
+      .hasText('beta');
+    assert
+      .dom(card('Woogidex').querySelector('.card-sticker'))
+      .hasText('other site');
+    assert.dom(card('QR Code').querySelector('.card-sticker')).doesNotExist();
+    const designs = new Set(
+      findAll('.card-sticker').map((s) =>
+        [...s.classList].find((c) => c.startsWith('sticker-')),
+      ),
+    );
+    assert.true(designs.size >= 3, 'in more than one design');
+  });
+
+  test('a stinger plays over the jump into a full-window tool and back', async function (assert) {
+    const stinger = this.owner.lookup('service:stinger');
+    stinger.enabled = true;
+    const seen = [];
+    const record = () => {
+      const el = find('.stinger');
+      if (el) seen.push(el.className);
+    };
+    const observer = new MutationObserver(record);
+    observer.observe(document.querySelector('#ember-testing'), {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    await visit('/qr-code');
+    assert.strictEqual(seen.length, 0, 'not between ordinary pages');
+    await click('.sidebar-nav a[href="/webskill-shenanigans"]');
+    assert.strictEqual(currentURL(), '/webskill-shenanigans');
+    assert.true(
+      seen.some((c) => c.includes('is-in')),
+      'covered',
+    );
+    assert.true(
+      seen.some((c) => c.includes('is-out')),
+      'and uncovered',
+    );
+    assert.dom('.stinger').doesNotExist('and gone');
+    seen.length = 0;
+    await click('.ws-brand');
+    assert.strictEqual(currentURL(), '/');
+    assert.true(seen.length > 0, 'on the way out too');
+    observer.disconnect();
+    stinger.enabled = false;
   });
 });

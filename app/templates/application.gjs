@@ -12,6 +12,7 @@ import ThemeToggle from '../components/theme-toggle';
 import Icon from '../components/icon';
 import VolumeButton from '../components/volume-button';
 import ConfirmHost from '../components/confirm-host';
+import LogoStinger from '../components/logo-stinger';
 import { installUiSounds } from '../utils/ui-sounds';
 import { installGamepad } from '../utils/gamepad';
 import { pageMeta, SITE_NAME } from '../utils/page-meta';
@@ -19,13 +20,15 @@ import { pageMeta, SITE_NAME } from '../utils/page-meta';
 // Routes that take the whole window: no sidebar, no header, no theme
 // controls, no command palette. A bare route is a page in its own right and
 // is responsible for its own way back into the site.
-const BARE_ROUTES = ['video-editor', 'not-found'];
+const BARE_ROUTES = ['video-editor', 'webskill-shenanigans', 'not-found'];
 
 export default class Application extends Component {
   // Touching the service here is what registers the offline service worker on every page.
   @service offline;
   @service router;
   @service handoff;
+  // Touched here so it's listening before the first trip into a full-window tool.
+  @service stinger;
   @tracked navOpen = false;
   @tracked homeSearchVisible = true;
 
@@ -33,6 +36,7 @@ export default class Application extends Component {
     super(owner, args);
     installUiSounds();
     installGamepad();
+    void this.stinger;
     // A file brought along from the home page goes into the tool once it has rendered.
     this.router.on('routeDidChange', () => {
       if (!this.handoff.file) return;
@@ -213,6 +217,8 @@ export default class Application extends Component {
       {{/if}}
 
     {{/if}}
+
+    <LogoStinger />
 
     <svg class="doodle-filters" aria-hidden="true">
       <filter id="doodle-1"><feTurbulence

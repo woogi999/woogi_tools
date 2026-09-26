@@ -20,3 +20,6 @@
 # cloudflare
 /.wrangler/
 .dev.vars*
+
+# JJS exports the Skill Builder work is checked against
+/jjs_training_data/

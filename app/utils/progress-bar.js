@@ -431,10 +431,15 @@ export const newJjs = () => ({
   uploadedFor: null,
   name: '',
   tag: 'Bar',
-  key: 'c',
   start: 'full',
   size: 2,
   position: '0, 0, 0',
+  showFor: 0.12,
+  waitFor: 0.1,
+  rails: true,
+  regen: true,
+  regenAmount: 1,
+  regenEvery: 1,
 });
 
 export const newDoc = (extra = {}) => ({
