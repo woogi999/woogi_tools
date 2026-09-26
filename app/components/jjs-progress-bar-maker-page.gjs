@@ -22,7 +22,7 @@ import {
   signOut,
   uploadDecal,
 } from '../utils/roblox';
-import { buildSkill, encodeSkill, keyCode, parseIds } from '../utils/jjs-skill';
+import { buildSkill, encodeSkill, parseIds } from '../utils/jjs-skill';
 import {
   MAX_FRAMES,
   TEMPLATES,
@@ -962,8 +962,15 @@ export default class JjsProgressBarMakerPage extends Component {
   };
 
   setJjs = (key, event) => {
-    let value = event.target.type === 'number' ? Number(event.target.value) || 0 : event.target.value;
+    let value =
+      event.target.type === 'checkbox'
+        ? event.target.checked
+        : event.target.type === 'number'
+          ? Number(event.target.value) || 0
+          : event.target.value;
     if (key === 'size') value = Math.max(0.1, value);
+    if (key === 'showFor' || key === 'waitFor') value = Math.max(0, value);
+    if (key === 'regenEvery') value = Math.max(0.05, value);
     this.change(setIn(this.doc, ['jjs', key], value), `doc:jjs:${key}`);
     this.refreshSkill();
   };
@@ -985,16 +992,19 @@ export default class JjsProgressBarMakerPage extends Component {
         : null;
       return;
     }
-    const { name, tag, key, start, size, position } = this.jjs;
+    const { name, tag, start, size, position, showFor, waitFor, rails, regen, regenAmount, regenEvery } = this.jjs;
     const code = await encodeSkill(
       buildSkill({
         textures: ids,
         name: name.trim() || this.doc.name,
         tag: tag.trim() || 'Bar',
-        key: keyCode(key),
         start,
         size,
         position: position.trim() || '0, 0, 0',
+        showFor,
+        waitFor,
+        rails,
+        regen: regen ? { amount: regenAmount, every: regenEvery } : null,
       }),
     );
     if (isDestroyed(this)) return;
@@ -2468,13 +2478,6 @@ export default class JjsProgressBarMakerPage extends Component {
                           value={{this.jjs.tag}}
                           {{on "change" (fn this.setJjs "tag")}}
                         /></label>
-                      <label class="pb-num"><span>Key</span><input
-                          type="text"
-                          class="math-input"
-                          maxlength="3"
-                          value={{this.jjs.key}}
-                          {{on "change" (fn this.setJjs "key")}}
-                        /></label>
                       <label class="pb-num"><span>Size</span><input
                           type="number"
                           step="0.1"
@@ -2488,6 +2491,22 @@ export default class JjsProgressBarMakerPage extends Component {
                           class="math-input"
                           value={{this.jjs.position}}
                           {{on "change" (fn this.setJjs "position")}}
+                        /></label>
+                      <label class="pb-num"><span>Shown for (s)</span><input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          class="math-input pb-skill-show"
+                          value={{this.jjs.showFor}}
+                          {{on "change" (fn this.setJjs "showFor")}}
+                        /></label>
+                      <label class="pb-num"><span>Wait (s)</span><input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          class="math-input pb-skill-wait"
+                          value={{this.jjs.waitFor}}
+                          {{on "change" (fn this.setJjs "waitFor")}}
                         /></label>
                     </div>
                     <div class="pb-row">
@@ -2505,6 +2524,43 @@ export default class JjsProgressBarMakerPage extends Component {
                         >Empty</button>
                       </div>
                     </div>
+                    <label class="math-check"><input
+                        type="checkbox"
+                        class="pb-skill-rails"
+                        checked={{this.jjs.rails}}
+                        {{on "change" (fn this.setJjs "rails")}}
+                      />
+                      Add Safety Rails</label>
+                    <p class="pb-hint">Keeps the tag between 0 and
+                      {{this.doc.frames}}: anything that pushes it past either
+                      end is put back at that end.</p>
+                    <div class="pb-inline">
+                      <label class="math-check"><input
+                          type="checkbox"
+                          class="pb-skill-regen"
+                          checked={{this.jjs.regen}}
+                          {{on "change" (fn this.setJjs "regen")}}
+                        />
+                        Regenerate</label>
+                      {{#if this.jjs.regen}}
+                        <label class="pb-opt pb-opt-num"><span>Add</span><input
+                            type="number"
+                            class="math-input"
+                            value={{this.jjs.regenAmount}}
+                            {{on "change" (fn this.setJjs "regenAmount")}}
+                          /></label>
+                        <label class="pb-opt pb-opt-num"><span>every (s)</span><input
+                            type="number"
+                            step="0.1"
+                            min="0.05"
+                            class="math-input"
+                            value={{this.jjs.regenEvery}}
+                            {{on "change" (fn this.setJjs "regenEvery")}}
+                          /></label>
+                      {{/if}}
+                    </div>
+                    <p class="pb-hint">Two debug skills come with it: key 1
+                      adds a step, key 2 takes one away.</p>
                     <p class="pb-hint">The skill shows step N while the
                       <code>{{if this.jjs.tag this.jjs.tag "Bar"}}</code>
                       tag is N (0 to

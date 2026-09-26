@@ -40,7 +40,8 @@ export default class SidebarNav extends Component {
     const visible = searchTools(this.query).filter((tool) =>
       this.toolVisibility.isVisible(tool),
     );
-    return groupTools(visible);
+    // A search lists each tool once, under its own category.
+    return groupTools(visible, { copies: !this.query.trim() });
   }
 
   updateQuery = (event) => {

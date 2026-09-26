@@ -3,7 +3,6 @@ import {
   buildSkill,
   decodeSkill,
   encodeSkill,
-  keyCode,
   parseIds,
 } from 'woogi-tools/utils/jjs-skill';
 import { lz4Block, textureIdFrom } from 'woogi-tools/utils/rbxm';
@@ -15,12 +14,28 @@ import { idbDelete, idbSet } from 'woogi-tools/utils/idb-store';
 const FROM_JJS =
   'KLUv/WDmChUUAIbaUiYAjVgH1pIFHMxV4yg4tQoD4t1+t+zuZElNYdcV8LeQQOz////DC0QARwBHAN0IBChn5nfr9m73Lnj5faEsFPpuCQjuLUHd9+XuL7/49rtDMzNqbX5jMNwnktIJwQqQt1tT4+4y8uobVWFRuMf4fkEIUD7guzHzwTJ+NEvcqInK5ODeUrIReQNifMwDg2WyGu92UQnrg7Y+EMmrUca2QiTvjaP3xb0jKgu6mAes7zbel3a9n3dEn/RyYgux1rztzC/bWyMbeRmK7pW5TlYtY22xeK6lFrLmMG/GMmUwbpQNZOPekzzhg2yclFrI6oMsYq+DSWnmR+VzMHHDNI3jBAlX414lNlJr4duv63GeZHGldCWuUYM1VQuVCqWRoXQ4JH0RnlKUscpJIYU1QRRVdRsolWWCqHi874PYJNqBBqChk4wtE8o7IyuoE798qNGlMWQ00iSVTGMwAkIUKio7EsA0HQhSihIBQYyIBDIiNROUlBSlqBkDqDcOSI9ztYujyhpjAZfcrd7YAx2z0WTKHhDXtzZvXvV4GP3YFjahQS+CVtloDZx2QFZ4umMohzXoUM90WryjQoR8xFmav9FdSIX+GWURXikFF5zHUAVk4Kl2DcTfLd99sURhJ57wOk5PDPyixQUqcKyXd8KQKz1r5+K0TymubpSQSfBgwvlc4keGeSJly3dQGX+cG9TCT67GDHJgPYg300eo/wZ8kGFGG1ynCfZDOHVJNIkOW58lf7FWb87bgft3ds1kOcvM0RjrSNNEFfI1oUC6DgjiYHhUwGtBPS+GP9UpTYFWwIkMnwyDjBa7BrFO8Mc5iAprKcmG4p5a8G6KM0H/t6LokxyDGg==';
 
+// The same bar with Safety Rails, a regen skill and the two debug skills,
+// as its author built it in JJS.
+const WITH_RAILS =
+  'KLUv/WABGEUeAAZkbicQr+YBEFJxf2Au/2LG9FDtYYtUrbwAVroZB4E31moOE4gCAAAAwAFhAF0AZQDtai6VxON/RLKpg0UmTWAugbajU/4GPX5ngJW/0/D4L8YS+ZtDw+O/uNTxdx4/RQSmshz8HX7ctiVuz2M5mVKcM+JmYPCY4hBuHCOE1AcIN7YqBz/2SEtul2NtHktSc6ch7xForepiLNEjxVbqEuqVyckkRTEwcgolpiBhbYd1Tg9rD2uPnNC2ndQ9fiupGWlmY7M2MADRGWfEz5pr8D9+iDkDrMzG5n+nlF1wy9+ex0+xMOppugRjnBGTHfEHEoW2/M1JZsRpgCR1A3r42+VwNfj5LezJQKdddqIodSshk5NFj2RHzMauWFUG4nKxOCJPSHD+5hqP38IHs7VjbKpCieQSrMxKhzHaWNW0yWRoxZLBVBWch6U9MYo0HfyN4AF4HgcOBQIXuhiZiksdq1SavQkOxJX4ulxjcoq5E5eydjE/nqBlcU7Lja92TQlBJi0pW6ectFfKImNN/K1dEOQcQIHAdZdjbZ4HcpvqWgoI1tVobjzQXCwVZRmbK1FVhOdxziv/QyJ/RBAVO4DMqBEeMiQkIpKUJCksB0ACQowZK+sGEuixKAtxJIWBCEKECIghBBmDDBEJhEQkKlGpDrxq9Wd/X7Rf9TaCRRwCAt2w1VKdw9i5BQ3vs7CVx0W4U/YEuLR5NcQEdECuy+zBEAnikjnYsZMlPimlqIMmI7ZYvIlJXRAoH7cCOTzbuoGFA+QVtfGK+wrulWMELF5KEnQy83I7AGZU8n0+U6W2GM2WKv12RRX0qrQtzZgPF6Hwo13YJt++tnG+eJgqrMRmaMbBzpadI37Q+SwXjgTqtP1Evu9/2A74o4EkZoFhIFyhPYkj3TA7D8LlYe9YsmmUEz7DWvTfT530VI/B5KZPauKgI2TVhzzP9xAwNpIoqxHW89r842xA78rcDDDg0nCwyBWphvKPysqHbrJHvCIaTJsTaxAz5iYpAew566gmd3Py4YrETK2zz4s0pA8x6JEDBtc78PSWQS3bTgYjoItb8njxPjlMJi9mAgb3d9t6rGqZrPPeIDQj295YmdGUapIuy41zDJDIQzuS1VjUYRVxRPCOSzAcOEcWOgyIjdgnx50MBIA6DGYDN+3V6KQLwQCReJ2Dqwbx0q+dFk2fc3xYwp/k0/irFYbIYmcIkAl94LThPc0NTIKAty66bH/cxDxwRjjWhsSls/7Z7GZoF3m2xzf5dY6QAYw6wNABt3lNfTqpJedWJX410c0/';
+
 const program = (skill) => JSON.parse(skill[0].DATA);
+
+// A skill with its program parsed, for comparing.
+const opened = ({ DATA, ...fields }) => ({ ...fields, DATA: JSON.parse(DATA) });
 
 module('Unit | JJS skill export', function () {
   test('builds exactly the skill JJS itself exports', async function (assert) {
     const theirs = await decodeSkill(FROM_JJS);
-    const ours = buildSkill({ textures: [99, 99, 99] });
+    // That export used JJS's shorter timings; the defaults here are longer.
+    // It had no rails or helpers, so this one is made without them too.
+    const ours = buildSkill({
+      textures: [99, 99, 99],
+      showFor: 0.06,
+      waitFor: 0.05,
+      rails: false,
+      regen: null,
+    });
     const { DATA: theirData, ...theirFields } = theirs[0];
     const { DATA: ourData, ...ourFields } = ours[0];
     assert.deepEqual(ourFields, theirFields, 'name, key, cooldown and flags');
@@ -28,14 +43,65 @@ module('Unit | JJS skill export', function () {
     assert.true(ourData.includes('"TIME":1e38'), 'with "for ever" written as JJS writes it');
   });
 
+  test('builds Safety Rails, regen and the debug skills exactly as JJS has them', async function (assert) {
+    const theirs = (await decodeSkill(WITH_RAILS)).map(opened);
+    // Its author gave the step branches the old 0.06s/0.05s timings and the
+    // rails the newer 0.12s/0.1s; this builder uses one timing for all.
+    for (const step of ['0', '1', '2']) {
+      const [shown, waiting] = theirs[0].DATA.Branch[step].Line;
+      shown.TIME = 0.12;
+      waiting.TIME = 0.1;
+    }
+    const ours = buildSkill({ textures: [99, 99, 99] }).map(opened);
+    assert.strictEqual(ours.length, 4, 'the bar, its regen and two debug skills');
+    assert.deepEqual(ours[0], theirs[0], 'the bar, with its rails');
+    assert.deepEqual(ours[1], theirs[1], 'Bar Regen');
+    assert.deepEqual(ours[2], theirs[2], 'Debug: Add Bar, on key 1');
+    assert.deepEqual(ours[3], theirs[3], 'Debug: Remove Bar, on key 2');
+  });
+
+  test('rails clamp to the ends with the pictures of those ends', function (assert) {
+    const data = program(buildSkill({ textures: ['10', '11', '12', '13'], tag: 'CE' }));
+    const dispatch = data.Branch['-'].Line.map((l) => l.VALUE ?? l.BRANCH);
+    assert.deepEqual(
+      dispatch,
+      ['3', '2', '1', '0', '>Safety Rails', '<0', '>3', '-'],
+      'exact steps, a comment, then the out-of-range checks',
+    );
+    const lesser = data.Branch.SafetyLesser.Line;
+    const greater = data.Branch.SafetyGreater.Line;
+    assert.strictEqual(lesser[0].TEXTURE, 10, 'below 0 shows the empty picture');
+    assert.strictEqual(greater[0].TEXTURE, 13, 'above the top shows the full one');
+    assert.deepEqual([lesser[1].VALUE, lesser[2].VALUE], ['0', '0']);
+    assert.deepEqual([greater[1].VALUE, greater[2].VALUE], ['3', '3']);
+    assert.true(lesser.every((l) => !l.TAG || l.TAG === 'CE'));
+
+    const bare = buildSkill({ textures: ['10', '11'], rails: false, regen: null });
+    assert.strictEqual(bare.length, 3, 'no regen: the bar and the debug skills');
+    assert.false('SafetyLesser' in program(bare).Branch, 'and no rails when off');
+    const regen = JSON.parse(
+      buildSkill({ textures: ['10', '11'], regen: { amount: 2, every: 0.5 } })[1].DATA,
+    ).Branch['-'].Line;
+    assert.deepEqual([regen[0].VALUE, regen[1].TIME], ['2', 0.5], 'regen amount and pace');
+  });
+
   test('grows to any number of steps, each with its own picture', async function (assert) {
     const textures = Array.from({ length: 21 }, (_, i) => String(1000 + i));
-    const skill = buildSkill({ textures, name: 'Cursed energy', tag: 'CE', key: 101 });
+    const skill = buildSkill({ textures, name: 'Cursed energy', tag: 'CE' });
     const data = program(skill);
     assert.strictEqual(skill[0].NAME, 'Cursed energy');
-    assert.strictEqual(skill[0].KEY, 101);
-    assert.strictEqual(Object.keys(data.Branch).length, 22, 'the dispatcher and 21 steps');
-    const checks = data.Branch['-'].Line.filter((l) => l.CHECK);
+    assert.strictEqual(skill[0].KEY, 99, 'always 99, so it runs passively');
+    const step = data.Branch['3'].Line;
+    assert.strictEqual(step[0].TIME, 0.12, 'billboard shown for 0.12s by default');
+    assert.strictEqual(step[1].TIME, 0.1, 'and a 0.1s wait');
+    const slower = program(buildSkill({ textures, showFor: 0.3, waitFor: 0.25 })).Branch['0'].Line;
+    assert.deepEqual([slower[0].TIME, slower[1].TIME], [0.3, 0.25], 'both can be changed');
+    assert.strictEqual(
+      Object.keys(data.Branch).length,
+      24,
+      'the dispatcher, 21 steps and the two rails',
+    );
+    const checks = data.Branch['-'].Line.filter((l) => l.CHECK && /^\d+$/.test(l.VALUE));
     assert.deepEqual(
       checks.map((l) => l.VALUE),
       textures.map((_, i) => String(20 - i)),
@@ -58,12 +124,9 @@ module('Unit | JJS skill export', function () {
     assert.deepEqual(await decodeSkill(code), skill, 'the code decodes back to it');
   });
 
-  test('IDs and keys are read however they are typed', function (assert) {
+  test('IDs are read however they are typed', function (assert) {
     assert.deepEqual(parseIds('123, 456\n 789 abc 10'), ['123', '456', '789', '10']);
     assert.deepEqual(parseIds(''), []);
-    assert.strictEqual(keyCode('c'), 99);
-    assert.strictEqual(keyCode('E'), 101);
-    assert.strictEqual(keyCode('113'), 113);
   });
 });
 

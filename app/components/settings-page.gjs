@@ -57,7 +57,10 @@ function takeRequestedTab() {
   }
 }
 
-const VISIBILITY_GROUPS = groupTools(TOOLS.filter((t) => t.category));
+const VISIBILITY_GROUPS = groupTools(
+  TOOLS.filter((t) => t.category),
+  { copies: false },
+);
 
 const THEMES = [
   { id: 'system', label: 'System', icon: 'monitor' },
