@@ -273,6 +273,8 @@ import {
   MoveHorizontal,
   MoveVertical,
   Triangle,
+  Sword,
+  Wind,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
@@ -281,6 +283,8 @@ const ICONS = {
   'move-horizontal': MoveHorizontal,
   'move-vertical': MoveVertical,
   triangle: Triangle,
+  sword: Sword,
+  wind: Wind,
   binoculars: Binoculars,
   radar: Radar,
   'mail-search': MailSearch,

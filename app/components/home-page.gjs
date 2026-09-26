@@ -4,7 +4,6 @@ import { service } from '@ember/service';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { LinkTo } from '@ember/routing';
-import { htmlSafe } from '@ember/template';
 import { modifier } from 'ember-modifier';
 import Icon from './icon';
 import FavouriteStar from './favourite-star';
@@ -17,6 +16,7 @@ import {
   searchTools,
   fuzzyScore,
   categoriesOf,
+  isOpus,
 } from '../tools';
 import { toolsForFile } from '../utils/file-tools';
 import { startGravity } from '../utils/gravity';
@@ -897,8 +897,6 @@ function hover(onHover, route) {
   return () => onHover?.(route);
 }
 
-const accentStyle = (accent) => htmlSafe(accent ? `color:${accent};` : '');
-
 // A tagged card wears a price sticker; which of the designs is fixed by its name.
 const STICKERS = ['tag', 'burst', 'round', 'tape', 'label'];
 const stickerFor = (tool) =>
@@ -913,7 +911,7 @@ const ToolCard = <template>
       {{if @reveal 'scroll-card'}}
       {{if @card.suit.black 'is-black' 'is-red'}}
       {{if @active 'is-active'}}
-      {{if @card.tool.tag 'has-sticker'}}"
+      {{if (isOpus @card.tool) 'is-opus'}}"
     {{revealOnScroll @reveal}}
     {{on "mouseenter" (hover @onHover @card.tool.route)}}
     {{on "mouseleave" (hover @onHover null)}}
@@ -942,7 +940,6 @@ const ToolCard = <template>
         class="tool-card-link"
         target="_blank"
         rel="noopener noreferrer"
-        style={{accentStyle @card.tool.accent}}
       >{{@card.tool.label}}</a>
     {{else}}
       <LinkTo

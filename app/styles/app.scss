@@ -12,6 +12,7 @@
 @use "./progress-bar";
 @use "./webskill";
 @use "./stickers";
+@use "./opus";
 @use "./stinger";
 @use "leaflet/dist/leaflet.css";
 
@@ -34,6 +35,7 @@
   --radius-control: var(--rounded);
   --radius-pill: var(--rounded-full);
   --card-red: #ff5c72;
+  --opus: #ff9a3c;
 }
 
 :root[data-theme="light"] {
@@ -46,6 +48,7 @@
   --text-faint: var(--color-ink-500);
   --accent: var(--color-ink-900);
   --card-red: #d0223c;
+  --opus: #d2600a;
 }
 
 // ─── Base ────────────────────────────────────────────────────────────────

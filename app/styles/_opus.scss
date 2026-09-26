@@ -1,0 +1,43 @@
+// ─── Magnum Opus ─────────────────────────────────────────────────────────
+// The showpieces (isOpus in tools.js) wear orange wherever they're listed:
+// their cards on the home page, and their links in the sidebar.
+
+.tool-card.is-opus {
+  background: color-mix(in oklab, var(--bg-elevated) 92%, var(--opus));
+  border-color: color-mix(in oklab, var(--opus) 55%, var(--border-color));
+}
+
+.tool-card.is-opus:hover {
+  background: color-mix(in oklab, var(--bg-elevated) 85%, var(--opus));
+  border-color: var(--opus);
+}
+
+// Beats the suit colours (.is-red / .is-black) on the corners and the icon,
+// which app.scss sets after this partial.
+.tool-card.is-opus:is(.is-red, .is-black)
+  :is(.card-corner, .tool-icon, .tool-card-link) {
+  color: var(--opus);
+}
+
+.nav-link.is-opus,
+.nav-link.is-opus:hover,
+.nav-link.is-opus.active {
+  color: var(--opus);
+}
+
+.nav-link.is-opus.active {
+  border-color: color-mix(in oklab, var(--opus) 60%, transparent);
+}
+
+// A card's price sticker, as a small line of plain text under the name.
+.nav-label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nav-tag {
+  font-size: 0.66rem;
+  line-height: 1.2;
+  opacity: 0.7;
+}

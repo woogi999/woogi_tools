@@ -57,6 +57,11 @@ export const TABS = [
     label: 'Presets',
     hint: 'Skill Builder presets. Copy one and import it in the game.',
   },
+  {
+    id: 'templates',
+    label: 'Templates',
+    hint: 'Ready-made skills for a character: fill in the form, copy the code, and import it in the Skill Builder.',
+  },
 ];
 
 const SOUND = /^(\d{6,})\s*(?:\((\d+(?:\.\d+)?x)\))?\s*-?\s*(.*)$/;

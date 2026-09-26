@@ -4,14 +4,15 @@ Everything this project knows about the **Skill Builder** in *Jujutsu
 Shenanigans* (JJS, a Roblox game): the code format, the skill and node
 structure, how programs run, the patterns creators use, and the two tools
 here that read and write it: **Webskill Shenanigans** (the Skill Builder in the
-browser) and the **JJS Progress Bar Maker**'s skill export.
+browser), the **JJS Progress Bar Maker**'s skill export, and the ready-made
+skills in **JJS Stuff → Templates**.
 
 **How sure is each thing?**
 
 - **Confirmed**: read from real exports made in JJS, or checked in-game by
-  the site's owner. Three exports are kept as test fixtures (see
-  [Testing](#10-testing-and-fixtures)): two complete characters with 32
-  skills and about 1,900 nodes between them, and a progress bar skill.
+  the site's owner. The exports kept as test fixtures (see
+  [Testing](#10-testing-and-fixtures)) are four complete characters and a
+  progress bar skill.
 - **Inferred**: a reading of what the data shows, not checked against JJS's
   code or in-game. Treat these as hypotheses, and move them to confirmed (or
   correct them) when you learn more.
@@ -183,8 +184,8 @@ Webskill Shenanigans' simulator implements exactly this.
 
 ## 5. Nodes
 
-Every node has `K_NAME`. The fixtures use **20 kinds**, listed here most-used
-first, with their fields (types, and values seen). Field types:
+Every node has `K_NAME`. The fixtures use **21 kinds**, listed here most-used
+first (the counts are from the first two characters), with their fields (types, and values seen). Field types:
 `num`, `str`, `bool`, `"x, y, z"` (a string), `"r, g, b"`, `[a, b]` (an array).
 `app/utils/skillbuilder/schema.js` holds the same catalogue as code (labels,
 colours, defaults, choices).
@@ -203,18 +204,26 @@ Sine, Back), `EASING DIRECTION` (In, Out, InOut), `SIZE 2`/`ALT SIZE 2`
 The effect **eases from the plain values to the `ALT` ones over `TIME`**
 (inferred from pairs like `SIZE 0.01 → ALT SIZE 7`).
 
+- **`Mesh`**: `AMOUNT` is the **mesh ID** and `TEXTURE` its texture (inferred:
+  a katana is `AMOUNT 10447572102, TEXTURE 10447572165`). With `TIME 1e38`,
+  `CANCEL ON INTERRUPT` and a `VISUAL TAG`, it's a **worn item**.
+- **`Cancel`**: removes the effects with the same `VISUAL TAG` (confirmed by
+  the auto-sheathing passive, which moves a sword between back and hand this
+  way).
+
 Effects seen: Clash, Field of View, Mesh, Melee Trail, Wind Expand, Glow,
 Sparks, Screen Color, Billboard, Circle Glow, Overlay, Shake Light/Medium/Heavy,
 Beams, Beam, Light, 360 Wind, Whirl Slash, Distortion, Wind Streak, Flames,
 Weak Lightning, Afterimage, Afterimage2, Cleave, Visibility, Black Flash,
 Cancel, Mass Hit, Camera, Sphere, Energy Sparks, Star, Shine, Cursed Energy,
-Ring. Body parts (R6): HumanoidRootPart, Head, Torso, Right/Left Arm,
+Ring, and (from the later exports) Burst, Slash, Wind Ring. Body parts (R6): HumanoidRootPart, Head, Torso, Right/Left Arm,
 Right/Left Leg.
 
 ### STATE (200): a state for a time, or a check for one
 
 `STATE` (Stun, NoDash, NoJump, NoM1, NoSprint, InSkill, IFrame, Block,
-SpeedMultiplier, HealthMultiplier, DirectionLock, DisableChase), `VALUE`
+SpeedMultiplier, HealthMultiplier, DirectionLock, DisableChase,
+Scale (`VALUE "0.9"` for ever: a smaller character), NoBlock), `VALUE`
 (1, or a multiplier like 0.2), `TIME`, `CANCEL ON END`, `DISABLE BURST`,
 `LAST HIT`; and `CHECK` + `BRANCH`: **if in that state, jump** (a custom
 block is `STATE Block CHECK → BRANCH Block` in a passive loop).
@@ -324,13 +333,18 @@ bare (`{K_NAME:"SETCD"}`), meaning "start my cooldown now".
 - **ULTGIB**: change the awakening bar by `AMOUNT` (`-100` empties it:
   awakenings use it).
 - **SETMELEE**: `COMBO`, `OFFSET`: sets the M1 combo state.
+- **SKILL** (the palette's SKILL): `MOVE`, `START`, `SPEED`, `HOLD FOR`,
+  `ENABLE VARIANTS`, `CANCEL LAST`. Seen once, as `MOVE "Cancel"`, in Gon's
+  "Swap Block": blocking cancels the move in progress and swaps stance
+  (inferred).
 
 ### Palette names in the game
 
 JJS's node palette shows **WAIT, SKILL, SPECIAL, ANIMATION, SOUND,
 VELOCITY, CONNECT, HITBOX, BRANCH, …** (it scrolls). ANIMATION = `ANIM`,
 SOUND = `SFX`, VELOCITY = `VELO`. Which kinds the palette's SKILL, SPECIAL
-and CONNECT create isn't known yet (CONNECT is probably `GRAB`).
+and CONNECT create isn't fully known: SKILL makes the `SKILL` node, and
+CONNECT is probably `GRAB`.
 Webskill Shenanigans labels `SETCD` "COOLDOWN", `SETMELEE` "MELEE",
 `GRAB` "CONNECT", `HPGIB` "HEALTH" and `ULTGIB` "AWK BAR".
 
@@ -356,6 +370,16 @@ Webskill Shenanigans labels `SETCD` "COOLDOWN", `SETMELEE` "MELEE",
 - **Projectile anchors**: `PROJECTILE SPEED 0` with a tag, then many
   `VISUAL`s with that tag: a whole effect built around a point.
 - **Comments**: `BRANCH ">Some label"`.
+- **Blocked recoil** (every M1 in both later characters): after the real
+  hitbox (blockable, `BRANCH OnHit`, `BRANCH TARGET OnHitTarget`), a second,
+  0-damage, unblockable hitbox in the same place with `BRANCH "Blocked"`.
+  Blocked leaves you open: `NoJump`/`NoDash`, the swing replayed from the
+  hit moment at half speed, and a wait.
+- **Stacks**: a hit adds 1 to a tag for 8 s (`ADD/REMOVE true`, `SET false`,
+  `VALUE "1"`); moves check `== 2` for an enhanced version, which clears the
+  tag (`SET`, `TIME 0`); a passive loop shows an aura while it's 2.
+- **Tag as a flag with a timeout**: set `UseKatana = "True"` for 4 s from
+  every move; a passive notices it's gone (see Auto-sheathing below).
 - **Separators**: `ADD false`, `KEY 15`, no DATA.
 
 ### Displaying a value: the progress bar skill (confirmed in-game)
@@ -379,6 +403,58 @@ It comes with **`<name> Regen`** (a passive, `Prop REP2`, adding `+n` every
 `s` seconds) and **`Debug: Add / Remove <name>`** (keys 1 and 2, one TAG node
 each, `Prop []`). All four match the owner's hand-built versions exactly
 (tests).
+
+### Auto-sheathing (confirmed from the owner's katana export)
+
+A passive (`KEY 9`, the usual passive `Prop`) with two loops on one tag:
+
+```
+default:     wear Katana (Mesh on Torso) and Scabbard, for ever; → Looper
+Looper:      WAIT 0.02; TAG UseKatana == "True" → Unsheath; → Looper
+Unsheath:    Cancel "Katana"; wear "KatanaHand" (Mesh on Right Arm); → KeepKatana
+KeepKatana:  WAIT 0.02; TAG UseKatana == "True" → KeepKatana; → Sheath
+Sheath:      sound, animation [13,4], WAIT 0.3, Cancel "KatanaHand",
+             wear "Katana" again, a red flash at the hip; → Looper
+```
+
+Every move that uses the sword sets `UseKatana = "True"` (`SET`, 4 s), so
+the sword comes out with the first swing and goes back 4 s after the last.
+
+### Accurate M1s (confirmed from the owner's Gon export)
+
+M1s timed like JJS's own. Hits 1–3 are identical apart from the animation
+and the trailing limb: `BRANCH Base`; Base = animation, `NoJump`/`NoDash`
+0.4 s, `SpeedMultiplier 0.75` 0.5 s, a Melee Trail, the swing sound,
+`WAIT 0.2`, a 3-damage 0.75 s-stun `7, 7, 6` hitbox at `0, 0.7, 4`, the
+blocked-recoil hitbox, `WAIT 0.16`. OnHit pushes both forward (`0, 0, 10`,
+0.2 s). Hit 4 tries `Down` (`AIR`), `Up` (`JUMP`), then `Base`: 4 damage,
+knockback (`0, 0, 40`, uppercut `0, 36, 3`, downslam `0, -50, 3`,
+unblockable, taller box), then recovery: the swing at half speed, a
+self-`Stun` 0.75 s and `WAIT 0.8`.
+
+### Accurate dash (confirmed from the owner's Gon export)
+
+The `CHASE` skill (cooldown 6, `Prop NOSTUN`). Its line tries `Air` (`AIR`),
+then `Base`; the export also had a `Blink` variant, switched on by a
+`BlinkVar` tag, which the template leaves out.
+
+```
+Base:      SpeedMultiplier 0.4 / NoJump / InSkill for 1.2 s (CANCEL ON END),
+           two sounds, VELO "0, 0, 80" for 0.5 s (TRACK, FADE), animation [1,19],
+           dust, FOV 15, wind streaks, trails on every limb, wind meshes,
+           3 gusts 0.1 s apart (LOOP),
+           a 0-damage single-target detector (STUN -1, "7, 7, 9") → HitCheck,
+           WAIT 0.05, LOOP back 2 × 5  (six looks in front),
+           nobody there: Stun 0.36 (CANCEL ON END), the animation's end, FOV back
+Air:       the same without the dust and streaks
+HitCheck:  the real hit (4 damage, 0.75 s stun) → OnHit / OnHitTarget,
+           and the blocked detector → Blocked
+OnHit:     Stun 0.24, pinned (VELO 0.001), knock them "0, 0, 25", the end
+Blocked:   Stun 0.75, pinned, the end at half speed
+```
+
+`CANCEL ON END` is only set on the states the dash gives itself: they stop
+when the dash is cut short by the hit (inferred).
 
 ---
 
@@ -423,6 +499,24 @@ the same one for the same animation). **Effects are drawn by family**
 and textured Mesh effects use the **real Roblox texture**, fetched through
 the site's Worker (`/api/roblox?kind=thumb`). **Sounds** play when
 switched on and Roblox serves them publicly (`/api/roblox?kind=asset`).
+
+### JJS Stuff → Templates
+
+`app/utils/jjs-templates.js`, shown by `app/components/jjs-templates.gjs`:
+a form per template, and the code to import. Each template was lifted node
+for node from a real export, and with its defaults builds exactly that
+export (tests). The page never names where a template came from, or whose it
+was: each has a figurative tagline instead (`from`).
+
+| Template | From | Makes |
+|---|---|---|
+| Progress bar | the Progress Bar Maker (`buildSkill`) | the bar, regen and debug skills |
+| Auto-sheathing weapon | the katana's `SheathPassive` | the passive, and a key-1 debug skill that draws the weapon |
+| Accurate M1s | Gon's M1s | MELEE 1–4 |
+| Accurate dash | Gon's chase, without its blink | CHASE |
+
+To add one: add the export as a fixture, write its `build` from the export's
+nodes, and test that its defaults reproduce the export.
 
 ---
 
@@ -489,14 +583,18 @@ Roblox but hasn't yet run against the real one.
 
 `npm test` runs everything in headless Chrome.
 
-- `tests/fixtures/jjs-characters.js`: **two complete characters**
-  exported by the owner (12 and 20 skills). They're the contract for:
+- `tests/fixtures/jjs-characters.js`: **four complete characters**
+  exported by the owner: `CHARACTER_1`, `CHARACTER_2` (12 and 20 skills),
+  `KATANA` (auto-sheathing) and `GON` (accurate M1s). The originals are in
+  the git-ignored `jjs_training_data/`. They're the contract for:
   - `tests/unit/skillbuilder-test.js`: decode → encode is lossless; every
     node kind is known; the simulator picks melee variants by condition,
     forks OnHit/OnHitTarget, loops, random branches, tags; and it runs the
     Progress Bar Maker's skill.
   - `tests/acceptance/webskill-test.js`: import, edit → export, branch
     rename, play.
+- `tests/unit/jjs-templates-test.js`: each template, with its defaults,
+  equals the export it came from.
 - `tests/unit/jjs-skill-test.js`: the progress bar skill, Safety Rails,
   regen and debug skills must equal the owner's real exports exactly.
 
@@ -511,7 +609,7 @@ inferred to confirmed.
 - Whether a branch **returns** to its caller when it ends (everything so
   far fits "no").
 - What the builder palette's SKILL, SPECIAL and CONNECT create, and which
-  kinds exist beyond the 20 seen.
+  kinds exist beyond the 21 seen. What `SKILL`'s other moves are.
 - `ANIM_USE`'s library: which `[set, number]` is which animation.
 - `LAST HIT 0` exactly, `LINK USER`, `DEBREE`, `AMOUNT` on visuals,
   `RELATIVE FROM BRANCH` in every node.
