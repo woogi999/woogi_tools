@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Signing in with Roblox…</title>
+    <style>
+      body {
+        margin: 0;
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        background: #121212;
+        color: #eee;
+        font: 15px/1.5 system-ui, sans-serif;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="note">Signing in with Roblox…</p>
+    <script>
+      // Where Roblox sends the sign-in popup back to (see app/utils/roblox.js).
+      // It hands the code to the page that asked for it and closes. Roblox's
+      // login can cut the popup off from its opener, so the code goes over a
+      // same-origin BroadcastChannel, with the opener and localStorage as
+      // fallbacks.
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var data = {
+          type: 'woogi-roblox-oauth',
+          code: params.get('code'),
+          state: params.get('state'),
+          error: params.get('error'),
+          errorDescription: params.get('error_description'),
+        };
+        try {
+          var channel = new BroadcastChannel('woogi-roblox-oauth');
+          channel.postMessage(data);
+          channel.close();
+        } catch (e) {
+          // not supported: the fallbacks below
+        }
+        try {
+          if (window.opener) window.opener.postMessage(data, window.location.origin);
+        } catch (e) {
+          // opener gone
+        }
+        try {
+          localStorage.setItem('woogi-roblox-oauth-pending', JSON.stringify(data));
+          localStorage.removeItem('woogi-roblox-oauth-pending');
+        } catch (e) {
+          // storage blocked
+        }
+        document.getElementById('note').textContent = data.error
+          ? 'Roblox didn’t sign you in. You can close this window.'
+          : 'Signed in. You can close this window.';
+        setTimeout(function () {
+          window.close();
+        }, 300);
+      })();
+    </script>
+  </body>
+</html>

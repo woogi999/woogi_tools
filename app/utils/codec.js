@@ -75,6 +75,23 @@ export async function decompress(base64, format) {
   return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
+// Decoded text laid out to be read. Compressed payloads are nearly always
+// minified JSON (game exports, API bodies), which arrives as one enormous
+// line; that gets indented. Anything else comes back as it was, with Windows
+// line endings evened out.
+export function prettyText(text) {
+  const body = text.replace(/^\uFEFF/, '');
+  const trimmed = body.trim();
+  if (/^[[{]/.test(trimmed)) {
+    try {
+      return JSON.stringify(JSON.parse(trimmed), null, 2);
+    } catch {
+      // looked like JSON, wasn't: leave it alone
+    }
+  }
+  return body.replace(/\r\n?/g, '\n');
+}
+
 // ─── Simple text codecs ───────────────────────────────────────────────────
 // These encode straight to/from text, unlike the compression formats above
 // which pack bytes and print them as base64.

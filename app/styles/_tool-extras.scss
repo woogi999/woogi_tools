@@ -8366,3 +8366,49 @@ video.media-preview {
     flex: none;
   }
 }
+
+// ─── Data Codec ──────────────────────────────────────────────────────────
+// Input and output side by side on a wide screen, both tall enough to read a
+// real payload in; stacked on a narrow one.
+.codec-panes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 12px;
+}
+
+.codec-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.codec-pane .textarea {
+  flex: 1;
+  min-height: max(22rem, 55vh);
+  line-height: 1.5;
+}
+
+// Decoded JSON keeps its indentation readable: no wrapping, scroll across.
+.codec-output {
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+.codec-output-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+// The page centres tools at their natural width; this one wants the room.
+.codec-panel {
+  width: 100%;
+  max-width: 1400px;
+}
+
+.codec-panel .slider-row {
+  max-width: 480px;
+}

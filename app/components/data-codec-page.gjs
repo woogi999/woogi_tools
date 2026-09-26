@@ -10,6 +10,7 @@ import {
   TEXT_CODECS,
   compress,
   decompress,
+  prettyText,
 } from '../utils/codec';
 import { keepState } from '../utils/tool-state';
 
@@ -27,11 +28,13 @@ export default class DataCodecPage extends Component {
   @tracked output = '';
   @tracked error = null;
   @tracked busy = false;
+  // Decoded JSON is indented rather than left on one line.
+  @tracked pretty = true;
   runId = 0;
 
   constructor(owner, args) {
     super(owner, args);
-    keepState(this, 'data-codec', ['mode', 'codecId', 'input']);
+    keepState(this, 'data-codec', ['mode', 'codecId', 'input', 'pretty']);
   }
 
   get codec() {
@@ -69,7 +72,8 @@ export default class DataCodecPage extends Component {
     }
     if (codec.kind === 'text') {
       try {
-        this.output = codec[isEncode ? 'encode' : 'decode'](input);
+        const text = codec[isEncode ? 'encode' : 'decode'](input);
+        this.output = !isEncode && this.pretty ? prettyText(text) : text;
         this.error = null;
       } catch (error) {
         this.output = '';
@@ -87,7 +91,7 @@ export default class DataCodecPage extends Component {
         ? await compress(input, codec.id, level)
         : await decompress(input, codec.id);
       if (id !== this.runId) return;
-      this.output = result;
+      this.output = !isEncode && this.pretty ? prettyText(result) : result;
       this.error = null;
     } catch {
       if (id !== this.runId) return;
@@ -118,6 +122,11 @@ export default class DataCodecPage extends Component {
     this.run();
   };
 
+  togglePretty = (event) => {
+    this.pretty = event.target.checked;
+    this.run();
+  };
+
   setLevel = (event) => {
     this.level = +event.target.value;
     this.run();
@@ -130,7 +139,7 @@ export default class DataCodecPage extends Component {
       @closeWarning="Close Data Codec? The conversion still running will stop."
       @subtitle="Compress it, encode it, decode it: Base64, URLs, hex, binary, Morse and more. Nothing leaves your browser."
     >
-      <section class="tool-panel pop-in">
+      <section class="tool-panel codec-panel pop-in">
         <div class="tool-controls">
           <div class="mode-toggle" role="group" aria-label="Mode">
             <button
@@ -183,6 +192,8 @@ export default class DataCodecPage extends Component {
           </div>
         {{/if}}
 
+        <div class="codec-panes">
+        <div class="codec-pane">
         <label class="field-label" for="codec-input">{{if
             this.isEncode
             "Text"
@@ -195,22 +206,37 @@ export default class DataCodecPage extends Component {
           value={{this.input}}
           {{on "input" this.onInput}}
         ></textarea>
+        </div>
 
+        <div class="codec-pane">
         <div class="field-head">
           <label class="field-label" for="codec-output">{{if
               this.isEncode
               this.codec.label
               "Text"
             }}</label>
-          <CopyButton @value={{this.output}} />
+          <div class="codec-output-tools">
+            {{#unless this.isEncode}}
+              <label class="math-check"><input
+                  type="checkbox"
+                  checked={{this.pretty}}
+                  {{on "change" this.togglePretty}}
+                />
+                Pretty-print JSON</label>
+            {{/unless}}
+            <CopyButton @value={{this.output}} />
+          </div>
         </div>
         <textarea
           id="codec-output"
-          class="textarea"
+          class="textarea codec-output"
           readonly
           spellcheck="false"
+          wrap="off"
           value={{this.output}}
         ></textarea>
+        </div>
+        </div>
 
         {{#if this.error}}
           <p class="tool-error">{{this.error}}</p>

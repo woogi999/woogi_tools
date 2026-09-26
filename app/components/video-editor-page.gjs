@@ -4,7 +4,8 @@ import { service } from '@ember/service';
 import { on } from '@ember/modifier';
 import { fn } from '@ember/helper';
 import { htmlSafe } from '@ember/template';
-import { registerDestructor } from '@ember/destroyable';
+import { registerDestructor, isDestroyed } from '@ember/destroyable';
+import { originOf } from '../utils/theme-origin';
 import { modifier } from 'ember-modifier';
 import { LinkTo } from '@ember/routing';
 import Icon from './icon';
@@ -338,7 +339,7 @@ export default class VideoEditorPage extends Component {
     super(owner, args);
     this.sceneId = this.project.scenes[0].id;
     loadBindings();
-    this.recents = listProjects();
+    this.refreshRecents();
     keepState(this, 'video-editor', [
       'leftW',
       'rightW',
@@ -2311,7 +2312,10 @@ export default class VideoEditorPage extends Component {
 
   /* ------------------------------------------------------ the start page */
 
-  refreshRecents = () => (this.recents = listProjects());
+  refreshRecents = async () => {
+    const recents = await listProjects();
+    if (!isDestroyed(this)) this.recents = recents;
+  };
 
   goHome = () => {
     this.pause();
@@ -2328,8 +2332,8 @@ export default class VideoEditorPage extends Component {
     this.adoptProject(`Started ${this.project.name}.`);
   };
 
-  openStored = (id) => {
-    const project = loadStored(id);
+  openStored = async (id) => {
+    const project = await loadStored(id);
     if (!project) {
       this.say('error', 'That project is no longer in this browser.');
       this.refreshRecents();
@@ -2341,8 +2345,8 @@ export default class VideoEditorPage extends Component {
     this.adoptProject(`Opened ${project.name}.`);
   };
 
-  forgetStored = (id) => {
-    forgetProject(id);
+  forgetStored = async (id) => {
+    await forgetProject(id);
     if (this.projectId === id) this.projectId = null;
     this.refreshRecents();
   };
@@ -2383,10 +2387,10 @@ export default class VideoEditorPage extends Component {
   // "Save" on a web editor means the shelf in this browser; the file on disk
   // is a separate, louder verb. Both are in the File menu and the difference
   // is said on the start page, because it is the one that loses work.
-  saveHere = () => {
+  saveHere = async () => {
     this.openMenu = null;
     this.projectId ??= `p-${Date.now().toString(36)}`;
-    const ok = storeProject(this.projectId, this.project);
+    const ok = await storeProject(this.projectId, this.project);
     this.refreshRecents();
     this.say(
       ok ? 'info' : 'error',
@@ -2881,8 +2885,10 @@ export default class VideoEditorPage extends Component {
     return sizeFor(this.exportOptions);
   }
 
-  toggleTheme = () => {
-    this.settings.toggleTheme();
+  toggleTheme = async (event) => {
+    await this.settings.toggleTheme(
+      event instanceof Event ? originOf(event) : undefined,
+    );
     // Every canvas reads its colours off the page, so they are all now stale.
     forgetPalette();
     this.paint();

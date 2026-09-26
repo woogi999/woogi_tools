@@ -1,5 +1,10 @@
 import { module, test } from 'qunit';
-import { FORMATS, compress, decompress } from 'woogi-tools/utils/codec';
+import {
+  FORMATS,
+  compress,
+  decompress,
+  prettyText,
+} from 'woogi-tools/utils/codec';
 import { searchTools } from 'woogi-tools/tools';
 
 module('Unit | data codec', function () {
@@ -34,5 +39,16 @@ module('Unit | tool search', function () {
     assert.strictEqual(top('sign'), 'astrology-profile');
     assert.strictEqual(top('scorpio'), 'astrology-profile');
     assert.deepEqual(searchTools('xyzzy'), []);
+  });
+
+  test('decompressed JSON is laid out to read; other text is left alone', async function (assert) {
+    const packed = await compress('{"name":"Gojo","moves":[1,2]}', 'gzip', 6);
+    assert.strictEqual(
+      prettyText(await decompress(packed, 'gzip')),
+      '{\n  "name": "Gojo",\n  "moves": [\n    1,\n    2\n  ]\n}',
+    );
+    assert.strictEqual(prettyText('\uFEFF[1]'), '[\n  1\n]', 'a byte-order mark is dropped');
+    assert.strictEqual(prettyText('a\r\nb'), 'a\nb', 'line endings evened out');
+    assert.strictEqual(prettyText('{not json'), '{not json', 'not JSON: untouched');
   });
 });

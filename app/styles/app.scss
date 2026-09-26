@@ -9,6 +9,7 @@
 @use "./ferrite";
 @use "./woonopoly";
 @use "./video-downloader";
+@use "./progress-bar";
 @use "leaflet/dist/leaflet.css";
 
 // ─── Theme tokens ────────────────────────────────────────────────────────
@@ -2405,4 +2406,25 @@ input[type="text"]:focus {
   .preview-panel {
     max-width: 180px;
   }
+}
+
+// ─── Theme change ────────────────────────────────────────────────────────
+// Switching light and dark grows the new theme out of the button in a circle
+// (services/settings.js drives it). The browser's own cross-fade is turned
+// off so only the circle moves, and page transitions are paused so the new
+// snapshot is already in its final colours.
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  z-index: 1;
+}
+
+.is-theme-switching *,
+.is-theme-switching *::before,
+.is-theme-switching *::after {
+  transition: none !important;
 }
