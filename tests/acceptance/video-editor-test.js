@@ -9,6 +9,8 @@ import {
   triggerEvent,
 } from '@ember/test-helpers';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
+import { clearAllToolState } from 'woogi-tools/utils/tool-state';
+import { idbDeletePrefix } from 'woogi-tools/utils/idb-store';
 import { paletteOf } from 'woogi-tools/utils/ferrite/theme';
 
 // The Video Editor is a whole application inside a page (a menu bar, four
@@ -41,10 +43,10 @@ async function openEditor() {
 module('Acceptance | video editor', function (hooks) {
   setupApplicationTest(hooks);
 
-  hooks.beforeEach(() => {
-    for (const key of Object.keys(localStorage))
-      if (key.startsWith('woogi-tool:')) localStorage.removeItem(key);
+  hooks.beforeEach(async () => {
+    await clearAllToolState();
     localStorage.removeItem('video-editor:projects');
+    await idbDeletePrefix('woogi-shelf:video-editor:');
   });
 
   test('the editor takes the whole window, with no site chrome', async function (assert) {

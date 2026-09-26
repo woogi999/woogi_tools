@@ -269,10 +269,18 @@ import {
   MailSearch,
   Radar,
   Binoculars,
+  BatteryMedium,
+  MoveHorizontal,
+  MoveVertical,
+  Triangle,
 } from 'sketchyicons';
 
 // Only icons listed here get bundled; add imports as new names are used.
 const ICONS = {
+  'battery-medium': BatteryMedium,
+  'move-horizontal': MoveHorizontal,
+  'move-vertical': MoveVertical,
+  triangle: Triangle,
   binoculars: Binoculars,
   radar: Radar,
   'mail-search': MailSearch,

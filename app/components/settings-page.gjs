@@ -16,8 +16,11 @@ import {
   applyBackup,
   validateBackup,
   summarise,
+  idbBytes,
   STORAGE_PREFIX,
 } from '../utils/site-data';
+import { idbDeletePrefix } from '../utils/idb-store';
+import { originOf } from '../utils/theme-origin';
 import { TOOLS, groupTools } from '../tools';
 import { APP_VERSION } from '../changelog';
 import { askConfirm } from '../utils/confirm';
@@ -116,9 +119,16 @@ export default class SettingsPage extends Component {
     ? 'data'
     : (takeRequestedTab() ?? 'appearance');
 
+  // What the tools and saved projects hold in IndexedDB, read once on the
+  // way in (it can only be read asynchronously).
+  @tracked bigBytes = 0;
+
   constructor(owner, args) {
     super(owner, args);
     livePage = this;
+    idbBytes().then((bytes) => {
+      if (!this.isDestroyed) this.bigBytes = bytes * 2;
+    });
   }
 
   willDestroy() {
@@ -147,10 +157,10 @@ export default class SettingsPage extends Component {
 
   // ─── Whole-site backup ───────────────────────────────────────────────
 
-  exportAll = () => {
-    const { data } = downloadBackup();
+  exportAll = async () => {
+    const { data, idb } = await downloadBackup();
     this.notify(
-      `Downloaded a backup of ${Object.keys(data).length} saved items.`,
+      `Downloaded a backup of ${Object.keys(data).length + Object.keys(idb).length} saved items.`,
     );
   };
 
@@ -169,7 +179,7 @@ export default class SettingsPage extends Component {
           confirmLabel: 'Hold to replace',
         });
         if (!ok) return;
-        applyBackup(backup);
+        await applyBackup(backup);
         // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a page reload, not a data request
         window.location.reload();
       } catch (error) {
@@ -215,7 +225,7 @@ export default class SettingsPage extends Component {
       this.settings.motion,
       this.settings.handSearch,
     ];
-    return watched && formatBytes(storedBytes());
+    return watched && formatBytes(storedBytes() + this.bigBytes);
   }
 
   appVersion = APP_VERSION;
@@ -287,7 +297,7 @@ export default class SettingsPage extends Component {
     this.storageVersion++;
   }
 
-  setTheme = (id) => this.settings.setTheme(id);
+  setTheme = (id, event) => this.settings.setTheme(id, originOf(event));
   setMotion = (id) => this.settings.setMotion(id);
   toggleHandSearch = (event) =>
     this.settings.setHandSearch(event.target.checked);
@@ -374,6 +384,7 @@ export default class SettingsPage extends Component {
     } catch {
       // storage blocked: nothing was saved anyway
     }
+    await idbDeletePrefix(STORAGE_PREFIX);
     await this.offline.clear();
     // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a page reload, not a data request
     window.location.reload();

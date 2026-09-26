@@ -4,8 +4,8 @@
 // start screen. A web page has no disk, so there are two places a project can
 // live and the start screen shows both:
 //
-//   * here, in local storage, which is what "save" means when you have not
-//     asked for a file: it survives a reload and nothing else;
+//   * here, in the site's IndexedDB shelf, which is what "save" means when
+//     you have not asked for a file: it survives a reload and nothing else;
 //   * a `.woogi.json` file you asked for, which survives anything and is the
 //     one to keep.
 //
@@ -13,6 +13,7 @@
 // clearing its site data takes the first kind with it.
 
 import { makeProject, makeScene } from './model';
+import { makeShelf } from '../idb-store';
 
 const KEY = 'video-editor:projects';
 export const FORMAT = 'woogi-video-editor-1';
@@ -68,82 +69,67 @@ export function newProject({ name, preset = 'hd', durationMs = 10000 }) {
 
 /* ------------------------------------------------------------- the shelf */
 
-const read = () => {
-  try {
-    const raw = localStorage.getItem(KEY);
-    const list = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list : [];
-  } catch {
-    // Private windows, blocked site data, a half-written entry: an unreadable
-    // shelf is an empty one, never an error in the way of opening the editor.
-    return [];
-  }
-};
+const shelf = makeShelf('video-editor');
 
-const write = (list) => {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(list));
-    return true;
-  } catch {
-    return false;
-  }
-};
+// Projects used to sit in one localStorage entry, which ran out of room after
+// a few. Move any from there onto the shelf, once.
+let moved = null;
+function moveOldShelf() {
+  moved ??= (async () => {
+    let old;
+    try {
+      old = JSON.parse(localStorage.getItem(KEY) || '[]');
+    } catch {
+      return;
+    }
+    if (!Array.isArray(old) || !old.length) return;
+    let all = true;
+    for (const { project, ...summary } of old)
+      if (project) all = (await shelf.store(summary.id, summary, project)) && all;
+    if (all) localStorage.removeItem(KEY);
+  })();
+  return moved;
+}
 
-export const listProjects = () =>
-  read()
-    .map(({ id, name, savedAt, width, height, fps, durationMs, layers }) => ({
-      id,
-      name,
-      savedAt,
-      width,
-      height,
-      fps,
-      durationMs,
-      layers,
-    }))
-    .sort((a, b) => (b.savedAt ?? 0) - (a.savedAt ?? 0));
+export async function listProjects() {
+  await moveOldShelf();
+  return shelf.list();
+}
 
-export const loadStored = (id) =>
-  read().find((p) => p.id === id)?.project ?? null;
+export async function loadStored(id) {
+  await moveOldShelf();
+  return (await shelf.load(id)) ?? null;
+}
 
 /**
  * Puts a project on the shelf under `id`, replacing what was there.
  *
- * Returns false if it would not fit: local storage is a few megabytes, and a
- * project with a lot of keyframes can reach that. The caller says so rather
- * than pretending the save happened.
+ * Resolves false if the browser wouldn't keep it (out of room, or storage
+ * turned off). The caller says so rather than pretending the save happened.
  */
 export function storeProject(id, project) {
   const scene = project.scenes[0] ?? {};
-  const entry = {
+  return shelf.store(
     id,
-    name: project.name || 'Untitled',
-    savedAt: Date.now(),
-    width: scene.width ?? project.settings.width,
-    height: scene.height ?? project.settings.height,
-    fps: scene.fps ?? project.settings.fps,
-    durationMs: scene.durationMs ?? 0,
-    layers: project.scenes.reduce((n, s) => n + s.layers.length, 0),
+    {
+      name: project.name || 'Untitled',
+      width: scene.width ?? project.settings.width,
+      height: scene.height ?? project.settings.height,
+      fps: scene.fps ?? project.settings.fps,
+      durationMs: scene.durationMs ?? 0,
+      layers: project.scenes.reduce((n, s) => n + s.layers.length, 0),
+    },
     project,
-  };
-  const list = read().filter((p) => p.id !== id);
-  list.unshift(entry);
-  // Twenty is more than anybody scrolls, and keeps the shelf inside the quota
-  // longer than trimming only when a save fails would.
-  return write(list.slice(0, 20));
+  );
 }
 
-export function forgetProject(id) {
-  write(read().filter((p) => p.id !== id));
-}
+export const forgetProject = (id) => shelf.forget(id);
 
-export function renameProject(id, name) {
-  const list = read();
-  const entry = list.find((p) => p.id === id);
-  if (!entry) return;
-  entry.name = name;
-  if (entry.project) entry.project.name = name;
-  write(list);
+export async function renameProject(id, name) {
+  const project = await shelf.load(id);
+  const summary = (await shelf.list()).find((p) => p.id === id);
+  if (project && summary)
+    await shelf.store(id, { ...summary, name }, { ...project, name });
 }
 
 /* -------------------------------------------------------------- the file */

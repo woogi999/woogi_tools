@@ -9,16 +9,21 @@ import {
 } from '@ember/test-helpers';
 import { getPageTitle } from 'ember-page-title/test-support';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
+import { clearAllToolState } from 'woogi-tools/utils/tool-state';
+import { idbGet } from 'woogi-tools/utils/idb-store';
+import { compress } from 'woogi-tools/utils/codec';
+
+const byText = (selector, text) =>
+  findAll(selector).find((el) => el.textContent.includes(text));
 
 module('Acceptance | smoke', function (hooks) {
   setupApplicationTest(hooks);
 
-  hooks.beforeEach(() => {
+  hooks.beforeEach(async () => {
     localStorage.removeItem('woogi-favourites');
     // Tools remember what you typed into them (app/utils/tool-state.js); a test
     // that starts from a previous run's leftovers isn't testing anything.
-    for (const key of Object.keys(localStorage))
-      if (key.startsWith('woogi-tool:')) localStorage.removeItem(key);
+    await clearAllToolState();
   });
 
   test('every tool page renders its starred heading and credits', async function (assert) {
@@ -113,9 +118,10 @@ module('Acceptance | smoke', function (hooks) {
     await visit('/text-case');
     await fillIn('.textarea', 'remember me');
     // The save is on a timer, so wait for it to land rather than guess.
-    await waitUntil(() => localStorage.getItem('woogi-tool:text-case'), {
-      timeout: 3000,
-    });
+    for (let tries = 0; tries < 30; tries++) {
+      if ((await idbGet('woogi-tool:text-case'))?.text === 'remember me') break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
 
     await visit('/color-picker');
     await visit('/text-case');
@@ -367,5 +373,32 @@ module('Acceptance | smoke', function (hooks) {
 
     await click('.qr-tab:nth-child(4)');
     assert.dom('.qr-batch-row').exists({ count: 2 });
+  });
+
+  test('the theme toggle flips light and dark', async function (assert) {
+    await visit('/');
+    const theme = () => document.documentElement.getAttribute('data-theme');
+    const was = theme();
+    await click('.theme-toggle[aria-label^="Switch to"]');
+    assert.notStrictEqual(theme(), was, 'flipped');
+    await click('.theme-toggle[aria-label^="Switch to"]');
+    assert.strictEqual(theme(), was, 'and back');
+  });
+
+  test('decompressed JSON comes out laid out to read', async function (assert) {
+    await visit('/data-codec');
+    await click(byText('.mode-toggle .btn', 'Decode'));
+    const packed = await compress('{"move":"Hollow Purple","cost":5}', 'gzip', 6);
+    await fillIn('#codec-input', packed);
+    await waitUntil(() => find('#codec-output')?.value.includes('\n'), {
+      timeout: 3000,
+    });
+    assert.dom('#codec-output').hasValue('{\n  "move": "Hollow Purple",\n  "cost": 5\n}');
+
+    await click(byText('.codec-output-tools .math-check', 'Pretty-print').querySelector('input'));
+    await waitUntil(() => !find('#codec-output')?.value.includes('\n'), {
+      timeout: 3000,
+    });
+    assert.dom('#codec-output').hasValue('{"move":"Hollow Purple","cost":5}', 'or as it was');
   });
 });

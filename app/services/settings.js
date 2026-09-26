@@ -1,5 +1,6 @@
 import Service from '@ember/service';
 import { tracked } from '@glimmer/tracking';
+import { waitForPromise } from '@ember/test-waiters';
 import { registerDestructor } from '@ember/destroyable';
 
 // index.html applies both keys before first paint, so keep the names in sync with it.
@@ -73,15 +74,67 @@ export default class SettingsService extends Service {
     else root.setAttribute('data-motion', this.motion);
   }
 
-  setTheme(preference) {
-    this.themePreference = preference;
-    write(THEME_KEY, preference === 'system' ? null : preference);
-    this.applyTheme();
+  get reducedMotion() {
+    return (
+      this.motion === 'reduce' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+  }
+
+  /**
+   * Changes the theme. With `origin` (a point on screen, usually the button
+   * that was pressed) the new theme is revealed through a circle growing out
+   * from it, over the old one.
+   *
+   * Resolves once the new theme is in place, which with the reveal is a frame
+   * or two later: anything that reads colours off the page waits for it.
+   */
+  setTheme(preference, origin) {
+    const apply = () => {
+      this.themePreference = preference;
+      write(THEME_KEY, preference === 'system' ? null : preference);
+      this.applyTheme();
+    };
+    if (!origin || !document.startViewTransition || this.reducedMotion) {
+      apply();
+      return Promise.resolve();
+    }
+    const root = document.documentElement;
+    // Colour transitions on the page would otherwise fade from the old theme
+    // inside the snapshot of the new one.
+    root.classList.add('is-theme-switching');
+    const transition = document.startViewTransition(apply);
+    const { x, y } = origin;
+    const reach = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y),
+    );
+    transition.ready
+      .then(() =>
+        root.animate(
+          {
+            clipPath: [
+              `circle(0px at ${x}px ${y}px)`,
+              `circle(${reach}px at ${x}px ${y}px)`,
+            ],
+          },
+          {
+            duration: 560,
+            easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
+            pseudoElement: '::view-transition-new(root)',
+          },
+        ),
+      )
+      .catch(() => {});
+    transition.finished
+      .catch(() => {})
+      .finally(() => root.classList.remove('is-theme-switching'));
+    return waitForPromise(transition.updateCallbackDone.catch(() => apply()));
   }
 
   // The header button flips between light and dark explicitly.
-  toggleTheme() {
-    this.setTheme(this.isDark ? 'light' : 'dark');
+  toggleTheme(origin) {
+    return this.setTheme(this.isDark ? 'light' : 'dark', origin);
   }
 
   setHandSearch(enabled) {

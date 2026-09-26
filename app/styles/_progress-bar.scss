@@ -1,0 +1,1369 @@
+// ─── JJS Progress Bar Maker ──────────────────────────────────────────────
+// A small image editor: a fixed grid exactly the height of the window, with
+// every panel keeping its box and scrolling inside itself, so nothing moves
+// about while you work.
+//
+//   ┌ menu bar ──────────────────────────────────┐
+//   ├ tool options ─────────────────────┬ dock ──┤
+//   │ rail │ workspace (the picture)     │ props  │
+//   │      ├ timeline (the steps) ───────┤ layers │
+//   └ status bar ────────────────────────────────┘
+
+.pb-app {
+  --pb-surface: color-mix(in oklab, var(--text) 3%, var(--bg));
+  --pb-well: color-mix(in oklab, var(--bg) 78%, #000);
+  --pb-line: var(--border-color);
+
+  display: grid;
+  grid-template-areas:
+    "menu menu menu"
+    "opts opts dock"
+    "rail work dock"
+    "rail time dock"
+    "stat stat stat";
+  grid-template-columns: 44px minmax(0, 1fr) 320px;
+  grid-template-rows: 42px 40px minmax(0, 1fr) 116px 28px;
+  width: 100%;
+  height: calc(100dvh - 52px);
+  min-height: 560px;
+  background: var(--bg);
+  font-size: 0.8rem;
+}
+
+.tool-body.is-fullscreen .pb-app {
+  height: calc(100dvh - 32px);
+}
+
+// Narrow screens stack the panels under the picture instead.
+@media (width <= 900px) {
+  .pb-app {
+    grid-template-areas:
+      "menu menu"
+      "opts opts"
+      "rail work"
+      "rail time"
+      "dock dock"
+      "stat stat";
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-rows: 42px 40px 52dvh 116px auto 28px;
+    height: auto;
+  }
+
+  .pb-dock {
+    height: 75dvh;
+    border-left: 0;
+    border-top: 1px solid var(--pb-line);
+  }
+}
+
+// ─── Bars ────────────────────────────────────────────────────────────────
+
+.pb-menubar,
+.pb-options,
+.pb-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 10px;
+  white-space: nowrap;
+  background: var(--pb-surface);
+}
+
+.pb-menubar {
+  grid-area: menu;
+  border-bottom: 1px solid var(--pb-line);
+}
+
+.pb-options {
+  grid-area: opts;
+  gap: 16px;
+  overflow: auto hidden;
+  border-bottom: 1px solid var(--pb-line);
+  scrollbar-width: none;
+}
+
+.pb-status {
+  grid-area: stat;
+  justify-content: space-between;
+  border-top: 1px solid var(--pb-line);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.pb-cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pb-sep {
+  flex: none;
+  width: 1px;
+  height: 20px;
+  background: var(--pb-line);
+}
+
+.pb-spacer {
+  flex: 1;
+}
+
+.pb-menu-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pb-menu-btn:hover:not(:disabled) {
+  background: var(--bg-elevated-2);
+}
+
+.pb-menu-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pb-export-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pb-export-btn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+// Tool options: fixed one-line strip; long hints are cut, never wrapped.
+.pb-opt {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.pb-opt input[type="range"] {
+  width: 110px;
+  accent-color: var(--accent);
+}
+
+.pb-opt output {
+  width: 4.5ch;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text);
+}
+
+.pb-opt-num span {
+  text-transform: uppercase;
+}
+
+.pb-opt-num input {
+  width: 7ch;
+  height: 26px;
+  padding: 2px 6px;
+}
+
+.pb-opt-title {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
+.pb-opt-hint {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.pb-options .colour-field {
+  flex: none;
+}
+
+// ─── Tools ───────────────────────────────────────────────────────────────
+
+.pb-rail {
+  grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-right: 1px solid var(--pb-line);
+  background: var(--pb-surface);
+}
+
+.pb-rail-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.pb-rail-btn:hover {
+  background: var(--bg-elevated-2);
+  color: var(--text);
+}
+
+.pb-rail-btn.active {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.pb-rail-sep {
+  width: 20px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--pb-line);
+}
+
+// ─── The picture ─────────────────────────────────────────────────────────
+
+.pb-workspace {
+  grid-area: work;
+  display: grid;
+  place-items: safe center;
+  overflow: auto;
+  background: var(--pb-well);
+  container-type: size;
+}
+
+.pb-workspace.is-dragging {
+  outline: 2px dashed var(--text-faint);
+  outline-offset: -8px;
+}
+
+.pb-canvas-box {
+  position: relative;
+  flex: none;
+  margin: 24px;
+  box-shadow:
+    0 0 0 1px var(--pb-line),
+    0 8px 30px rgb(0 0 0 / 35%);
+}
+
+.pb-canvas,
+.pb-overlay {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pb-overlay {
+  touch-action: none;
+  cursor: default;
+}
+
+.pb-overlay[data-tool="brush"],
+.pb-overlay[data-tool="eraser"],
+.pb-overlay[data-tool="rect"],
+.pb-overlay[data-tool="ellipse"] {
+  cursor: crosshair;
+}
+
+.pb-overlay[data-tool="text"] {
+  cursor: text;
+}
+
+// ─── Steps ───────────────────────────────────────────────────────────────
+
+.pb-timeline {
+  grid-area: time;
+  display: grid;
+  grid-template-rows: 40px minmax(0, 1fr);
+  min-width: 0;
+  border-top: 1px solid var(--pb-line);
+  background: var(--pb-surface);
+}
+
+.pb-timeline-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 10px 0 6px;
+  overflow: auto hidden;
+  scrollbar-width: none;
+}
+
+.pb-frame-range {
+  flex: 1;
+  min-width: 60px;
+  accent-color: var(--accent);
+}
+
+.pb-frame-label {
+  display: inline-flex;
+  flex: none;
+  justify-content: space-between;
+  gap: 8px;
+  width: 13ch;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pb-frame-pct {
+  color: var(--text-dim);
+}
+
+.pb-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 10px 8px;
+  overflow: auto hidden;
+}
+
+.pb-thumb {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  height: 58px;
+  min-width: 40px;
+  padding: 3px;
+  border: 1px solid var(--pb-line);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.pb-thumb.active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+.pb-thumb img {
+  display: block;
+  max-height: 44px;
+}
+
+.pb-thumb span {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+}
+
+// ─── Panels ──────────────────────────────────────────────────────────────
+
+.pb-dock {
+  grid-area: dock;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 210px;
+  min-width: 0;
+  border-left: 1px solid var(--pb-line);
+  background: var(--pb-surface);
+}
+
+.pb-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pb-panel + .pb-panel {
+  border-top: 1px solid var(--pb-line);
+}
+
+.pb-panel-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--pb-line);
+}
+
+.pb-panel-head h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-panel-tools,
+.pb-panel-foot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pb-panel-tools {
+  margin-left: auto;
+}
+
+.pb-panel-foot {
+  flex: none;
+  height: 34px;
+  padding: 0 6px;
+  border-top: 1px solid var(--pb-line);
+}
+
+.pb-panel-tools button,
+.pb-panel-foot button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.pb-panel-tools button:hover:not(:disabled),
+.pb-panel-foot button:hover:not(:disabled) {
+  background: var(--bg-elevated-2);
+  color: var(--text);
+}
+
+.pb-panel-foot button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.pb-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden auto;
+  scrollbar-gutter: stable;
+}
+
+.pb-tabs {
+  display: flex;
+  flex: none;
+  border-bottom: 1px solid var(--pb-line);
+}
+
+.pb-tabs button {
+  flex: 1;
+  height: 32px;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.pb-tabs button:hover {
+  color: var(--text);
+}
+
+.pb-tabs button.active {
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--text);
+}
+
+// ─── Settings ────────────────────────────────────────────────────────────
+
+.pb-props {
+  display: flex;
+  flex-direction: column;
+}
+
+.pb-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pb-props .pb-group,
+.pb-dialog .pb-group {
+  padding: 12px;
+  border-bottom: 1px solid var(--pb-line);
+}
+
+.pb-group-title {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pb-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+.pb-row > .math-input,
+.pb-row > .select {
+  flex: 1;
+  min-width: 0;
+}
+
+.pb-row-label {
+  flex: 0 0 78px;
+  color: var(--text-dim);
+  font-size: 0.74rem;
+}
+
+.pb-slider {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 5ch;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.74rem;
+}
+
+.pb-slider-label {
+  overflow: hidden;
+  color: var(--text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-slider input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.pb-slider-value {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+// A row of buttons joined into one control.
+.pb-seg {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--pb-line);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.pb-seg button {
+  display: grid;
+  flex: 1 1 0;
+  place-items: center;
+  min-width: 0;
+  padding: 5px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.pb-seg button + button {
+  box-shadow: inset 1px 0 0 var(--pb-line);
+}
+
+.pb-seg button:hover {
+  color: var(--text);
+}
+
+.pb-seg button.active {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+.pb-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pb-chips button {
+  padding: 4px 10px;
+  border: 1px solid var(--pb-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.pb-chips button:hover {
+  color: var(--text);
+  border-color: var(--text-faint);
+}
+
+.pb-chips button.active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.pb-nums {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  gap: 6px;
+}
+
+.pb-num {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text-dim);
+  font-size: 0.68rem;
+}
+
+.pb-num input {
+  padding: 4px 6px;
+}
+
+.pb-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.pb-wide {
+  width: 100%;
+}
+
+.pb-hint {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  white-space: normal;
+}
+
+.pb-warn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.pb-textarea {
+  font-family: inherit;
+  resize: vertical;
+}
+
+// ─── Fills and gradients ─────────────────────────────────────────────────
+
+.pb-paint {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pb-paint .field-head .qr-label {
+  display: none;
+}
+
+.pb-paint-preview {
+  display: block;
+  width: 100%;
+  height: 14px;
+  border: 1px solid var(--pb-line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pb-paint .field-head {
+  display: block;
+}
+
+.pb-paint-preview span {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pb-stop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pb-stop .colour-hex {
+  flex: none;
+  width: 10.5ch;
+}
+
+.pb-mini {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.pb-mini input[type="range"] {
+  flex: 1;
+  width: 0;
+  min-width: 40px;
+  accent-color: var(--accent);
+}
+
+.pb-mini input[type="number"] {
+  width: 5ch;
+  padding: 3px 4px;
+  text-align: right;
+}
+
+// Spinner arrows eat half of a narrow number box; the keyboard and typing do
+// the same job.
+.pb-app input[type="number"] {
+  appearance: textfield;
+}
+
+.pb-app input[type="number"]::-webkit-inner-spin-button,
+.pb-app input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.pb-icon-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+}
+
+.pb-add-stop {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+}
+
+// ─── Layers ──────────────────────────────────────────────────────────────
+
+.pb-layers {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+}
+
+.pb-layer {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border-radius: var(--radius-control);
+}
+
+.pb-layer:hover {
+  background: color-mix(in oklab, var(--text) 5%, transparent);
+}
+
+.pb-layer.is-active {
+  background: var(--bg-elevated-2);
+  box-shadow: inset 2px 0 0 var(--text);
+}
+
+.pb-layer.is-hidden .pb-layer-name {
+  opacity: 0.45;
+}
+
+.pb-layer button {
+  border: 0;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.pb-layer-eye,
+.pb-layer-clip {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+}
+
+.pb-layer-clip {
+  opacity: 0;
+}
+
+.pb-layer:hover .pb-layer-clip,
+.pb-layer-clip:focus-visible {
+  opacity: 0.5;
+}
+
+.pb-layer-clip.active,
+.pb-layer:hover .pb-layer-clip.active {
+  opacity: 1;
+  color: var(--text);
+}
+
+.pb-layer .pb-layer-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.pb-layer-name span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-layer.is-clipped .pb-layer-name {
+  padding-left: 10px;
+}
+
+.pb-clip-mark {
+  color: var(--text-dim);
+}
+
+.pb-layer-canvas {
+  margin-top: 4px;
+  border-top: 1px dashed var(--pb-line);
+  border-radius: 0;
+}
+
+.pb-layer-canvas .pb-layer-name {
+  color: var(--text-dim);
+}
+
+// ─── Status ──────────────────────────────────────────────────────────────
+
+.pb-status-msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pb-status-msg.is-error,
+.pb-status-line.is-error {
+  color: var(--card-red, #ff5c72);
+}
+
+.pb-zoom {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.pb-zoom button {
+  display: inline-grid;
+  place-items: center;
+  height: 22px;
+  min-width: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pb-zoom button:hover {
+  background: var(--bg-elevated-2);
+  color: var(--text);
+}
+
+.pb-zoom-label {
+  width: 6ch;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+// ─── Dialogs ─────────────────────────────────────────────────────────────
+
+.pb-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 55%);
+}
+
+.pb-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(460px, 100%);
+  max-height: 88dvh;
+  border: 1px solid var(--pb-line);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
+  overflow: hidden;
+}
+
+.pb-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 10px 10px 16px;
+  border-bottom: 1px solid var(--pb-line);
+}
+
+.pb-dialog-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.pb-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  overflow: auto;
+}
+
+.pb-dialog-body > .pb-row,
+.pb-dialog-body > .pb-hint,
+.pb-dialog-body > .pb-export-list,
+.pb-dialog-body > .pb-status-line,
+.pb-dialog-body > .pb-create {
+  margin: 0 16px;
+}
+
+.pb-dialog-body > .pb-row:first-child {
+  margin-top: 16px;
+}
+
+.pb-dialog .pb-group {
+  padding: 14px 16px;
+}
+
+.pb-examples {
+  border-top: 1px solid var(--pb-line);
+  border-bottom: 0 !important;
+}
+
+.pb-export-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pb-export-list .btn {
+  height: 30px;
+}
+
+.pb-status-line {
+  min-height: 2.6em;
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+
+.pb-hint code {
+  font-size: 0.7rem;
+}
+
+.pb-mini-pos {
+  flex: none;
+}
+
+// The shape tool's picker: what it will draw, with the progress bar first.
+.pb-kinds {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--pb-line);
+  border-radius: var(--radius-control);
+}
+
+.pb-kinds button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.pb-kinds button:hover {
+  color: var(--text);
+}
+
+.pb-kinds button.active {
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 700;
+}
+
+// An effect with its own switch in the corner of its heading.
+.pb-fx-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pb-fx:not(.is-on) .pb-group-title {
+  color: var(--text-dim);
+}
+
+.pb-fx.is-on .pb-group-title {
+  color: var(--text);
+}
+
+.pb-divider {
+  margin: 0;
+  padding: 16px 12px 6px;
+  border-bottom: 1px solid var(--pb-line);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.pb-pad {
+  padding: 12px;
+}
+
+// ─── Saving inside the site ──────────────────────────────────────────────
+
+.pb-name {
+  display: inline-flex;
+  flex: 0 1 240px;
+  align-items: center;
+  gap: 6px;
+  min-width: 80px;
+}
+
+.pb-name-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.pb-name-input:hover,
+.pb-name-input:focus {
+  border-color: var(--pb-line);
+  outline: none;
+}
+
+// A dot that fills in when there are changes to save.
+.pb-dirty {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--text-faint);
+  border-radius: 50%;
+}
+
+.pb-dirty.is-dirty {
+  border-color: var(--text);
+  background: var(--text);
+}
+
+.pb-dialog-wide {
+  width: min(620px, 100%);
+}
+
+.pb-designs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+  margin: 16px 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pb-design {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 6px;
+  border: 1px solid var(--pb-line);
+  border-radius: var(--radius-control);
+}
+
+.pb-design.is-current {
+  border-color: var(--text);
+}
+
+.pb-design-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 2px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pb-design-thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pb-design-thumb img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.pb-design-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pb-design-text strong,
+.pb-design-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pb-design-text span {
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.pb-empty {
+  margin: 16px 16px 0;
+}
+
+.pb-files {
+  margin-top: 4px;
+  border-top: 1px solid var(--pb-line);
+}
+
+// ─── Picture pickers ─────────────────────────────────────────────────────
+
+.pb-image-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.pb-image-thumb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--pb-line);
+  border-radius: 6px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  color: var(--text-dim);
+}
+
+.pb-image-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pb-text-input {
+  font-size: 1.1rem;
+}
+
+// ─── Export: JJS skill ───────────────────────────────────────────────────
+
+.pb-export-tabs {
+  margin: 0 0 4px;
+}
+
+.pb-dialog-body > .pb-export-tabs {
+  margin: 0;
+}
+
+.pb-roblox-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.pb-roblox-account .btn {
+  margin-left: auto;
+}
+
+.pb-callout {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pb-line);
+  border-radius: var(--radius-control);
+  background: color-mix(in oklab, var(--text) 5%, transparent);
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+
+.pb-callout p {
+  margin: 0;
+}
+
+.pb-callout a {
+  color: var(--text);
+}
+
+.pb-callout > svg,
+.pb-callout > .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text);
+}
+
+.pb-uploads {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  font-size: 0.74rem;
+}
+
+.pb-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  color: var(--text-dim);
+}
+
+.pb-upload-row.is-uploading,
+.pb-upload-row.is-finding {
+  background: color-mix(in oklab, var(--text) 6%, transparent);
+  color: var(--text);
+}
+
+.pb-upload-row.is-done {
+  color: var(--text);
+}
+
+.pb-upload-row.is-failed {
+  color: var(--card-red, #ff5c72);
+}
+
+.pb-upload-step {
+  width: 3ch;
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+.pb-upload-state {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pb-upload-link {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.pb-ids,
+.pb-skill-code {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  resize: vertical;
+}
+
+.pb-skill-code {
+  word-break: break-all;
+}
+
+.pb-skill-fields {
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}

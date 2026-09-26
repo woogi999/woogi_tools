@@ -1,7 +1,8 @@
 // Keeps what you typed into a tool. Leaving a tool's page tears its component
 // down, and a refresh loses the lot, which is infuriating when you have pasted
 // in a wall of text and gone to look something up. This writes the fields a
-// tool cares about to localStorage and puts them back the next time it opens.
+// tool cares about to IndexedDB (utils/idb-store.js) and puts them back the
+// next time it opens.
 //
 // One line in a component's constructor:
 //
@@ -17,33 +18,39 @@ import {
   isDestroyed,
   isDestroying,
 } from '@ember/destroyable';
+import { waitForPromise } from '@ember/test-waiters';
+import { idbGet, idbSet, idbDelete, idbEntries, idbDeletePrefix } from './idb-store';
 
 const PREFIX = 'woogi-tool:';
 // Saving on every keystroke would write to disk hundreds of times a minute.
 const SAVE_EVERY_MS = 600;
-// A single tool's state should never grow into something worth evicting.
-const MAX_BYTES = 200000;
+// IndexedDB has room, but one tool's state still shouldn't grow without end.
+const MAX_BYTES = 64 * 1024 * 1024;
 
 const keyFor = (scope) => `${PREFIX}${scope}`;
 
-function read(scope) {
-  try {
-    const raw = localStorage.getItem(keyFor(scope));
-    const parsed = raw ? JSON.parse(raw) : null;
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
+async function read(scope) {
+  const key = keyFor(scope);
+  let saved = await idbGet(key);
+  // Tools used to be remembered in localStorage: move an old copy across once.
+  if (saved === undefined) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        saved = JSON.parse(raw);
+        if (await idbSet(key, saved)) localStorage.removeItem(key);
+      }
+    } catch {
+      // unreadable or blocked: start from the defaults
+    }
   }
+  return saved && typeof saved === 'object' ? saved : {};
 }
 
-function write(scope, value) {
-  try {
-    const json = JSON.stringify(value);
-    if (json.length > MAX_BYTES) return;
-    localStorage.setItem(keyFor(scope), json);
-  } catch {
-    // storage blocked or full: the tool still works, it just won't be remembered
-  }
+function write(scope, json) {
+  if (json.length > MAX_BYTES) return;
+  // storage blocked or full: the tool still works, it just won't be remembered
+  idbSet(keyFor(scope), JSON.parse(json));
 }
 
 /**
@@ -55,33 +62,42 @@ function write(scope, value) {
  * Returns a `forget()` that clears this tool's saved state, for a Clear button.
  */
 export function keepState(target, scope, fields, after) {
-  // The restore happens in a microtask, not here. This is called from a
-  // component's constructor, which Glimmer runs inside an open render
-  // transaction: writing a @tracked field there throws "you attempted to update
-  // `text`, but it had already been used previously in the same computation".
-  // A microtask runs after the transaction closes, so the write is an ordinary
-  // update and Glimmer simply re-renders with the restored values.
-  queueMicrotask(() => {
-    if (isDestroyed(target) || isDestroying(target)) return;
-    const saved = read(scope);
-    for (const field of fields) {
-      const value = saved[field];
-      if (value === undefined) continue;
-      // A saved value of a different shape is from an older version of the tool.
-      if (typeof value !== typeof target[field] && target[field] != null)
-        continue;
-      target[field] = value;
-    }
-    // Only start watching once the restore is in: otherwise the first save
-    // would write the defaults back over what was stored.
-    last = JSON.stringify(snapshot());
-    started = true;
-    after?.();
-  });
-
+  // The restore happens later, not here. This is called from a component's
+  // constructor, which Glimmer runs inside an open render transaction:
+  // writing a @tracked field there throws "you attempted to update `text`,
+  // but it had already been used previously in the same computation". By the
+  // time IndexedDB answers the transaction has closed, so the write is an
+  // ordinary update and Glimmer simply re-renders with the restored values.
   let started = false;
   const snapshot = () => Object.fromEntries(fields.map((f) => [f, target[f]]));
+  const initial = Object.fromEntries(
+    fields.map((f) => [f, JSON.stringify(target[f])]),
+  );
   let last = JSON.stringify(snapshot());
+
+  waitForPromise(
+    read(scope).then((saved) => {
+      if (isDestroyed(target) || isDestroying(target)) return;
+      let restored = false;
+      for (const field of fields) {
+        const value = saved[field];
+        if (value === undefined) continue;
+        // A saved value of a different shape is from an older version of the tool.
+        if (typeof value !== typeof target[field] && target[field] != null)
+          continue;
+        // Anything changed while storage was answering wins over the old copy.
+        if (JSON.stringify(target[field]) !== initial[field]) continue;
+        target[field] = value;
+        restored = true;
+      }
+      // Only start watching once the restore is in: otherwise the first save
+      // would write the defaults back over what was stored.
+      last = JSON.stringify(snapshot());
+      started = true;
+      after?.(restored);
+    }),
+  );
+
   const save = () => {
     if (!started) return;
     let now;
@@ -92,7 +108,7 @@ export function keepState(target, scope, fields, after) {
     }
     if (now === last) return;
     last = now;
-    write(scope, JSON.parse(now));
+    write(scope, now);
   };
 
   const timer = setInterval(save, SAVE_EVERY_MS);
@@ -110,21 +126,20 @@ export function keepState(target, scope, fields, after) {
 
   return function forget() {
     last = '';
-    try {
-      localStorage.removeItem(keyFor(scope));
-    } catch {
-      // nothing stored to remove
-    }
+    idbDelete(keyFor(scope));
   };
 }
 
-// Everything the tools have remembered, for the Clear button in Settings.
-export function clearAllToolState() {
+// Everything the tools have remembered, for the Clear button in Settings (and
+// for tests, which each start from nothing). Resolves with how many there were.
+export async function clearAllToolState() {
+  const count = (await idbEntries(PREFIX)).length;
+  await idbDeletePrefix(PREFIX);
   try {
-    const keys = Object.keys(localStorage).filter((k) => k.startsWith(PREFIX));
-    for (const key of keys) localStorage.removeItem(key);
-    return keys.length;
+    for (const key of Object.keys(localStorage))
+      if (key.startsWith(PREFIX)) localStorage.removeItem(key);
   } catch {
-    return 0;
+    // storage blocked: nothing was kept anyway
   }
+  return count;
 }

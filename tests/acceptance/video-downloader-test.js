@@ -1,6 +1,7 @@
 import { module, test } from 'qunit';
 import { visit, click, fillIn, waitUntil, find } from '@ember/test-helpers';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
+import { clearAllToolState } from 'woogi-tools/utils/tool-state';
 
 // The test build is served as static files, so there is no Worker behind
 // /api/video: fetch is stood in for with what the Worker answers.
@@ -40,9 +41,8 @@ module('Acceptance | video downloader', function (hooks) {
 
   let realFetch;
   let requests;
-  hooks.beforeEach(function () {
-    for (const key of Object.keys(localStorage))
-      if (key.startsWith('woogi-tool:')) localStorage.removeItem(key);
+  hooks.beforeEach(async function () {
+    await clearAllToolState();
     requests = [];
     realFetch = window.fetch;
     window.fetch = async (input, init = {}) => {
