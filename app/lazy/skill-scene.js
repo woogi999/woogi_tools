@@ -79,7 +79,7 @@ const familyOf = (effect) =>
 
 // ─── The characters ─────────────────────────────────────────────────────
 
-function faceTexture() {
+export function faceTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const x = c.getContext('2d');
@@ -97,7 +97,7 @@ function faceTexture() {
 }
 
 // An R6 body in studs: 2-wide torso, 1-wide limbs, pivots at the joints.
-function buildCharacter(colours, face) {
+export function buildCharacter(colours, face) {
   const root = new Group();
   const mat = (c) => new MeshLambertMaterial({ color: c });
   const part = (w, h, d, c) => new Mesh(new BoxGeometry(w, h, d), mat(c));
@@ -219,7 +219,7 @@ function burstGeometry() {
   return g;
 }
 
-function baseplateTexture() {
+export function baseplateTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const x = c.getContext('2d');

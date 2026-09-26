@@ -257,9 +257,12 @@ function progressBar(v) {
     start: v.start,
     size: Math.max(0.1, Number(v.size) || 2),
     position: text(v.position, '0, 0, 0'),
+    style: v.style,
+    checkEvery: Math.max(0.01, Number(v.checkEvery) || 0.05),
     showFor: Math.max(0, Number(v.showFor) || 0),
     waitFor: Math.max(0, Number(v.waitFor) || 0),
     rails: v.rails,
+    clientSided: v.clientSided,
     regen: v.regen
       ? {
           amount: Number(v.regenAmount) || 0,
@@ -1023,7 +1026,7 @@ const LIMBS = ['Right Arm', 'Left Arm', 'Right Leg', 'Left Leg'];
 const PARTS = ['Torso', 'HumanoidRootPart', 'Head', ...LIMBS];
 
 // `row` starts a new row of the form; `when` shows a field only while that
-// checkbox is ticked.
+// checkbox is ticked, or ("style=legacy") while that choice is made.
 const f = (key, label, type, def, extra = {}) => ({
   key,
   label,
@@ -1044,6 +1047,12 @@ export const TEMPLATES = [
       route: 'jjs-progress-bar-maker',
       label: 'Draw the steps in the Progress Bar Maker',
     },
+    // What the 3D preview shows: the billboard of each step.
+    preview: (v) => ({
+      ids: parseIds(v.ids),
+      size: Math.max(0.1, Number(v.size) || 2),
+      position: text(v.position, '0, 0, 0'),
+    }),
     usage: (v) =>
       `Set the ${text(v.tag, 'Bar')} tag from your other skills to move the bar: step N shows while it’s N. Keys 1 and 2 add and take away a step, to try it out.`,
     sections: [
@@ -1061,9 +1070,25 @@ export const TEMPLATES = [
           f('name', 'Name', 'text', 'Bar'),
           f('tag', 'Tag', 'text', 'Bar'),
           f('size', 'Size', 'number', 2, { step: 0.1 }),
-          f('position', 'Offset (x, y, z)', 'text', '0, 0, 0'),
-          f('showFor', 'Shown for (s)', 'number', 0.12, { step: 0.01 }),
-          f('waitFor', 'Wait (s)', 'number', 0.1, { step: 0.01 }),
+          f('position', 'Offset (x, y, z)', 'text', '0, 0, 0', {
+            hint: 'On the screen: x across (negative is right), y up, z the layer (negative in front of you, positive behind). The y is paired with its ALT POSITION for you.',
+          }),
+          f('style', 'Style', 'choice', 'complex', {
+            options: ['complex', 'legacy'],
+            hint: 'Complex shows each step once and cancels the others by their visual tags: lag-proof. Legacy shows the step again and again.',
+          }),
+          f('checkEvery', 'Check every (s)', 'number', 0.05, {
+            step: 0.01,
+            when: 'style=complex',
+          }),
+          f('showFor', 'Shown for (s)', 'number', 0.12, {
+            step: 0.01,
+            when: 'style=legacy',
+          }),
+          f('waitFor', 'Wait (s)', 'number', 0.1, {
+            step: 0.01,
+            when: 'style=legacy',
+          }),
           f('start', 'Starts', 'choice', 'full', {
             options: ['full', 'empty'],
           }),
@@ -1072,6 +1097,12 @@ export const TEMPLATES = [
             'Safety Rails: keep the tag between empty and full',
             'bool',
             true,
+          ),
+          f(
+            'clientSided',
+            'Client sided: only the player sees their own bar (not Run on server)',
+            'bool',
+            false,
           ),
           f('regen', 'Regenerate', 'bool', true),
           f('regenAmount', 'Add', 'number', 1, { when: 'regen', row: true }),

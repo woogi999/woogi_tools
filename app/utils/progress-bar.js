@@ -112,8 +112,7 @@ function channels(hex) {
 export const rgba = (hex, alpha = 100) =>
   `rgba(${channels(hex).join(',')},${clamp(alpha, 0, 100) / 100})`;
 
-const sortedStops = (p) =>
-  [...(p?.stops ?? [])].sort((a, b) => a.pos - b.pos);
+const sortedStops = (p) => [...(p?.stops ?? [])].sort((a, b) => a.pos - b.pos);
 
 // The colour a gradient has at `pos` (0-100), for fills that change colour as
 // they fill up rather than showing the whole gradient.
@@ -231,10 +230,7 @@ function paintStyle(ctx, p, area) {
     at = arc.cw ? (q) => (q * span) / 360 : (q) => ((1 - q) * span) / 360;
   }
   for (const s of stops)
-    gradient.addColorStop(
-      clamp(at(s.pos / 100), 0, 1),
-      rgba(s.color, s.alpha),
-    );
+    gradient.addColorStop(clamp(at(s.pos / 100), 0, 1), rgba(s.color, s.alpha));
   return gradient;
 }
 
@@ -312,7 +308,14 @@ export const newBar = (extra = {}) =>
       march: 0,
     },
     fillStroke: { on: false, color: '#FFFFFF', alpha: 100, width: 4 },
-    innerShadow: { on: false, color: '#000000', alpha: 70, size: 18, x: 0, y: 6 },
+    innerShadow: {
+      on: false,
+      color: '#000000',
+      alpha: 70,
+      size: 18,
+      x: 0,
+      y: 6,
+    },
     // The fill's pattern. `anchor` says what it's fixed to: the picture
     // ('canvas'), the fill's growing end ('fill'), or neither ('drift',
     // sliding `move` pixels a step).
@@ -434,9 +437,13 @@ export const newJjs = () => ({
   start: 'full',
   size: 2,
   position: '0, 0, 0',
+  // 'complex' (lag-proof, the default) or 'legacy': see utils/jjs-skill.js.
+  style: 'complex',
+  checkEvery: 0.05,
   showFor: 0.12,
   waitFor: 0.1,
   rails: true,
+  clientSided: false,
   regen: true,
   regenAmount: 1,
   regenEvery: 1,
@@ -472,9 +479,16 @@ export function normaliseDoc(raw) {
   const dy = Math.round((SIDE - (Number(raw.height) || SIDE)) / 2);
   return {
     ...fresh,
-    frames: clamp(Math.round(Number(raw.frames) || fresh.frames), 1, MAX_FRAMES),
+    frames: clamp(
+      Math.round(Number(raw.frames) || fresh.frames),
+      1,
+      MAX_FRAMES,
+    ),
     name: String(raw.name || fresh.name).slice(0, 80),
-    jjs: { ...newJjs(), ...(raw.jjs && typeof raw.jjs === 'object' ? raw.jjs : {}) },
+    jjs: {
+      ...newJjs(),
+      ...(raw.jjs && typeof raw.jjs === 'object' ? raw.jjs : {}),
+    },
     background: { ...fresh.background, ...raw.background },
     layers: raw.layers
       .filter((l) => l && MAKERS[l.type])
@@ -484,7 +498,13 @@ export function normaliseDoc(raw) {
         // Settings grouped in objects are merged a level down, so one saved
         // before a setting existed still gets it.
         for (const [key, value] of Object.entries(made))
-          if (value && typeof value === 'object' && !Array.isArray(value) && l[key] && typeof l[key] === 'object')
+          if (
+            value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            l[key] &&
+            typeof l[key] === 'object'
+          )
             merged[key] = { ...value, ...l[key] };
         merged.fx = Object.fromEntries(
           Object.entries(made.fx).map(([k, v]) => [k, { ...v, ...l.fx?.[k] }]),
@@ -688,7 +708,10 @@ function segmentPoints(L, len, T) {
     case 'ellipse':
       return Array.from({ length: 48 }, (_, k) => {
         const a = (k / 48) * Math.PI * 2;
-        return [len / 2 + (len / 2) * Math.cos(a), T / 2 + (T / 2) * Math.sin(a)];
+        return [
+          len / 2 + (len / 2) * Math.cos(a),
+          T / 2 + (T / 2) * Math.sin(a),
+        ];
       });
     default:
       return [
@@ -725,11 +748,16 @@ function linearGeometry(L) {
   const barLength = Math.max(1, length);
   const taperA = clamp(L.taperStart ?? 100, 1, 100) / 100;
   const taperB = clamp(L.taperEnd ?? 100, 1, 100) / 100;
-  const plain = (L.segShape ?? 'rect') === 'rect' && taperA === 1 && taperB === 1;
+  const plain =
+    (L.segShape ?? 'rect') === 'rect' && taperA === 1 && taperB === 1;
   // A picture as the segment shape: its silhouette, fitted into each one.
   const segImg = L.segShape === 'image' ? imageOf(L.segImage) : null;
   const imageInto = (ctx, r) => {
-    const at = fitInto(segImg, r, L.segImageFit === 'stretch' ? 'stretch' : 'contain');
+    const at = fitInto(
+      segImg,
+      r,
+      L.segImageFit === 'stretch' ? 'stretch' : 'contain',
+    );
     ctx.drawImage(segImg, at.x, at.y, at.w, at.h);
   };
 
@@ -830,14 +858,20 @@ function linearGeometry(L) {
       ctx.beginPath();
       const rects = whole ? [{ x: L.x, y: L.y, w: L.w, h: L.h }] : parts;
       for (const p of rects)
-        outline(ctx, inset(p, -grow), radius > 0 ? Math.max(0, radius + grow) : 0);
+        outline(
+          ctx,
+          inset(p, -grow),
+          radius > 0 ? Math.max(0, radius + grow) : 0,
+        );
     },
     // How far the fill has come, as a shift along the bar, for patterns
     // that ride along with it.
     travel(cov) {
       if (center || !cov.parts.length) return { dx: 0, dy: 0 };
       const { max, min } = reach(cov);
-      const d = mirrored ? posOf(min) - (barStart + barLength) : posOf(max) - barStart;
+      const d = mirrored
+        ? posOf(min) - (barStart + barLength)
+        : posOf(max) - barStart;
       return horizontal ? { dx: d, dy: 0 } : { dx: 0, dy: d };
     },
     // The fill's leading edges, where a highlight can sit.
@@ -943,7 +977,14 @@ function ringGeometry(L) {
     ctx.moveTo(cx + rO * Math.cos(A), cy + rO * Math.sin(A));
     ctx.arc(cx, cy, rO, A, B, !cw);
     if (round)
-      ctx.arc(cx + mid * Math.cos(B), cy + mid * Math.sin(B), halfW, B, B + sign * Math.PI, !cw);
+      ctx.arc(
+        cx + mid * Math.cos(B),
+        cy + mid * Math.sin(B),
+        halfW,
+        B,
+        B + sign * Math.PI,
+        !cw,
+      );
     else ctx.lineTo(cx + rI * Math.cos(B), cy + rI * Math.sin(B));
     ctx.arc(cx, cy, rI, B, A, cw);
     if (round)
@@ -997,7 +1038,12 @@ function ringGeometry(L) {
       if (shaped) {
         stroked(ctx, () => {
           for (const { i, a, b } of cov.parts)
-            arc(ctx, startOf(i) + a * seg, startOf(i) + b * seg, innerThickness);
+            arc(
+              ctx,
+              startOf(i) + a * seg,
+              startOf(i) + b * seg,
+              innerThickness,
+            );
         });
         return;
       }
@@ -1017,7 +1063,9 @@ function ringGeometry(L) {
       ctx.beginPath();
       const halfW = Math.max(0.5, thickness / 2 + grow);
       if (wholeBar) band(ctx, 0, sweep, halfW);
-      else for (let i = 0; i < n; i++) band(ctx, startOf(i), startOf(i) + seg, halfW);
+      else
+        for (let i = 0; i < n; i++)
+          band(ctx, startOf(i), startOf(i) + seg, halfW);
     },
     travel(cov) {
       if (center || !cov.parts.length) return { deg: 0 };
@@ -1041,7 +1089,10 @@ function ringGeometry(L) {
           g = ctx.createConicGradient(a0, cx, cy);
           g.addColorStop(0, 'rgba(0,0,0,0)');
           g.addColorStop(d / (Math.PI * 2), color);
-          g.addColorStop(Math.min(1, d / (Math.PI * 2) + 0.0005), 'rgba(0,0,0,0)');
+          g.addColorStop(
+            Math.min(1, d / (Math.PI * 2) + 0.0005),
+            'rgba(0,0,0,0)',
+          );
         } else {
           const rest = Math.PI * 2 - d;
           g = ctx.createConicGradient(a1, cx, cy);
@@ -1134,8 +1185,12 @@ function textGeometry(L) {
     ? {
         x: Math.min(...boxes.map((b) => b.x)),
         y: Math.min(...boxes.map((b) => b.y)),
-        w: Math.max(...boxes.map((b) => b.x + b.w)) - Math.min(...boxes.map((b) => b.x)),
-        h: Math.max(...boxes.map((b) => b.y + b.h)) - Math.min(...boxes.map((b) => b.y)),
+        w:
+          Math.max(...boxes.map((b) => b.x + b.w)) -
+          Math.min(...boxes.map((b) => b.x)),
+        h:
+          Math.max(...boxes.map((b) => b.y + b.h)) -
+          Math.min(...boxes.map((b) => b.y)),
       }
     : { x: L.x, y: L.y, w: L.w, h: L.h };
   const horizontal = !['ttb', 'btt', 'center-v'].includes(L.direction);
@@ -1181,7 +1236,12 @@ function textGeometry(L) {
     ctx.save();
     if (k.d === undefined) {
       ctx.beginPath();
-      ctx.rect(b.x - slack, b.y - slack, (b.w + slack * 2) * f, b.h + slack * 2);
+      ctx.rect(
+        b.x - slack,
+        b.y - slack,
+        (b.w + slack * 2) * f,
+        b.h + slack * 2,
+      );
       ctx.clip();
       glyphs(ctx, k.i);
       ctx.restore();
@@ -1230,8 +1290,18 @@ function textGeometry(L) {
     const lo = a === 0 ? -slack : 0;
     const hi = e === 1 ? slack : 0;
     return horizontal
-      ? { x: b.x + a * b.w + lo, y: b.y - slack, w: (e - a) * b.w - lo + hi, h: b.h + slack * 2 }
-      : { x: b.x - slack, y: b.y + a * b.h + lo, w: b.w + slack * 2, h: (e - a) * b.h - lo + hi };
+      ? {
+          x: b.x + a * b.w + lo,
+          y: b.y - slack,
+          w: (e - a) * b.w - lo + hi,
+          h: b.h + slack * 2,
+        }
+      : {
+          x: b.x - slack,
+          y: b.y + a * b.h + lo,
+          w: b.w + slack * 2,
+          h: (e - a) * b.h - lo + hi,
+        };
   };
   const reach = (cov) => ({
     max: Math.max(...cov.parts.map((q) => q.i + q.b)),
@@ -1243,7 +1313,13 @@ function textGeometry(L) {
     coverage(t) {
       if (mode === 'strokes') {
         const u = clamp(t, 0, 1);
-        return { n: 1, lo: 0, hi: u, t: u, parts: u > 0 ? [{ i: 0, a: 0, b: u }] : [] };
+        return {
+          n: 1,
+          lo: 0,
+          hi: u,
+          t: u,
+          parts: u > 0 ? [{ i: 0, a: 0, b: u }] : [],
+        };
       }
       return coverage({ ...L, segments: unitCount }, t);
     },
@@ -1276,7 +1352,8 @@ function textGeometry(L) {
       }
     },
     travel(cov) {
-      if (mode === 'strokes' || center || !cov.parts.length) return { dx: 0, dy: 0 };
+      if (mode === 'strokes' || center || !cov.parts.length)
+        return { dx: 0, dy: 0 };
       const { max, min } = reach(cov);
       const start = horizontal ? extent.x : extent.y;
       const end = start + (horizontal ? extent.w : extent.h);
@@ -1298,7 +1375,8 @@ function textGeometry(L) {
         g.addColorStop(1, color);
         ctx.fillStyle = g;
         const lo = Math.min(from, q);
-        if (horizontal) ctx.fillRect(lo, extent.y - slack, len, extent.h + slack * 2);
+        if (horizontal)
+          ctx.fillRect(lo, extent.y - slack, len, extent.h + slack * 2);
         else ctx.fillRect(extent.x - slack, lo, extent.w + slack * 2, len);
       }
     },
@@ -1419,7 +1497,11 @@ function imageTile(p) {
   c.width = c.height = size + gap;
   const x = c.getContext('2d');
   x.globalAlpha = clamp(p.alpha, 0, 100) / 100;
-  const at = fitInto(img, { x: gap / 2, y: gap / 2, w: size, h: size }, 'contain');
+  const at = fitInto(
+    img,
+    { x: gap / 2, y: gap / 2, w: size, h: size },
+    'contain',
+  );
   x.drawImage(img, at.x, at.y, at.w, at.h);
   byKey.set(key, c);
   return c;
@@ -1486,7 +1568,8 @@ function drawPattern(ctx, L, box, env, travel) {
     else ctx.translate(travel.dx ?? 0, travel.dy ?? 0);
   }
   ctx.rotate(rad(p.angle));
-  if (p.anchor === 'drift') ctx.translate(((p.move ?? 0) * env.frame) % tile.width, 0);
+  if (p.anchor === 'drift')
+    ctx.translate(((p.move ?? 0) * env.frame) % tile.width, 0);
   ctx.fillStyle = ctx.createPattern(tile, 'repeat');
   ctx.fillRect(-reach, -reach, reach * 2, reach * 2);
   ctx.restore();
@@ -1557,7 +1640,10 @@ function grainTile(seed, size) {
 
 function drawGrain(ctx, L, env) {
   const g = L.grain;
-  const tile = grainTile(g.animate ? env.frame + 1 : 1, Math.max(1, Math.round(g.size)));
+  const tile = grainTile(
+    g.animate ? env.frame + 1 : 1,
+    Math.max(1, Math.round(g.size)),
+  );
   // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a canvas state push, not a data request
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1625,7 +1711,11 @@ function drawTracedStroke(out, mask, L, env, geo) {
   const s = L.stroke;
   const w = s.width;
   const [grow, shrink] =
-    s.position === 'inside' ? [0, w] : s.position === 'center' ? [w / 2, w / 2] : [w, 0];
+    s.position === 'inside'
+      ? [0, w]
+      : s.position === 'center'
+        ? [w / 2, w / 2]
+        : [w, 0];
   const ring = grow ? spread(mask, env, grow, '#fff') : blank(env);
   if (!grow) stamp(ring, mask);
   stamp(ring, shrink ? erode(mask, env, shrink) : mask, 'destination-out');
@@ -1643,12 +1733,14 @@ function drawStroke(out, geo, L, env, mask) {
   const c = blank(env);
   place(c, L, env);
   const w = s.width;
-  const grow = s.position === 'outside' ? w / 2 : s.position === 'inside' ? -w / 2 : 0;
+  const grow =
+    s.position === 'outside' ? w / 2 : s.position === 'inside' ? -w / 2 : 0;
   geo.outlinePath(c, grow, s.around === 'bar');
   c.lineWidth = w;
   c.lineCap = s.cap ?? 'butt';
   c.lineJoin = s.cap === 'round' ? 'round' : 'miter';
-  if (s.style === 'dashed') c.setLineDash([Math.max(1, s.dash), Math.max(1, s.gap)]);
+  if (s.style === 'dashed')
+    c.setLineDash([Math.max(1, s.dash), Math.max(1, s.gap)]);
   if (s.style === 'dotted') {
     c.lineCap = 'round';
     c.setLineDash([0.001, Math.max(1, s.gap) + w]);
@@ -1687,7 +1779,12 @@ function drawBar(out, L, env) {
 
   // The catch-up trail runs a little ahead of the fill.
   if (L.trail?.on && t < 1) {
-    const ahead = filledShape(geo, L, env, covAt(Math.min(1, t + L.trail.amount / 100)));
+    const ahead = filledShape(
+      geo,
+      L,
+      env,
+      covAt(Math.min(1, t + L.trail.amount / 100)),
+    );
     stamp(out, tinted(ahead, env, rgba(L.trail.color, L.trail.alpha)));
   }
 
@@ -1708,7 +1805,8 @@ function drawBar(out, L, env) {
       );
     if (L.stripes?.on) drawPattern(f, L, whole.box, env, geo.travel(cov));
     if (L.shine?.on) drawShine(f, L, whole.box);
-    if (L.tip?.on) geo.tip(f, cov, Math.max(1, L.tip.size), rgba(L.tip.color, L.tip.alpha));
+    if (L.tip?.on)
+      geo.tip(f, cov, Math.max(1, L.tip.size), rgba(L.tip.color, L.tip.alpha));
     if (L.grain?.on) drawGrain(f, L, env);
     if (L.flash?.on && t >= 1) {
       f.fillStyle = rgba(L.flash.color, L.flash.alpha);
@@ -1719,7 +1817,12 @@ function drawBar(out, L, env) {
     if (L.fillStroke?.on && L.fillStroke.width > 0)
       stamp(
         out,
-        spread(shape, env, L.fillStroke.width, rgba(L.fillStroke.color, L.fillStroke.alpha)),
+        spread(
+          shape,
+          env,
+          L.fillStroke.width,
+          rgba(L.fillStroke.color, L.fillStroke.alpha),
+        ),
       );
     if (L.glow?.on) {
       const strength = L.glow.grow ? t : 1;
@@ -1740,7 +1843,15 @@ function shapePath(ctx, L) {
   const { x, y, w, h } = L;
   ctx.beginPath();
   if (L.shape === 'ellipse')
-    ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+    ctx.ellipse(
+      x + w / 2,
+      y + h / 2,
+      Math.abs(w / 2),
+      Math.abs(h / 2),
+      0,
+      0,
+      Math.PI * 2,
+    );
   else if (L.shape === 'triangle') {
     ctx.moveTo(x + w / 2, y);
     ctx.lineTo(x + w, y + h);
@@ -1775,7 +1886,8 @@ function drawText(ctx, L, env) {
   ctx.font = `${L.italic ? 'italic ' : ''}${L.bold ? '700' : '400'} ${L.size}px ${family}, sans-serif`;
   ctx.textAlign = L.align;
   ctx.textBaseline = 'middle';
-  const x = L.align === 'left' ? L.x : L.align === 'right' ? L.x + L.w : L.x + L.w / 2;
+  const x =
+    L.align === 'left' ? L.x : L.align === 'right' ? L.x + L.w : L.x + L.w / 2;
   const lineHeight = L.size * 1.15;
   const top = L.y + L.h / 2 - ((lines.length - 1) * lineHeight) / 2;
   ctx.fillStyle = paintStyle(ctx, L.fill, { box: L });
@@ -1802,7 +1914,8 @@ function renderLayer(L, env) {
     const source =
       env.override?.id === L.id ? env.override.canvas : env.resolve?.(L.src);
     if (source) {
-      if (L.type === 'paint') ctx.drawImage(source, 0, 0, env.width, env.height);
+      if (L.type === 'paint')
+        ctx.drawImage(source, 0, 0, env.width, env.height);
       else ctx.drawImage(source, L.x, L.y, L.w, L.h);
     }
   }
@@ -1817,7 +1930,9 @@ function layerAlpha(L, env) {
     return 0;
   let alpha = L.opacity / 100;
   if (fx.fade?.on)
-    alpha *= clamp(fx.fade.from + ((fx.fade.to - fx.fade.from) * pct) / 100, 0, 100) / 100;
+    alpha *=
+      clamp(fx.fade.from + ((fx.fade.to - fx.fade.from) * pct) / 100, 0, 100) /
+      100;
   return alpha;
 }
 
@@ -1832,7 +1947,12 @@ function withFx(ctx, L, env) {
     stamp(out, tint, fx.overlay.blend || 'source-over');
   }
   if (fx.outline?.on && fx.outline.width > 0) {
-    const ring = spread(out, env, fx.outline.width, rgba(fx.outline.color, fx.outline.alpha));
+    const ring = spread(
+      out,
+      env,
+      fx.outline.width,
+      rgba(fx.outline.color, fx.outline.alpha),
+    );
     stamp(ring, out);
     out = ring;
   }
@@ -1843,18 +1963,30 @@ function withFx(ctx, L, env) {
 function stampLayer(dst, src, L, env, alpha) {
   const fx = L.fx ?? {};
   if (fx.shadow?.on)
-    shadowOf(dst, src, env, {
-      color: rgba(fx.shadow.color, fx.shadow.alpha),
-      blur: fx.shadow.blur,
-      x: fx.shadow.x,
-      y: fx.shadow.y,
-    }, alpha);
+    shadowOf(
+      dst,
+      src,
+      env,
+      {
+        color: rgba(fx.shadow.color, fx.shadow.alpha),
+        blur: fx.shadow.blur,
+        x: fx.shadow.x,
+        y: fx.shadow.y,
+      },
+      alpha,
+    );
   if (fx.outerGlow?.on)
     for (let k = 0; k < 2; k++)
-      shadowOf(dst, src, env, {
-        color: rgba(fx.outerGlow.color, fx.outerGlow.alpha),
-        blur: fx.outerGlow.size,
-      }, alpha);
+      shadowOf(
+        dst,
+        src,
+        env,
+        {
+          color: rgba(fx.outerGlow.color, fx.outerGlow.alpha),
+          blur: fx.outerGlow.size,
+        },
+        alpha,
+      );
   stamp(dst, src, L.blend, alpha);
 }
 
@@ -2028,7 +2160,12 @@ export const TEMPLATES = [
             h: 896,
             direction: 'btt',
             radius: 28,
-            stroke: { ...newBar().stroke, on: true, width: 8, paint: solid('#FFFFFF') },
+            stroke: {
+              ...newBar().stroke,
+              on: true,
+              width: 8,
+              paint: solid('#FFFFFF'),
+            },
             track: solid('#000000', 60),
             fill: paint(
               'linear',
@@ -2078,7 +2215,13 @@ export const TEMPLATES = [
             trail: { on: true, color: '#FDE68A', alpha: 75, amount: 12 },
             tip: { on: true, color: '#FFFFFF', alpha: 85, size: 50 },
             innerShadow: { ...newBar().innerShadow, on: true },
-            stripes: { ...newBar().stripes, on: true, alpha: 10, width: 10, gap: 22 },
+            stripes: {
+              ...newBar().stripes,
+              on: true,
+              alpha: 10,
+              width: 10,
+              gap: 22,
+            },
             stroke: {
               ...newBar().stroke,
               on: true,

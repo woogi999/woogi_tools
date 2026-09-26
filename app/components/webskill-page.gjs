@@ -7,6 +7,7 @@ import { registerDestructor, isDestroyed } from '@ember/destroyable';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import { LinkTo } from '@ember/routing';
+import { textureUrl } from '../utils/roblox-texture';
 import Icon from './icon';
 import WsNodeInspector from './ws-node-inspector';
 import { keepState } from '../utils/tool-state';
@@ -49,10 +50,16 @@ const eq = (a, b) => a === b;
 const not = (v) => !v;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const shelf = makeShelf('webskill');
-const BRANCH_FIELDS = ['BRANCH', 'BRANCH TARGET', 'BRANCH FINISHER', 'BRANCH COLLIDED'];
+const BRANCH_FIELDS = [
+  'BRANCH',
+  'BRANCH TARGET',
+  'BRANCH FINISHER',
+  'BRANCH COLLIDED',
+];
 
 const isTyping = (el) =>
-  el?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
+  el?.isContentEditable ||
+  ['INPUT', 'TEXTAREA', 'SELECT'].includes(el?.tagName);
 
 function whenSaved(at) {
   if (!at) return '';
@@ -61,17 +68,6 @@ function whenSaved(at) {
   if (mins < 60) return `${mins} min ago`;
   const hours = Math.round(mins / 60);
   return hours < 24 ? `${hours} hr ago` : new Date(at).toLocaleDateString();
-}
-
-async function textureUrl(id) {
-  try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- the site's own Worker
-    const response = await fetch(`/api/roblox?kind=thumb&id=${encodeURIComponent(id)}`);
-    if (!response.ok) return null;
-    return (await response.json())?.url ?? null;
-  } catch {
-    return null;
-  }
 }
 
 export default class WebskillPage extends Component {
@@ -102,7 +98,13 @@ export default class WebskillPage extends Component {
   @tracked speed = 1;
   @tracked fromBranch = false;
   @tracked hits = 'auto';
-  @tracked conds = { AIR: false, JUMP: false, HOLD: false, ULT: false, BAR: 100 };
+  @tracked conds = {
+    AIR: false,
+    JUMP: false,
+    HOLD: false,
+    ULT: false,
+    BAR: 100,
+  };
   @tracked follow = true;
   @tracked sounds = false;
   @tracked viewReady = false;
@@ -124,13 +126,30 @@ export default class WebskillPage extends Component {
     keepState(
       this,
       'webskill',
-      ['skills', 'name', 'category', 'skillUid', 'branch', 'tab', 'hits', 'conds', 'designId', 'dirty', 'follow', 'sounds'],
+      [
+        'skills',
+        'name',
+        'category',
+        'skillUid',
+        'branch',
+        'tab',
+        'hits',
+        'conds',
+        'designId',
+        'dirty',
+        'follow',
+        'sounds',
+      ],
       (restored) => {
         if (!restored) return;
-        if (!Array.isArray(this.skills) || !this.skills.length) this.skills = starterMoveset();
-        this.skills = this.skills.map((s) => (s.uid ? s : { ...s, uid: newUid() }));
+        if (!Array.isArray(this.skills) || !this.skills.length)
+          this.skills = starterMoveset();
+        this.skills = this.skills.map((s) =>
+          s.uid ? s : { ...s, uid: newUid() },
+        );
         if (!this.skill) this.skillUid = this.skills[0]?.uid ?? null;
-        if (this.branch && !branchNames(this.program).includes(this.branch)) this.branch = '';
+        if (this.branch && !branchNames(this.program).includes(this.branch))
+          this.branch = '';
         this.nodeIndex = 0;
         this.resimulate();
       },
@@ -186,7 +205,11 @@ export default class WebskillPage extends Component {
   get branchTabs() {
     return [
       { name: '', label: 'Default', active: this.branch === '' },
-      ...branchNames(this.program).map((name) => ({ name, label: name, active: this.branch === name })),
+      ...branchNames(this.program).map((name) => ({
+        name,
+        label: name,
+        active: this.branch === name,
+      })),
     ];
   }
 
@@ -216,7 +239,12 @@ export default class WebskillPage extends Component {
     const out = new Set();
     if (!this.run) return out;
     for (const e of this.run.events)
-      if (e.branch === this.branch && this.time >= e.t && this.time < e.end && e.index !== undefined)
+      if (
+        e.branch === this.branch &&
+        this.time >= e.t &&
+        this.time < e.end &&
+        e.index !== undefined
+      )
         out.add(e.index);
     return out;
   }
@@ -295,11 +323,20 @@ export default class WebskillPage extends Component {
     if (!this.run) return { user: [], target: [] };
     const out = { user: [], target: [] };
     for (const e of this.run.events)
-      if (e.kind === 'STATE' && !e.node.CHECK && this.time >= e.t && this.time < e.end)
-        out[e.who].push(`${e.node.STATE ?? 'Stun'} ${Math.max(0, e.end - this.time).toFixed(1)}s`);
+      if (
+        e.kind === 'STATE' &&
+        !e.node.CHECK &&
+        this.time >= e.t &&
+        this.time < e.end
+      )
+        out[e.who].push(
+          `${e.node.STATE ?? 'Stun'} ${Math.max(0, e.end - this.time).toFixed(1)}s`,
+        );
     const tags = new Map();
-    for (const t of this.run.tags) if (t.t <= this.time) tags.set(`${t.who}:${t.tag}`, t);
-    for (const t of tags.values()) if (t.value !== null) out[t.who].push(`${t.tag} = ${t.value}`);
+    for (const t of this.run.tags)
+      if (t.t <= this.time) tags.set(`${t.who}:${t.tag}`, t);
+    for (const t of tags.values())
+      if (t.value !== null) out[t.who].push(`${t.tag} = ${t.value}`);
     return out;
   }
 
@@ -362,7 +399,11 @@ export default class WebskillPage extends Component {
     this.lastKey = null;
     if (!this.skill) this.skillUid = this.skills[0]?.uid ?? null;
     if (this.branch && !this.branches.includes(this.branch)) this.branch = '';
-    this.nodeIndex = clamp(this.nodeIndex, 0, Math.max(0, this.line.length - 1));
+    this.nodeIndex = clamp(
+      this.nodeIndex,
+      0,
+      Math.max(0, this.line.length - 1),
+    );
     this.resimulate();
   }
 
@@ -380,8 +421,10 @@ export default class WebskillPage extends Component {
   editProgram(path, value, key) {
     this.editSkill((s) => {
       let data = s.DATA ?? newProgram();
-      if (path[0] === 'Branch' && Array.isArray(data.Branch)) data = { ...data, Branch: {} };
-      if (path[0] === 'Prop' && Array.isArray(data.Prop)) data = { ...data, Prop: {} };
+      if (path[0] === 'Branch' && Array.isArray(data.Branch))
+        data = { ...data, Branch: {} };
+      if (path[0] === 'Prop' && Array.isArray(data.Prop))
+        data = { ...data, Prop: {} };
       return { ...s, DATA: setIn(data, path, value) };
     }, key);
   }
@@ -448,7 +491,11 @@ export default class WebskillPage extends Component {
 
   setNodeField = (key, value) => {
     const i = this.nodeIndex;
-    this.editProgram([...linePath(this.branch), i, key], value, `${this.skillUid}:${this.branch}:${i}:${key}`);
+    this.editProgram(
+      [...linePath(this.branch), i, key],
+      value,
+      `${this.skillUid}:${this.branch}:${i}:${key}`,
+    );
   };
 
   clearNodeField = (key) => {
@@ -501,16 +548,34 @@ export default class WebskillPage extends Component {
       let out = node;
       for (const key of BRANCH_FIELDS)
         if (out[key] === from) out = { ...out, [key]: to };
-      if (typeof out.RANDOM === 'string' && out.RANDOM.split(',').some((s) => s.trim() === from))
-        out = { ...out, RANDOM: out.RANDOM.split(',').map((s) => (s.trim() === from ? to : s.trim())).join(', ') };
+      if (
+        typeof out.RANDOM === 'string' &&
+        out.RANDOM.split(',').some((s) => s.trim() === from)
+      )
+        out = {
+          ...out,
+          RANDOM: out.RANDOM.split(',')
+            .map((s) => (s.trim() === from ? to : s.trim()))
+            .join(', '),
+        };
       return out;
     };
     this.editSkill((s) => {
       const data = s.DATA;
       const branches = {};
       for (const [name, b] of Object.entries(branchObject(data)))
-        branches[name === from ? to : name] = { ...b, Line: (b.Line ?? []).map(rename) };
-      return { ...s, DATA: { ...data, Line: (data.Line ?? []).map(rename), Branch: branches } };
+        branches[name === from ? to : name] = {
+          ...b,
+          Line: (b.Line ?? []).map(rename),
+        };
+      return {
+        ...s,
+        DATA: {
+          ...data,
+          Line: (data.Line ?? []).map(rename),
+          Branch: branches,
+        },
+      };
     });
     this.branch = to;
   };
@@ -528,8 +593,14 @@ export default class WebskillPage extends Component {
 
   // Conditions.
   addReq = (kind) => {
-    const req = kind === 'BAR' ? { K_NAME: 'BAR', AMOUNT: 99.99 } : { FLIP: false, K_NAME: kind };
-    this.editProgram(reqPath(this.branch), [...reqOf(this.program, this.branch), req]);
+    const req =
+      kind === 'BAR'
+        ? { K_NAME: 'BAR', AMOUNT: 99.99 }
+        : { FLIP: false, K_NAME: kind };
+    this.editProgram(reqPath(this.branch), [
+      ...reqOf(this.program, this.branch),
+      req,
+    ]);
   };
 
   toggleReqFlip = (index) => {
@@ -579,10 +650,19 @@ export default class WebskillPage extends Component {
   // Skills.
   addSkill = () => {
     const count = this.skills.filter((s) => s.K_NAME === this.category).length;
-    const skill = blankSkill(this.category, this.category === 'MELEE' ? String(count + 1) : 'New skill');
-    const lastOfCategory = this.skills.findLastIndex((s) => s.K_NAME === this.category);
+    const skill = blankSkill(
+      this.category,
+      this.category === 'MELEE' ? String(count + 1) : 'New skill',
+    );
+    const lastOfCategory = this.skills.findLastIndex(
+      (s) => s.K_NAME === this.category,
+    );
     const skills = [...this.skills];
-    skills.splice(lastOfCategory < 0 ? skills.length : lastOfCategory + 1, 0, skill);
+    skills.splice(
+      lastOfCategory < 0 ? skills.length : lastOfCategory + 1,
+      0,
+      skill,
+    );
     this.change(skills);
     this.pickSkill(skill.uid);
   };
@@ -590,7 +670,11 @@ export default class WebskillPage extends Component {
   duplicateSkill = () => {
     const skill = this.skill;
     if (!skill) return;
-    const copy = { ...structuredClone(skill), uid: newUid(), NAME: `${skill.NAME} copy` };
+    const copy = {
+      ...structuredClone(skill),
+      uid: newUid(),
+      NAME: `${skill.NAME} copy`,
+    };
     const i = this.skills.indexOf(skill);
     const skills = [...this.skills];
     skills.splice(i + 1, 0, copy);
@@ -604,7 +688,10 @@ export default class WebskillPage extends Component {
     const i = this.skills.indexOf(skill);
     const skills = this.skills.filter((s) => s !== skill);
     this.change(skills);
-    const next = skills.slice(i).find((s) => s.K_NAME === this.category) ?? skills.findLast((s) => s.K_NAME === this.category) ?? skills[0];
+    const next =
+      skills.slice(i).find((s) => s.K_NAME === this.category) ??
+      skills.findLast((s) => s.K_NAME === this.category) ??
+      skills[0];
     this.skillUid = next?.uid ?? null;
     this.branch = '';
     this.nodeIndex = 0;
@@ -617,7 +704,10 @@ export default class WebskillPage extends Component {
     const other = rows[at + step];
     if (at < 0 || !other) return;
     const skills = [...this.skills];
-    [skills[rows[at].index], skills[other.index]] = [skills[other.index], skills[rows[at].index]];
+    [skills[rows[at].index], skills[other.index]] = [
+      skills[other.index],
+      skills[rows[at].index],
+    ];
     this.change(skills);
   };
 
@@ -654,7 +744,8 @@ export default class WebskillPage extends Component {
   doImport = async () => {
     try {
       const skills = await waitForPromise(decodeMoveset(this.importText));
-      if (this.importMode === 'append') this.change([...this.skills, ...skills]);
+      if (this.importMode === 'append')
+        this.change([...this.skills, ...skills]);
       else {
         this.change(skills);
         this.designId = null;
@@ -680,7 +771,8 @@ export default class WebskillPage extends Component {
   makeExport = async () => {
     this.exportCode = '';
     this.copied = false;
-    const skills = this.exportScope === 'skill' && this.skill ? [this.skill] : this.skills;
+    const skills =
+      this.exportScope === 'skill' && this.skill ? [this.skill] : this.skills;
     const code = await waitForPromise(encodeMoveset(skills));
     if (!isDestroyed(this)) this.exportCode = code;
   };
@@ -696,7 +788,9 @@ export default class WebskillPage extends Component {
 
   downloadExport = () => {
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([this.exportCode], { type: 'text/plain' }));
+    link.href = URL.createObjectURL(
+      new Blob([this.exportCode], { type: 'text/plain' }),
+    );
     link.download = `${this.name || 'moveset'}.txt`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 10000);
@@ -710,13 +804,19 @@ export default class WebskillPage extends Component {
       { name: this.name, skills: this.skills },
     );
     if (ok) this.dirty = false;
-    this.status = ok ? `Saved “${this.name}” in this browser.` : 'This browser wouldn’t keep it: export the code instead.';
+    this.status = ok
+      ? `Saved “${this.name}” in this browser.`
+      : 'This browser wouldn’t keep it: export the code instead.';
     if (this.dialog === 'open') this.refreshDesigns();
   };
 
   refreshDesigns = async () => {
     const list = await shelf.list();
-    this.designs = list.map((d) => ({ ...d, when: whenSaved(d.savedAt), current: d.id === this.designId }));
+    this.designs = list.map((d) => ({
+      ...d,
+      when: whenSaved(d.savedAt),
+      current: d.id === this.designId,
+    }));
   };
 
   openSaved = async (id) => {
@@ -762,7 +862,10 @@ export default class WebskillPage extends Component {
         this.scene.show(this.time);
         this.viewReady = true;
       })
-      .catch((error) => (this.viewError = error?.message ?? 'The 3D view couldn’t start'));
+      .catch(
+        (error) =>
+          (this.viewError = error?.message ?? 'The 3D view couldn’t start'),
+      );
     return () => {
       gone = true;
       this.scene?.dispose();
@@ -801,7 +904,10 @@ export default class WebskillPage extends Component {
     const tick = (now) => {
       if (!this.playing) return;
       const before = this.time;
-      this.time = Math.min(this.run.duration, this.time + ((now - last) / 1000) * this.speed);
+      this.time = Math.min(
+        this.run.duration,
+        this.time + ((now - last) / 1000) * this.speed,
+      );
       last = now;
       this.soundsBetween(before, this.time);
       this.scene?.show(this.time);
@@ -835,7 +941,10 @@ export default class WebskillPage extends Component {
   setSpeed = (event) => (this.speed = Number(event.target.value) || 1);
 
   setCond = (key, event) => {
-    const value = key === 'BAR' ? clamp(Number(event.target.value) || 0, 0, 100) : event.target.checked;
+    const value =
+      key === 'BAR'
+        ? clamp(Number(event.target.value) || 0, 0, 100)
+        : event.target.checked;
     this.conds = { ...this.conds, [key]: value };
     this.simulateNow();
   };
@@ -869,7 +978,9 @@ export default class WebskillPage extends Component {
       if (!id || id === '0') continue;
       let audio = this.audio.get(id);
       if (audio === undefined) {
-        audio = new Audio(`/api/roblox?kind=asset&id=${encodeURIComponent(id)}`);
+        audio = new Audio(
+          `/api/roblox?kind=asset&id=${encodeURIComponent(id)}`,
+        );
         audio.preload = 'auto';
         this.audio.set(id, audio);
       }
@@ -889,7 +1000,10 @@ export default class WebskillPage extends Component {
     this.stop();
     this.time = row.t;
     this.scene?.show(row.t);
-    if (row.branch !== undefined && (row.branch === '' || this.branches.includes(row.branch))) {
+    if (
+      row.branch !== undefined &&
+      (row.branch === '' || this.branches.includes(row.branch))
+    ) {
       this.branch = row.branch ?? '';
       if (row.index !== undefined) this.nodeIndex = row.index;
       this.tab = 'timeline';
@@ -934,7 +1048,11 @@ export default class WebskillPage extends Component {
     if (k === 'arrowup' || k === 'arrowdown') {
       event.preventDefault();
       if (event.altKey) return this.moveNode(k === 'arrowup' ? -1 : 1);
-      this.nodeIndex = clamp(this.nodeIndex + (k === 'arrowup' ? -1 : 1), 0, Math.max(0, this.line.length - 1));
+      this.nodeIndex = clamp(
+        this.nodeIndex + (k === 'arrowup' ? -1 : 1),
+        0,
+        Math.max(0, this.line.length - 1),
+      );
     }
   }
 
@@ -947,16 +1065,33 @@ export default class WebskillPage extends Component {
           <img src="/icon_expanded.png" alt="Woogi Tools" />
         </LinkTo>
         <div class="ws-cluster">
-          <button type="button" class="ws-menu-btn" {{on "click" this.newMoveset}}>
+          <button
+            type="button"
+            class="ws-menu-btn"
+            {{on "click" this.newMoveset}}
+          >
             <Icon @name="file-plus" @size={{14}} /><span>New</span>
           </button>
-          <button type="button" class="ws-menu-btn ws-import" {{on "click" (fn this.openDialog "import")}}>
+          <button
+            type="button"
+            class="ws-menu-btn ws-import"
+            {{on "click" (fn this.openDialog "import")}}
+          >
             <Icon @name="upload" @size={{14}} /><span>Import</span>
           </button>
-          <button type="button" class="ws-menu-btn ws-open" {{on "click" (fn this.openDialog "open")}}>
+          <button
+            type="button"
+            class="ws-menu-btn ws-open"
+            {{on "click" (fn this.openDialog "open")}}
+          >
             <Icon @name="folder" @size={{14}} /><span>Open</span>
           </button>
-          <button type="button" class="ws-menu-btn ws-save" title="Save in this browser (Ctrl+S)" {{on "click" this.saveHere}}>
+          <button
+            type="button"
+            class="ws-menu-btn ws-save"
+            title="Save in this browser (Ctrl+S)"
+            {{on "click" this.saveHere}}
+          >
             <Icon @name="save" @size={{14}} /><span>Save</span>
           </button>
         </div>
@@ -971,19 +1106,40 @@ export default class WebskillPage extends Component {
             value={{this.name}}
             {{on "change" this.setName}}
           />
-          <span class="ws-dirty {{if this.dirty 'is-dirty'}}" title={{if this.dirty "Changed since it was saved" "Saved"}}></span>
+          <span
+            class="ws-dirty {{if this.dirty 'is-dirty'}}"
+            title={{if this.dirty "Changed since it was saved" "Saved"}}
+          ></span>
         </div>
         <span class="ws-sep"></span>
         <div class="ws-cluster">
-          <button type="button" class="ws-menu-btn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={{this.cannotUndo}} {{on "click" this.undo}}>
+          <button
+            type="button"
+            class="ws-menu-btn"
+            title="Undo (Ctrl+Z)"
+            aria-label="Undo"
+            disabled={{this.cannotUndo}}
+            {{on "click" this.undo}}
+          >
             <Icon @name="undo-2" @size={{14}} />
           </button>
-          <button type="button" class="ws-menu-btn" title="Redo (Ctrl+Y)" aria-label="Redo" disabled={{this.cannotRedo}} {{on "click" this.redo}}>
+          <button
+            type="button"
+            class="ws-menu-btn"
+            title="Redo (Ctrl+Y)"
+            aria-label="Redo"
+            disabled={{this.cannotRedo}}
+            {{on "click" this.redo}}
+          >
             <Icon @name="rotate-cw" @size={{14}} />
           </button>
         </div>
         <span class="ws-spacer"></span>
-        <button type="button" class="ws-primary ws-export" {{on "click" (fn this.openDialog "export")}}>
+        <button
+          type="button"
+          class="ws-primary ws-export"
+          {{on "click" (fn this.openDialog "export")}}
+        >
           <Icon @name="copy" @size={{14}} /><span>Export code</span>
         </button>
       </header>
@@ -1011,7 +1167,9 @@ export default class WebskillPage extends Component {
             <li>
               <button
                 type="button"
-                class="ws-bar ws-skill {{if row.active 'active'}} {{if row.separator 'is-separator'}}"
+                class="ws-bar ws-skill
+                  {{if row.active 'active'}}
+                  {{if row.separator 'is-separator'}}"
                 style={{row.style}}
                 {{on "click" (fn this.pickSkill row.uid)}}
               >
@@ -1024,12 +1182,38 @@ export default class WebskillPage extends Component {
           {{/each}}
         </ul>
         <div class="ws-panel-foot">
-          <button type="button" title="Add a skill" aria-label="Add a skill" {{on "click" this.addSkill}}><Icon @name="plus" @size={{14}} /></button>
-          <button type="button" title="Move up" aria-label="Move skill up" {{on "click" (fn this.moveSkill -1)}}><Icon @name="arrow-up" @size={{14}} /></button>
-          <button type="button" title="Move down" aria-label="Move skill down" {{on "click" (fn this.moveSkill 1)}}><Icon @name="arrow-down" @size={{14}} /></button>
-          <button type="button" title="Duplicate" aria-label="Duplicate skill" {{on "click" this.duplicateSkill}}><Icon @name="copy" @size={{14}} /></button>
+          <button
+            type="button"
+            title="Add a skill"
+            aria-label="Add a skill"
+            {{on "click" this.addSkill}}
+          ><Icon @name="plus" @size={{14}} /></button>
+          <button
+            type="button"
+            title="Move up"
+            aria-label="Move skill up"
+            {{on "click" (fn this.moveSkill -1)}}
+          ><Icon @name="arrow-up" @size={{14}} /></button>
+          <button
+            type="button"
+            title="Move down"
+            aria-label="Move skill down"
+            {{on "click" (fn this.moveSkill 1)}}
+          ><Icon @name="arrow-down" @size={{14}} /></button>
+          <button
+            type="button"
+            title="Duplicate"
+            aria-label="Duplicate skill"
+            {{on "click" this.duplicateSkill}}
+          ><Icon @name="copy" @size={{14}} /></button>
           <span class="ws-spacer"></span>
-          <button type="button" title="Delete" aria-label="Delete skill" disabled={{not this.skill}} {{on "click" this.deleteSkill}}><Icon @name="trash-2" @size={{14}} /></button>
+          <button
+            type="button"
+            title="Delete"
+            aria-label="Delete skill"
+            disabled={{not this.skill}}
+            {{on "click" this.deleteSkill}}
+          ><Icon @name="trash-2" @size={{14}} /></button>
         </div>
       </aside>
 
@@ -1046,7 +1230,13 @@ export default class WebskillPage extends Component {
                 {{on "click" (fn this.pickBranch b.name)}}
               >{{b.label}}</button>
             {{/each}}
-            <button type="button" class="ws-branch ws-add-branch" title="Add a branch" aria-label="Add a branch" {{on "click" this.addBranch}}>
+            <button
+              type="button"
+              class="ws-branch ws-add-branch"
+              title="Add a branch"
+              aria-label="Add a branch"
+              {{on "click" this.addBranch}}
+            >
               <Icon @name="plus" @size={{13}} />
             </button>
           </div>
@@ -1091,13 +1281,16 @@ export default class WebskillPage extends Component {
                   >
                     <button
                       type="button"
-                      class="ws-bar ws-node {{if n.active 'active'}} {{if n.playing 'is-playing'}}"
+                      class="ws-bar ws-node
+                        {{if n.active 'active'}}
+                        {{if n.playing 'is-playing'}}"
                       style={{n.style}}
                       {{on "click" (fn this.pickNode n.index)}}
                     >
                       <span class="ws-node-n">{{inc n.index}}</span>
                       <Icon @name={{n.icon}} @size={{13}} />
-                      <span class="ws-bar-label">{{#if n.detail}}[{{n.detail}}] {{/if}}{{n.label}}</span>
+                      <span class="ws-bar-label">{{#if n.detail}}[{{n.detail}}]
+                        {{/if}}{{n.label}}</span>
                     </button>
                   </li>
                 {{else}}
@@ -1107,12 +1300,40 @@ export default class WebskillPage extends Component {
             </div>
             <div class="ws-node-panel">
               <div class="ws-node-tools">
-                <strong>{{if this.selectedNode (nodeLabel this.selectedNode) "No node"}}</strong>
+                <strong>{{if
+                    this.selectedNode
+                    (nodeLabel this.selectedNode)
+                    "No node"
+                  }}</strong>
                 <span class="ws-spacer"></span>
-                <button type="button" title="Move up (Alt+↑)" aria-label="Move node up" disabled={{not this.selectedNode}} {{on "click" (fn this.moveNode -1)}}><Icon @name="arrow-up" @size={{13}} /></button>
-                <button type="button" title="Move down (Alt+↓)" aria-label="Move node down" disabled={{not this.selectedNode}} {{on "click" (fn this.moveNode 1)}}><Icon @name="arrow-down" @size={{13}} /></button>
-                <button type="button" title="Duplicate (Ctrl+D)" aria-label="Duplicate node" disabled={{not this.selectedNode}} {{on "click" this.duplicateNode}}><Icon @name="copy" @size={{13}} /></button>
-                <button type="button" title="Delete (Del)" aria-label="Delete node" disabled={{not this.selectedNode}} {{on "click" this.deleteNode}}><Icon @name="trash-2" @size={{13}} /></button>
+                <button
+                  type="button"
+                  title="Move up (Alt+↑)"
+                  aria-label="Move node up"
+                  disabled={{not this.selectedNode}}
+                  {{on "click" (fn this.moveNode -1)}}
+                ><Icon @name="arrow-up" @size={{13}} /></button>
+                <button
+                  type="button"
+                  title="Move down (Alt+↓)"
+                  aria-label="Move node down"
+                  disabled={{not this.selectedNode}}
+                  {{on "click" (fn this.moveNode 1)}}
+                ><Icon @name="arrow-down" @size={{13}} /></button>
+                <button
+                  type="button"
+                  title="Duplicate (Ctrl+D)"
+                  aria-label="Duplicate node"
+                  disabled={{not this.selectedNode}}
+                  {{on "click" this.duplicateNode}}
+                ><Icon @name="copy" @size={{13}} /></button>
+                <button
+                  type="button"
+                  title="Delete (Del)"
+                  aria-label="Delete node"
+                  disabled={{not this.selectedNode}}
+                  {{on "click" this.deleteNode}}
+                ><Icon @name="trash-2" @size={{13}} /></button>
               </div>
               {{#if this.selectedNode}}
                 <WsNodeInspector
@@ -1138,16 +1359,24 @@ export default class WebskillPage extends Component {
                       value={{this.branch}}
                       {{on "change" this.renameBranch}}
                     /></label>
-                  <p class="ws-hint">Renaming also renames every BRANCH, target and
-                    random pick that goes here.</p>
-                  <button type="button" class="btn" {{on "click" this.deleteBranch}}>
+                  <p class="ws-hint">Renaming also renames every BRANCH, target
+                    and random pick that goes here.</p>
+                  <button
+                    type="button"
+                    class="btn"
+                    {{on "click" this.deleteBranch}}
+                  >
                     <Icon @name="trash-2" @size={{13}} />
                     Delete this branch
                   </button>
                 </section>
               {{/if}}
               <section class="ws-group">
-                <h4 class="ws-group-title">{{if this.branch "Only enters when" "Only starts when"}}</h4>
+                <h4 class="ws-group-title">{{if
+                    this.branch
+                    "Only enters when"
+                    "Only starts when"
+                  }}</h4>
                 {{#each this.reqs as |r|}}
                   <div class="ws-req">
                     <button
@@ -1167,19 +1396,30 @@ export default class WebskillPage extends Component {
                         {{on "change" (fn this.setReqAmount r.index)}}
                       />
                     {{/if}}
-                    <button type="button" class="ws-icon-btn" aria-label="Remove condition" {{on "click" (fn this.removeReq r.index)}}><Icon @name="x" @size={{12}} /></button>
+                    <button
+                      type="button"
+                      class="ws-icon-btn"
+                      aria-label="Remove condition"
+                      {{on "click" (fn this.removeReq r.index)}}
+                    ><Icon @name="x" @size={{12}} /></button>
                   </div>
                 {{else}}
-                  <p class="ws-hint">No conditions: {{if this.branch "any BRANCH to here enters." "the skill always starts."}}</p>
+                  <p class="ws-hint">No conditions:
+                    {{if
+                      this.branch
+                      "any BRANCH to here enters."
+                      "the skill always starts."
+                    }}</p>
                 {{/each}}
                 <div class="ws-chips">
                   {{#each this.reqKinds as |k|}}
-                    <button type="button" {{on "click" (fn this.addReq k.id)}}>+ {{k.label}}</button>
+                    <button type="button" {{on "click" (fn this.addReq k.id)}}>+
+                      {{k.label}}</button>
                   {{/each}}
                 </div>
-                <p class="ws-hint">A BRANCH whose conditions don’t hold is skipped and
-                  the line carries on: that’s how one move gets ground, air and
-                  jump versions.</p>
+                <p class="ws-hint">A BRANCH whose conditions don’t hold is
+                  skipped and the line carries on: that’s how one move gets
+                  ground, air and jump versions.</p>
               </section>
             </div>
           {{/if}}
@@ -1192,7 +1432,11 @@ export default class WebskillPage extends Component {
                   <label class="ws-row" title={{f.hint}}>
                     <span>{{f.label}}</span>
                     {{#if (eq f.type "bool")}}
-                      <input type="checkbox" checked={{f.value}} {{on "change" (fn this.setSkillField f)}} />
+                      <input
+                        type="checkbox"
+                        checked={{f.value}}
+                        {{on "change" (fn this.setSkillField f)}}
+                      />
                     {{else}}
                       <input
                         type={{if (eq f.type "num") "number" "text"}}
@@ -1226,7 +1470,8 @@ export default class WebskillPage extends Component {
                       value={{this.props.variable}}
                       {{on "change" this.setVariable}}
                     /></label>
-                  {{#each this.props.others as |o|}}<p class="ws-hint">Also: {{o}}</p>{{/each}}
+                  {{#each this.props.others as |o|}}<p class="ws-hint">Also:
+                      {{o}}</p>{{/each}}
                   <p class="ws-hint">Hover a flag for what it seems to do; the
                     handbook marks these meanings as inferred.</p>
                 </section>
@@ -1237,7 +1482,8 @@ export default class WebskillPage extends Component {
             </div>
           {{/if}}
         {{else}}
-          <p class="ws-hint ws-pad">Pick a skill, or add one with + under the list.</p>
+          <p class="ws-hint ws-pad">Pick a skill, or add one with + under the
+            list.</p>
         {{/if}}
       </section>
 
@@ -1245,7 +1491,11 @@ export default class WebskillPage extends Component {
       <section class="ws-view" aria-label="Preview">
         <div class="ws-viewport" {{this.bindView}}>
           {{#unless this.viewReady}}
-            <p class="ws-view-note">{{if this.viewError this.viewError "Loading the 3D view…"}}</p>
+            <p class="ws-view-note">{{if
+                this.viewError
+                this.viewError
+                "Loading the 3D view…"
+              }}</p>
           {{/unless}}
           <div class="ws-hud">
             <div class="ws-hp" title="The dummy’s health">
@@ -1253,21 +1503,54 @@ export default class WebskillPage extends Component {
               <span class="ws-hp-text">Dummy {{this.targetHp}}</span>
             </div>
             <div class="ws-hud-cols">
-              <ul class="ws-hud-list">{{#each this.hud.user as |s|}}<li>{{s}}</li>{{/each}}</ul>
-              <ul class="ws-hud-list is-target">{{#each this.hud.target as |s|}}<li>{{s}}</li>{{/each}}</ul>
+              <ul class="ws-hud-list">{{#each this.hud.user as |s|}}<li
+                  >{{s}}</li>{{/each}}</ul>
+              <ul class="ws-hud-list is-target">{{#each
+                  this.hud.target
+                  as |s|
+                }}<li>{{s}}</li>{{/each}}</ul>
             </div>
           </div>
           <div class="ws-view-tools">
-            <button type="button" class="ws-chip {{if this.follow 'active'}}" title="Keep both characters in view" {{on "click" this.toggleFollow}}>Follow</button>
-            <button type="button" class="ws-chip {{if this.sounds 'active'}}" title="Play the skill’s Roblox sounds, where they’re public" {{on "click" this.toggleSounds}}>Sounds</button>
-            <button type="button" class="ws-chip" title="Put the camera back" {{on "click" this.resetCamera}}><Icon @name="locate-fixed" @size={{12}} /></button>
+            <button
+              type="button"
+              class="ws-chip {{if this.follow 'active'}}"
+              title="Keep both characters in view"
+              {{on "click" this.toggleFollow}}
+            >Follow</button>
+            <button
+              type="button"
+              class="ws-chip {{if this.sounds 'active'}}"
+              title="Play the skill’s Roblox sounds, where they’re public"
+              {{on "click" this.toggleSounds}}
+            >Sounds</button>
+            <button
+              type="button"
+              class="ws-chip"
+              title="Put the camera back"
+              {{on "click" this.resetCamera}}
+            ><Icon @name="locate-fixed" @size={{12}} /></button>
           </div>
         </div>
         <div class="ws-playbar">
-          <button type="button" class="ws-menu-btn ws-play" aria-label={{if this.playing "Pause" "Play"}} title="Play (Space)" disabled={{not this.hasProgram}} {{on "click" this.play}}>
+          <button
+            type="button"
+            class="ws-menu-btn ws-play"
+            aria-label={{if this.playing "Pause" "Play"}}
+            title="Play (Space)"
+            disabled={{not this.hasProgram}}
+            {{on "click" this.play}}
+          >
             <Icon @name={{if this.playing "pause" "play"}} @size={{15}} />
           </button>
-          <button type="button" class="ws-menu-btn" aria-label="Play from the start" title="From the start" disabled={{not this.hasProgram}} {{on "click" this.restart}}>
+          <button
+            type="button"
+            class="ws-menu-btn"
+            aria-label="Play from the start"
+            title="From the start"
+            disabled={{not this.hasProgram}}
+            {{on "click" this.restart}}
+          >
             <Icon @name="skip-back" @size={{14}} />
           </button>
           <input
@@ -1281,33 +1564,83 @@ export default class WebskillPage extends Component {
             {{on "input" this.scrub}}
           />
           <span class="ws-time">{{this.timeLabel}}</span>
-          <select class="select ws-speed" aria-label="Speed" {{on "change" this.setSpeed}}>
+          <select
+            class="select ws-speed"
+            aria-label="Speed"
+            {{on "change" this.setSpeed}}
+          >
             <option value="1" selected={{eq this.speed 1}}>1×</option>
             <option value="0.5" selected={{eq this.speed 0.5}}>0.5×</option>
             <option value="0.25" selected={{eq this.speed 0.25}}>0.25×</option>
           </select>
         </div>
         <div class="ws-conds">
-          <label class="math-check"><input type="checkbox" checked={{this.conds.AIR}} {{on "change" (fn this.setCond "AIR")}} /> Air</label>
-          <label class="math-check"><input type="checkbox" checked={{this.conds.JUMP}} {{on "change" (fn this.setCond "JUMP")}} /> Jump</label>
-          <label class="math-check"><input type="checkbox" checked={{this.conds.HOLD}} {{on "change" (fn this.setCond "HOLD")}} /> Hold</label>
-          <label class="math-check"><input type="checkbox" checked={{this.conds.ULT}} {{on "change" (fn this.setCond "ULT")}} /> Awakened</label>
-          <label class="ws-bar-input"><span>Bar</span><input type="number" min="0" max="100" class="math-input" value={{this.conds.BAR}} {{on "change" (fn this.setCond "BAR")}} /></label>
+          <label class="math-check"><input
+              type="checkbox"
+              checked={{this.conds.AIR}}
+              {{on "change" (fn this.setCond "AIR")}}
+            />
+            Air</label>
+          <label class="math-check"><input
+              type="checkbox"
+              checked={{this.conds.JUMP}}
+              {{on "change" (fn this.setCond "JUMP")}}
+            />
+            Jump</label>
+          <label class="math-check"><input
+              type="checkbox"
+              checked={{this.conds.HOLD}}
+              {{on "change" (fn this.setCond "HOLD")}}
+            />
+            Hold</label>
+          <label class="math-check"><input
+              type="checkbox"
+              checked={{this.conds.ULT}}
+              {{on "change" (fn this.setCond "ULT")}}
+            />
+            Awakened</label>
+          <label class="ws-bar-input"><span>Bar</span><input
+              type="number"
+              min="0"
+              max="100"
+              class="math-input"
+              value={{this.conds.BAR}}
+              {{on "change" (fn this.setCond "BAR")}}
+            /></label>
           <span class="ws-sep"></span>
           <div class="ws-seg" role="group" aria-label="Hits">
             {{#each (hitModes) as |m|}}
-              <button type="button" class={{if (eq this.hits m.id) "active"}} title={{m.title}} {{on "click" (fn this.setHits m.id)}}>{{m.label}}</button>
+              <button
+                type="button"
+                class={{if (eq this.hits m.id) "active"}}
+                title={{m.title}}
+                {{on "click" (fn this.setHits m.id)}}
+              >{{m.label}}</button>
             {{/each}}
           </div>
-          <label class="math-check" title="Play the branch open in the editor instead of the whole skill"><input type="checkbox" checked={{this.fromBranch}} {{on "change" this.toggleFromBranch}} /> This branch</label>
+          <label
+            class="math-check"
+            title="Play the branch open in the editor instead of the whole skill"
+          ><input
+              type="checkbox"
+              checked={{this.fromBranch}}
+              {{on "change" this.toggleFromBranch}}
+            />
+            This branch</label>
         </div>
         <ol class="ws-log" aria-label="What happened">
-          {{#each this.run.warnings as |w|}}<li class="ws-log-warn">{{w}}</li>{{/each}}
+          {{#each this.run.warnings as |w|}}<li
+              class="ws-log-warn"
+            >{{w}}</li>{{/each}}
           {{#each this.logRows as |l|}}
             <li class="{{if l.past 'is-past'}} is-{{l.who}}">
               <button type="button" {{on "click" (fn this.jumpTo l)}}>
                 <span class="ws-log-t">{{l.when}}</span>
-                <span class="ws-log-who">{{if (eq l.who "user") "You" "Dummy"}}</span>
+                <span class="ws-log-who">{{if
+                    (eq l.who "user")
+                    "You"
+                    "Dummy"
+                  }}</span>
                 <span class="ws-log-text">{{l.text}}</span>
                 <span class="ws-log-at">{{l.place}}</span>
               </button>
@@ -1317,7 +1650,10 @@ export default class WebskillPage extends Component {
       </section>
 
       <footer class="ws-status">
-        <span class="ws-status-msg" role="status">{{#if this.status}}{{this.status}}{{else}}{{this.skills.length}} skills · the dummy stands 5 studs ahead · a model of JJS, not JJS{{/if}}</span>
+        <span class="ws-status-msg" role="status">{{#if
+            this.status
+          }}{{this.status}}{{else}}{{this.skills.length}}
+            skills · the dummy stands 5 studs ahead · a model of JJS, not JJS{{/if}}</span>
       </footer>
 
       {{! ── Dialogs ── }}
@@ -1325,14 +1661,24 @@ export default class WebskillPage extends Component {
         {{! template-lint-disable no-invalid-interactive }}
         <div class="ws-dialog-backdrop" {{on "click" this.backdrop}}>
           {{! template-lint-enable no-invalid-interactive }}
-          <div class="ws-dialog" role="dialog" aria-modal="true" aria-label="Import">
+          <div
+            class="ws-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Import"
+          >
             <div class="ws-dialog-head">
               <h3>Import a moveset</h3>
-              <button type="button" class="ws-menu-btn" aria-label="Close" {{on "click" this.closeDialog}}><Icon @name="x" @size={{14}} /></button>
+              <button
+                type="button"
+                class="ws-menu-btn"
+                aria-label="Close"
+                {{on "click" this.closeDialog}}
+              ><Icon @name="x" @size={{14}} /></button>
             </div>
             <div class="ws-dialog-body">
-              <p class="ws-hint">Paste the code JJS’s Skill Builder copies out (the
-                export button at the bottom of its skill list).</p>
+              <p class="ws-hint">Paste the code JJS’s Skill Builder copies out
+                (the export button at the bottom of its skill list).</p>
               <textarea
                 class="math-input ws-code"
                 rows="7"
@@ -1346,15 +1692,35 @@ export default class WebskillPage extends Component {
                 <label class="btn">
                   <Icon @name="file-text" @size={{13}} />
                   From a file
-                  <input type="file" accept=".txt,text/plain" class="sr-only" {{on "change" this.importFile}} />
+                  <input
+                    type="file"
+                    accept=".txt,text/plain"
+                    class="sr-only"
+                    {{on "change" this.importFile}}
+                  />
                 </label>
                 <div class="ws-seg" role="group" aria-label="Import as">
-                  <button type="button" class={{if (eq this.importMode "replace") "active"}} {{on "click" (fn this.setImportMode "replace")}}>Replace</button>
-                  <button type="button" class={{if (eq this.importMode "append") "active"}} {{on "click" (fn this.setImportMode "append")}}>Add to these</button>
+                  <button
+                    type="button"
+                    class={{if (eq this.importMode "replace") "active"}}
+                    {{on "click" (fn this.setImportMode "replace")}}
+                  >Replace</button>
+                  <button
+                    type="button"
+                    class={{if (eq this.importMode "append") "active"}}
+                    {{on "click" (fn this.setImportMode "append")}}
+                  >Add to these</button>
                 </div>
               </div>
-              {{#if this.importError}}<p class="tool-error">{{this.importError}}</p>{{/if}}
-              <button type="button" class="ws-primary ws-do-import" disabled={{not this.importText}} {{on "click" this.doImport}}>Import</button>
+              {{#if this.importError}}<p
+                  class="tool-error"
+                >{{this.importError}}</p>{{/if}}
+              <button
+                type="button"
+                class="ws-primary ws-do-import"
+                disabled={{not this.importText}}
+                {{on "click" this.doImport}}
+              >Import</button>
             </div>
           </div>
         </div>
@@ -1364,25 +1730,60 @@ export default class WebskillPage extends Component {
         {{! template-lint-disable no-invalid-interactive }}
         <div class="ws-dialog-backdrop" {{on "click" this.backdrop}}>
           {{! template-lint-enable no-invalid-interactive }}
-          <div class="ws-dialog" role="dialog" aria-modal="true" aria-label="Export">
+          <div
+            class="ws-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Export"
+          >
             <div class="ws-dialog-head">
               <h3>Export code</h3>
-              <button type="button" class="ws-menu-btn" aria-label="Close" {{on "click" this.closeDialog}}><Icon @name="x" @size={{14}} /></button>
+              <button
+                type="button"
+                class="ws-menu-btn"
+                aria-label="Close"
+                {{on "click" this.closeDialog}}
+              ><Icon @name="x" @size={{14}} /></button>
             </div>
             <div class="ws-dialog-body">
               <div class="ws-seg" role="group" aria-label="What to export">
-                <button type="button" class={{if (eq this.exportScope "all") "active"}} {{on "click" (fn this.setExportScope "all")}}>Whole moveset</button>
-                <button type="button" class={{if (eq this.exportScope "skill") "active"}} {{on "click" (fn this.setExportScope "skill")}}>This skill</button>
+                <button
+                  type="button"
+                  class={{if (eq this.exportScope "all") "active"}}
+                  {{on "click" (fn this.setExportScope "all")}}
+                >Whole moveset</button>
+                <button
+                  type="button"
+                  class={{if (eq this.exportScope "skill") "active"}}
+                  {{on "click" (fn this.setExportScope "skill")}}
+                >This skill</button>
               </div>
-              <textarea class="math-input ws-code ws-export-code" rows="7" readonly spellcheck="false" aria-label="Code" value={{this.exportCode}}></textarea>
-              <p class="ws-hint">Paste it into JJS’s Skill Builder with its import
-                button.</p>
+              <textarea
+                class="math-input ws-code ws-export-code"
+                rows="7"
+                readonly
+                spellcheck="false"
+                aria-label="Code"
+                value={{this.exportCode}}
+              ></textarea>
+              <p class="ws-hint">Paste it into JJS’s Skill Builder with its
+                import button.</p>
               <div class="ws-actions">
-                <button type="button" class="ws-primary" disabled={{not this.exportCode}} {{on "click" this.copyExport}}>
+                <button
+                  type="button"
+                  class="ws-primary"
+                  disabled={{not this.exportCode}}
+                  {{on "click" this.copyExport}}
+                >
                   <Icon @name={{if this.copied "check" "copy"}} @size={{14}} />
                   <span>{{if this.copied "Copied" "Copy code"}}</span>
                 </button>
-                <button type="button" class="btn" disabled={{not this.exportCode}} {{on "click" this.downloadExport}}>
+                <button
+                  type="button"
+                  class="btn"
+                  disabled={{not this.exportCode}}
+                  {{on "click" this.downloadExport}}
+                >
                   <Icon @name="download" @size={{13}} />
                   Download .txt
                 </button>
@@ -1396,19 +1797,38 @@ export default class WebskillPage extends Component {
         {{! template-lint-disable no-invalid-interactive }}
         <div class="ws-dialog-backdrop" {{on "click" this.backdrop}}>
           {{! template-lint-enable no-invalid-interactive }}
-          <div class="ws-dialog" role="dialog" aria-modal="true" aria-label="Your movesets">
+          <div
+            class="ws-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Your movesets"
+          >
             <div class="ws-dialog-head">
               <h3>Your movesets</h3>
-              <button type="button" class="ws-menu-btn" aria-label="Close" {{on "click" this.closeDialog}}><Icon @name="x" @size={{14}} /></button>
+              <button
+                type="button"
+                class="ws-menu-btn"
+                aria-label="Close"
+                {{on "click" this.closeDialog}}
+              ><Icon @name="x" @size={{14}} /></button>
             </div>
             <div class="ws-dialog-body">
               {{#each this.designs key="id" as |d|}}
                 <div class="ws-saved {{if d.current 'is-current'}}">
-                  <button type="button" class="ws-saved-open" {{on "click" (fn this.openSaved d.id)}}>
+                  <button
+                    type="button"
+                    class="ws-saved-open"
+                    {{on "click" (fn this.openSaved d.id)}}
+                  >
                     <strong>{{d.name}}</strong>
                     <span>{{d.skills}} skills · {{d.when}}</span>
                   </button>
-                  <button type="button" class="ws-menu-btn" aria-label="Delete {{d.name}}" {{on "click" (fn this.deleteSaved d.id)}}><Icon @name="trash-2" @size={{13}} /></button>
+                  <button
+                    type="button"
+                    class="ws-menu-btn"
+                    aria-label="Delete {{d.name}}"
+                    {{on "click" (fn this.deleteSaved d.id)}}
+                  ><Icon @name="trash-2" @size={{13}} /></button>
                 </div>
               {{else}}
                 <p class="ws-hint">Nothing saved in this browser yet: Save (or
@@ -1429,7 +1849,11 @@ const tabList = () => [
 ];
 
 const hitModes = () => [
-  { id: 'auto', label: 'Hits if in range', title: 'Hitboxes and projectiles hit the dummy when it’s inside them' },
+  {
+    id: 'auto',
+    label: 'Hits if in range',
+    title: 'Hitboxes and projectiles hit the dummy when it’s inside them',
+  },
   { id: 'always', label: 'Always hit', title: 'Every hitbox hits' },
   { id: 'never', label: 'Whiff', title: 'Nothing hits' },
 ];

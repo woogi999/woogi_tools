@@ -9,8 +9,16 @@ import { waitForPromise } from '@ember/test-waiters';
 import Icon from './icon';
 import { encodeMoveset } from '../utils/skillbuilder/format';
 import { TEMPLATES, defaultsOf } from '../utils/jjs-templates';
+import { textureUrl } from '../utils/roblox-texture';
 
 const eq = (a, b) => a === b;
+
+// A field's `when`: a checkbox that must be ticked, or "key=value".
+function shows(field, values) {
+  if (!field.when) return true;
+  const [key, want] = field.when.split('=');
+  return want === undefined ? Boolean(values[key]) : values[key] === want;
+}
 const COPIED_MS = 1200;
 
 export const matchTemplates = (query) => {
@@ -33,6 +41,10 @@ export default class JjsTemplates extends Component {
   @tracked code = '';
   @tracked error = null;
   @tracked copied = false;
+  // The 3D preview: which step it shows, and whether it could start.
+  @tracked previewStep = null;
+  @tracked previewError = null;
+  barScene = null;
 
   copyTimer = null;
   run = 0;
@@ -68,10 +80,56 @@ export default class JjsTemplates extends Component {
     return (this.template?.sections ?? []).map((section) => ({
       title: section.title,
       fields: section.fields
-        .filter((f) => !f.when || values[f.when])
+        .filter((f) => shows(f, values))
         .map((f) => ({ ...f, value: values[f.key] })),
     }));
   }
+
+  get preview() {
+    const shown = this.template?.preview?.(this.current);
+    if (!shown) return null;
+    const last = Math.max(0, shown.ids.length - 1);
+    // Full, unless a step has been picked.
+    const step = Math.min(this.previewStep ?? last, last);
+    return { ...shown, step, last, id: shown.ids[step] ?? null };
+  }
+
+  bindPreview = modifier((element) => {
+    let gone = false;
+    import('../lazy/bar-scene')
+      .then(({ mountBarScene }) => {
+        if (gone) return;
+        this.barScene = mountBarScene(element);
+        this.feedPreview();
+      })
+      .catch(
+        (error) =>
+          (this.previewError = error?.message ?? 'The 3D view couldn’t start'),
+      );
+    return () => {
+      gone = true;
+      this.barScene?.dispose();
+      this.barScene = null;
+    };
+  });
+
+  // Its argument is only there so it runs again when the preview changes.
+  showPreview = modifier((_element, [_preview]) => {
+    this.feedPreview();
+  });
+
+  async feedPreview() {
+    const shown = this.preview;
+    if (!this.barScene || !shown) return;
+    const scene = this.barScene;
+    const url = shown.id ? await textureUrl(shown.id) : null;
+    if (scene !== this.barScene || this.preview?.id !== shown.id) return;
+    scene.update({ url, size: shown.size, position: shown.position });
+  }
+
+  setPreviewStep = (event) => (this.previewStep = Number(event.target.value));
+
+  resetPreview = () => this.barScene?.resetCamera();
 
   get usage() {
     return this.template?.usage(this.current);
@@ -243,6 +301,46 @@ export default class JjsTemplates extends Component {
               </div>
             </fieldset>
           {{/each}}
+
+          {{#if this.preview}}
+            <fieldset class="jjs-tpl-section jjs-tpl-preview">
+              <legend>Preview</legend>
+              <div class="pb-bar3d">
+                <div
+                  class="pb-bar3d-view"
+                  {{this.bindPreview}}
+                  {{this.showPreview this.preview}}
+                ></div>
+                <div class="pb-bar3d-bar">
+                  {{#if this.preview.ids.length}}
+                    <label class="pb-opt pb-bar3d-step"><span>Step
+                        {{this.preview.step}}
+                        of
+                        {{this.preview.last}}</span><input
+                        type="range"
+                        min="0"
+                        max={{this.preview.last}}
+                        value={{this.preview.step}}
+                        {{on "input" this.setPreviewStep}}
+                      /></label>
+                  {{/if}}
+                  <button
+                    type="button"
+                    class="btn pb-bar3d-reset"
+                    {{on "click" this.resetPreview}}
+                  >Reset view</button>
+                </div>
+                {{#if this.previewError}}
+                  <p class="tool-hint jjs-tpl-error">{{this.previewError}}</p>
+                {{else}}
+                  <p class="tool-hint">Where the billboard sits, at this Size
+                    and Offset, and each step’s picture as Roblox has it. Drag
+                    to look around.{{#unless this.preview.ids.length}}
+                      Paste the image IDs to see the pictures.{{/unless}}</p>
+                {{/if}}
+              </div>
+            </fieldset>
+          {{/if}}
 
           <div class="jjs-tpl-out">
             {{#if this.error}}

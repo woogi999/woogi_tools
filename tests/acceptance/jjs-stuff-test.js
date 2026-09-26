@@ -42,6 +42,12 @@ module('Acceptance | JJS Stuff templates', function (hooks) {
         '/jjs-progress-bar-maker',
         'with the way to draw one',
       );
+    await waitUntil(() => find('.jjs-tpl-preview .pb-bar3d-view canvas'), {
+      timeout: 10000,
+    });
+    assert
+      .dom('.jjs-tpl-preview')
+      .includesText('Paste the image IDs', '3D preview');
     await waitUntil(() => find('.jjs-tpl-error'));
     assert
       .dom('.jjs-tpl-error')
@@ -56,6 +62,11 @@ module('Acceptance | JJS Stuff templates', function (hooks) {
       ['Bar', 'Bar Regen', 'Debug: Add Bar', 'Debug: Remove Bar'],
     );
     assert.strictEqual(skills[0].DATA.Line[0].TAG, 'Mana');
+    assert
+      .dom('.jjs-tpl-preview .pb-bar3d-step')
+      .includesText('Step 2 of 2', 'full to start');
+    await fillIn('.jjs-tpl-preview .pb-bar3d-step input', '0');
+    assert.dom('.jjs-tpl-preview .pb-bar3d-step').includesText('Step 0 of 2');
     assert.dom('.jjs-tpl-out').includesText('Set the Mana tag');
   });
 
@@ -99,6 +110,9 @@ module('Acceptance | JJS Stuff templates', function (hooks) {
       skills.map((s) => `${s.K_NAME} ${s.NAME}`),
       ['CHASE Chase'],
     );
+    assert
+      .dom('.jjs-tpl-preview')
+      .doesNotExist('only a bar has a billboard to show');
 
     await click(byText('.jjs-tpl-pick', 'Accurate M1s'));
     assert
