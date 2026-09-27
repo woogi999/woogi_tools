@@ -11,9 +11,11 @@
 //   TAG       checks / sets / adds to a named value, with an expiry
 //   STATE     puts a character in a state, or checks for one
 //   HITBOX    hits the other character if it's inside the box (or always, or
-//             never, as asked); a hit starts BRANCH on the attacker and
-//             BRANCH TARGET on the one hit (BRANCH FINISHER on a kill)
-//   PROJECTILE flies forward and does the same when it passes through
+//             never, as asked); a hit moves the attacker's line on to BRANCH
+//             (BRANCH FINISHER on a kill), leaving the rest of it, and starts
+//             BRANCH TARGET on the one hit
+//   PROJECTILE flies forward and, when it passes through, starts BRANCH on
+//             the attacker alongside whatever they're doing, and BRANCH TARGET
 //   VELO / TELEPORT move a character; LAST HIT picks who
 //
 // Everything else (animations, sounds, effects) becomes a timed event for
@@ -47,11 +49,12 @@ const num = (v, d = 0) => {
   return Number.isFinite(n) ? n : d;
 };
 
-// A local offset (x right, y up, z forward) turned by a heading.
+// A local offset (x left, y up, z forward) turned by a heading. The
+// character's right is -x, as the game's guides and billboards agree.
 export function toWorld([x, y, z], yaw) {
   const fx = Math.sin(yaw);
   const fz = Math.cos(yaw);
-  return [-fz * x + fx * z, y, fx * x + fz * z];
+  return [fz * x + fx * z, y, -fx * x + fz * z];
 }
 
 const other = (who) => (who === 'user' ? 'target' : 'user');
@@ -199,7 +202,8 @@ export function simulate(skill, options = {}) {
     return true;
   }
 
-  function hit(thread, node, t, how, index) {
+  // Returns true when `moves` and the attacker's line went on to BRANCH.
+  function hit(thread, node, t, how, index, moves = false) {
     const attacker = thread.who;
     const victim = other(attacker);
     const them = people[victim];
@@ -213,8 +217,10 @@ export function simulate(skill, options = {}) {
     say(t, attacker, `${how} hits for ${damage}${stun ? `, stuns ${stun}s` : ''}`, thread.branch, index);
     const kill = them.hp <= 0 && node['CAN KILL'] !== false;
     const mine = kill && node['BRANCH FINISHER'] && node['BRANCH FINISHER'] !== 'nil' ? node['BRANCH FINISHER'] : node.BRANCH;
-    spawn(attacker, mine, t, attacker);
+    const moved = moves && mine && mine !== 'nil' ? jump(thread, mine, 'on hit') : false;
+    if (!moves) spawn(attacker, mine, t, attacker);
     spawn(victim, node['BRANCH TARGET'], t, attacker);
+    return moved;
   }
 
   function inBox(center, size, yaw, point) {
@@ -222,7 +228,7 @@ export function simulate(skill, options = {}) {
     // back into the box's own frame
     const fx = Math.sin(yaw);
     const fz = Math.cos(yaw);
-    const local = [-fz * d[0] + fx * d[2], d[1], fx * d[0] + fz * d[2]];
+    const local = [fz * d[0] - fx * d[2], d[1], fx * d[0] + fz * d[2]];
     return local.every((v, i) => Math.abs(v) <= size[i] / 2 + 1);
   }
 
@@ -326,8 +332,9 @@ export function simulate(skill, options = {}) {
         const them = posAt(other(me), t);
         const body = [them[0], them[1] + 2.5, them[2]];
         const inside = inBox(center, size, yaw, body);
-        if (hits === 'always' || (hits === 'auto' && inside)) hit(thread, node, t, 'hitbox', thread.i);
-        else say(t, me, 'hitbox misses', thread.branch, thread.i);
+        if (hits === 'always' || (hits === 'auto' && inside)) {
+          if (hit(thread, node, t, 'hitbox', thread.i, true)) return 'jumped';
+        } else say(t, me, 'hitbox misses', thread.branch, thread.i);
         return;
       }
       case 'PROJECTILE': {

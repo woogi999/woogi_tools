@@ -800,7 +800,7 @@ const settle = (v, speed) => {
 const pin = () =>
   push('0.001, 0.001, 0.001', -1, 0, { TRACK: true, TIME: 0.1 });
 
-// A state that ends with the move, if it's cut short by a hit.
+// A state that ends the dash's line when it runs out (CANCEL ON END).
 const whileDashing = (...args) => ({
   ...state(...args),
   'CANCEL ON END': true,

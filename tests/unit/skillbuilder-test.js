@@ -125,6 +125,8 @@ module('Unit | Skill Builder nodes', function () {
     );
     assert.deepEqual(vec3('0, 1.5, -3'), [0, 1.5, -3]);
     assert.deepEqual(toWorld([0, 0, 1], 0), [0, 0, 1], 'forward is +z');
+    // Facing +z, the character's right arm is at world -x.
+    assert.deepEqual(toWorld([-1, 0, 0], 0), [-1, 0, 0], 'local -x is right');
   });
 });
 
@@ -153,7 +155,8 @@ module('Unit | Skill Builder simulator', function () {
     const hit = run.events.find((e) => e.kind === 'HIT');
     assert.ok(hit, 'it hits');
     assert.true(
-      run.log.some((l) => l.who === 'user' && l.text === 'starts OnHit'),
+      run.log.some((l) => l.who === 'user' && l.text === 'on hit → OnHit'),
+      'your line moves on to OnHit',
     );
     assert.true(
       run.log.some(
@@ -166,6 +169,18 @@ module('Unit | Skill Builder simulator', function () {
       missed.events.some((e) => e.kind === 'HIT'),
       'or not, if asked',
     );
+  });
+
+  test('a landed hit leaves the rest of the line', async function (assert) {
+    // Each M1 ends with a blocked-recoil detector: it's only reached when
+    // the real hit didn't land.
+    const melee1 = named(await decodeMoveset(GON), '1', 'MELEE');
+    const landed = simulate(melee1, { hits: 'always' });
+    assert.false(
+      landed.log.some((l) => /→ Blocked$/.test(l.text) || l.text === 'starts Blocked'),
+      'a hit never reaches Blocked',
+    );
+    assert.true(landed.log.some((l) => l.text === 'on hit → OnHit'));
   });
 
   test('loops, random branches and tags', function (assert) {

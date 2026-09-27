@@ -16,6 +16,12 @@ skills in **JJS Stuff → Templates**.
 - **Inferred**: a reading of what the data shows, not checked against JJS's
   code or in-game. Treat these as hypotheses, and move them to confirmed (or
   correct them) when you learn more.
+- **From the guides**: community write-ups kept in the git-ignored
+  `jjs_training_data/` ("Skill-Builder Tutorial.md", a node-by-node rundown
+  from February 2026; "CB Notes.md" and "Variants.md", notes from the JJS
+  Discord). They fill gaps, but **when they disagree with the owner or with
+  what's confirmed here, the owner and this file win**. Where they disagree,
+  this file says so.
 
 ---
 
@@ -83,14 +89,19 @@ JJS's JSON comes from Roblox's encoder writing Lua tables:
 | `MELEE` | none | Named `"1"`–`"4"`: the M1 combo's hits. |
 | `CHASE` | `COOLDOWN` | One per character seen. |
 
-- **`KEY` conventions (confirmed):** 1–4 are the skill slots. **99** (or,
-  in these characters, **9**) is a key nobody presses, which is how
-  **passives** run all the time. **15** is used for **separators**.
-- **Separators** like `----BASE----` are `ADD: false`, `KEY 15`, with **no
+- **`KEY` conventions (confirmed):** 1–9 are the skill slots, though vanilla or base JJS characters only use 1-4.
+- **99** is a key nobody presses, which is how **passives** run all the time. **99** can also be used for **separators**, as by nature it is an unpressable key.
+- **Separators** like `----BASE----` are `ADD: false`, `KEY 99 (or an unpressable value like 15)`, with **no
   `DATA` at all**: they're just labels in the skill list.
 - **`TOOL TIP`** is the slot's hint: `"JUMP+"`, `"CLOSE+"`, `"HOLD"`,
   `"USE TWICE"`.
 - `ADD` is `true` for everything that's part of the moveset.
+
+**Character block vs moveset block** (from the guides): a *character* block
+in build mode holds a whole character (M1s, skills, special, awakening,
+chase), and with "Show in List" it joins the character list. The older
+*moveset*, *special* and *awakening* blocks replace a single slot. A `CHASE`
+replaces the forward dash, and needn't be a dash at all.
 
 ---
 
@@ -124,23 +135,42 @@ skill; on a branch, to **enter** it.
 | `BAR` | awakening bar ≥ `AMOUNT` | awakenings |
 
 `FLIP: true` inverts a condition. Melee 4's `Base` branch has
-`[NOT AIR, NOT JUMP]`: the ground version.
+`[NOT AIR, NOT JUMP]`: the ground version. The builder shows `FLIP` as a
+green toggle and "off" as red, which the guides call "backwards": In Air
+*red* means only in the air, *green* only on the ground.
 
-### `Prop`: flags (shapes confirmed, meanings inferred)
+The game's Conditions tab also has (from the guides; their `K_NAME`s haven't
+been seen in an export yet): **Has Target** (facing a player or NPC),
+**Has Health** (above a value; flipped, below), **Is In Domain**, and
+**Durability** (the skill is lost after that many uses: with Use When
+Obtained, it's how a spawn-in move runs once). Has Awk Bar is `BAR`:
+more than `AMOUNT`, or with `FLIP`, less.
+
+### `Prop`: flags
 
 An object of flags, or `[]`. Seen: `USE`, `KEEP`, `REP`, `REP2`, `AWK`,
-`AWK2`, `NOSTUN`, `NOCANCEL`, and `VAR` (a string).
+`AWK2`, `NOSTUN`, `NOCANCEL`, and `VAR` (a string). The first four rows are
+**confirmed by the owner**. The rest are matched to the game's Properties
+list (from the guides), which comes in the same pairs, and to the fixtures.
 
-| Flag | Seen on | Inferred meaning |
+| Flag | Properties toggle | Meaning |
 |---|---|---|
-| `USE` | passives | the skill runs by itself |
-| `KEEP` | most attacks | keeps running if interrupted? |
-| `REP` | most attacks | can be used again / repeated? |
-| `REP2` | a regen passive, one awakening | **repeats** (the regen loops for ever with it) |
-| `AWK`, `AWK2` | most | usable while awakened (two awakening states?) |
-| `NOSTUN` | most | usable or keeps running while stunned? |
-| `NOCANCEL` | many | can't be cancelled by other actions? |
-| `VAR` | `"Skill1Able"`, `"S3UseTwice"` | names a variable/tag the skill is tied to. `"S3UseTwice"` is also the tag that skill checks, for its second use. |
+| `USE` | Use When Obtained | the skill is used **as soon as it's obtained**, i.e. on spawn. Every passive has it. |
+| `KEEP` | Keep when moveset switches | the skill stays when the moveset changes (a character block or another custom event): for **weapons and arsenal** |
+| `NOSTUN` | No Stun | the skill **doesn't stun you**: you can move, dash and use other skills while it runs |
+| `NOCANCEL` | No Cancel | being hit **doesn't interrupt it** |
+| `VAR` | Variant | a tag name. While that tag is active, the skill **can be used even on cooldown** (confirmed) and through stun (guides). `"S3UseTwice"` is the tag the skill checks for its second use. |
+| `REP` | Replace Skill if Occupied (inferred) | takes the key's slot even if something's in it. On nearly every keyed skill. |
+| `REP2` | Prevent Override (inferred) | can't be replaced by another skill. On an awakening and the regen passive. |
+| `AWK` | Hide in Awakening (inferred) | on **every base skill** in character 2, and on passives |
+| `AWK2` | Hide in Base (inferred) | on **every awakened skill** in character 2, and on passives |
+
+That's why passives have **both `NOSTUN` and `NOCANCEL`** (owner): a
+passive runs for ever, so it mustn't stun you or be cut off when you're hit.
+Passives also carry both `AWK` and `AWK2`, harmless on a key nobody presses.
+
+Other Properties with no flag seen yet: Damage Multiplier, Knockback
+Multiplier (negative reverses it), Invincible, and Use on Death.
 
 ---
 
@@ -150,8 +180,10 @@ This model is **inferred**, but everything in the fixtures fits it, and the
 owner's Safety Rails and progress bar skills depend on it working this way.
 Webskill Shenanigans' simulator implements exactly this.
 
-1. Using a skill runs its `Line` from the top. Nodes run in order; most take
-   no time, and only `WAIT` (and `LOOP`'s rewinds) move time on.
+1. Using a skill runs its `Line` from the top. Nodes run in order; only
+   `WAIT` takes real time, though the guides say each node is spaced about
+   **0.01 s** from the next, which adds up in long loops. (The simulator
+   counts nodes as instant.)
 2. **`BRANCH` is a gated jump.** If the named branch exists and its `Req`
    holds, control **goes there and doesn't come back**. Otherwise the line
    **carries on to the next node**. So a line of
@@ -162,16 +194,25 @@ Webskill Shenanigans' simulator implements exactly this.
 4. When a branch's line ends, that thread of execution ends.
 5. **Loops** are a branch that ends by branching to itself
    (`1Looper: WAIT 0.1 → BRANCH Awakened → BRANCH 1Looper`), or a `LOOP` node.
-6. **A hit forks.** A `HITBOX` or `PROJECTILE` that connects starts its
-   `BRANCH` on the **attacker** (e.g. "OnHit": follow-ups, camera shake,
-   knockback applied to the target), and `BRANCH TARGET` on the **one hit**
-   ("OnHitTarget": their stun, hit effects, their reaction). On a kill,
-   `BRANCH FINISHER` runs instead of `BRANCH`. These run alongside whatever
-   was already running.
+6. **A hit moves the line on.** A `HITBOX` that connects sends the
+   **attacker's** line to its `BRANCH` (e.g. "OnHit": follow-ups, camera
+   shake, knockback applied to the target), and **the rest of the line is
+   dropped** (guides). It also starts `BRANCH TARGET` on the **one hit**
+   ("OnHitTarget": their stun, hit effects, their reaction), alongside
+   whatever they were doing. `BRANCH FINISHER` replaces `BRANCH` when the
+   hit leaves them on 1 HP or less. The fixtures depend on this: the
+   blocked-recoil detector after every M1, and the dash's "nobody there"
+   stun, are only reached when the real hit didn't land. A projectile hits
+   later, so its `BRANCH` runs alongside the attacker's line (inferred).
 7. **`LAST HIT` picks who a node affects.** `-1` means whoever runs it. A
-   number (0.1–3.6 seen) means "the one I last hit, if within that many
-   seconds". That's how an attacker's OnHit branch pushes the *target*:
-   `VELO FORCE "0, 2, 30" LAST HIT 1`.
+   number (0.1–3.6 seen) means "the ones I last hit, if within that many
+   seconds" (several, for most nodes). That's how an attacker's OnHit branch
+   pushes the *target*: `VELO FORCE "0, 2, 30" LAST HIT 1`. The guides warn
+   that **a hit only counts if its `STUN` isn't 0**: any tiny stun will do,
+   which is why detector hitboxes have `STUN -1` or `0.0001`. A `BRANCH` with
+   `LAST HIT 1` runs the branch on the one hit (only one), and your own line
+   carries on. If your line ends while they're still in it, you're free and
+   the cooldown starts (bleeds, blinds).
 8. **`RELATIVE FROM BRANCH`** (on VELO, VISUAL, TELEPORT…): directions are
    taken from the character that started the branch (the attacker, in a
    target branch), not the one it's applied to (inferred).
@@ -201,8 +242,31 @@ Sine, Back), `EASING DIRECTION` (In, Out, InOut), `SIZE 2`/`ALT SIZE 2`
 `Cancel` effect removes it by), `RELATIVE FROM BRANCH`, `CAN COLLIDE`,
 `CLIENT SIDED`, `RUN ON SERVER`, `CANCEL ON INTERRUPT`, `LAST HIT`.
 
-The effect **eases from the plain values to the `ALT` ones over `TIME`**
-(inferred from pairs like `SIZE 0.01 → ALT SIZE 7`).
+The effect **eases towards its `ALT` values over `TIME`**, but each `ALT` works
+differently (confirmed by the owner unless marked):
+
+- **`ALT POSITION` is a move, not a destination.** It's added to `POSITION`:
+  `POSITION "5, 0, 0"` with `ALT POSITION "-10, 0, 0"` ends at `-5, 0, 0`.
+  **Setting one unanchors the visual**: it no longer follows the character
+  it came from. The exceptions are **Billboard** (below) and **immovable
+  visuals** such as **Wind Expand**.
+- **`ALT ROTATION` needs an `ALT POSITION`** (a bug): without one it's
+  ignored. The fix is a tiny move like `ALT POSITION "0, 0.0001, 0"`, which
+  also unanchors it, so **a visual can't both spin and stay pinned to a
+  limb**. (The dash's wind streaks use `"0, 0.001, 0"` for this.)
+- **`ALT SIZE` is a multiplier** of `SIZE` (guides): `SIZE 25, ALT SIZE 2`
+  ends at 50. To end at a size *s*, use *s* / `SIZE`.
+- **`SIZE 2` and `ALT SIZE 2` override** `SIZE` and `ALT SIZE`: absolute
+  sizes per axis (`"x, y, z"`), so you can squash and stretch.
+  `"-1, -1, -1"` means unused.
+- `OPACITY` → `ALT OPACITY` and `COLOR` → `ALT COLOR` fade as you'd expect.
+- **`BODY PART`**: the guides say most effects need `POSITION "0, -1, 0.15"`
+  to sit in the hand on an arm.
+- **`RUN ON SERVER`** runs it on the server rather than on each client.
+  That's heavier, so it's for auras, weapons and states, not attack effects.
+  It's a different thing from **`CLIENT SIDED`** (only the user sees it).
+- **`TEXTURE`** wants the **image** (texture) ID, not the decal's (see
+  [section 8](#8-roblox-pictures-for-textures)).
 
 - **`Billboard`** is placed **pseudo-2D** (confirmed by the owner in-game): its
   `POSITION` is on the screen around the body part, not in the world.
@@ -218,7 +282,20 @@ The effect **eases from the plain values to the `ALT` ones over `TIME`**
   `CANCEL ON INTERRUPT` and a `VISUAL TAG`, it's a **worn item**.
 - **`Cancel`**: removes the effects with the same `VISUAL TAG` (confirmed by
   the auto-sheathing passive, which moves a sword between back and hand this
-  way).
+  way). **The Cancel must be on the same `BODY PART`** as the visual it
+  cancels (owner). The guides add that its `RUN ON SERVER` must match too.
+  Most of its other fields do nothing.
+- Quirks from the guides:
+  - **Field of View**: `AMOUNT` positive zooms out, negative in.
+  - **Screen Color**: `AMOUNT` 1 down to 0.01 fades it, and negative inverts
+    the colours (impact frames).
+  - **Blood**: `AMOUNT` drops, `SIZE` the radius.
+  - **Dismantle** only shows with an `ALT POSITION` (even `0, 0, 0.01`).
+  - **Mass Hit** only shows with a `POSITION`, and its `ALT POSITION` turns
+    it.
+  - **Overlay**: a picture over the target's screen.
+  - **Camera**: a fixed camera for the target; only the positions, the
+    rotations, `TIME` and `LAST HIT` matter.
 
 Effects seen: Clash, Field of View, Mesh, Melee Trail, Wind Expand, Glow,
 Sparks, Screen Color, Billboard, Circle Glow, Overlay, Shake Light/Medium/Heavy,
@@ -237,6 +314,18 @@ Scale (`VALUE "0.9"` for ever: a smaller character), NoBlock), `VALUE`
 `LAST HIT`; and `CHECK` + `BRANCH`: **if in that state, jump** (a custom
 block is `STATE Block CHECK → BRANCH Block` in a passive loop).
 
+From the guides:
+
+- **`CANCEL ON END`** ends the line the state was set from when the state runs
+  out. That's how the dash's 1.2 s states cap the dash.
+- **`Stun`** stops new actions but not a move already running.
+- **`Block`** blocks without the animation.
+- **`DirectionLock`** stops turning.
+- **`NoChase`** stops only the forward dash; **`NoDash`** stops every dash.
+- **`SpeedMultiplier`** and **`JumpMultiplier`** multiply walk speed (16)
+  and jump power (40).
+- **`DISABLE BURST`** blocks burst for the time.
+
 ### WAIT (185)
 
 `TIME`. The only thing that moves a line's time on.
@@ -245,7 +334,8 @@ block is `STATE Block CHECK → BRANCH Block` in a passive loop).
 
 `ID` (Roblox sound), `VOLUME`, `START`, `END` (500 = to the end), `SPEED`,
 `FADE IN`, `FADE OUT`, `PROJECTILE TAG`, `GLOBAL`, `CANCEL`, `CLIENT SIDED`,
-`LAST HIT`.
+`LAST HIT`. `CANCEL` stops the sounds with the same `ID` (guides). Most
+sounds need `VOLUME` 2–3 to be heard.
 
 ### ANIM (130): an animation
 
@@ -253,13 +343,16 @@ block is `STATE Block CHECK → BRANCH Block` in a passive loop).
 (e.g. `[20, 17]`), or a **name** (`"Killbind"`). `PREVIEW`: the `[start, end]`
 seconds of the clip to play. `SPEED` (can be negative, to play backwards),
 `LOOPED`, `FADE IN`, `FADE OUT`, `LAST HIT`. `PREVIEW [0,0]` with speed 1 is
-used to cancel an animation.
+used to cancel an animation. An animation stops when the skill does; on the
+one hit (`LAST HIT 1`), it plays while they're stunned (guides).
 
 ### VELO (113): push a character
 
-`FORCE` `"x, y, z"`: studs/second, x right, y up, z forward (inferred from
-knockbacks). `TIME`, `FADE` (slows to a stop), `TRACK` (follows facing),
-`RELATIVE FROM BRANCH`, `RAGDOLL` (seconds), `TRUE RAGDOLL`, `LAST HIT`.
+`FORCE` `"x, y, z"`: studs/second, **x left** (negative is right), y up,
+z forward. `TIME`, `FADE` (slows to a stop), `TRACK` (follows facing),
+`RELATIVE FROM BRANCH` (on a target, directions come from whoever started
+the branch), `RAGDOLL` (seconds), `TRUE RAGDOLL` (can't be ragdoll-cancelled),
+`LAST HIT`.
 `"0.001, 0.001, 0.001"` for a long time **pins a character in place** (seen
 during grabs).
 
@@ -274,10 +367,26 @@ kill), `ATTACK TYPE` (Melee, Domain, Bullet, Swarm), `BLOCKABLE`,
 as a branch means none. A zero-damage hitbox is often a **detector**: its
 `BRANCH` ("HitCheck") decides what to do next.
 
+From the guides:
+
+- `CAN KILL` off leaves them on 1 HP (finisher variants).
+- `SINGLE TARGET` hits the one nearest the box's centre.
+- `360 BLOCK` on lets it be blocked from any side; off, it breaks a block
+  from behind.
+- `HIT RAGDOLL` hits ragdolled characters.
+- `CANCEL ENEMY` cancels their move (with a stun of 0.1 or less and it off,
+  it doesn't).
+- `CLEAR KNOCKBACK` stops their knockback and picks them up from a ragdoll.
+- `DEBREE` is debris size: 0 none, -1 breaks the ground without debris.
+- A long box usually wants its z `POSITION` at half its z `SIZE`, so it
+  starts at you.
+
 ### BRANCH (53): gated jump
 
 `BRANCH`, `RANDOM` (`"V1, V2"`: pick one at random; `BRANCH` is then `""`),
-`LAST HIT`. See [section 4](#4-how-a-program-runs).
+`LAST HIT`. See [section 4](#4-how-a-program-runs). Branch names are
+**case-sensitive**. `RANDOM` is typed `V1,V2` with no spaces, and the game
+spaces it out itself.
 
 ### TAG (38): named values
 
@@ -286,12 +395,33 @@ as a branch means none. A zero-damage hitbox is often a **detector**: its
 | Job | Fields | Example |
 |---|---|---|
 | Check | `CHECK true`, `BRANCH` | `VALUE "2"` exact; `"<0"`, `">20"` compare (confirmed) |
-| Add | `SET false`, numeric `VALUE` | `"1"`, `"-1"`: debug skills, regen |
-| Set | `ADD/REMOVE true`, `SET true` | sets the value |
+| Add | `ADD/REMOVE true` (or absent), `SET false`, numeric `VALUE` | `"1"`, `"-1"`: debug skills, regen |
+| Set | `SET true` | sets the value, whatever it was |
 | Clear | `SET true`, `TIME 0` | expires at once |
 
 `TIME` is how long a written value lasts (`1e38` for ever). Non-numeric
 values (`"True"`, `"Yes"`) are flags, set and checked by equality.
+
+**Bug: a plain `SET` sometimes doesn't take** (owner). The sure way is to
+**clear, then set**: `SET` with `TIME 0`, then `SET` the value for as long
+as you want. The tag is **reactivated** rather than added to or rewritten,
+which dodges the bug. The Safety Rails do exactly this, and so should
+anything that must land. (The guides suggest other workarounds, such as
+adding 0 for 0.0001 s and waiting it out before adding the value; the
+owner's clear-then-set is the one used here.)
+
+More from the guides:
+
+- The **latest write's `TIME` wins**: set 1 for 3 s and then add 0 for 2 s,
+  and the tag is gone after 2 s.
+- **An expired tag is gone**: no check matches it, not even `"0"` or `""`.
+  Tags also go when their owner dies.
+- `CHECK` with `LAST HIT` (checking someone else's tag) is reported as
+  buggy: keep `LAST HIT -1`.
+- One guide (April 2026) warned that `<`/`>` checks were broken. **The
+  owner's bars use them and work**, so this file treats them as working.
+- "For ever" is `1e38` here. The guides use `1e+250` (or `1e+20` if that
+  fails); `1e38` is what the game itself writes.
 
 ### PARTICLE (29): a Roblox ParticleEmitter
 
@@ -308,7 +438,9 @@ Mirrors Roblox's ParticleEmitter: `TEXTURE`, `EMIT COUNT`, `LIFETIME`
 
 `LOOP BACK` (nodes to go back), `LOOP AMOUNT` (times), `HOLD` (only while
 the key is held). `HITBOX · WAIT 0.05 · LOOP BACK 2 × 9` = a hitbox every
-0.05s, ten times (inferred: the first pass plus 9 repeats).
+0.05s, ten times (inferred: the first pass plus 9 repeats; the guides agree
+that the first pass counts). The guides call loop timing with `HOLD`
+unreliable, and suggest a short `WAIT` inside every loop.
 
 ### PROJECTILE (13)
 
@@ -318,6 +450,16 @@ the key is held). `HITBOX · WAIT 0.05 · LOOP BACK 2 × 9` = a hitbox every
 `CAN KILL`, `BLOCKABLE`, `HIT RAGDOLL`, `STUN ANIM`, `CANCEL ENEMY`,
 `CLEAR KNOCKBACK`, `IGNORE WAKEUP`, `CANCEL PROJECTILE`, `FILTER INTERVAL`,
 `CACHE`, `HIT USER`, `360 BLOCK`, `DEBREE`, `ID CHECK`.
+
+From the guides:
+
+- It flies along your +z.
+- `ROTATION` turns its hitbox only.
+- `SPEED` is studs per second, for `TIME` seconds.
+- `AIM LAST HIT 1` aims at whoever you last hit.
+- `CONTINUE` off stops it at the first wall or character.
+- `FILTER INTERVAL` sets the i-frames between its hits (0 hits every tick).
+- `BRANCH COLLIDED` doesn't work (as of February 2026).
 
 ### SETCD (12): start a cooldown
 
@@ -329,11 +471,20 @@ bare (`{K_NAME:"SETCD"}`), meaning "start my cooldown now".
 `BODY PART` (yours), `BODY PART2` (theirs), `POSITION`, `ROTATION`, `TIME`,
 `LAST HIT` (grabs whoever was hit within that window).
 
+From the guides:
+
+- **The one held can't be hurt** for `TIME`.
+- A very short `TIME` (0.01) just repositions them.
+- `"0, 0, 4"` with `ROTATION "0, 180, 0"` holds them in front, facing you.
+- As with every `LAST HIT`, the hit must have had a stun.
+
 ### Rarer kinds (1–2 uses each)
 
 - **COUNTER**: `TIME` window; being hit by `ATTACK TYPE2` (`"Melee,Bullet"`)
-  runs `BRANCH`. Also `REFLECT`, `REMOVE ON HIT`, `CONTINUE`, `CANCEL ENEMY`,
-  `STUN`. Used for a dodge ("SwayAway").
+  cancels the damage and runs `BRANCH`. Also `REFLECT`, `REMOVE ON HIT` (the
+  window closes on the first counter), `CONTINUE`, `CANCEL ENEMY`, `STUN`
+  (on the one countered). Used for a dodge ("SwayAway"). No base counter
+  takes Explosion or Domain attacks.
 - **TELEPORT**: `POSITION`, `ROTATION`, `IGNORE WALLS`,
   `RELATIVE FROM BRANCH`, `PROJECTILE TAG` (to a projectile), `LAST HIT`.
 - **LOOK**: face the target for `TIME`: `SMOOTHNESS`, `CAMERA DIRECTION`,
@@ -342,20 +493,36 @@ bare (`{K_NAME:"SETCD"}`), meaning "start my cooldown now".
 - **ULTGIB**: change the awakening bar by `AMOUNT` (`-100` empties it:
   awakenings use it).
 - **SETMELEE**: `COMBO`, `OFFSET`: sets the M1 combo state.
-- **SKILL** (the palette's SKILL): `MOVE`, `START`, `SPEED`, `HOLD FOR`,
-  `ENABLE VARIANTS`, `CANCEL LAST`. Seen once, as `MOVE "Cancel"`, in Gon's
-  "Swap Block": blocking cancels the move in progress and swaps stance
-  (inferred).
+- **SKILL** (the palette's SKILL): uses a **base-game move**: `MOVE`,
+  `START` (how far in to start, e.g. only a move's impact), `SPEED` (0
+  freezes it), `HOLD FOR` (seconds held, for hold variants),
+  `ENABLE VARIANTS` (e.g. aerial ones), `CANCEL LAST` (cancels every earlier
+  SKILL and SPECIAL). **`MOVE "Cancel"`** does the same as `CANCEL LAST`.
+  It's seen once, in Gon's "Swap Block": blocking cancels the move in
+  progress and swaps stance.
 
 ### Palette names in the game
 
-JJS's node palette shows **WAIT, SKILL, SPECIAL, ANIMATION, SOUND,
-VELOCITY, CONNECT, HITBOX, BRANCH, …** (it scrolls). ANIMATION = `ANIM`,
-SOUND = `SFX`, VELOCITY = `VELO`. Which kinds the palette's SKILL, SPECIAL
-and CONNECT create isn't fully known: SKILL makes the `SKILL` node, and
-CONNECT is probably `GRAB`.
+The node palette, in the guides' order: **WAIT, HIT CANCEL, LOOP, SKILL,
+SPECIAL, ANIMATION, SOUND, VELOCITY, CONNECT, HITBOX, BRANCH, GRAB, VISUAL,
+PROJECTILE, COUNTER, TAG, STATE**, and the misc nodes **Add Awakening**
+(`ULTGIB`), **Add Health** (`HPGIB`) and **Add Evasion**. ANIMATION = `ANIM`,
+SOUND = `SFX`, VELOCITY = `VELO`. Palette entries not yet seen in an export
+(their `K_NAME`s are unknown):
+
+- **HIT CANCEL**: after a `WAIT` of the same length, checks whether you hit
+  anyone in the last `TIME`. With `FLIP` (green) a *miss* stops the line and
+  leaves you in endlag; off, a *hit* does. With a `BRANCH`, that branch runs
+  instead of the endlag.
+- **SPECIAL**: like SKILL, for a base-game special (`SPEED`, `CANCEL LAST`,
+  `ENABLE VARIANTS`). It doesn't replace your own special.
+- **CONNECT**: sends `SIGNAL` to build-mode blocks within `DISTANCE` studs,
+  for `TIME`. It is **not** `GRAB`, which is its own palette entry.
+- **Add Evasion**: changes the ragdoll-cancel meter.
+
 Webskill Shenanigans labels `SETCD` "COOLDOWN", `SETMELEE` "MELEE",
-`GRAB` "CONNECT", `HPGIB` "HEALTH" and `ULTGIB` "AWK BAR".
+`HPGIB` "HEALTH" and `ULTGIB` "AWK BAR". (It used to label `GRAB`
+"CONNECT"; now it's "GRAB".)
 
 ---
 
@@ -391,6 +558,45 @@ Webskill Shenanigans labels `SETCD` "COOLDOWN", `SETMELEE` "MELEE",
   every move; a passive notices it's gone (see Auto-sheathing below).
 - **Separators**: `ADD false`, `KEY 15`, no DATA.
 
+### Variant recipes (from the guides)
+
+Not seen in the fixtures, but standard in the community. Wherever a recipe
+sets a tag that must land, use the owner's clear-then-set
+([TAG](#tag-38-named-values)).
+
+- **Use twice.** Name a tag in `Prop VAR` ("use-twice"). The default line
+  starts `TAG use-twice == 1 CHECK → variant`. After the first use's move,
+  set the tag to 1 for the window you allow. The `variant` branch sets it
+  back to 0, then does the second move. For more uses, chain more values.
+- **Hold for a time.**
+  1. Set a counter tag to 0.
+  2. Loop over `WAIT 0.01 · add 1 · CHECK counter == N → held` with a `HOLD`
+     loop, so it only runs while the key is down.
+  3. Letting go early falls through to the normal move.
+- **Hold to repeat.** `SKILL … · WAIT 0.1 · LOOP BACK 2 × 50, HOLD`.
+- **Modes.** The special adds 1 to a "mode" tag on its first use and -1 on
+  its second (a use-twice). Moves start with `CHECK mode == 1 → mode1`.
+- **Press R mid-move.** The move has `NOSTUN`, with a `STATE Stun` standing
+  in for real stun. It sets `r-variant = 1` for the window. The special
+  checks it, clears it, and does the variant.
+- **Random.** `BRANCH "" RANDOM "b1,b2,b3"`.
+- **Changes after use.** At the end, set `variant = 1` for cooldown + the
+  window. At the start, `CHECK variant == 1 → variant`, which clears it.
+
+### Base-game timings (from the guides)
+
+These are replicas, where no export shows the real thing:
+
+- **Vanilla M1**: `WAIT 0.25`, the hitbox, `STATE NoM1` 0.15 s. The owner's
+  Accurate M1s (below) come from a real export and win where they differ.
+- **Vanilla dash**:
+  1. `VELO "0, 0, 50"` for 0.1 s.
+  2. A blockable hitbox.
+  3. HIT CANCEL 0.1 s (red).
+  4. `LOOP BACK 3 × 25`.
+
+  The Accurate dash below is the real one.
+
 ### Displaying a value: the progress bar skill (confirmed in-game)
 
 The Progress Bar Maker's export (`app/utils/jjs-skill.js`) is a passive state
@@ -415,7 +621,8 @@ changes:
 SafetyLesser:  the empty picture under its own tag "BarLesser"; Cancel every
                step; BRANCH "SafetyLesserHold"
 SafetyLesserHold:
-               the tag cleared and set to 0 (SET, TIME 0; SET, for ever);
+               the tag cleared and set to 0 (SET, TIME 0; SET, for ever:
+               the clear-then-set that dodges the SET bug);
                then the same checks (not for 0) and loop, but "<0" comes back
                here: a pseudo-min
 SafetyGreater / SafetyGreaterHold: the same with the full picture,
@@ -503,8 +710,8 @@ OnHit:     Stun 0.24, pinned (VELO 0.001), knock them "0, 0, 25", the end
 Blocked:   Stun 0.75, pinned, the end at half speed
 ```
 
-`CANCEL ON END` is only set on the states the dash gives itself: they stop
-when the dash is cut short by the hit (inferred).
+`CANCEL ON END` is set on the dash's own 1.2 s states: when they run out,
+the dash's line ends, which caps how long the dash lasts (guides).
 
 ---
 
@@ -617,12 +824,14 @@ Roblox but hasn't yet run against the real one.
 
 ---
 
-## 9. Numbers and axes (inferred)
+## 9. Numbers and axes
 
 - Positions and sizes are in **studs**; an R6 character is about 5 studs
   tall.
-- Local axes: **x right, y up, z forward**. A hitbox at `"0, 0, 4"` sits
-  4 studs in front.
+- Local axes: **x left (negative is right), y up, z forward**. The owner
+  confirmed negative x is right for billboards, and both guides say it for
+  every position. (This file used to say x right; the simulator and 3D
+  view now follow x left.) A hitbox at `"0, 0, 4"` sits 4 studs in front.
 - `VELO FORCE` is studs per second for `TIME` seconds. `FORCE "0, 40, 2"`
   launches upwards (an uppercut), `"0, -100, 20"` slams down (a downslam).
 - `STUN` / `TIME` values are seconds.
@@ -654,12 +863,14 @@ inferred to confirmed.
 
 ## 11. Open questions
 
-- The exact meanings of `KEEP`, `REP`, `AWK`/`AWK2`, `NOSTUN`, `NOCANCEL`,
-  `USE` and `VAR`.
+- Whether `REP`, `REP2`, `AWK` and `AWK2` really are Replace if Occupied,
+  Prevent Override, Hide in Awakening and Hide in Base.
 - Whether a branch **returns** to its caller when it ends (everything so
   far fits "no").
-- What the builder palette's SKILL, SPECIAL and CONNECT create, and which
-  kinds exist beyond the 21 seen. What `SKILL`'s other moves are.
+- The `K_NAME`s of HIT CANCEL, SPECIAL, CONNECT and Add Evasion, and of the
+  conditions Has Target, Has Health, Is In Domain and Durability. What
+  `SKILL`'s other moves are.
+- Whether a projectile's `BRANCH` also drops the rest of the line.
 - `ANIM_USE`'s library: which `[set, number]` is which animation.
 - `LAST HIT 0` exactly, `LINK USER`, `DEBREE`, `AMOUNT` on visuals,
   `RELATIVE FROM BRANCH` in every node.

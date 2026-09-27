@@ -102,7 +102,8 @@ const check = (tag, value, branch) => ({
 });
 
 // A TAG node that replaces the tag's value: with TIME 0 it clears it, with
-// FOREVER it sets it for good.
+// FOREVER it sets it for good. A plain SET is sometimes ignored in-game, so
+// the rails clear first and then set: the tag is reactivated, not rewritten.
 const set = (tag, value, time) => ({
   'ADD/REMOVE': true,
   TIME: time,
@@ -347,7 +348,7 @@ function withHelpers(name, tag, start, top, branches, regen) {
       skillOf(`${name} Regen`, 99, {
         Req: [],
         Line: [{ BRANCH: '-', K_NAME: 'BRANCH' }],
-        // REP2 keeps it repeating.
+        // The flags of the hand-built regen, REP2 included.
         Prop: {
           USE: true,
           REP2: true,

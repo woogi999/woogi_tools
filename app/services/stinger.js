@@ -6,7 +6,11 @@ import config from 'woogi-tools/config/environment';
 // The full-window showpieces. Going into one, or back out of one, is played
 // over by a stinger: the screen is covered, the page changes underneath, and
 // the cover comes off again.
-export const STINGER_ROUTES = new Set(['video-editor', 'webskill-shenanigans']);
+export const STINGER_ROUTES = new Set([
+  'video-editor',
+  'webskill-shenanigans',
+  '3d-studio',
+]);
 
 export const VARIANTS = ['stripes', 'blinds', 'dots', 'bounce', 'hair'];
 

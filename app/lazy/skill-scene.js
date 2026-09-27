@@ -335,7 +335,8 @@ export function mountSkillScene(host, { textureUrl = async () => null } = {}) {
     const yaw = people[who].root.rotation.y;
     const fx2 = Math.sin(yaw);
     const fz = Math.cos(yaw);
-    return new Vector3(-fz * x + fx2 * z, y, fx2 * x + fz * z);
+    // Local x is to the character's left, as in the simulator's toWorld.
+    return new Vector3(fz * x + fx2 * z, y, -fx2 * x + fz * z);
   }
 
   function shotAt(shot, t) {
@@ -496,11 +497,20 @@ export function mountSkillScene(host, { textureUrl = async () => null } = {}) {
       const fam = obj.userData.family;
       if (e.kind === 'VISUAL' || e.kind === 'PARTICLE') {
         const k = ease(n['EASING STYLE'], n['EASING DIRECTION'], p);
+        // A visual's ALT SIZE multiplies its SIZE, and its ALT POSITION is
+        // how far it travels from POSITION: 5 with -10 ends at -5. Billboards
+        // and fixed effects like Wind Expand stay where they're put.
         const s0 = Number(n.SIZE ?? 1);
-        const s1 = Number(n['ALT SIZE'] ?? s0);
+        const s1 = e.kind === 'VISUAL' ? s0 * Number(n['ALT SIZE'] ?? 1) : Number(n['ALT SIZE'] ?? s0);
         const size = Math.max(0.05, Math.abs(s0 + (s1 - s0) * k));
         const pos0 = vec3(n.POSITION);
-        const pos1 = vec3(n['ALT POSITION'] ?? n.POSITION);
+        const still = n.EFFECT === 'Billboard' || n.EFFECT === 'Wind Expand';
+        const pos1 =
+          e.kind !== 'VISUAL'
+            ? vec3(n['ALT POSITION'] ?? n.POSITION)
+            : still
+              ? pos0
+              : pos0.map((v, i) => v + vec3(n['ALT POSITION'])[i]);
         const offset = pos0.map((v, i) => v + (pos1[i] - v) * k);
         const shot = n['PROJECTILE TAG'] && run.shots.findLast?.((s) => s.tag === n['PROJECTILE TAG'] && s.t0 <= e.t);
         const anchor = shot ? shotAt(shot, t) : partPosition(e.who, n['BODY PART'] ?? 'HumanoidRootPart');
