@@ -42,7 +42,7 @@ import {
   Float32BufferAttribute,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { motionAt } from '../utils/skillbuilder/sim';
+import { motionAt, turn } from '../utils/skillbuilder/sim';
 import { vec3, rgbOf } from '../utils/skillbuilder/schema';
 
 const RAD = Math.PI / 180;
@@ -498,8 +498,9 @@ export function mountSkillScene(host, { textureUrl = async () => null } = {}) {
       if (e.kind === 'VISUAL' || e.kind === 'PARTICLE') {
         const k = ease(n['EASING STYLE'], n['EASING DIRECTION'], p);
         // A visual's ALT SIZE multiplies its SIZE, and its ALT POSITION is
-        // how far it travels from POSITION: 5 with -10 ends at -5. Billboards
-        // and fixed effects like Wind Expand stay where they're put.
+        // how far it travels from POSITION (5 with -10 ends at -5), along the
+        // visual's own axes as turned by its ROTATION. Billboards and fixed
+        // effects like Wind Expand stay where they're put.
         const s0 = Number(n.SIZE ?? 1);
         const s1 = e.kind === 'VISUAL' ? s0 * Number(n['ALT SIZE'] ?? 1) : Number(n['ALT SIZE'] ?? s0);
         const size = Math.max(0.05, Math.abs(s0 + (s1 - s0) * k));
@@ -510,7 +511,7 @@ export function mountSkillScene(host, { textureUrl = async () => null } = {}) {
             ? vec3(n['ALT POSITION'] ?? n.POSITION)
             : still
               ? pos0
-              : pos0.map((v, i) => v + vec3(n['ALT POSITION'])[i]);
+              : ((alt) => pos0.map((v, i) => v + alt[i]))(turn(vec3(n['ALT POSITION']), vec3(n.ROTATION)));
         const offset = pos0.map((v, i) => v + (pos1[i] - v) * k);
         const shot = n['PROJECTILE TAG'] && run.shots.findLast?.((s) => s.tag === n['PROJECTILE TAG'] && s.t0 <= e.t);
         const anchor = shot ? shotAt(shot, t) : partPosition(e.who, n['BODY PART'] ?? 'HumanoidRootPart');

@@ -33,7 +33,7 @@ module('Acceptance | JJS Stuff templates', function (hooks) {
 
   test('a progress bar from pasted image IDs', async function (assert) {
     await openTemplates();
-    assert.dom('.jjs-tpl-pick').exists({ count: 4 });
+    assert.dom('.jjs-tpl-pick').exists({ count: 5 });
     assert.dom('.jjs-tpl-pick.active').includesText('Progress bar');
     assert
       .dom('.jjs-tpl-link')
@@ -113,6 +113,35 @@ module('Acceptance | JJS Stuff templates', function (hooks) {
     assert
       .dom('.jjs-tpl-preview')
       .doesNotExist('only a bar has a billboard to show');
+
+    skills = await shownSkills(() =>
+      click(byText('.jjs-tpl-pick', 'Percentage damage')),
+    );
+    assert.deepEqual(
+      skills.map((s) => `${s.KEY} ${s.NAME}`),
+      ['9 PercentDamage', '1 Try 20%'],
+    );
+    assert.dom('.jjs-tpl-out').includesText('set it to “20”');
+    skills = await shownSkills(() =>
+      fillIn('.jjs-tpl-form input[name="percents"]', '10, 45'),
+    );
+    assert.deepEqual(
+      skills.map((s) => s.NAME),
+      ['PercentDamage', 'Try 10%', 'Try 45%'],
+    );
+    skills = await shownSkills(() =>
+      fillIn('.jjs-tpl-form select[name="trigger"]', 'one skill'),
+    );
+    assert.deepEqual(
+      skills.map((s) => s.NAME),
+      ['10% Current HP', '45% Current HP'],
+    );
+    assert
+      .dom('.jjs-tpl-form input[name="tag"]')
+      .doesNotExist('no tag without the passive');
+    await fillIn('.jjs-tpl-form input[name="percents"]', '120');
+    await waitUntil(() => find('.jjs-tpl-error'));
+    assert.dom('.jjs-tpl-error').includesText('120%');
 
     await click(byText('.jjs-tpl-pick', 'Accurate M1s'));
     assert

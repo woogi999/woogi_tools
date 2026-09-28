@@ -9,8 +9,10 @@ import {
   TEMPLATES,
   buildTemplate,
   fieldsOf,
+  HAS_HEALTH,
 } from 'woogi-tools/utils/jjs-templates';
 
+const hundredth = (n) => Math.round(n * 100) / 100;
 const template = (id) => TEMPLATES.find((t) => t.id === id);
 
 // Equal, except that numbers need only agree to a hundredth: the exports
@@ -230,6 +232,91 @@ module('Unit | JJS templates', function () {
       base.filter((n) => n.K_NAME === 'LOOP').map((n) => n['LOOP AMOUNT']),
       [5],
       'still looking in front six times',
+    );
+  });
+
+  // Runs branch `name` of a program as someone on `hp` health: the Add
+  // Health it ends at, and how many branches it took to get there.
+  function takes(data, name, hp) {
+    let hops = 0;
+    const enter = (branchName) => {
+      const b = data.Branch[branchName];
+      if (!b) return null;
+      const ok = (b.Req ?? []).every((r) =>
+        r.K_NAME === HAS_HEALTH ? hp > r.AMOUNT !== Boolean(r.FLIP) : true,
+      );
+      return ok ? b : null;
+    };
+    let b = enter(name);
+    for (;;) {
+      hops++;
+      let next = null;
+      for (const n of b.Line) {
+        if (n.K_NAME === 'HPGIB') return { amount: n.AMOUNT, hops };
+        if (n.K_NAME === 'BRANCH' && (next = enter(n.BRANCH))) break;
+      }
+      if (!next) return { amount: 0, hops };
+      b = next;
+    }
+  }
+
+  test('percentage damage takes the share of whatever health is left', function (assert) {
+    const [passive, ...tries] = buildTemplate(template('percent-damage'), {
+      percents: '20, 35',
+    });
+    assert.strictEqual(passive.KEY, 9);
+    assert.deepEqual(
+      tries.map((s) => s.KEY),
+      [1, 2],
+      'a punch per share',
+    );
+    const data = passive.DATA;
+    let worst = 0;
+    for (let hp = 1; hp <= 100; hp++) {
+      const { amount, hops } = takes(data, '20%', hp);
+      assert.strictEqual(amount, -Math.round(hp * 20) / 100, `20% of ${hp}`);
+      assert.strictEqual(takes(data, '35%', hp).amount, -hundredth(hp * 0.35));
+      worst = Math.max(worst, hops);
+    }
+    assert.true(worst <= 9, `at most 9 branches deep (${worst})`);
+    assert.strictEqual(takes(data, '20%', 250).amount, -20, 'above the top');
+    assert.strictEqual(
+      takes(data, '20%', 57.4).amount,
+      -11.6,
+      'rounds up a step',
+    );
+    assert.deepEqual(
+      data.Branch['Take 35%'].Line.map((n) => [n.K_NAME, n['LAST HIT']]),
+      [
+        ['TAG', -1],
+        ['BRANCH', 1],
+        ['BRANCH', -1],
+      ],
+      'sends whoever was hit last',
+    );
+
+    const [one] = buildTemplate(template('percent-damage'), {
+      trigger: 'one skill',
+    });
+    const box = one.DATA.Line.find((n) => n.K_NAME === 'HITBOX');
+    assert.strictEqual(box['BRANCH TARGET'], '20%');
+    assert.true(box.STUN > 0, 'a hit only counts with a stun');
+    assert.strictEqual(takes(one.DATA, '20%', 50).amount, -10);
+
+    const [missing] = buildTemplate(template('percent-damage'), {
+      mode: 'missing HP',
+      percents: '50',
+    });
+    for (let hp = 1; hp <= 100; hp++)
+      assert.strictEqual(
+        takes(missing.DATA, '50%', hp).amount,
+        hp === 100 ? 0 : -(100 - hp) / 2,
+        `50% of what ${hp} is missing`,
+      );
+    assert.strictEqual(takes(missing.DATA, '50%', 250).amount, 0, 'overhealed');
+    assert.throws(
+      () => buildTemplate(template('percent-damage'), { percents: '150' }),
+      /150%/,
     );
   });
 

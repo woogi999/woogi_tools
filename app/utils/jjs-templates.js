@@ -1020,6 +1020,155 @@ function accurateDash(v) {
   ];
 }
 
+// ─── 5. Percentage damage ───────────────────────────────────────────────
+// Skill Builder damage is a fixed number. To take a share of someone's
+// health, the one hit is sent into a ladder of branches that each need Has
+// Health above a value: a binary search, so 100 HP takes 7 hops, not 100.
+// A branch sent to the one hit is run by them, so its conditions read their
+// health, and the Add Health (HPGIB) at the end changes theirs: no block,
+// no i-frames, no damage multipliers. The one hit gets there from a
+// hitbox's BRANCH TARGET, or from a passive that watches a tag your moves
+// set and sends whoever you last hit (a BRANCH with LAST HIT).
+//
+// Unlike the others, this one isn't lifted from an export. Has Health is
+// `HP` (the owner's export), which JJS wrote bare, with its defaults left
+// out; its value is assumed to be AMOUNT and FLIP, like BAR's.
+
+export const HAS_HEALTH = 'HP';
+const hasHealth = (above) => ({
+  K_NAME: HAS_HEALTH,
+  AMOUNT: above,
+  FLIP: false,
+});
+const hundredths = (n) => Math.round(n * 100) / 100;
+
+/** Percentages from "20, 50%": each once, in order. */
+function percents(value) {
+  const list = [
+    ...new Set((String(value ?? '').match(/\d+(?:\.\d+)?/g) ?? []).map(Number)),
+  ];
+  if (!list.length) throw new Error('Type a percentage, like 20.');
+  const bad = list.find((p) => p <= 0 || p > 100);
+  if (bad !== undefined)
+    throw new Error(`${bad}% isn’t a share: use more than 0, up to 100.`);
+  if (list.length > 4) throw new Error('At most 4 percentages at once.');
+  return list;
+}
+
+// The branches that take `pct`% of the health of whoever runs "<pct>%": of
+// what they have (current HP), or of what they've lost from `top` (missing
+// HP). Health is sorted into steps (lo, hi]; each is taken to be its hi, so
+// it's exact for whole health.
+function healthLadder(pct, top, step, canKill, missing) {
+  const entry = `${pct}%`;
+  const highs = [];
+  for (let h = step; h < top - 1e-9; h += step) highs.push(hundredths(h));
+  highs.push(top);
+  const low = (i) => (i === 0 ? 0 : highs[i - 1]);
+  // A line that takes the share from someone on `hp`: none of nothing.
+  const hurt = (hp) => {
+    const amount = hundredths((pct * (missing ? top - hp : hp)) / 100);
+    return amount > 0
+      ? [{ K_NAME: 'HPGIB', 'CAN KILL': canKill, AMOUNT: -amount }]
+      : [];
+  };
+
+  const branches = {};
+  // Steps i to j, entered knowing their health is above low(i).
+  function steps(i, j, Req = []) {
+    const name = `${entry} ${low(i)}-${highs[j]}`;
+    if (i === j) {
+      branches[name] = line(hurt(highs[i]), Req);
+      return name;
+    }
+    const mid = Math.floor((i + j) / 2);
+    const upper = steps(mid + 1, j, [hasHealth(low(mid + 1))]);
+    const lower = steps(i, mid);
+    branches[name] = line([branch(upper), branch(lower)], Req);
+    return name;
+  }
+  const over = `${entry} over ${top}`;
+  branches[entry] = line([branch(over), branch(steps(0, highs.length - 1))]);
+  branches[over] = line(hurt(top), [hasHealth(top)]);
+  return branches;
+}
+
+function percentDamage(v) {
+  const list = percents(v.percents);
+  const top = Number(v.top);
+  if (!(top > 0)) throw new Error('Highest health has to be more than 0.');
+  const step = Math.max(0.01, Number(v.step) || 1);
+  if (top / step > 1000)
+    throw new Error(
+      `That’s ${Math.ceil(top / step)} steps of health for each share: make the step bigger (1000 at most).`,
+    );
+  const ladders = Object.assign(
+    {},
+    ...list.map((p) =>
+      healthLadder(p, top, step, Boolean(v.canKill), v.mode === 'missing HP'),
+    ),
+  );
+
+  // A punch that stuns for a moment (a hit only counts with a stun).
+  const punch = (onHit) => [
+    animation([11, 8], [0, 0.33]),
+    wait(0.15),
+    hitbox({
+      SIZE: '5, 5, 5',
+      POSITION: '0, 0, 3',
+      STUN: 0.3,
+      'SINGLE TARGET': true,
+      'STUN ANIM': true,
+      ...onHit,
+    }),
+  ];
+
+  if (v.trigger === 'one skill')
+    return list.map((p, i) =>
+      skill(
+        `${p}% ${v.mode === 'missing HP' ? 'Missing' : 'Current'} HP`,
+        i + 1,
+        program(punch({ 'BRANCH TARGET': `${p}%` }), ladders, { REP: true }),
+      ),
+    );
+
+  const tag = text(v.tag, 'PctDamage');
+  const branches = {
+    Looper: line([
+      wait(Math.max(0.01, Number(v.every) || 0.05)),
+      ...list.map((p) => tagCheck(tag, String(p), `Take ${p}%`)),
+      branch('Looper'),
+    ]),
+    ...ladders,
+  };
+  for (const p of list)
+    branches[`Take ${p}%`] = line([
+      tagSet(tag, '0', 0),
+      { ...branch(`${p}%`), 'LAST HIT': Number(v.window) || 1 },
+      branch('Looper'),
+    ]);
+  const skills = [
+    skill(
+      text(v.name, 'PercentDamage'),
+      9,
+      program([branch('Looper')], branches, PASSIVE),
+    ),
+  ];
+  if (v.tryOut)
+    list.forEach((p, i) =>
+      skills.push(
+        skill(
+          `Try ${p}%`,
+          i + 1,
+          program(punch({ BRANCH: 'OnHit' }), {
+            OnHit: line([tagSet(tag, '0', 0), tagSet(tag, String(p), 0.3)]),
+          }),
+        ),
+      ),
+    );
+  return skills;
+}
+
 // ─── The catalogue ──────────────────────────────────────────────────────
 
 const LIMBS = ['Right Arm', 'Left Arm', 'Right Leg', 'Left Leg'];
@@ -1326,6 +1475,76 @@ export const TEMPLATES = [
       },
     ],
     build: accurateDash,
+  },
+  {
+    id: 'percent-damage',
+    name: 'Percentage damage',
+    icon: 'percent',
+    from: 'Takes a share, however much is left',
+    blurb:
+      'Damage as a share of the one hit’s health. Current HP: 20% takes 20 from 100 HP and 6 from 30. Missing HP, the reverse: 20% takes 14 from 30 HP (of 100) and nothing at full. A ladder of health checks finds their health, then takes the share straight off it, through blocks.',
+    usage: (v) => {
+      let list;
+      try {
+        list = percents(v.percents);
+      } catch {
+        return '';
+      }
+      if (v.trigger === 'one skill')
+        return `Keys ${list.length > 1 ? `1–${list.length}` : '1'}: a punch whose hitbox has BRANCH TARGET “${list[0]}%”. Build your move in that skill and give its hitbox the same, with a stun (any stun will do).`;
+      const tag = text(v.tag, 'PctDamage');
+      return `In any move, once it hits (in its OnHit branch), clear ${tag}, then set it to ${list.map((p) => `“${p}”`).join(' or ')} for 0.3 s. The passive then takes that share from whoever you hit last, as long as the hit had a stun.${v.tryOut ? ` Keys ${list.length > 1 ? `1–${list.length}` : '1'} punch with ${list.length > 1 ? 'each share' : 'it'}, to try it out.` : ''}`;
+    },
+    sections: [
+      {
+        title: 'Damage',
+        fields: [
+          f('mode', 'Of their', 'choice', 'current HP', {
+            options: ['current HP', 'missing HP'],
+            hint: 'Current HP: a share of what they have, so it hurts most at full. Missing HP: a share of what they’ve lost, so it hurts most when they’re low.',
+          }),
+          f('percents', 'Percentage', 'text', '20', {
+            hint: 'Up to 4, like “20, 50”.',
+          }),
+          f('top', 'Max health', 'number', 100, {
+            hint: 'Their full health. Missing HP counts down from it; above it, current HP takes the share of this much and missing HP takes nothing.',
+          }),
+          f('step', 'Accurate to (HP)', 'number', 1, {
+            step: 0.5,
+            hint: 'Their health is found to within this much. Smaller makes more branches.',
+          }),
+          f('canKill', 'Can kill', 'bool', false, {
+            hint: 'Off, a share that would kill leaves them on 1 HP. Current HP only kills at 100%; missing HP can, once they’ve lost more than they have.',
+          }),
+        ],
+      },
+      {
+        title: 'Trigger',
+        fields: [
+          f('trigger', 'Dealt', 'choice', 'any move', {
+            options: ['any move', 'one skill'],
+            hint: 'Any move: a passive takes the share when your moves set a tag. One skill: a hitbox in that skill does it.',
+          }),
+          f('name', 'Passive name', 'text', 'PercentDamage', {
+            when: 'trigger=any move',
+          }),
+          f('tag', 'Tag', 'text', 'PctDamage', { when: 'trigger=any move' }),
+          f('every', 'Check every (s)', 'number', 0.05, {
+            step: 0.01,
+            when: 'trigger=any move',
+          }),
+          f('window', 'Last hit within (s)', 'number', 1, {
+            step: 0.1,
+            when: 'trigger=any move',
+            hint: 'How long ago the hit can have been.',
+          }),
+          f('tryOut', 'Punches on keys 1–4 that set the tag', 'bool', true, {
+            when: 'trigger=any move',
+          }),
+        ],
+      },
+    ],
+    build: percentDamage,
   },
 ];
 

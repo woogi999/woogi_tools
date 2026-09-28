@@ -133,6 +133,7 @@ skill; on a branch, to **enter** it.
 | `HOLD` | the key is held | a barrage's "Walk" branch |
 | `ULT` | awakened | "Awakened" branches of passives, chase and special |
 | `BAR` | awakening bar ≥ `AMOUNT` | awakenings |
+| `HP` | Has Health: more health than the value (flipped, less) | the owner's export, written bare as `{"K_NAME":"HP"}` with its defaults |
 
 `FLIP: true` inverts a condition. Melee 4's `Base` branch has
 `[NOT AIR, NOT JUMP]`: the ground version. The builder shows `FLIP` as a
@@ -141,7 +142,7 @@ green toggle and "off" as red, which the guides call "backwards": In Air
 
 The game's Conditions tab also has (from the guides; their `K_NAME`s haven't
 been seen in an export yet): **Has Target** (facing a player or NPC),
-**Has Health** (above a value; flipped, below), **Is In Domain**, and
+**Is In Domain**, and
 **Durability** (the skill is lost after that many uses: with Use When
 Obtained, it's how a spawn-in move runs once). Has Awk Bar is `BAR`:
 more than `AMOUNT`, or with `FLIP`, less.
@@ -202,8 +203,11 @@ Webskill Shenanigans' simulator implements exactly this.
    whatever they were doing. `BRANCH FINISHER` replaces `BRANCH` when the
    hit leaves them on 1 HP or less. The fixtures depend on this: the
    blocked-recoil detector after every M1, and the dash's "nobody there"
-   stun, are only reached when the real hit didn't land. A projectile hits
-   later, so its `BRANCH` runs alongside the attacker's line (inferred).
+   stun, are only reached when the real hit didn't land. **A projectile's
+   `BRANCH` and `BRANCH COLLIDED` do the same** when they happen, later:
+   they replace the line that fired the projectile, wherever it has got to.
+   (`BRANCH COLLIDED` is confirmed by the owner. The guides say it of
+   `BRANCH`, and the simulator follows both.) A skill runs one line at a time.
 7. **`LAST HIT` picks who a node affects.** `-1` means whoever runs it. A
    number (0.1–3.6 seen) means "the ones I last hit, if within that many
    seconds" (several, for most nodes). That's how an attacker's OnHit branch
@@ -250,6 +254,20 @@ differently (confirmed by the owner unless marked):
   **Setting one unanchors the visual**: it no longer follows the character
   it came from. The exceptions are **Billboard** (below) and **immovable
   visuals** such as **Wind Expand**.
+- **`ALT POSITION` is in the visual's own rotated axes** (inferred from the
+  owner's fishing rod, where it fits to within a stud). It reads as if JJS
+  places the visual at `origin * CFrame.new(POSITION) * CFrame.Angles(ROTATION)`
+  and tweens it to *that* `* CFrame.new(ALT POSITION) * CFrame.Angles(ALT ROTATION)`,
+  so `POSITION` is in the body part's axes but the move is not. With
+  `ROTATION "-90, 180, 0"` the move's axes are `(x, y, z)` → `(right, back,
+  down)`: `ALT POSITION "0.5, -55, -4"` moves 55 forward, 4 **up** and 0.5
+  right. It also explains why the move is added rather than being a
+  destination. At `ROTATION "0, 0, 0"` the two sets of axes are the same,
+  which is why most visuals don't show it. The owner's tests fit this: a
+  positive y reeled the tip back, and a `+4` in z sent it down. The tip's
+  *pivot* isn't the rod's visible tip, though, so calibrate alignment by eye
+  rather than from this sum. (Placing the tip 4 studs up, as the sum
+  suggested, looked worse.)
 - **`ALT ROTATION` needs an `ALT POSITION`** (a bug): without one it's
   ignored. The fix is a tiny move like `ALT POSITION "0, 0.0001, 0"`, which
   also unanchors it, so **a visual can't both spin and stay pinned to a
@@ -326,6 +344,12 @@ From the guides:
   and jump power (40).
 - **`DISABLE BURST`** blocks burst for the time.
 
+**A state can't be cancelled** (owner): once set, it lasts its whole `TIME`.
+If a move can end early (say, a hook that catches someone close), don't give
+it one long `InSkill`. Set short states and top them up along the line, and
+have each branch it can jump to set its own. When the line leaves, the top-ups
+stop, and what's left runs out within one short interval.
+
 ### WAIT (185)
 
 `TIME`. The only thing that moves a line's time on.
@@ -355,6 +379,11 @@ the branch), `RAGDOLL` (seconds), `TRUE RAGDOLL` (can't be ragdoll-cancelled),
 `LAST HIT`.
 `"0.001, 0.001, 0.001"` for a long time **pins a character in place** (seen
 during grabs).
+
+**A newer VELO replaces the one in progress** (inferred; the simulator does
+this). The dash's OnHit pin stops the dash, and in the owner's air fishing
+rod a hover pin holds a boost where it ends. Pushes don't add up, so a pin
+set while a boost is still running cuts the boost off.
 
 ### HITBOX (64): hit what's in a box
 
@@ -451,15 +480,32 @@ unreliable, and suggest a short `WAIT` inside every loop.
 `CLEAR KNOCKBACK`, `IGNORE WAKEUP`, `CANCEL PROJECTILE`, `FILTER INTERVAL`,
 `CACHE`, `HIT USER`, `360 BLOCK`, `DEBREE`, `ID CHECK`.
 
+From the owner's tests (the fishing rod, below):
+
+- **`BRANCH COLLIDED` works**, and it's the only node that can
+  detect the ground or a wall. One guide calls it non-functional; the owner
+  says otherwise. It runs **as you** (a `VELO` in it launched the owner), and
+  it appears to **replace your line**, like a hitbox's `BRANCH`: a rod whose
+  probes collided during the wind-up just stopped there (owner). So the
+  collided branch has to carry the rest of the move itself. (An earlier
+  test seemed to show the line carrying on; the stopped rod is the clearer
+  evidence.) A Field of View in it didn't show, nor did a Glow with the
+  projectile's `PROJECTILE TAG`, but a Mesh with that tag did.
+- **`ROTATION` steers it**: `"30, 0, 0"` flew upwards, so to aim down,
+  use a negative x. That's the **opposite** of a visual's `ROTATION`, where
+  a positive x tilts the forward axis down (inferred: projectiles seem to be
+  turned in Roblox's own axes, visuals in JJS's).
+- A `TIME` as short as **0.02 s** works: the rod's probes (`SPEED 350`,
+  about 7 studs each) find walls.
+
 From the guides:
 
 - It flies along your +z.
-- `ROTATION` turns its hitbox only.
+- `ROTATION` turns its hitbox and affects where it is going forward.
 - `SPEED` is studs per second, for `TIME` seconds.
 - `AIM LAST HIT 1` aims at whoever you last hit.
 - `CONTINUE` off stops it at the first wall or character.
 - `FILTER INTERVAL` sets the i-frames between its hits (0 hits every tick).
-- `BRANCH COLLIDED` doesn't work (as of February 2026).
 
 ### SETCD (12): start a cooldown
 
@@ -489,6 +535,12 @@ From the guides:
   `RELATIVE FROM BRANCH`, `PROJECTILE TAG` (to a projectile), `LAST HIT`.
 - **LOOK**: face the target for `TIME`: `SMOOTHNESS`, `CAMERA DIRECTION`,
   `HORIZONTAL ONLY`, `GROUNDED`, `RELATIVE FROM BRANCH`, `LAST HIT`.
+  With `CAMERA DIRECTION` on and `HORIZONTAL ONLY` off, you face where the
+  camera points, **pitch included**. Everything placed relative to you
+  (hitboxes, projectiles, visuals, VELO) then aims up or down with you
+  (owner, the air fishing rod). The owner on pairing it with a
+  `DirectionLock`: "look + directionlock makes it so that your look works
+  with shift lock, not the other way around". The lock doesn't stop the LOOK.
 - **HPGIB**: change health by `AMOUNT`; `CAN KILL`.
 - **ULTGIB**: change the awakening bar by `AMOUNT` (`-100` empties it:
   awakenings use it).
@@ -557,6 +609,34 @@ Webskill Shenanigans labels `SETCD` "COOLDOWN", `SETMELEE` "MELEE",
 - **Tag as a flag with a timeout**: set `UseKatana = "True"` for 4 s from
   every move; a passive notices it's gone (see Auto-sheathing below).
 - **Separators**: `ADD false`, `KEY 15`, no DATA.
+
+### The fishing rod: techniques confirmed in-game
+
+The owner's hook-and-grapple skill (built node by node in this project; the
+source is in `jjs_training_data/`) put several tricks to work:
+
+- **A detector ladder instead of a counter.** Ten 0-damage, unblockable
+  `STUN -1` hitboxes, 6, 12, … 60 studs long, fired shortest first. The
+  first to touch someone jumps to its own `CatchN` branch, and the hit
+  drops the rest of the line, so *which* hitbox hit is the distance. Pace
+  them with `WAIT`s to trail an eased visual.
+- **Detect, then really hit.** Detectors are unblockable, so blocking
+  doesn't spam the block sound. `CatchN` fires one blockable hitbox of the
+  same size: if it lands, pull; if it's blocked, just reel in.
+- **Take a travelling visual off and redraw it.** The cast's tip and line
+  carry `VISUAL TAG`s, and `CatchN` cancels them (Cancels on the same body
+  part) and draws them again at length N.
+- **Short states, topped up.** A state can't be cancelled, so the line sets
+  0.15–0.45 s at a time, and each branch it can jump to sets its own.
+- **A probe ladder for walls.** Ten 0.02 s projectiles, one per 6-stud
+  stretch, nearest first, each with `BRANCH COLLIDED "WallN"`. The collided
+  branch replaces the line, so each `WallN` *is* the rest of the move (the
+  remaining wind-up with the later probes turned into plain `WAIT`s, the
+  cast, the detectors up to N, then `GrappleN`). The first wall found
+  wins, and no tag has to carry the news.
+- **An air variant**: `BRANCH Air1` (with `Req AIR`) before `BRANCH 1`. It
+  adds a faded boost (`"0, 25, -20"` for 0.2 s: about 2.5 up and 2 back),
+  hover pins until the cast's own pin, and a pitch-following `LOOK`.
 
 ### Variant recipes (from the guides)
 
@@ -713,6 +793,55 @@ Blocked:   Stun 0.75, pinned, the end at half speed
 `CANCEL ON END` is set on the dash's own 1.2 s states: when they run out,
 the dash's line ends, which caps how long the dash lasts (guides).
 
+### Percentage damage (built here, untested in-game)
+
+Damage is always a fixed number, so a share of someone's **health left**
+takes a lookup. What it rests on:
+
+- A branch sent to the one hit (`BRANCH TARGET`, or a `BRANCH` with
+  `LAST HIT`) is **run by them** (confirmed: character 2's "Possess" is a
+  projectile's `BRANCH TARGET` whose `HPGIB -2` hurts the one hit). So an
+  `HPGIB` there changes *their* health, and a branch's conditions there
+  should read *their* Has Health (inferred).
+- **Has Health** is the only way to read health. It's `HP` (confirmed,
+  from the owner's export, which wrote it bare with its defaults left out).
+  The template writes `{ "K_NAME": "HP", "AMOUNT": n, "FLIP": false }`,
+  the shape of `BAR`: that its value is `AMOUNT` is **inferred**. The name
+  is one constant, `HAS_HEALTH`.
+
+The ladder is a **binary search**: health is cut into steps `(lo, hi]` (1 HP
+by default, up to a highest health), and each branch tries its upper half
+(`Req` Has Health above the half's low end) before falling into its lower
+half. 100 steps take 7 hops, not 100 (each node costs about 0.01 s). The
+last branch takes the share of its step's `hi` with `HPGIB`, so the damage
+is exact for whole health and rounds up within a step. Above the highest
+health, they lose the share of the highest.
+
+```
+"20%":            BRANCH "20% over 100" (Req HP > 100) → HPGIB -20
+                  BRANCH "20% 0-100"
+"20% 0-100":      BRANCH "20% 50-100" (Req HP > 50), else BRANCH "20% 0-50"
+…
+"20% 57-58":      (Req HP > 57) HPGIB -11.6
+```
+
+Two modes. **Current HP** takes the share of what they have (above), and
+hurts most at full. **Missing HP** is the reverse: the share of what they've
+lost from the max health you give, so each step `(lo, hi]` takes
+`share × (max − hi)`, full health takes nothing (the branch is empty), and so
+does anything above the max.
+
+`HPGIB` isn't a hit: it goes through blocks, i-frames and damage
+multipliers, and only kills with `CAN KILL`. Two ways to start it:
+
+- **One skill**: the hitbox's `BRANCH TARGET "20%"`, with a stun.
+- **Any move**: a passive (key 9) loops `WAIT 0.05 · TAG PctDamage == "20"
+  CHECK → Take 20%`. Take clears the tag and runs `BRANCH "20%"` with
+  `LAST HIT 1` on whoever you last hit, then loops. Moves clear the tag and
+  set it to `"20"` for 0.3 s in their OnHit. The tag's value picks the
+  share, so one passive holds up to four. Whether a passive's `LAST HIT`
+  sees a hit made by another skill is inferred.
+
 ---
 
 ## 7. Webskill Shenanigans
@@ -746,9 +875,16 @@ What it does:
   "whiff". There's a scrubbable timeline, a log (click a line to jump to its
   node), and a HUD with the dummy's health and live states and tags.
 
+The simulator follows what's been learned in-game: a projectile's `ROTATION`
+x pitches it (positive up). `BRANCH` and `BRANCH COLLIDED` replace the line
+that fired it. The **ground** is always there for `BRANCH COLLIDED`, and a
+**wall** can be set in the play bar ("Wall", studs in front). A newer VELO
+replaces the one in progress. The 3D view moves a visual's `ALT POSITION`
+along its own turned axes (`turn` in `sim.js`).
+
 What the simulator **doesn't** do, deliberately or because it's unknown:
 blocking, the other character acting on its own, real physics or
-collisions, `COUNTER` triggers, damage multipliers, cooldown enforcement,
+collisions (a wall stops projectiles, not characters), a `LOOK`'s pitch, `COUNTER` triggers, damage multipliers, cooldown enforcement,
 or JJS's timing to the frame. **Animations are stand-ins**: JJS's library
 isn't public, so each `ANIM_USE` gets one of eight procedural poses (always
 the same one for the same animation). **Effects are drawn by family**
@@ -771,6 +907,7 @@ was: each has a figurative tagline instead (`from`).
 | Auto-sheathing weapon | the katana's `SheathPassive` | the passive, and a key-1 debug skill that draws the weapon |
 | Accurate M1s | Gon's M1s | MELEE 1–4 |
 | Accurate dash | Gon's chase, without its blink | CHASE |
+| Percentage damage | built here, not lifted (section 6) | the passive and try-out punches on keys 1–4, or a skill per share with its own ladder |
 
 To add one: add the export as a fixture, write its `build` from the export's
 nodes, and test that its defaults reproduce the export.
@@ -868,9 +1005,14 @@ inferred to confirmed.
 - Whether a branch **returns** to its caller when it ends (everything so
   far fits "no").
 - The `K_NAME`s of HIT CANCEL, SPECIAL, CONNECT and Add Evasion, and of the
-  conditions Has Target, Has Health, Is In Domain and Durability. What
+  conditions Has Target, Is In Domain and Durability. Has Health is `HP`,
+  but the name of its value field (assumed `AMOUNT`) and whether it's
+  health or a percentage of it aren't confirmed. What
   `SKILL`'s other moves are.
-- Whether a projectile's `BRANCH` also drops the rest of the line.
+- Whether a projectile's `BRANCH` replaces the line as `BRANCH COLLIDED`
+  does (the guides say so, and the simulator assumes it).
+- Why a Field of View and a Glow didn't show from a collided branch or on
+  a projectile, when sounds, VELOs and Meshes did.
 - `ANIM_USE`'s library: which `[set, number]` is which animation.
 - `LAST HIT 0` exactly, `LINK USER`, `DEBREE`, `AMOUNT` on visuals,
   `RELATIVE FROM BRANCH` in every node.

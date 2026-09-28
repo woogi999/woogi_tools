@@ -820,6 +820,8 @@ export class StudioState {
         if (this.dialog === null && this.brushOverlay) this.camTick++;
       },
     });
+    // With the canvas's studioView, a way in for scripts and tests.
+    this.view.studio = this;
     return this.view;
   }
 

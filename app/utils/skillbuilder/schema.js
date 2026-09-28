@@ -62,6 +62,7 @@ export const REQ_KINDS = [
   { id: 'HOLD', label: 'Holding the key' },
   { id: 'ULT', label: 'Awakened' },
   { id: 'BAR', label: 'Awakening bar at least', amount: true },
+  { id: 'HP', label: 'Health above', amount: true },
 ];
 
 // ─── Field types ────────────────────────────────────────────────────────

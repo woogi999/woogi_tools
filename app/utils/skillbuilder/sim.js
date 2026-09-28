@@ -14,9 +14,12 @@
 //             never, as asked); a hit moves the attacker's line on to BRANCH
 //             (BRANCH FINISHER on a kill), leaving the rest of it, and starts
 //             BRANCH TARGET on the one hit
-//   PROJECTILE flies forward and, when it passes through, starts BRANCH on
-//             the attacker alongside whatever they're doing, and BRANCH TARGET
-//   VELO / TELEPORT move a character; LAST HIT picks who
+//   PROJECTILE flies forward (its ROTATION's x pitches it, positive up) and,
+//             when it passes through the dummy, moves the line that fired it
+//             on to BRANCH and starts BRANCH TARGET; when it meets the ground
+//             or a wall, it moves that line on to BRANCH COLLIDED
+//   VELO / TELEPORT move a character (a newer VELO replaces an older one);
+//             LAST HIT picks who
 //
 // Everything else (animations, sounds, effects) becomes a timed event for
 // the 3D view to draw. This is a model of the rules read from real exports
@@ -57,6 +60,20 @@ export function toWorld([x, y, z], yaw) {
   return [fz * x + fx * z, y, -fx * x + fz * z];
 }
 
+// A local vector (x left, y up, z forward) turned by a visual's ROTATION
+// ("x, y, z" degrees), as Roblox's CFrame.Angles does: z first, then y, then
+// x. A visual's ALT POSITION is a move along its own turned axes, so it goes
+// through this: with ROTATION "-90, 180, 0", ALT y -55 is 55 forward and ALT
+// z +4 is 4 down (owner's fishing rod). At "0, 0, 0" nothing changes.
+export function turn([x, y, z], [rx, ry, rz] = [0, 0, 0]) {
+  const r = Math.PI / 180;
+  const [cx, sx, cy, sy, cz, sz] = [Math.cos(rx * r), Math.sin(rx * r), Math.cos(ry * r), Math.sin(ry * r), Math.cos(rz * r), Math.sin(rz * r)];
+  [x, y] = [cz * x - sz * y, sz * x + cz * y];
+  [x, z] = [cy * x + sy * z, -sy * x + cy * z];
+  [y, z] = [cx * y - sx * z, sx * y + cx * z];
+  return [x, y, z].map((v) => (Math.abs(v) < 1e-9 ? 0 : v));
+}
+
 const other = (who) => (who === 'user' ? 'target' : 'user');
 
 /**
@@ -68,6 +85,8 @@ const other = (who) => (who === 'user' ? 'target' : 'user');
  * options.maxTime     seconds to run a skill that never ends (a passive)
  * options.seed        for RANDOM branches
  * options.distance    how far in front the dummy stands
+ * options.wall        how far in front a wall stands (none if unset); the
+ *                     ground is always there, for BRANCH COLLIDED
  */
 export function simulate(skill, options = {}) {
   const {
@@ -77,6 +96,7 @@ export function simulate(skill, options = {}) {
     maxTime = 12,
     seed = 7,
     distance = 5,
+    wall = null,
   } = options;
   const program = skill?.DATA ?? null;
   const branches = branchObject(program);
@@ -109,6 +129,10 @@ export function simulate(skill, options = {}) {
           break;
         case 'BAR':
           ok = num(c.BAR, 0) >= num(req.AMOUNT, 0);
+          break;
+        case 'HP':
+          // Has Health: more than AMOUNT, read on whoever enters.
+          ok = people[who].hp > num(req.AMOUNT, 0);
           break;
         default:
           ok = true;
@@ -301,6 +325,9 @@ export function simulate(skill, options = {}) {
         if (!actor) return;
         const time = Math.max(0.01, num(node.TIME, 0.2));
         const v = toWorld(vec3(node.FORCE), headingFor(node, thread, actor));
+        // A newer push replaces the one in progress (the dash's OnHit pin
+        // stops the dash; a hover pin holds a boost where it ends).
+        people[actor].segments = people[actor].segments.map((s) => (s.t1 > t ? { ...s, t1: Math.max(s.t0, t) } : s));
         people[actor].segments.push({ t0: t, t1: t + time, v, fade: Boolean(node.FADE) });
         const ragdoll = num(node.RAGDOLL, 0);
         emit({ kind, t, end: t + Math.max(time, ragdoll), who: actor, node, ragdoll, ...at });
@@ -343,17 +370,29 @@ export function simulate(skill, options = {}) {
         const off = toWorld(vec3(node.POSITION), yaw);
         const origin = posAt(me, t).map((c, i) => c + off[i] + (i === 1 ? 2.5 : 0));
         const speed = num(node.SPEED, 0);
-        const time = Math.max(0.05, num(node.TIME, 2));
-        const shot = { id: shots.length, tag: node['PROJECTILE TAG'] ?? '', t0: t, t1: t + time, origin, dir: toWorld([0, 0, 1], yaw), speed, size: vec3(node.SIZE, [6, 6, 6]), node, who: me };
+        const time = Math.max(0.005, num(node.TIME, 2)); // probes fly for as little as 0.02 s
+        const pitch = (vec3(node.ROTATION)[0] * Math.PI) / 180; // positive x flies upwards (owner)
+        const dir = toWorld([0, Math.sin(pitch), Math.cos(pitch)], yaw);
+        const shot = { id: shots.length, tag: node['PROJECTILE TAG'] ?? '', t0: t, t1: t + time, origin, dir, speed, size: vec3(node.SIZE, [6, 6, 6]), node, who: me };
         shots.push(shot);
         if (shot.tag) projectiles.set(shot.tag, shot);
         emit({ kind, t, end: shot.t1, who: me, node, shot: shot.id, ...at });
-        const wantsHit = node['BRANCH TARGET'] || num(node.DAMAGE, 0) > 0;
+        // The ground (y 0) and the wall, if any, for BRANCH COLLIDED.
+        let bump = null;
+        if (speed > 0)
+          for (let s = t; s <= shot.t1; s += 1 / 240) {
+            const p = shotPos(shot, s);
+            if (p[1] <= 0 || (wall !== null && p[2] >= wall)) {
+              bump = s;
+              break;
+            }
+          }
+        const wantsHit = node['BRANCH TARGET'] || node.BRANCH || num(node.DAMAGE, 0) > 0;
+        let when = null;
         if (hits !== 'never' && wantsHit) {
           const them = posAt(other(me), t);
           const body = [them[0], them[1] + 2.5, them[2]];
           const reach = Math.max(...shot.size) / 2 + 1.5;
-          let when = null;
           for (let s = t; s <= shot.t1; s += 1 / 30) {
             const p = shotPos(shot, s);
             if (Math.hypot(p[0] - body[0], p[1] - body[1], p[2] - body[2]) <= reach) {
@@ -362,10 +401,17 @@ export function simulate(skill, options = {}) {
             }
           }
           if (when === null && hits === 'always') when = t + Math.min(time, speed > 0 ? distance / speed : 0.1);
+          if (when !== null && bump !== null && bump < when) when = null; // the wall's in the way
           if (when !== null) {
             if (node.CONTINUE === false) shot.t1 = when;
-            threads.push({ n: serial++, who: me, branch: thread.branch, i: thread.i, t: when, loops: new Map(), origin: me, shotHit: node });
+            threads.push({ n: serial++, who: me, branch: thread.branch, i: thread.i, t: when, loops: new Map(), origin: me, shotHit: node, line: thread.line ?? thread.n });
           }
+        }
+        if (bump !== null && (when === null || node.CONTINUE !== false)) {
+          shot.t1 = Math.min(shot.t1, bump);
+          const collided = node['BRANCH COLLIDED'];
+          if (collided && collided !== 'nil')
+            threads.push({ n: serial++, who: me, branch: thread.branch, i: thread.i, t: bump, loops: new Map(), origin: me, collided, line: thread.line ?? thread.n });
         }
         return;
       }
@@ -421,9 +467,23 @@ export function simulate(skill, options = {}) {
       stopped = true;
       break;
     }
-    if (thread.shotHit) {
+    if (thread.shotHit || thread.collided) {
       threads.shift();
-      hit(thread, thread.shotHit, thread.t, 'projectile', thread.i);
+      // Like a hitbox's BRANCH, a projectile's BRANCH and BRANCH COLLIDED
+      // replace the line that fired it, wherever it has got to (owner: a rod
+      // whose probe hit a wall stopped there). BRANCH TARGET still forks.
+      const name = thread.collided ?? thread.shotHit.BRANCH;
+      const takesOver = name && name !== 'nil' && branches[name] && reqOk(reqOf(program, name), thread.who);
+      if (thread.shotHit) hit(thread, { ...thread.shotHit, BRANCH: '' }, thread.t, 'projectile', thread.i);
+      else say(thread.t, thread.who, 'projectile meets a wall or the ground', thread.branch, thread.i);
+      if (takesOver) {
+        // A skill runs one line: whatever it's on now (the line that fired,
+        // or a branch that has since taken over) is replaced.
+        const at = threads.findIndex((th) => (th.line ?? th.n) === thread.line && !th.shotHit && !th.collided);
+        if (at >= 0) threads.splice(at, 1);
+        spawn(thread.who, name, thread.t, thread.who);
+        if (branches[name]) threads[threads.length - 1].line = thread.line;
+      } else if (name && name !== 'nil') say(thread.t, thread.who, `No branch “${name}”: nothing runs`);
       continue;
     }
     const line = lineOf(program, thread.branch);

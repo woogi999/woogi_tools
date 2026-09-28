@@ -1,3 +1,4 @@
+import { TEMPLATES, buildTemplate } from 'woogi-tools/utils/jjs-templates';
 import { module, test } from 'qunit';
 import {
   CHARACTER_1,
@@ -19,7 +20,12 @@ import {
   fieldsOf,
   vec3,
 } from 'woogi-tools/utils/skillbuilder/schema';
-import { simulate, toWorld } from 'woogi-tools/utils/skillbuilder/sim';
+import {
+  simulate,
+  toWorld,
+  turn,
+  motionAt,
+} from 'woogi-tools/utils/skillbuilder/sim';
 import { buildSkill } from 'woogi-tools/utils/jjs-skill';
 
 const withoutUid = (skills) => skills.map(({ uid: _uid, ...s }) => s);
@@ -177,10 +183,21 @@ module('Unit | Skill Builder simulator', function () {
     const melee1 = named(await decodeMoveset(GON), '1', 'MELEE');
     const landed = simulate(melee1, { hits: 'always' });
     assert.false(
-      landed.log.some((l) => /→ Blocked$/.test(l.text) || l.text === 'starts Blocked'),
+      landed.log.some(
+        (l) => /→ Blocked$/.test(l.text) || l.text === 'starts Blocked',
+      ),
       'a hit never reaches Blocked',
     );
     assert.true(landed.log.some((l) => l.text === 'on hit → OnHit'));
+  });
+
+  test('Has Health (HP) reads whoever enters: the percentage damage ladder', function (assert) {
+    const [skill] = buildTemplate(
+      TEMPLATES.find((t) => t.id === 'percent-damage'),
+      { trigger: 'one skill' },
+    );
+    const run = simulate(skill, { hits: 'always' });
+    assert.strictEqual(run.hp.at(-1).hp, 80, '20% of 100');
   });
 
   test('loops, random branches and tags', function (assert) {
@@ -261,6 +278,113 @@ module('Unit | Skill Builder simulator', function () {
     assert.true(
       run.warnings.some((w) => /Runs for ever/.test(w)),
       'a passive loop is cut off',
+    );
+  });
+
+  // What the owner's fishing rod taught us (docs/jjs-skill-builder.md).
+  const program = (line, branch = {}) => ({
+    DATA: { Req: [], Line: line, Prop: {}, Branch: branch },
+  });
+
+  test('a visual’s ALT POSITION moves along its own turned axes', function (assert) {
+    const rod = [-90, 180, 0];
+    assert.deepEqual(
+      turn([0, -55, 0], rod),
+      [0, 0, 55],
+      'ALT y -55 goes 55 forward',
+    );
+    assert.deepEqual(
+      turn([0, 20, 0], rod),
+      [0, 0, -20],
+      'ALT y +20 reels back',
+    );
+    assert.deepEqual(turn([0, 0, 4], rod), [0, -4, 0], 'ALT z +4 goes down');
+    assert.deepEqual(turn([1, 2, 3]), [1, 2, 3], 'unturned, nothing changes');
+  });
+
+  test('a newer VELO replaces the one in progress', function (assert) {
+    const run = simulate(
+      program([
+        { K_NAME: 'VELO', FORCE: '0, 0, 50', TIME: 1 },
+        { K_NAME: 'WAIT', TIME: 0.2 },
+        { K_NAME: 'VELO', FORCE: '0, 0.001, 0', TIME: 1 },
+      ]),
+      { hits: 'never' },
+    );
+    const z = motionAt(run.motion.user, run.duration)[2];
+    assert.true(
+      Math.abs(z - 10) < 0.5,
+      `the pin stops the push after 10 studs (${z})`,
+    );
+  });
+
+  test('BRANCH COLLIDED takes over the line that fired, once', function (assert) {
+    const probe = (k) => ({
+      K_NAME: 'PROJECTILE',
+      POSITION: `0, 0, ${6 * k - 6}`,
+      SPEED: 350,
+      TIME: 0.02,
+      CONTINUE: false,
+      'BRANCH COLLIDED': `Wall${6 * k}`,
+    });
+    const branch = {};
+    for (const k of [1, 2, 3, 4])
+      branch[`Wall${6 * k}`] = {
+        Req: [],
+        Line: [{ K_NAME: 'WAIT', TIME: 0.01 }],
+      };
+    const line = [1, 2, 3, 4].flatMap((k) => [
+      probe(k),
+      { K_NAME: 'WAIT', TIME: 0.02 },
+    ]);
+    line.push({ K_NAME: 'BRANCH', BRANCH: '>reached the end' });
+    const walled = simulate(program(line, branch), { wall: 14, hits: 'never' });
+    const took = walled.log
+      .filter((l) => /^starts Wall/.test(l.text))
+      .map((l) => l.text);
+    assert.deepEqual(
+      took,
+      ['starts Wall18'],
+      'only the probe whose stretch holds the wall',
+    );
+    assert.false(
+      walled.log.some((l) => /reached the end/.test(l.text)),
+      'the rest of the line is gone',
+    );
+    const open = simulate(program(line, branch), { hits: 'never' });
+    assert.false(
+      open.log.some((l) => /^starts Wall/.test(l.text)),
+      'no wall, no collision',
+    );
+  });
+
+  test('a projectile’s ROTATION x pitches it, positive upwards', function (assert) {
+    const shoot = (x) =>
+      simulate(
+        program(
+          [
+            {
+              K_NAME: 'PROJECTILE',
+              ROTATION: `${x}, 0, 0`,
+              SPEED: 40,
+              TIME: 1,
+              'BRANCH COLLIDED': 'Ground',
+            },
+          ],
+          {
+            Ground: { Req: [], Line: [] },
+          },
+        ),
+        { hits: 'never' },
+      );
+    assert.true(shoot(30).shots[0].dir[1] > 0, 'up');
+    assert.true(
+      shoot(-30).log.some((l) => l.text === 'starts Ground'),
+      'down meets the ground',
+    );
+    assert.false(
+      shoot(30).log.some((l) => l.text === 'starts Ground'),
+      'up never does',
     );
   });
 });

@@ -98,6 +98,8 @@ export default class WebskillPage extends Component {
   @tracked speed = 1;
   @tracked fromBranch = false;
   @tracked hits = 'auto';
+  // Studs to a wall in front, for projectiles' BRANCH COLLIDED ('' is none).
+  @tracked wall = '';
   @tracked conds = {
     AIR: false,
     JUMP: false,
@@ -886,6 +888,7 @@ export default class WebskillPage extends Component {
       ? simulate(skill, {
           conditions: this.conds,
           hits: this.hits,
+          wall: this.wall === '' ? null : Number(this.wall),
           start: this.fromBranch ? this.branch : '',
         })
       : null;
@@ -946,6 +949,15 @@ export default class WebskillPage extends Component {
         ? clamp(Number(event.target.value) || 0, 0, 100)
         : event.target.checked;
     this.conds = { ...this.conds, [key]: value };
+    this.simulateNow();
+  };
+
+  setWall = (event) => {
+    const value = event.target.value.trim();
+    this.wall =
+      value === '' || !Number.isFinite(Number(value))
+        ? ''
+        : String(Math.max(0, Number(value)));
     this.simulateNow();
   };
 
@@ -1606,6 +1618,17 @@ export default class WebskillPage extends Component {
               class="math-input"
               value={{this.conds.BAR}}
               {{on "change" (fn this.setCond "BAR")}}
+            /></label>
+          <label
+            class="ws-bar-input"
+            title="Studs to a wall in front, for projectiles’ On collision branch (empty: no wall; the ground is always there)"
+          ><span>Wall</span><input
+              type="number"
+              min="0"
+              placeholder="none"
+              class="math-input"
+              value={{this.wall}}
+              {{on "change" this.setWall}}
             /></label>
           <span class="ws-sep"></span>
           <div class="ws-seg" role="group" aria-label="Hits">
