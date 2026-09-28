@@ -32,7 +32,16 @@
 // from JJS itself.
 
 import { compressBytes, decompressBytes } from './codec';
-import { vec3 } from './skillbuilder/schema';
+// "x, y, z" (or an array) to three numbers; missing ones from `fallback`.
+export function vec3(text, fallback = [0, 0, 0]) {
+  if (Array.isArray(text)) return text.map(Number);
+  const parts = String(text ?? '')
+    .split(',')
+    .map((s) => Number(s.trim()));
+  return [0, 1, 2].map((i) =>
+    Number.isFinite(parts[i]) ? parts[i] : fallback[i],
+  );
+}
 
 // JJS writes this as 1e38 ("for ever"); JSON.stringify would write 1e+38.
 const FOREVER = '__FOREVER__';

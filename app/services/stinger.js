@@ -8,7 +8,6 @@ import config from 'woogi-tools/config/environment';
 // the cover comes off again.
 export const STINGER_ROUTES = new Set([
   'video-editor',
-  'webskill-shenanigans',
   '3d-studio',
 ]);
 

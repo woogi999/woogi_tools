@@ -7,7 +7,7 @@ import { registerDestructor } from '@ember/destroyable';
 import { modifier } from 'ember-modifier';
 import { waitForPromise } from '@ember/test-waiters';
 import Icon from './icon';
-import { encodeMoveset } from '../utils/skillbuilder/format';
+import { encodeMoveset } from '../utils/jjs-code';
 import { TEMPLATES, defaultsOf } from '../utils/jjs-templates';
 import { textureUrl } from '../utils/roblox-texture';
 

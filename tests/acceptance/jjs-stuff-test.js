@@ -8,7 +8,7 @@ import {
   findAll,
 } from '@ember/test-helpers';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { decodeMoveset } from 'woogi-tools/utils/skillbuilder/format';
+import { decodeMoveset } from 'woogi-tools/utils/jjs-code';
 
 const byText = (selector, text) =>
   findAll(selector).find((el) => el.textContent.includes(text));

@@ -2332,40 +2332,6 @@ export const TOOLS = [
     ],
   },
   {
-    label: 'Webskill Shenanigans',
-    route: 'webskill-shenanigans',
-    icon: 'wand',
-    category: 'Magnum Opus',
-    tag: 'beta',
-    description:
-      'JJS’s Skill Builder in the browser: open a moveset’s code, edit it node by node, play skills on a 3D character, copy the code back.',
-    keywords: [
-      'jjs',
-      'jujutsu shenanigans',
-      'skill builder',
-      'skillbuilder',
-      'moveset',
-      'roblox',
-      'skill editor',
-      'import code',
-      'export code',
-      'hitbox',
-      'combo',
-      'awakening',
-      'simulator',
-    ],
-    madeWith:
-      'A Skill Builder code is base64 of Zstandard-compressed JSON: a list of skills, each with its program as a JSON string of its own. Codes are read and written losslessly, down to JJS’s quirks (empty tables written as [], “for ever” as 1e38). The node kinds, their fields and what they do were worked out by reading real movesets exported from the game, and are written up in the site’s Skill Builder handbook. Skills are played by a small simulator: each character runs its own lines of nodes in time order; branches jump only when their conditions hold, loops rewind, tags and states count down, and a hitbox or projectile that reaches the dummy starts one branch on you and another on them. The 3D view is Three.js: an R6 character and a dummy, with JJS’s effects drawn by family and Billboard and Overlay effects showing their real Roblox textures, fetched through the site’s Worker. JJS’s animations aren’t public, so animations are stand-in poses.',
-    credits: [
-      {
-        name: 'three.js',
-        author: 'mrdoob & contributors',
-        license: 'MIT',
-        url: 'https://threejs.org',
-      },
-    ],
-  },
-  {
     label: '3D Studio',
     route: '3d-studio',
     icon: 'box',

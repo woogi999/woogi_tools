@@ -22,7 +22,6 @@ import { pageMeta, SITE_NAME } from '../utils/page-meta';
 // is responsible for its own way back into the site.
 const BARE_ROUTES = [
   'video-editor',
-  'webskill-shenanigans',
   '3d-studio',
   'not-found',
 ];

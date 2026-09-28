@@ -1,8 +1,8 @@
 # 3D Studio
 
 `/3d-studio` is a general-purpose 3D modeller, texture painter, rigger and
-animator. It is a Magnum Opus page (beta), full-window like the Video Editor
-and Webskill Shenanigans, so it is listed in `BARE_ROUTES`
+animator. It is a Magnum Opus page (beta), full-window like the Video Editor,
+so it is listed in `BARE_ROUTES`
 (`app/templates/application.gjs`) and `STINGER_ROUTES`
 (`app/services/stinger.js`).
 

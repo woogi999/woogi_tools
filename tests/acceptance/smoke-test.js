@@ -445,7 +445,7 @@ module('Acceptance | smoke', function (hooks) {
       .dom(card('Video Editor').querySelector('.card-sticker'))
       .hasText('beta');
     assert
-      .dom(card('Webskill Shenanigans').querySelector('.card-sticker'))
+      .dom(card('3D Studio').querySelector('.card-sticker'))
       .hasText('beta');
     assert
       .dom(card('Woogidex').querySelector('.card-sticker'))
@@ -466,9 +466,7 @@ module('Acceptance | smoke', function (hooks) {
         a.textContent.includes(label),
       );
     assert.dom(link('Video Editor').querySelector('.nav-tag')).hasText('beta');
-    assert
-      .dom(link('Webskill Shenanigans').querySelector('.nav-tag'))
-      .hasText('beta');
+    assert.dom(link('3D Studio').querySelector('.nav-tag')).hasText('beta');
     assert
       .dom(link('Woogidex').querySelector('.nav-tag'))
       .hasText('other site');
@@ -511,8 +509,8 @@ module('Acceptance | smoke', function (hooks) {
     });
     await visit('/qr-code');
     assert.strictEqual(seen.length, 0, 'not between ordinary pages');
-    await click('.sidebar-nav a[href="/webskill-shenanigans"]');
-    assert.strictEqual(currentURL(), '/webskill-shenanigans');
+    await click('.sidebar-nav a[href="/3d-studio"]');
+    assert.strictEqual(currentURL(), '/3d-studio');
     assert.true(
       seen.some((c) => c.includes('is-in')),
       'covered',
@@ -523,7 +521,7 @@ module('Acceptance | smoke', function (hooks) {
     );
     assert.dom('.stinger').doesNotExist('and gone');
     seen.length = 0;
-    await click('.ws-brand');
+    await click('.st-brand');
     assert.strictEqual(currentURL(), '/');
     assert.true(seen.length > 0, 'on the way out too');
     observer.disconnect();

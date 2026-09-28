@@ -134,7 +134,6 @@ Router.map(function () {
   this.route('wayback-snapshots');
   this.route('jjs-stuff');
   this.route('jjs-progress-bar-maker');
-  this.route('webskill-shenanigans');
   this.route('3d-studio');
   this.route('settings');
   this.route('updates');

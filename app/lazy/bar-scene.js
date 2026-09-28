@@ -1,6 +1,6 @@
 // The Progress Bar Maker's 3D preview: where the bar's billboard sits on a
 // Roblox R6 character, and how it looks there. The character and baseplate
-// are Webskill Shenanigans' (skill-scene.js); the billboard is a square
+// are r6-character.js; the billboard is a square
 // sprite, SIZE × 2 studs across, on the HumanoidRootPart.
 //
 // A JJS billboard is placed pseudo-2D (confirmed in-game): its offset is on
@@ -27,8 +27,8 @@ import {
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { buildCharacter, faceTexture, baseplateTexture } from './skill-scene';
-import { vec3 } from '../utils/skillbuilder/schema';
+import { buildCharacter, faceTexture, baseplateTexture } from './r6-character';
+import { vec3 } from '../utils/jjs-skill';
 
 export function mountBarScene(host) {
   const renderer = new WebGLRenderer({

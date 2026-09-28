@@ -3,7 +3,7 @@ import { KATANA, GON } from '../fixtures/jjs-characters';
 import {
   decodeMoveset,
   encodeMoveset,
-} from 'woogi-tools/utils/skillbuilder/format';
+} from 'woogi-tools/utils/jjs-code';
 import { buildSkill } from 'woogi-tools/utils/jjs-skill';
 import {
   TEMPLATES,

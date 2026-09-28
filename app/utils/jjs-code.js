@@ -1,4 +1,5 @@
-// Reading and writing JJS Skill Builder codes (see docs/jjs-skill-builder.md).
+// Reading and writing JJS Skill Builder codes, for JJS Stuff's templates.
+// (Webskill Shenanigans, its own project now, has the full editor version.)
 //
 // A code is base64(zstd(JSON)) of an array of skills; each skill's program
 // sits in DATA as a JSON string of its own. In memory the program is kept
@@ -12,7 +13,7 @@
 // Roblox also writes some floats with 17 digits where JavaScript writes the
 // shortest form that reads back the same; the numbers are identical.
 
-import { compressBytes, decompressBytes } from '../codec';
+import { compressBytes, decompressBytes } from './codec';
 
 const toBase64 = (bytes) => {
   let binary = '';
@@ -25,7 +26,8 @@ const fromBase64 = (text) =>
   Uint8Array.from(atob(text.replace(/\s+/g, '')), (c) => c.charCodeAt(0));
 
 let uid = 0;
-export const newUid = () => `s${Date.now().toString(36)}${(uid++).toString(36)}`;
+export const newUid = () =>
+  `s${Date.now().toString(36)}${(uid++).toString(36)}`;
 
 // JSON text for JJS: 1e38 as it writes it.
 export const toJjsJson = (value) =>
@@ -51,7 +53,9 @@ export async function decodeMoveset(code) {
     const bytes = fromBase64(String(code ?? '').trim());
     text = new TextDecoder().decode(await decompressBytes(bytes, 'zstd'));
   } catch {
-    throw new Error('That isn’t a Skill Builder code: it should be the long text JJS copies out.');
+    throw new Error(
+      'That isn’t a Skill Builder code: it should be the long text JJS copies out.',
+    );
   }
   let skills;
   try {
@@ -59,7 +63,10 @@ export async function decodeMoveset(code) {
   } catch {
     throw new Error('That code opened, but what’s inside isn’t a skill list.');
   }
-  if (!Array.isArray(skills) || !skills.every((s) => s && typeof s === 'object'))
+  if (
+    !Array.isArray(skills) ||
+    !skills.every((s) => s && typeof s === 'object')
+  )
     throw new Error('That code opened, but what’s inside isn’t a skill list.');
   return skills.map((skill) => {
     const out = { uid: newUid(), ...skill };
@@ -90,50 +97,7 @@ function emptyAsArrays(program) {
 /** Skills to a code JJS will import. */
 export async function encodeMoveset(skills) {
   const json = toJjsJson(skills.map(toJjsSkill));
-  return toBase64(await compressBytes(new TextEncoder().encode(json), 'zstd', 19));
-}
-
-// ─── Reaching into a program ────────────────────────────────────────────
-// Branch '' is the skill's own line ("Default" in the builder).
-
-export const DEFAULT_BRANCH = '';
-
-export function branchNames(program) {
-  const branches = program?.Branch;
-  return branches && !Array.isArray(branches) ? Object.keys(branches) : [];
-}
-
-export function lineOf(program, branch) {
-  if (!program) return [];
-  if (!branch) return Array.isArray(program.Line) ? program.Line : [];
-  const b = program.Branch?.[branch];
-  return Array.isArray(b?.Line) ? b.Line : [];
-}
-
-export function reqOf(program, branch) {
-  if (!program) return [];
-  const req = branch ? program.Branch?.[branch]?.Req : program.Req;
-  return Array.isArray(req) ? req : [];
-}
-
-// The path (for setIn) to a branch's Line or Req.
-export const linePath = (branch) => (branch ? ['Branch', branch, 'Line'] : ['Line']);
-export const reqPath = (branch) => (branch ? ['Branch', branch, 'Req'] : ['Req']);
-
-// A program's Branch as an object, whatever JJS wrote for an empty one.
-export const branchObject = (program) =>
-  program?.Branch && !Array.isArray(program.Branch) ? program.Branch : {};
-
-// A new, empty program, as the builder makes one.
-export const newProgram = () => ({ Req: [], Line: [], Prop: {}, Branch: {} });
-
-// Immutable set by a path of keys (array indexes included).
-export function setIn(target, [head, ...rest], value) {
-  const copy = Array.isArray(target) ? [...target] : { ...target };
-  copy[head] = rest.length ? setIn(target?.[head] ?? (typeof rest[0] === 'number' ? [] : {}), rest, value) : value;
-  return copy;
-}
-
-export function getIn(target, path) {
-  return path.reduce((v, key) => v?.[key], target);
+  return toBase64(
+    await compressBytes(new TextEncoder().encode(json), 'zstd', 19),
+  );
 }

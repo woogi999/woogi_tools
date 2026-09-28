@@ -12,7 +12,9 @@
 //
 // The page never says where a template came from: `from` is a tagline.
 //
-// docs/jjs-skill-builder.md explains the nodes, and how each of these works.
+// The JJS Skill Builder handbook explains the nodes, and how each of these
+// works: docs/jjs-skill-builder.md in Webskill Shenanigans
+// (E:\coding_projects\webskill-shenanigans).
 
 import { buildSkill, parseIds } from './jjs-skill';
 
