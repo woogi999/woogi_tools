@@ -287,6 +287,7 @@ export default class JjsTemplates extends Component {
                           type="text"
                           class="math-input"
                           name={{field.key}}
+                          placeholder={{field.placeholder}}
                           spellcheck="false"
                           value={{field.value}}
                           {{on "change" (fn this.set field)}}

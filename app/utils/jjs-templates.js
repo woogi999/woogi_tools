@@ -1060,16 +1060,20 @@ function percents(value) {
 // The branches that take `pct`% of the health of whoever runs "<pct>%": of
 // what they have (current HP), or of what they've lost from `top` (missing
 // HP). Health is sorted into steps (lo, hi]; each is taken to be its hi, so
-// it's exact for whole health.
-function healthLadder(pct, top, step, canKill, missing) {
+// it's exact for whole health. No step takes less than `least` or more than
+// `most` (null for no limit).
+function healthLadder(pct, top, step, canKill, missing, least, most) {
   const entry = `${pct}%`;
   const highs = [];
   for (let h = step; h < top - 1e-9; h += step) highs.push(hundredths(h));
   highs.push(top);
   const low = (i) => (i === 0 ? 0 : highs[i - 1]);
-  // A line that takes the share from someone on `hp`: none of nothing.
+  // A line that takes the share from someone on `hp`, kept within least and
+  // most: none of nothing.
   const hurt = (hp) => {
-    const amount = hundredths((pct * (missing ? top - hp : hp)) / 100);
+    let amount = hundredths((pct * (missing ? top - hp : hp)) / 100);
+    if (least !== null) amount = Math.max(least, amount);
+    if (most !== null) amount = Math.min(most, amount);
     return amount > 0
       ? [{ K_NAME: 'HPGIB', 'CAN KILL': canKill, AMOUNT: -amount }]
       : [];
@@ -1095,11 +1099,27 @@ function healthLadder(pct, top, step, canKill, missing) {
   return branches;
 }
 
+/** A damage limit: a number, or null when blank, "nil" or -1 (no limit). */
+function damageLimit(value, label) {
+  const raw = String(value ?? '').trim();
+  if (raw === '' || raw.toLowerCase() === 'nil') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n))
+    throw new Error(`${label} is a number, or nil (or -1, or blank) for none.`);
+  return n === -1 ? null : hundredths(Math.max(0, n));
+}
+
 function percentDamage(v) {
   const list = percents(v.percents);
   const top = Number(v.top);
   if (!(top > 0)) throw new Error('Highest health has to be more than 0.');
   const step = Math.max(0.01, Number(v.step) || 1);
+  const least = damageLimit(v.min, 'Minimum damage');
+  const most = damageLimit(v.max, 'Maximum damage');
+  if (least !== null && most !== null && least > most)
+    throw new Error(
+      `Minimum damage (${least}) is more than maximum damage (${most}).`,
+    );
   if (top / step > 1000)
     throw new Error(
       `That’s ${Math.ceil(top / step)} steps of health for each share: make the step bigger (1000 at most).`,
@@ -1107,7 +1127,15 @@ function percentDamage(v) {
   const ladders = Object.assign(
     {},
     ...list.map((p) =>
-      healthLadder(p, top, step, Boolean(v.canKill), v.mode === 'missing HP'),
+      healthLadder(
+        p,
+        top,
+        step,
+        Boolean(v.canKill),
+        v.mode === 'missing HP',
+        least,
+        most,
+      ),
     ),
   );
 
@@ -1514,6 +1542,14 @@ export const TEMPLATES = [
           f('step', 'Accurate to (HP)', 'number', 1, {
             step: 0.5,
             hint: 'Their health is found to within this much. Smaller makes more branches.',
+          }),
+          f('min', 'Minimum damage', 'text', '', {
+            placeholder: 'nil',
+            hint: 'Every hit takes at least this much, even when the share is less (missing HP at full health, or current HP when they’re low). Blank, nil or -1 for none.',
+          }),
+          f('max', 'Maximum damage', 'text', '', {
+            placeholder: 'nil',
+            hint: 'No hit takes more than this, however big the share. Blank, nil or -1 for none.',
           }),
           f('canKill', 'Can kill', 'bool', false, {
             hint: 'Off, a share that would kill leaves them on 1 HP. Current HP only kills at 100%; missing HP can, once they’ve lost more than they have.',

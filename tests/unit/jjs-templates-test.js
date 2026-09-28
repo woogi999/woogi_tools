@@ -1,9 +1,6 @@
 import { module, test } from 'qunit';
 import { KATANA, GON } from '../fixtures/jjs-characters';
-import {
-  decodeMoveset,
-  encodeMoveset,
-} from 'woogi-tools/utils/jjs-code';
+import { decodeMoveset, encodeMoveset } from 'woogi-tools/utils/jjs-code';
 import { buildSkill } from 'woogi-tools/utils/jjs-skill';
 import {
   TEMPLATES,
@@ -314,6 +311,52 @@ module('Unit | JJS templates', function () {
         `50% of what ${hp} is missing`,
       );
     assert.strictEqual(takes(missing.DATA, '50%', 250).amount, 0, 'overhealed');
+
+    const [least] = buildTemplate(template('percent-damage'), {
+      mode: 'missing HP',
+      percents: '50',
+      min: 5,
+    });
+    for (let hp = 1; hp <= 100; hp++)
+      assert.strictEqual(
+        takes(least.DATA, '50%', hp).amount,
+        -Math.max(5, (100 - hp) / 2),
+        `at least 5 from ${hp}`,
+      );
+    assert.strictEqual(takes(least.DATA, '50%', 250).amount, -5, 'overhealed');
+    const [low] = buildTemplate(template('percent-damage'), {
+      trigger: 'one skill',
+      min: 3,
+    });
+    assert.strictEqual(takes(low.DATA, '20%', 10).amount, -3, '20% of 10 is 2');
+    assert.strictEqual(takes(low.DATA, '20%', 50).amount, -10);
+
+    const [capped] = buildTemplate(template('percent-damage'), {
+      trigger: 'one skill',
+      min: '3',
+      max: '12',
+    });
+    assert.strictEqual(takes(capped.DATA, '20%', 10).amount, -3);
+    assert.strictEqual(takes(capped.DATA, '20%', 50).amount, -10);
+    assert.strictEqual(takes(capped.DATA, '20%', 90).amount, -12, 'capped');
+    assert.strictEqual(takes(capped.DATA, '20%', 250).amount, -12);
+    for (const none of ['', 'nil', 'NIL', ' -1 ', -1, undefined]) {
+      const [off] = buildTemplate(template('percent-damage'), {
+        trigger: 'one skill',
+        min: none,
+        max: none,
+      });
+      assert.strictEqual(takes(off.DATA, '20%', 10).amount, -2, `min ${none}`);
+      assert.strictEqual(takes(off.DATA, '20%', 90).amount, -18, `max ${none}`);
+    }
+    assert.throws(
+      () => buildTemplate(template('percent-damage'), { min: '20', max: '10' }),
+      /more than maximum/,
+    );
+    assert.throws(
+      () => buildTemplate(template('percent-damage'), { max: 'lots' }),
+      /Maximum damage/,
+    );
     assert.throws(
       () => buildTemplate(template('percent-damage'), { percents: '150' }),
       /150%/,
