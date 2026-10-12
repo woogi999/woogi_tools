@@ -76,10 +76,8 @@ export default class VideoDownloaderPage extends Component {
   @tracked busy = false;
   @tracked error = null;
   @tracked result = null;
-  // Whether the site owner set up the optional backend; null until known.
+  // Whether the site's download backend is set up; null until known.
   @tracked backend = null;
-  // What the backend handed back for a post with several files.
-  @tracked picked = null;
   // key -> { state, stage, received, total, error, note }
   @tracked jobs = {};
 
@@ -162,18 +160,6 @@ export default class VideoDownloaderPage extends Component {
     );
   }
 
-  get pickedFormats() {
-    return (this.picked ?? []).map((f, i) =>
-      this.row(`picked:${i}`, {
-        ...f,
-        id: `${i}`,
-        kind: f.type === 'audio' ? 'audio' : 'video',
-        label: `${f.type === 'photo' ? 'Photo' : f.type === 'audio' ? 'Sound' : 'Video'} ${i + 1}`,
-        via: 'direct',
-      }),
-    );
-  }
-
   // A format joined with how its save is going, ready for FormatRow.
   row(key, f) {
     const job = this.jobs[key];
@@ -230,7 +216,6 @@ export default class VideoDownloaderPage extends Component {
     if (!found) return;
     this.cancelAll();
     this.result = null;
-    this.picked = null;
     this.jobs = {};
     // The same check the Worker makes, so an obvious mistake needn't travel.
     if (found.error) {
@@ -280,23 +265,15 @@ export default class VideoDownloaderPage extends Component {
       if (format.via === 'backend') {
         onStage('Asking the download backend');
         const answer = await resolveVideo(this.result.url, format.id, signal);
-        if (answer.merge)
-          target = {
-            via: 'mux',
-            url: answer.merge.video,
-            audio: answer.merge.audio,
-            filename: answer.merge.filename,
-          };
-        else if (answer.files.length === 1)
-          target = { via: 'direct', ...answer.files[0] };
-        else {
-          this.picked = answer.files;
-          this.setJob(key, {
-            state: 'done',
-            stage: `${answer.files.length} files: pick them below`,
-          });
-          return;
-        }
+        // The backend fetches the whole video (and joins its picture and
+        // sound) before the first byte comes back, so there is a wait with
+        // nothing to measure, longer still if it was asleep.
+        target = {
+          via: 'direct',
+          ...answer.files[0],
+          waiting:
+            'The backend is fetching the video. This can take a minute or two, longer if it was asleep',
+        };
       }
       let blob;
       if (target.via === 'mux')
@@ -308,9 +285,15 @@ export default class VideoDownloaderPage extends Component {
           onStage,
         });
       else {
-        this.setJob(key, { stage: 'Downloading' });
+        this.setJob(key, { stage: target.waiting ?? 'Downloading' });
         try {
-          blob = await fetchFile(target.url, { signal, onProgress });
+          blob = await fetchFile(target.url, {
+            signal,
+            onProgress: (progress) => {
+              if (target.waiting) this.setJob(key, { stage: 'Downloading' });
+              onProgress(progress);
+            },
+          });
         } catch (error) {
           // Another site's file the browser may not read (no CORS): let the
           // browser download it as a plain link instead.
@@ -323,7 +306,7 @@ export default class VideoDownloaderPage extends Component {
           return;
         }
       }
-      saveBlob(blob, target.filename);
+      saveBlob(blob, target.filename ?? blob.name);
       this.setJob(key, {
         state: 'done',
         stage: `Saved ${formatBytes(blob.size)}`,
@@ -342,7 +325,7 @@ export default class VideoDownloaderPage extends Component {
       @route="video-downloader"
       @busy={{this.working}}
       @closeWarning="Close the Video Downloader? Downloads still running will stop."
-      @subtitle="Paste a link to a public video and save it: X, TikTok, Facebook, Reddit and Streamable directly, and more where the site allows."
+      @subtitle="Paste a link to a public video and save it: YouTube, X, TikTok, Facebook, Reddit, Streamable and more."
     >
       <div class="pop-in vd-page">
         <form class="dl-form" {{on "submit" this.submit}}>
@@ -443,9 +426,11 @@ export default class VideoDownloaderPage extends Component {
             {{/each}}
 
             {{#if this.backendFormats.length}}
-              <p class="tool-hint">These come from this site’s download backend,
-                which picks the closest quality it has at or below the one you
-                choose.</p>
+              <p class="tool-hint">These come through this site’s download
+                backend, which fetches the video with yt-dlp and picks the
+                closest quality at or below the one you choose. It sleeps when
+                nobody is using it, so the first save can take a minute to
+                start.</p>
               <ul class="vd-formats">
                 {{#each this.backendFormats key="key" as |format|}}
                   <FormatRow
@@ -457,18 +442,6 @@ export default class VideoDownloaderPage extends Component {
               </ul>
             {{/if}}
 
-            {{#if this.pickedFormats.length}}
-              <h4 class="qr-heading">In this post</h4>
-              <ul class="vd-formats">
-                {{#each this.pickedFormats key="key" as |format|}}
-                  <FormatRow
-                    @format={{format}}
-                    @onSave={{this.save}}
-                    @onCancel={{this.cancel}}
-                  />
-                {{/each}}
-              </ul>
-            {{/if}}
           </section>
         {{else}}{{#unless this.busy}}
             <section class="vd-sites">

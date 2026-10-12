@@ -1,8 +1,8 @@
 // The Video Downloader's half of the Worker. Three routes, all same-site only:
 //
-// GET  /api/video           -> { backend }: whether the optional backend is set up
+// GET  /api/video           -> { backend }: whether the download backend is set up
 // POST /api/video           { url } -> what the video is and how it can be saved
-// POST /api/video/resolve   { url, format } -> a file from the optional backend
+// POST /api/video/resolve   { url, format } -> a file from the download backend
 // GET  /api/video/file      ?p=tiktok&id=…&f=… -> a TikTok file, relayed
 //
 // What can be done from a Worker was worked out by asking each site from
@@ -24,11 +24,12 @@
 //              browser's TLS fingerprint), Vimeo puts a challenge in front of
 //              its player config and Dailymotion only streams HLS pieces.
 //
-// Anything a site refuses to a server is left refused. What fills the gap is
-// an optional cobalt instance (https://github.com/imputnet/cobalt) that you
-// run yourself, named by COBALT_API_URL (and COBALT_API_KEY if it wants one).
-// The key never leaves the Worker. cobalt's public api.cobalt.tools is not
-// for other sites to use, so it isn't a default.
+// What a site refuses to a Worker is fetched by the site's download backend
+// instead (backend/server.mjs, hosted on Render): yt-dlp on a real machine,
+// which YouTube and the rest do answer. It is named by DOWNLOAD_API_URL and
+// DOWNLOAD_API_KEY; without them those sites show a title and nothing more.
+// The Worker never fetches from it: it signs a link (worker/backend.js) and
+// the browser downloads the finished file straight from the backend.
 //
 // Not an open proxy: no route here fetches an address a visitor sent. Links
 // are parsed into a site and an id (app/utils/video-platforms.js), and every
@@ -42,6 +43,7 @@ import {
   detectVideo,
   sameSiteRedirect,
 } from '../app/utils/video-platforms.js';
+import { backendOf, fileLink, sameSite, wake } from './backend.js';
 
 const BROWSER_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
@@ -71,8 +73,9 @@ const MEDIA_HOSTS = {
 // video passes through this Worker.
 const RELAYED = new Set(['tiktok']);
 
-// What the backend is asked for. cobalt picks the closest quality at or below
-// the one asked, so these are ceilings, and are labelled that way.
+// What the backend is asked for. yt-dlp picks the closest quality at or below
+// the one asked, so these are ceilings, and are labelled that way. The ids
+// are FORMATS in backend/server.mjs.
 const BACKEND_FORMATS = [
   { id: 'max', label: 'Best available', kind: 'video' },
   { id: '1080', label: 'Up to 1080p', kind: 'video' },
@@ -100,18 +103,11 @@ class Unavailable extends Error {
 // The site wouldn't talk to this Worker. The backend may still get through.
 class Refused extends Error {}
 
-export async function video(request, env) {
+export async function video(request, env, ctx) {
   const url = new URL(request.url);
-  // Same-site pages only, so other sites can't put their traffic on this one.
-  // Sec-Fetch-Site covers the plain GETs (downloads) that carry no Origin.
-  const origin = request.headers.get('Origin');
-  if (
-    (origin && origin !== url.origin) ||
-    request.headers.get('Sec-Fetch-Site') === 'cross-site'
-  )
-    return json({ error: 'Forbidden' }, 403);
+  if (!sameSite(request)) return json({ error: 'Forbidden' }, 403);
   try {
-    if (url.pathname === '/api/video') return await inspect(request, env);
+    if (url.pathname === '/api/video') return await inspect(request, env, ctx);
     if (url.pathname === '/api/video/resolve')
       return await resolve(request, env);
     if (url.pathname === '/api/video/file') return await relay(request, url);
@@ -130,10 +126,14 @@ export async function video(request, env) {
 
 // ─── POST /api/video ─────────────────────────────────────────────────────
 
-async function inspect(request, env) {
+async function inspect(request, env, ctx) {
+  const backend = backendOf(env);
   // What this deployment can do, so the page can say so before anything is
-  // pasted. Only whether the backend exists, never where it is.
-  if (request.method === 'GET') return json({ backend: !!backendUrl(env) });
+  // pasted. Asked when the page opens, so it also wakes the backend.
+  if (request.method === 'GET') {
+    wake(backend, ctx);
+    return json({ backend: !!backend });
+  }
   if (request.method !== 'POST')
     return json({ error: 'Method not allowed' }, 405);
   const body = await readJson(request);
@@ -144,7 +144,6 @@ async function inspect(request, env) {
   if (ref.id.startsWith('short:')) ref = await followShortLink(ref);
 
   const site = PLATFORMS[ref.platform];
-  const backend = backendUrl(env);
   let found = null;
   let problem = null;
   const extract = EXTRACTORS[ref.platform];
@@ -168,8 +167,8 @@ async function inspect(request, env) {
     if (problem) return json({ error: problem, platform: ref.platform }, 502);
     const why = WHY_NOT[ref.platform];
     const message = why
-      ? `${why}, so it can only be saved through the optional download backend, which this site hasn’t set up.`
-      : `${site.name} videos can only be saved through the optional download backend, which this site hasn’t set up.`;
+      ? `${why}, so it can only be saved through the download backend, which this site hasn’t set up.`
+      : `${site.name} videos can only be saved through the download backend, which this site hasn’t set up.`;
     // Worth showing what there is (a YouTube title and thumbnail, say), with
     // the reason next to it. With nothing at all, it is just an error.
     if (!found) return json({ error: message, platform: ref.platform }, 501);
@@ -684,51 +683,15 @@ async function fromOEmbed(ref, endpoint, fallbackThumb = null) {
   };
 }
 
-// ─── POST /api/video/resolve (the optional backend) ──────────────────────
+// ─── POST /api/video/resolve (the download backend) ──────────────────────
 
-function backendUrl(env) {
-  const raw = env?.COBALT_API_URL;
-  if (!raw) return null;
-  try {
-    const url = new URL(raw);
-    return /^https?:$/.test(url.protocol) ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-const COBALT_ERRORS = [
-  [
-    /content\.(video|post)\.(private|unavailable)/,
-    'That video is private or has been removed.',
-  ],
-  [
-    /content\.video\.age|youtube\.login|content\.post\.age/,
-    'That video needs a signed-in account (it may be age-restricted), which the backend doesn’t use.',
-  ],
-  [
-    /content\.too_long|content\.video\.live/,
-    'That video is too long or still live, so the backend won’t fetch it.',
-  ],
-  [/rate_exceeded/, 'The download backend is busy. Try again in a minute.'],
-  [
-    /auth\./,
-    'The download backend refused this site’s key. Check COBALT_API_KEY.',
-  ],
-  [
-    /link\.(invalid|unsupported)|service\.unsupported/,
-    'The download backend doesn’t support that link.',
-  ],
-  [
-    /fetch\.(fail|critical|empty)|content\.video\.region/,
-    'The download backend couldn’t get that video from the site.',
-  ],
-];
-
+// Nothing is fetched here. The answer is a signed link to the backend, which
+// runs yt-dlp when the browser opens it and names the file itself (the title
+// and the format it ended up with), so no filename is given.
 async function resolve(request, env) {
   if (request.method !== 'POST')
     return json({ error: 'Method not allowed' }, 405);
-  const backend = backendUrl(env);
+  const backend = backendOf(env);
   if (!backend)
     return json({ error: 'The download backend isn’t set up here.' }, 501);
   const body = await readJson(request);
@@ -738,86 +701,15 @@ async function resolve(request, env) {
     return json({ error: ref?.error ?? 'Paste a link to a video.' }, 400);
   const format = BACKEND_FORMATS.find((f) => f.id === body.format);
   if (!format) return json({ error: 'Unknown format' }, 400);
-
-  const headers = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-  };
-  if (env.COBALT_API_KEY)
-    headers.Authorization = `Api-Key ${env.COBALT_API_KEY}`;
-  let response;
-  try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling the site owner's own backend
-    response = await fetch(backend, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        url: ref.url,
-        videoQuality: format.kind === 'audio' ? 'max' : format.id,
-        downloadMode: format.kind === 'audio' ? 'audio' : 'auto',
-        audioFormat: 'best',
-        filenameStyle: 'pretty',
-        localProcessing: 'disabled',
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-  } catch {
-    return json({ error: 'The download backend couldn’t be reached.' }, 502);
-  }
-  const answer = await response.json().catch(() => null);
-  if (!answer)
-    return json({ error: 'The download backend didn’t answer.' }, 502);
-  const link = (value) =>
-    typeof value === 'string' && /^https?:\/\//.test(value) ? value : null;
-
-  if (answer.status === 'tunnel' || answer.status === 'redirect') {
-    const url = link(answer.url);
-    if (!url)
-      return json({ error: 'The backend’s answer made no sense.' }, 502);
-    return json({ files: [{ url, filename: safeName(answer.filename) }] });
-  }
-  if (answer.status === 'picker') {
-    const files = (answer.picker ?? [])
-      .filter((p) => link(p.url))
-      .map((p, i) => ({
-        url: p.url,
-        type: p.type ?? 'video',
-        thumb: link(p.thumb),
-        filename: `${PLATFORMS[ref.platform].name}-${i + 1}.${p.type === 'photo' ? 'jpg' : 'mp4'}`,
-      }));
-    if (link(answer.audio))
-      files.push({
-        url: answer.audio,
-        type: 'audio',
-        filename: safeName(answer.audioFilename) || 'audio.mp3',
-      });
-    return json({ files });
-  }
-  // Instances set to make the browser do the joining hand back the pieces;
-  // the page can join a picture and a sound, as it does for Reddit.
-  if (
-    answer.status === 'local-processing' &&
-    answer.type === 'merge' &&
-    answer.tunnel?.length === 2 &&
-    answer.tunnel.every(link)
-  )
-    return json({
-      merge: {
-        video: answer.tunnel[0],
-        audio: answer.tunnel[1],
-        filename: safeName(answer.output?.filename) || 'video.mp4',
+  return json({
+    files: [
+      {
+        url: await fileLink(backend, { k: 'v', u: ref.url, f: format.id }),
+        filename: null,
+        type: format.kind,
       },
-    });
-  const code = String(answer.error?.code ?? answer.status ?? '');
-  const known = COBALT_ERRORS.find(([pattern]) => pattern.test(code));
-  return json(
-    {
-      error: known
-        ? known[1]
-        : `The download backend couldn’t get that video (${code || 'no reason given'}).`,
-    },
-    response.status === 429 ? 429 : 502,
-  );
+    ],
+  });
 }
 
 // ─── GET /api/video/file (the TikTok relay) ──────────────────────────────
@@ -992,11 +884,6 @@ function fileName(title, id, ext) {
     .trim();
   return `${words ? `${words} - ` : ''}${id}.${ext}`;
 }
-
-const safeName = (name) =>
-  typeof name === 'string'
-    ? name.replace(/[/\\?%*:|"<>\p{Cc}]/gu, '_').slice(0, 150)
-    : '';
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {

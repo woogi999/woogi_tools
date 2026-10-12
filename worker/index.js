@@ -34,14 +34,10 @@
 // known breaches, and kind=leakcheck asks LeakCheck's public API which leaks
 // an email address appears in. Nothing is stored; each answer is only cached briefly.
 //
-// Disposable Emails: mail sent to <anything>@temp.woogi.xyz reaches the
-// email() handler below through Cloudflare Email Routing, is parsed, and is
-// kept in the TEMP_MAIL KV namespace for an hour. GET /api/mail?box=<name>
-// lists a box, and &id=<id> fetches one message. The box name is the only
-// secret: the page makes a long random one and never shows it to anyone else.
-//
 // /api/video, /api/video/resolve and /api/video/file back the Video
 // Downloader; see worker/video.js for what each site allows and why.
+// /api/bunkr backs the Bunkr Downloader (worker/bunkr.js). Both lean on the
+// site's download backend on Render for what a Worker can't do.
 //
 // Page loads (everything outside the static asset folders listed in
 // wrangler.jsonc) also pass through here, so each page's HTML carries its own
@@ -50,7 +46,6 @@
 // JavaScript, so setting them in the app alone would leave every link
 // previewing as the home page.
 
-import PostalMime from 'postal-mime';
 import {
   USERNAME_SITES,
   checkSite,
@@ -59,6 +54,7 @@ import {
 import { emailAccounts } from '../app/utils/email-accounts.js';
 import { NAME_SOURCES, searchName } from '../app/utils/name-search.js';
 import { video } from './video.js';
+import { bunkr } from './bunkr.js';
 import { pageMeta, SITE_NAME } from '../app/utils/page-meta.js';
 
 export { RelayRoom } from './relay-room.js';
@@ -90,118 +86,22 @@ const TRANSLATE_URL = 'https://clients5.google.com/translate_a/t';
 const MAX_TRANSLATE_CHARS = 5000;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/turn') return turn(request, env);
     if (url.pathname === '/api/grammar') return grammar(request, env);
     if (url.pathname === '/api/translate') return translate(request);
     if (url.pathname === '/api/roblox') return roblox(request);
     if (url.pathname === '/api/osint') return osint(request);
-    if (url.pathname === '/api/mail') return mail(request, env);
     if (url.pathname === '/api/relay-room') return relayRoom(request, env);
     if (url.pathname === '/api/video' || url.pathname.startsWith('/api/video/'))
-      return video(request, env);
+      return video(request, env, ctx);
+    if (url.pathname === '/api/bunkr') return bunkr(request, env, ctx);
     if (url.pathname.startsWith('/api/'))
       return json({ error: 'Not found' }, 404);
     return page(request, env);
   },
-
-  async email(message, env) {
-    if (!env.TEMP_MAIL) return;
-    const box = boxOf(message.to);
-    if (!box) return;
-    const parsed = await PostalMime.parse(message.raw);
-    const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
-    const record = {
-      id,
-      box,
-      from: parsed.from?.address ?? message.from,
-      fromName: parsed.from?.name ?? '',
-      to: message.to,
-      subject: parsed.subject ?? '',
-      date: parsed.date ?? new Date().toISOString(),
-      text: (parsed.text ?? '').slice(0, MAIL_MAX_BODY),
-      html: (parsed.html ?? '').slice(0, MAIL_MAX_BODY),
-      attachments: (parsed.attachments ?? []).map((a) => ({
-        name: a.filename ?? 'attachment',
-        type: a.mimeType ?? '',
-        size: a.content?.byteLength ?? 0,
-      })),
-    };
-    await env.TEMP_MAIL.put(`${box}:${id}`, JSON.stringify(record), {
-      expirationTtl: MAIL_TTL_S,
-    });
-  },
 };
-
-const MAIL_TTL_S = 60 * 60;
-const MAIL_MAX_BODY = 200 * 1024;
-const MAIL_DOMAIN = 'temp.woogi.xyz';
-const BOX_NAME = /^[a-z0-9]{6,32}$/;
-
-// The part before the @, lower-cased, if the address is one of ours.
-function boxOf(address) {
-  const m = String(address ?? '')
-    .toLowerCase()
-    .match(/^([a-z0-9._+-]+)@([a-z0-9.-]+)$/);
-  if (!m || m[2] !== MAIL_DOMAIN) return null;
-  const box = m[1].replace(/[^a-z0-9]/g, '');
-  return BOX_NAME.test(box) ? box : null;
-}
-
-async function mail(request, env) {
-  const origin = request.headers.get('Origin');
-  if (origin && origin !== new URL(request.url).origin)
-    return json({ error: 'Forbidden' }, 403);
-  if (!env.TEMP_MAIL)
-    return json(
-      { error: 'Disposable email is not set up on this server.' },
-      503,
-    );
-  const params = new URL(request.url).searchParams;
-  const box = params.get('box') ?? '';
-  if (!BOX_NAME.test(box)) return json({ error: 'Bad box name' }, 400);
-  const id = params.get('id');
-
-  if (request.method === 'DELETE') {
-    const { keys } = await env.TEMP_MAIL.list({ prefix: `${box}:` });
-    await Promise.all(keys.map((k) => env.TEMP_MAIL.delete(k.name)));
-    return json({ ok: true });
-  }
-  if (request.method !== 'GET')
-    return json({ error: 'Method not allowed' }, 405);
-
-  if (id) {
-    const raw = await env.TEMP_MAIL.get(`${box}:${id}`);
-    if (!raw) return json({ error: 'That message has gone.' }, 404);
-    return json(JSON.parse(raw));
-  }
-  const { keys } = await env.TEMP_MAIL.list({ prefix: `${box}:` });
-  const messages = await Promise.all(
-    keys.map(async (k) => {
-      const raw = await env.TEMP_MAIL.get(k.name);
-      if (!raw) return null;
-      const m = JSON.parse(raw);
-      return {
-        id: m.id,
-        from: m.from,
-        fromName: m.fromName,
-        subject: m.subject,
-        date: m.date,
-        preview: (m.text || '').replace(/\s+/g, ' ').slice(0, 120),
-        attachments: m.attachments.length,
-        expires: k.expiration ? k.expiration * 1000 : null,
-      };
-    }),
-  );
-  return json({
-    address: `${box}@${MAIL_DOMAIN}`,
-    ttl: MAIL_TTL_S,
-    messages: messages
-      .filter(Boolean)
-      .sort((a, b) => (b.date > a.date ? 1 : -1)),
-  });
-}
 
 // Hands the socket to the Durable Object named after the share code, so both
 // sides of one share land in the same room and no other share can see it.

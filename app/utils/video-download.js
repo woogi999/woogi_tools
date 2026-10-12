@@ -1,5 +1,6 @@
 // The Video Downloader's browser side: asking the site's Worker what a link
-// is (worker/video.js), then fetching the files it names.
+// is (worker/video.js), then fetching the files it names. The Bunkr and Mega
+// downloaders borrow the fetching and saving from here too.
 //
 // Progress is only ever what can be measured: bytes received, out of the
 // file's size when the server says what that is. When it doesn't, the page
@@ -9,7 +10,7 @@
 
 import { runFFmpeg } from './media-jobs';
 
-async function api(path, init = {}) {
+export async function api(path, init = {}) {
   // eslint-disable-next-line warp-drive/no-external-request-patterns -- the site's own Worker
   const response = await fetch(path, {
     ...init,
@@ -25,7 +26,7 @@ async function api(path, init = {}) {
   return body;
 }
 
-// { backend } — whether the site owner set up the optional backend.
+// { backend } — whether the site's download backend is set up.
 export const downloaderInfo = (signal) => api('/api/video', { signal });
 
 export const inspectVideo = (url, signal) =>
@@ -35,8 +36,8 @@ export const inspectVideo = (url, signal) =>
     signal,
   });
 
-// One of the backend's formats -> { files: [{ url, filename, type, thumb }] }
-// or { merge: { video, audio, filename } }.
+// One of the backend's formats -> { files: [{ url, filename, type }] }: a
+// signed link to the backend, which names the file itself when it is fetched.
 export const resolveVideo = (url, format, signal) =>
   api('/api/video/resolve', {
     method: 'POST',
@@ -46,7 +47,9 @@ export const resolveVideo = (url, format, signal) =>
 
 // Fetches a whole file, reporting { received, total } (total is 0 when the
 // server didn't say). Fails with `blocked: true` when the browser couldn't
-// fetch it at all, which for another site's file means CORS.
+// fetch it at all, which for another site's file means CORS. When the server
+// names the file (Content-Disposition), what comes back is a File with that
+// name.
 export async function fetchFile(url, { signal, onProgress }) {
   let response;
   try {
@@ -86,7 +89,20 @@ export async function fetchFile(url, { signal, onProgress }) {
     received += value.byteLength;
     onProgress?.({ received, total });
   }
-  return new Blob(chunks, { type });
+  const name = namedBy(response.headers.get('Content-Disposition'));
+  return name ? new File(chunks, name, { type }) : new Blob(chunks, { type });
+}
+
+// The filename a Content-Disposition header gives, preferring the UTF-8 form.
+function namedBy(header) {
+  const utf8 = header?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (utf8)
+    try {
+      return decodeURIComponent(utf8);
+    } catch {
+      // fall through to the plain form
+    }
+  return header?.match(/filename="([^"]+)"/i)?.[1] ?? null;
 }
 
 // Picture and sound fetched side by side, then joined without re-encoding.

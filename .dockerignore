@@ -1,0 +1,7 @@
+# Only the download backend is built with Docker (backend/Dockerfile), and it
+# needs four files. Everything else stays out of the build.
+*
+!backend/server.mjs
+!backend/bunkr.py
+!app/utils/video-platforms.js
+!app/utils/bunkr-link.js

@@ -1,0 +1,102 @@
+// ─── Third Party Stuff ───────────────────────────────────────────────────
+// A page of write-ups rather than a tool: one article per project.
+
+.tp-list,
+.tp-moved {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.tp-moved {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 14px 16px;
+  background: color-mix(in oklab, var(--bg-elevated) 92%, var(--opus));
+  border: 1px solid color-mix(in oklab, var(--opus) 55%, var(--border-color));
+  border-radius: var(--radius-card);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.tp-moved > .icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--opus);
+}
+
+.tp-moved-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-moved p {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+}
+
+.tp-item {
+  padding: 24px 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  scroll-margin-top: 16px;
+}
+
+.tp-item + .tp-item {
+  border-top: 1px solid var(--border-color);
+}
+
+.tp-item p {
+  margin: 0 0 12px;
+}
+
+.tp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.tp-name {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--opus);
+}
+
+.tp-item .tp-tagline {
+  margin: 2px 0 14px;
+  color: var(--text-dim);
+}
+
+.tp-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.tp-links .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.tp-heading {
+  margin: 22px 0 8px;
+  font-size: 0.9rem;
+}
+
+.tp-points {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.tp-points strong {
+  color: var(--text);
+}

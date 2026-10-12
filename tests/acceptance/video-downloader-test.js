@@ -1,5 +1,12 @@
 import { module, test } from 'qunit';
-import { visit, click, fillIn, waitUntil, find } from '@ember/test-helpers';
+import {
+  visit,
+  click,
+  fillIn,
+  waitUntil,
+  find,
+  findAll,
+} from '@ember/test-helpers';
 import { setupApplicationTest } from 'woogi-tools/tests/helpers';
 import { clearAllToolState } from 'woogi-tools/utils/tool-state';
 
@@ -36,14 +43,34 @@ const RESULT = {
   notes: [],
 };
 
+// A YouTube video, which only the download backend can fetch.
+const BACKEND_FILE = 'https://woogi-downloads.onrender.com/file?t=signed';
+const YOUTUBE = {
+  platform: 'youtube',
+  platformName: 'YouTube',
+  url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+  title: 'Me at the zoo',
+  author: 'jawed',
+  thumbnail: null,
+  duration: 19,
+  items: [],
+  backend: [
+    { id: '720', label: 'Up to 720p', kind: 'video' },
+    { id: 'audio', label: 'Sound only', kind: 'audio' },
+  ],
+  notes: [],
+};
+
 module('Acceptance | video downloader', function (hooks) {
   setupApplicationTest(hooks);
 
   let realFetch;
   let requests;
+  let backend;
   hooks.beforeEach(async function () {
     await clearAllToolState();
     requests = [];
+    backend = false;
     realFetch = window.fetch;
     window.fetch = async (input, init = {}) => {
       const url = String(input);
@@ -53,8 +80,22 @@ module('Acceptance | video downloader', function (hooks) {
           status,
           headers: { 'Content-Type': 'application/json' },
         });
-      if (url === '/api/video' && init.method === 'POST') return json(RESULT);
-      if (url === '/api/video') return json({ backend: false });
+      if (url === '/api/video' && init.method === 'POST')
+        return json(backend ? YOUTUBE : RESULT);
+      if (url === '/api/video') return json({ backend });
+      if (url === '/api/video/resolve')
+        return json({
+          files: [{ url: BACKEND_FILE, filename: null, type: 'video' }],
+        });
+      if (url === BACKEND_FILE)
+        return new Response(new Uint8Array(8192), {
+          headers: {
+            'Content-Type': 'video/mp4',
+            'Content-Length': '8192',
+            'Content-Disposition':
+              'attachment; filename="Me at the zoo - jNQXAC9IVRw.mp4"; filename*=UTF-8\'\'Me%20at%20the%20zoo%20-%20jNQXAC9IVRw.mp4',
+          },
+        });
       if (url.startsWith('https://video.twimg.com/'))
         return new Response(new Uint8Array(4096), {
           headers: { 'Content-Type': 'video/mp4', 'Content-Length': '4096' },
@@ -115,5 +156,46 @@ module('Acceptance | video downloader', function (hooks) {
     );
     assert.dom('.vd-format-status').hasText('Saved 4.0 KB');
     assert.dom('.vd-format .btn').includesText('Save again');
+  });
+
+  test('saves a YouTube video through the download backend', async function (assert) {
+    backend = true;
+    const saved = [];
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download) saved.push(this.download);
+      else realClick.call(this);
+    };
+    try {
+      await visit('/video-downloader');
+      await waitUntil(() => findAll('.vd-site-list li.is-ok').length > 5);
+      await fillIn('.dl-form input', 'https://youtu.be/jNQXAC9IVRw');
+      assert.dom('.vd-detect').includesText('through the backend');
+      await click('.dl-form button');
+      await waitUntil(() => find('.vd-result'));
+      assert.dom('.vd-title').hasText('Me at the zoo');
+      assert.deepEqual(
+        findAll('.vd-format-label').map((e) => e.textContent.trim()),
+        ['Up to 720p', 'Sound only'],
+      );
+
+      await click('.vd-format .btn');
+      await waitUntil(() =>
+        find('.vd-format-status')?.textContent.includes('Saved'),
+      );
+      assert.dom('.vd-format-status').hasText('Saved 8.0 KB');
+      const asked = requests.find((r) => r.url === '/api/video/resolve');
+      assert.deepEqual(JSON.parse(asked.body), {
+        url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+        format: '720',
+      });
+      assert.deepEqual(
+        saved,
+        ['Me at the zoo - jNQXAC9IVRw.mp4'],
+        'named by the backend',
+      );
+    } finally {
+      HTMLAnchorElement.prototype.click = realClick;
+    }
   });
 });

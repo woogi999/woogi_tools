@@ -199,3 +199,16 @@
     justify-content: center;
   }
 }
+
+// Save all, above a list of files (the Bunkr and Mega downloaders).
+.dl-all {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.dl-all .tool-hint {
+  margin: 0;
+}

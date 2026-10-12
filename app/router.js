@@ -67,6 +67,8 @@ Router.map(function () {
   this.route('audio-extractor');
   this.route('video-muter');
   this.route('video-downloader');
+  this.route('bunkr-downloader');
+  this.route('mega-downloader');
   this.route('trimmer');
   this.route('metadata-editor');
   this.route('auto-subtitle');
@@ -117,7 +119,6 @@ Router.map(function () {
   this.route('text-to-speech');
   this.route('webcam-recorder');
   this.route('code-scanner');
-  this.route('disposable-email');
   this.route('shoe-size');
   this.route('domain-lookup');
   this.route('unlock-pdf');
@@ -132,9 +133,11 @@ Router.map(function () {
   this.route('subdomain-finder');
   this.route('breach-check');
   this.route('wayback-snapshots');
+  this.route('3d-studio');
+  this.route('third-party-stuff');
+  // Moved out into Arayashiki; both send you to Third Party Stuff.
   this.route('jjs-stuff');
   this.route('jjs-progress-bar-maker');
-  this.route('3d-studio');
   this.route('settings');
   this.route('updates');
   this.route('privacy');

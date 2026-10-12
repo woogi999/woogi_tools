@@ -9,6 +9,37 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.18',
+    date: '2026-10-13',
+    title: 'YouTube downloads, Bunkr and Mega downloaders, and JJS moves out',
+    changes: [
+      {
+        type: 'new',
+        text: 'Video Downloader saves from YouTube, and from the other sites that used to show a title and nothing more. Those go through the site’s own download backend, which sleeps when nobody is using it: the first save after a quiet spell takes about a minute to start.',
+      },
+      {
+        type: 'new',
+        text: 'Bunkr Downloader: paste an album or file link and save the photos, videos and files in it, one at a time or all of them.',
+      },
+      {
+        type: 'new',
+        text: 'Mega Downloader: paste a MEGA file or folder link and save what’s in it. The file is fetched from MEGA and decrypted in your browser, so its key never leaves your device.',
+      },
+      {
+        type: 'new',
+        text: 'Third Party Stuff: a page for my projects that live somewhere other than this site. The first one on it is Arayashiki, a Windows app for the Jujutsu Shenanigans Skill Builder.',
+      },
+      {
+        type: 'removed',
+        text: 'JJS Stuff and the JJS Progress Bar Maker have moved out of the site and into Arayashiki, a standalone desktop app. Old links to them now open Third Party Stuff, which says where to get it.',
+      },
+      {
+        type: 'removed',
+        text: 'Disposable Emails is gone.',
+      },
+    ],
+  },
+  {
     version: '1.0.17',
     date: '2026-09-23',
     title: 'User Profiling takes emails and IPs, and Domain Lookup does it all',

@@ -1,0 +1,30 @@
+# The download backend (backend/), as a Render Blueprint: in Render, choose
+# New > Blueprint and pick this repository. Free plan: it sleeps after 15
+# minutes without a request and takes about a minute to wake, which the site
+# allows for (opening the Video Downloader or the Bunkr Downloader wakes it).
+#
+# After the first deploy, give the site's Worker the two things it needs:
+#   npx wrangler secret put DOWNLOAD_API_URL   (this service's onrender.com address)
+#   npx wrangler secret put DOWNLOAD_API_KEY   (API_KEY, from this service's Environment tab)
+services:
+  - type: web
+    name: woogi-downloads
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    # Only rebuild when the backend itself changes, not on every site commit.
+    buildFilter:
+      paths:
+        - backend/**
+        - app/utils/video-platforms.js
+        - app/utils/bunkr-link.js
+        - render.yaml
+        - .dockerignore
+    envVars:
+      - key: API_KEY
+        generateValue: true
+      # Optional ones (see the top of backend/server.mjs) are added in the
+      # dashboard: YTDLP_COOKIES_B64 for when YouTube tells the server to
+      # sign in, MAX_FILE_MB, MAX_MINUTES.

@@ -26,10 +26,6 @@
   "vars": {
     "TURN_KEY_ID": "2900fc412b4c30e1bdc49baf7079dc59",
   },
-  // Disposable Emails: incoming mail waits here for an hour. Create the
-  // namespace with `npx wrangler kv namespace create TEMP_MAIL` and paste
-  // its id below; then in the dashboard enable Email Routing for
-  // temp.woogi.xyz with a catch-all rule that sends to this Worker.
   // File Share's WebSocket relay (worker/relay-room.js): one room per share
   // code, used only when WebRTC can't connect the two browsers directly.
   "durable_objects": {
@@ -37,12 +33,6 @@
   },
   // SQLite-backed, so this works on the free plan too.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RelayRoom"] }],
-  "kv_namespaces": [
-    {
-      "binding": "TEMP_MAIL",
-      "id": "b2a7ddcfc12b4b86a6ca40887aeb642c",
-    },
-  ],
   // Worker logs, including one log per invocation, visible in the Cloudflare dashboard.
   "observability": {
     "logs": {
@@ -60,11 +50,11 @@
   //   LANGUAGETOOL_USERNAME  a LanguageTool Premium account, if you have one
   //   LANGUAGETOOL_API_KEY   that account's key
   //
-  // Optional, for the Video Downloader (worker/video.js). Without these it
-  // still saves from X, TikTok, Facebook, Reddit and Streamable on its own;
-  // with them, YouTube, Instagram, Vimeo and the rest go through a cobalt
-  // instance you run yourself (https://github.com/imputnet/cobalt). Not
-  // api.cobalt.tools: that one isn't for other sites to use.
-  //   COBALT_API_URL         your instance's API address, e.g. https://cobalt.example.com/
-  //   COBALT_API_KEY         its API key, if the instance requires one
+  // For the Video Downloader and the Bunkr Downloader: the site's download
+  // backend (backend/, hosted on Render from render.yaml). Without these the
+  // Video Downloader still saves from X, TikTok, Facebook, Reddit and
+  // Streamable on its own; with them, YouTube and the rest go through yt-dlp
+  // on the backend, and the Bunkr Downloader works at all.
+  //   DOWNLOAD_API_URL       the backend's address, e.g. https://woogi-downloads.onrender.com
+  //   DOWNLOAD_API_KEY       the backend's API_KEY (Render makes one; copy it from its Environment tab)
 }
