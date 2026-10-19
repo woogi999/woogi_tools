@@ -9,6 +9,21 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
+    version: '1.0.19',
+    date: '2026-10-20',
+    title: 'The whole site moves from Ember to Svelte',
+    changes: [
+      {
+        type: 'improved',
+        text: 'The site is rebuilt on Svelte instead of Ember. Every tool, game and page works and looks the same as before: each page was checked against the old version, in light and dark mode, on a computer and a phone.',
+      },
+      {
+        type: 'improved',
+        text: 'The File Converter (text to PDF) and the User Profiling PDF export now write their PDFs with pdf-lib, the library the PDF tools already use, instead of jsPDF.',
+      },
+    ],
+  },
+  {
     version: '1.0.18',
     date: '2026-10-13',
     title: 'YouTube downloads, Bunkr and Mega downloaders, and JJS moves out',
