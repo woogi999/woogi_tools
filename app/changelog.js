@@ -9,7 +9,7 @@
 // Change types: 'new' | 'improved' | 'fixed' | 'removed'
 export const CHANGELOG = [
   {
-    version: '1.0.19',
+    version: '1.1.0',
     date: '2026-10-20',
     title: 'The whole site moves from Ember to Svelte',
     changes: [
