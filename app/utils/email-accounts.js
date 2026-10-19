@@ -24,7 +24,6 @@ const enc = encodeURIComponent;
 // is neither a clear yes nor a clear no all read as unknown.
 async function ask(url, init, decide) {
   try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker asking a public account-lookup endpoint
     const response = await fetch(url, {
       ...init,
       headers: { 'User-Agent': UA, Accept: '*/*', ...init?.headers },

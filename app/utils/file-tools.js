@@ -2,8 +2,8 @@
 // when a file is dropped on the search bar: instead of typing "png", you show
 // it the file and get the tools that take one, best fit first.
 
-import { detectFormat } from './converters/formats';
-import { canOpen } from './archive';
+import { detectFormat } from './converters/formats.js';
+import { canOpen } from './archive.js';
 
 const SUBTITLES = ['srt', 'vtt', 'ass', 'ssa'];
 const TEXT = ['txt', 'md', 'markdown', 'log', 'csv', 'tsv', 'html', 'htm'];

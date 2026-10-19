@@ -23,7 +23,7 @@ import {
   bakeWorldNormal,
   bakeID,
   toImageBytes,
-} from './bake';
+} from './bake.js';
 import {
   composite,
   runGenerator,
@@ -31,7 +31,7 @@ import {
   layerFieldKey,
   paintBuffers,
   maskBuffer,
-} from './texture';
+} from './texture.js';
 
 const GEN_SIZE = 512;
 const AO_SIZE = 256;

@@ -15,14 +15,10 @@
 import globals from 'globals';
 import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
-
-import ember from 'eslint-plugin-ember/recommended';
-import WarpDrive from 'eslint-plugin-warp-drive/recommended';
+import svelte from 'eslint-plugin-svelte';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import qunit from 'eslint-plugin-qunit';
 import n from 'eslint-plugin-n';
-
-import babelParser from '@babel/eslint-parser/experimental-worker';
 
 const esmParserOptions = {
   ecmaFeatures: { modules: true },
@@ -30,12 +26,18 @@ const esmParserOptions = {
 };
 
 export default defineConfig([
-  globalIgnores(['dist/', 'coverage/', '!**/.*', '.wrangler/']),
+  globalIgnores([
+    'dist/',
+    'coverage/',
+    '!**/.*',
+    '.wrangler/',
+    '.playwright-mcp/',
+    'tmp/',
+  ]),
   js.configs.recommended,
+  ...svelte.configs.recommended,
   eslintConfigPrettier,
-  ember.configs.base,
-  ember.configs.gjs,
-  ...WarpDrive,
+  ...svelte.configs.prettier,
   /**
    * https://eslint.org/docs/latest/use/configure/configuration-files#configuring-linter-options
    */
@@ -45,13 +47,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['**/*.js'],
-    languageOptions: {
-      parser: babelParser,
-    },
-  },
-  {
-    files: ['**/*.{js,gjs}'],
+    files: ['**/*.{js,svelte,svelte.js}'],
     languageOptions: {
       parserOptions: esmParserOptions,
       globals: {
@@ -71,19 +67,29 @@ export default defineConfig([
       ],
     },
   },
-  /**
-   * Canvas drawing code. `ctx.save()` / `ctx.restore()` are the 2D context's
-   * state stack, but warp-drive's rule reads any `.save()` as a record being
-   * persisted through the legacy store API, which these files never touch.
-   */
   {
-    files: [
-      'app/components/color-wheel.gjs',
-      'app/utils/ferrite/gpu.js',
-      'app/utils/ferrite/render.js',
-    ],
+    files: ['**/*.svelte', '**/*.svelte.js'],
+    languageOptions: {
+      // Not svelte.config.mjs itself: its warning filter is a function, which
+      // `eslint --cache` cannot store.
+      parserOptions: {
+        svelteConfig: { compilerOptions: { runes: true } },
+      },
+    },
     rules: {
-      'warp-drive/no-legacy-request-patterns': 'off',
+      // The tools are a single-page app with their own router (app/core/router.svelte.js):
+      // in-site links go through <Link>, and the plain <a> tags left are external.
+      'svelte/no-navigation-without-resolve': 'off',
+      // Markup comes from the site's own code (icons, the Markdown renderer,
+      // generated SVG), never from a visitor, and each case is commented.
+      'svelte/no-at-html-tags': 'off',
+      // Most lists render by position. A key by identity would throw on a
+      // list with a repeated value (two equal strings), so a key is given
+      // only where it matters: a list that reorders around live state.
+      'svelte/require-each-key': 'off',
+      // The Maps, Sets and Dates kept on components are bookkeeping, not state
+      // the page shows: anything shown is a $state.raw field that is replaced.
+      'svelte/prefer-svelte-reactivity': 'off',
     },
   },
   /**
@@ -123,13 +129,10 @@ export default defineConfig([
         __ALL_FILES__: 'readonly',
       },
     },
-    rules: {
-      'warp-drive/no-external-request-patterns': 'off',
-    },
   },
   {
     ...qunit.configs.recommended,
-    files: ['tests/**/*-test.{js,gjs}'],
+    files: ['tests/**/*-test.js'],
     plugins: {
       qunit,
     },
@@ -139,7 +142,7 @@ export default defineConfig([
    */
   {
     ...n.configs['flat/recommended-script'],
-    files: ['**/*.cjs', 'config/**/*.js'],
+    files: ['**/*.cjs'],
     plugins: {
       n,
     },

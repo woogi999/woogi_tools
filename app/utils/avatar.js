@@ -1,5 +1,3 @@
-/* eslint-disable warp-drive/no-legacy-request-patterns -- ctx.save() here is the canvas API, not a data request */
-
 // Player avatars: chibi sketchbook kids, somewhere between OMORI's doodles and
 // an Animal Crossing villager: a big, wide, soft-cornered head, simple dark
 // eyes, a short straight body in real clothes, stubby arms and legs. Plus
@@ -1755,7 +1753,7 @@ function drawRobotFace(ctx, avatar, size, { blink = 0 } = {}) {
 // ─── Flat portrait ────────────────────────────────────────────────────
 
 // A head-and-shoulders portrait on a size×size canvas. Portraits are normally
-// rendered from the 3D model (see components/avatar-portrait.gjs); this flat
+// rendered from the 3D model (see components/avatar-portrait.svelte); this flat
 // version shows while that loads, and stands in where WebGL isn't available.
 export function drawPortrait(ctx, avatarInput, size) {
   const a = normaliseAvatar(avatarInput);

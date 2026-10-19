@@ -11,9 +11,9 @@
 //   height grey                 → bumpMap
 // Generators run on the texel map (bake.js) in 3D, so they're seamless.
 
-import { fbm3, ridged3, worley3, noise3, seedCell, rand } from './noise';
-import { newId } from './doc';
-import { hexToRgb } from './anim';
+import { fbm3, ridged3, worley3, noise3, seedCell, rand } from './noise.js';
+import { newId } from './doc.js';
+import { hexToRgb } from './anim.js';
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (a, b, x) => {

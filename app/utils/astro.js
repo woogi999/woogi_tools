@@ -592,7 +592,6 @@ export const guessOffset = (longitude) => Math.round(longitude / 15);
 
 export async function geocode(query, signal) {
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`;
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- OpenStreetMap's public geocoder
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal,

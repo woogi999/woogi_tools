@@ -60,7 +60,6 @@ async function readText(response, limit = READ_LIMIT) {
 
 function request(site, name, timeout) {
   const json = site.body && typeof site.body === 'object';
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker checking public profile pages
   return fetch(fill(site.probe ?? site.url, name), {
     method: site.method ?? 'GET',
     redirect: site.check === 'redirect' ? 'manual' : 'follow',

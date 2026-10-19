@@ -1,11 +1,18 @@
 export default {
-  plugins: ['prettier-plugin-ember-template-tag'],
+  plugins: ['prettier-plugin-svelte'],
   overrides: [
     {
-      files: '*.{js,gjs,ts,gts,mjs,mts,cjs,cts}',
+      files: '*.{js,svelte,mjs,cjs}',
       options: {
         singleQuote: true,
-        templateSingleQuote: false,
+      },
+    },
+    {
+      // The markup keeps its whitespace exactly (svelte.config.mjs sets
+      // preserveWhitespace), so formatting must never add or drop any.
+      files: '*.svelte',
+      options: {
+        htmlWhitespaceSensitivity: 'strict',
       },
     },
   ],

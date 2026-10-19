@@ -36,8 +36,8 @@ import {
   MathUtils,
   Raycaster,
 } from 'three';
-import { normalisePose, poseKey } from '../utils/pose';
-import { rendererOptions, createGovernor, tabHidden } from './perf';
+import { normalisePose, poseKey } from '../utils/pose.js';
+import { rendererOptions, createGovernor, tabHidden } from './perf.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import {
   drawFace,
@@ -54,7 +54,7 @@ import {
   HEAD,
   HANG_FROM,
   FACE_SPAN,
-} from '../utils/avatar';
+} from '../utils/avatar.js';
 
 // The 3D avatars: chibi people and computer robots, built from a handful of
 // low-poly shapes with flat toon shading and ink outlines. Used by the Woono

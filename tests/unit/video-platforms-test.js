@@ -2,7 +2,7 @@ import { module, test } from 'qunit';
 import {
   detectVideo,
   sameSiteRedirect,
-} from 'woogi-tools/utils/video-platforms';
+} from '../../app/utils/video-platforms.js';
 
 module('Unit | video platforms', function () {
   test('recognises each site and rebuilds a clean address', function (assert) {

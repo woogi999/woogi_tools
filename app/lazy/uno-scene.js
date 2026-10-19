@@ -1,4 +1,3 @@
-/* eslint-disable warp-drive/no-legacy-request-patterns -- ctx.save() here is the canvas API, not a data request */
 import {
   WebGLRenderer,
   Scene,
@@ -35,12 +34,12 @@ import {
   MathUtils,
 } from 'three';
 import { createElement, Bot, Crown, Hand, Octagon } from 'sketchyicons';
-import config from 'woogi-tools/config/environment';
-import { avatarKey } from '../utils/avatar';
-import { createCuller } from './culling';
-import { rendererOptions, createGovernor, tabHidden } from './perf';
-import { sfx } from '../utils/sound';
-import { dealTiming, RESHUFFLE_MS } from '../utils/uno';
+import config from '../config/environment.js';
+import { avatarKey } from '../utils/avatar.js';
+import { createCuller } from './culling.js';
+import { rendererOptions, createGovernor, tabHidden } from './perf.js';
+import { sfx } from '../utils/sound.svelte.js';
+import { dealTiming, RESHUFFLE_MS } from '../utils/uno.js';
 import {
   AvatarKit,
   HEAD_Y,
@@ -51,9 +50,9 @@ import {
   moodFace,
   reachArms,
   withOutline,
-} from './avatar-model';
+} from './avatar-model.js';
 
-export { createAvatarPreview } from './avatar-model';
+export { createAvatarPreview } from './avatar-model.js';
 
 // The 3D Woono table, seen through your own avatar's eyes. Everyone else sits
 // round the table as chibi doodles (or robots, for the computer), your cards

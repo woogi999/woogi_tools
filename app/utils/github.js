@@ -25,7 +25,6 @@ async function get(path, token, { raw = false } = {}) {
   if (cache.has(key)) return cache.get(key);
   const headers = { Accept: 'application/vnd.github+json' };
   if (token) headers.Authorization = `Bearer ${token.trim()}`;
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- GitHub's API, not app data
   const response = await fetch(`${API}${path}`, { headers });
   if (response.status === 404) throw new Error('No repository by that name');
   if (response.status === 403 || response.status === 429) {

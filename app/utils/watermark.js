@@ -1,4 +1,3 @@
-/* eslint-disable warp-drive/no-legacy-request-patterns -- ctx.save() here is the canvas API, not a data request */
 // Stamping a name, a logo or a "DRAFT" across pictures. Everything is drawn on
 // a canvas in the browser, so the originals never leave the device.
 

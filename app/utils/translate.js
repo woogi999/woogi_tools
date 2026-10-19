@@ -146,7 +146,6 @@ export async function translate(text, from, to, { signal } = {}) {
   if (!text.trim()) return { text: '', detected: null };
   let response;
   try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- our own Worker route
     response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -175,7 +174,6 @@ export async function translate(text, from, to, { signal } = {}) {
       throw new Error(body.error || 'The translation failed.');
     return body;
   }
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- Google Translate's public endpoint
   const direct = await fetch(googleUrl(text, from, to), { signal });
   if (!direct.ok) throw new Error('The translation failed.');
   return parseGoogle(await direct.json());

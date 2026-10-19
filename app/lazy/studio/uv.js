@@ -14,7 +14,7 @@ import {
   len,
   add,
   scale,
-} from './mesh';
+} from './mesh.js';
 
 const UV_EPS = 1e-6;
 const sameUv = (a, b) =>

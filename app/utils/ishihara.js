@@ -2,7 +2,7 @@
 // one family of hues and the rest in another, at the same lightness, so the
 // figure can only be told apart by hue.
 
-import { hslToRgb, toHex } from './color';
+import { hslToRgb, toHex } from './color.js';
 
 const SIZE = 420;
 const RADIUS = 200;

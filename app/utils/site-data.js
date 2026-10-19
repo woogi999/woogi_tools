@@ -5,7 +5,7 @@
 // both sets of keys and values, wrapped with a little metadata so a file from
 // somewhere else can be recognised and refused.
 
-import { idbEntries, idbReplacePrefix } from './idb-store';
+import { idbEntries, idbReplacePrefix } from './idb-store.js';
 
 export const STORAGE_PREFIX = 'woogi-';
 const FORMAT = 'woogi-tools-data';
@@ -133,7 +133,9 @@ export async function applyBackup(backup) {
     );
   }
   // A version 1 backup has no IndexedDB half; the tools just start fresh.
-  if (!(await idbReplacePrefix(STORAGE_PREFIX, Object.entries(backup.idb ?? {}))))
+  if (
+    !(await idbReplacePrefix(STORAGE_PREFIX, Object.entries(backup.idb ?? {})))
+  )
     throw new Error('Not enough storage space in this browser for that data.');
 }
 

@@ -1,27 +1,15 @@
-import loadConfigFromMeta from '@embroider/config-meta-loader';
-import { assert } from '@ember/debug';
+// Build-time settings. `environment` is 'test' in the test build
+// (`vite build --mode test`), 'development' under `vite`, and 'production'
+// in `vite build`.
+const mode = import.meta.env.MODE;
 
-const config = loadConfigFromMeta('woogi-tools');
-
-assert(
-  'config is not an object',
-  typeof config === 'object' && config !== null,
-);
-assert(
-  'modulePrefix was not detected on your config',
-  'modulePrefix' in config && typeof config.modulePrefix === 'string',
-);
-assert(
-  'locationType was not detected on your config',
-  'locationType' in config && typeof config.locationType === 'string',
-);
-assert(
-  'rootURL was not detected on your config',
-  'rootURL' in config && typeof config.rootURL === 'string',
-);
-assert(
-  'APP was not detected on your config',
-  'APP' in config && typeof config.APP === 'object',
-);
-
-export default config;
+export default {
+  environment:
+    mode === 'test'
+      ? 'test'
+      : import.meta.env.DEV
+        ? 'development'
+        : 'production',
+  rootURL: '/',
+  locationType: mode === 'test' ? 'none' : 'history',
+};

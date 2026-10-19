@@ -1,7 +1,7 @@
 import { module, test } from 'qunit';
-import { visit, click, find, findAll, currentURL } from '@ember/test-helpers';
-import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { TOOLS, searchTools } from 'woogi-tools/tools';
+import { visit, click, find, findAll, currentURL } from '../helpers/index.js';
+import { setupApplicationTest } from '../helpers/index.js';
+import { TOOLS, searchTools } from '../../app/tools.js';
 
 module('Acceptance | third party stuff', function (hooks) {
   setupApplicationTest(hooks);

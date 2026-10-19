@@ -4,8 +4,8 @@ import {
   compress,
   decompress,
   prettyText,
-} from 'woogi-tools/utils/codec';
-import { searchTools } from 'woogi-tools/tools';
+} from '../../app/utils/codec.js';
+import { searchTools } from '../../app/tools.js';
 
 module('Unit | data codec', function () {
   test('round-trips unicode text in every format at min and max level', async function (assert) {
@@ -47,8 +47,16 @@ module('Unit | tool search', function () {
       prettyText(await decompress(packed, 'gzip')),
       '{\n  "name": "Gojo",\n  "moves": [\n    1,\n    2\n  ]\n}',
     );
-    assert.strictEqual(prettyText('\uFEFF[1]'), '[\n  1\n]', 'a byte-order mark is dropped');
+    assert.strictEqual(
+      prettyText('\uFEFF[1]'),
+      '[\n  1\n]',
+      'a byte-order mark is dropped',
+    );
     assert.strictEqual(prettyText('a\r\nb'), 'a\nb', 'line endings evened out');
-    assert.strictEqual(prettyText('{not json'), '{not json', 'not JSON: untouched');
+    assert.strictEqual(
+      prettyText('{not json'),
+      '{not json',
+      'not JSON: untouched',
+    );
   });
 });

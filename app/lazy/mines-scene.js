@@ -20,7 +20,7 @@ import {
   SpriteMaterial,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { buildAvatar, disposeAvatar, reachArms } from './avatar-model';
+import { buildAvatar, disposeAvatar, reachArms } from './avatar-model.js';
 import {
   createStage,
   createSea,
@@ -35,7 +35,7 @@ import {
   easeOut,
   Shockwaves,
   dizzyStars,
-} from './island-world';
+} from './island-world.js';
 import {
   HIDDEN,
   VOID,
@@ -44,7 +44,7 @@ import {
   DROP_MS,
   PLAYER_COLORS,
   themeOf,
-} from '../utils/minesweeper';
+} from '../utils/minesweeper.js';
 
 // Minesweeper on the island: every tile is an instance of one rounded block,
 // pressed into the sand as it's dug. Players are their avatars, dropped in from

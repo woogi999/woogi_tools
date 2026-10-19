@@ -52,7 +52,7 @@ import {
 } from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { FlyCamera } from './camera';
+import { FlyCamera } from './camera.js';
 import {
   geometryFromMesh,
   addSkin,
@@ -66,9 +66,9 @@ import {
   lightGizmo,
   cameraGizmo,
   pickBody,
-} from './scene-build';
-import { worldMatrix, trsOf } from './doc';
-import { edgeMap, triangulateFace, faceCenter, vertexNormals } from './mesh';
+} from './scene-build.js';
+import { worldMatrix, trsOf } from './doc.js';
+import { edgeMap, triangulateFace, faceCenter, vertexNormals } from './mesh.js';
 import {
   solvePose,
   boneLength,
@@ -77,8 +77,8 @@ import {
   weightColor,
   restMatrix,
   sortBones,
-} from './rig';
-import { mergePose } from './anim';
+} from './rig.js';
+import { mergePose } from './anim.js';
 
 const RAD = Math.PI / 180;
 const ORANGE = new Color('#ff9a3c');

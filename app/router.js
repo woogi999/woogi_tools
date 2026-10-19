@@ -1,146 +1,174 @@
-import EmberRouter from '@embroider/router';
-import config from 'woogi-tools/config/environment';
+// Every page on the site, by route name. A route's path is its name
+// ('/qr-code'), its page is app/templates/<name>.svelte, and '/' is 'index'.
+// Anything else is 'not-found'. See core/router.svelte.js.
+export const ROUTES = [
+  'color-picker',
+  'data-codec',
+  'file-converter',
+  'calculator',
+  'graph-calculator',
+  'algebra-calculator',
+  'date-calculator',
+  'age-calculator',
+  'winrate-calculator',
+  'unit-converter',
+  'currency-converter',
+  'wage-calculator',
+  'qr-code',
+  'file-share',
+  'quick-notes',
+  'password-generator',
+  'lorem-ipsum',
+  'word-counter',
+  'text-case',
+  'text-diff',
+  'line-tools',
+  'json-formatter',
+  'hash-generator',
+  'uuid-generator',
+  'jwt-decoder',
+  'regex-tester',
+  'timestamp-converter',
+  'number-base',
+  'percentage-calculator',
+  'aspect-ratio',
+  'contrast-checker',
+  'pdf-tools',
+  'image-resizer',
+  'image-cropper',
+  'image-slicer',
+  'pomodoro-timer',
+  'spin-the-wheel',
+  'dice-roll',
+  'coin-toss',
+  'background-remover',
+  'file-archiver',
+  'file-compressor',
+  'timezone-converter',
+  'svg-optimizer',
+  'auto-trace',
+  'fake-data',
+  'regex-library',
+  'stem-extractor',
+  'pixel-eyedropper',
+  'favicon-generator',
+  'user-agent-parser',
+  'cron-builder',
+  'gitignore-generator',
+  'image-stitcher',
+  'screen-recorder',
+  'cipher-decoder',
+  'watermarker',
+  'audio-extractor',
+  'video-muter',
+  'video-downloader',
+  'bunkr-downloader',
+  'mega-downloader',
+  'trimmer',
+  'metadata-editor',
+  'auto-subtitle',
+  'subtitle-baker',
+  'audio-normalizer',
+  'grammar-checker',
+  'paraphraser',
+  'translator',
+  'text-braille',
+  'text-ipa',
+  'text-morse',
+  'archive-opener',
+  'chess',
+  'snake',
+  'minesweeper',
+  'woono',
+  'woonopoly',
+  'avatar-editor',
+  'uno',
+  'geometry-calculator',
+  'image-editor',
+  'image-censor',
+  'video-censor',
+  'video-editor',
+  'barcode-generator',
+  'emoji-picker',
+  'ascii-art',
+  'video-player',
+  'mockup-preview',
+  'online-ruler',
+  'document-redacter',
+  'world-radio',
+  'speed-test',
+  'typing-speed-test',
+  'github-repo-checker',
+  'ip-lookup',
+  'pose-reference',
+  'messages',
+  'colour-blindness-test',
+  'palette',
+  'palette-extractor',
+  'audio-recorder',
+  'compass',
+  'reaction-time',
+  'roblox-asset-viewer',
+  'baybayin-translator',
+  'astrology-profile',
+  'text-to-speech',
+  'webcam-recorder',
+  'code-scanner',
+  'shoe-size',
+  'domain-lookup',
+  'unlock-pdf',
+  'calendar',
+  'timer-alarm',
+  'stopwatch',
+  'roman-numerals',
+  'recon-sweep',
+  'photo-metadata',
+  'username-search',
+  'email-header-analyzer',
+  'subdomain-finder',
+  'breach-check',
+  'wayback-snapshots',
+  '3d-studio',
+  'third-party-stuff',
+  'jjs-stuff',
+  'jjs-progress-bar-maker',
+  'settings',
+  'updates',
+  'privacy',
+  'terms',
+];
 
-export default class Router extends EmberRouter {
-  location = config.locationType;
-  rootURL = config.rootURL;
-}
-
-Router.map(function () {
-  this.route('color-picker');
-  this.route('data-codec');
-  this.route('file-converter');
-  this.route('calculator');
-  this.route('graph-calculator');
-  this.route('algebra-calculator');
-  this.route('date-calculator');
-  this.route('age-calculator');
-  this.route('winrate-calculator');
-  this.route('unit-converter');
-  this.route('currency-converter');
-  this.route('wage-calculator');
-  this.route('qr-code');
-  this.route('file-share');
-  this.route('quick-notes');
-  this.route('password-generator');
-  this.route('lorem-ipsum');
-  this.route('word-counter');
-  this.route('text-case');
-  this.route('text-diff');
-  this.route('line-tools');
-  this.route('json-formatter');
-  this.route('hash-generator');
-  this.route('uuid-generator');
-  this.route('jwt-decoder');
-  this.route('regex-tester');
-  this.route('timestamp-converter');
-  this.route('number-base');
-  this.route('percentage-calculator');
-  this.route('aspect-ratio');
-  this.route('contrast-checker');
-  this.route('pdf-tools');
-  this.route('image-resizer');
-  this.route('image-cropper');
-  this.route('image-slicer');
-  this.route('pomodoro-timer');
-  this.route('spin-the-wheel');
-  this.route('dice-roll');
-  this.route('coin-toss');
-  this.route('background-remover');
-  this.route('file-archiver');
-  this.route('file-compressor');
-  this.route('timezone-converter');
-  this.route('svg-optimizer');
-  this.route('auto-trace');
-  this.route('fake-data');
-  this.route('regex-library');
-  this.route('stem-extractor');
-  this.route('pixel-eyedropper');
-  this.route('favicon-generator');
-  this.route('user-agent-parser');
-  this.route('cron-builder');
-  this.route('gitignore-generator');
-  this.route('image-stitcher');
-  this.route('screen-recorder');
-  this.route('cipher-decoder');
-  this.route('watermarker');
-  this.route('audio-extractor');
-  this.route('video-muter');
-  this.route('video-downloader');
-  this.route('bunkr-downloader');
-  this.route('mega-downloader');
-  this.route('trimmer');
-  this.route('metadata-editor');
-  this.route('auto-subtitle');
-  this.route('subtitle-baker');
-  this.route('audio-normalizer');
-  this.route('grammar-checker');
-  this.route('paraphraser');
-  this.route('translator');
-  this.route('text-braille');
-  this.route('text-ipa');
-  this.route('text-morse');
-  this.route('archive-opener');
-  this.route('chess');
-  this.route('snake');
-  this.route('minesweeper');
-  this.route('woono');
-  this.route('woonopoly');
-  this.route('avatar-editor');
-  this.route('uno');
-  this.route('geometry-calculator');
-  this.route('image-editor');
-  this.route('image-censor');
-  this.route('video-censor');
-  this.route('video-editor');
-  this.route('barcode-generator');
-  this.route('emoji-picker');
-  this.route('ascii-art');
-  this.route('video-player');
-  this.route('mockup-preview');
-  this.route('online-ruler');
-  this.route('document-redacter');
-  this.route('world-radio');
-  this.route('speed-test');
-  this.route('typing-speed-test');
-  this.route('github-repo-checker');
-  this.route('ip-lookup');
-  this.route('pose-reference');
-  this.route('messages');
-  this.route('colour-blindness-test');
-  this.route('palette');
-  this.route('palette-extractor');
-  this.route('audio-recorder');
-  this.route('compass');
-  this.route('reaction-time');
-  this.route('roblox-asset-viewer');
-  this.route('baybayin-translator');
-  this.route('astrology-profile');
-  this.route('text-to-speech');
-  this.route('webcam-recorder');
-  this.route('code-scanner');
-  this.route('shoe-size');
-  this.route('domain-lookup');
-  this.route('unlock-pdf');
-  this.route('calendar');
-  this.route('timer-alarm');
-  this.route('stopwatch');
-  this.route('roman-numerals');
-  this.route('recon-sweep');
-  this.route('photo-metadata');
-  this.route('username-search');
-  this.route('email-header-analyzer');
-  this.route('subdomain-finder');
-  this.route('breach-check');
-  this.route('wayback-snapshots');
-  this.route('3d-studio');
-  this.route('third-party-stuff');
-  // Moved out into Arayashiki; both send you to Third Party Stuff.
-  this.route('jjs-stuff');
-  this.route('jjs-progress-bar-maker');
-  this.route('settings');
-  this.route('updates');
-  this.route('privacy');
-  this.route('terms');
-  this.route('not-found', { path: '/*path' });
-});
+// Old addresses. Each takes the parsed target ({ name, query, url }) and gives
+// the route to go to instead (a name, or { name, query }), or nothing when it
+// has dealt with the visit itself.
+export const REDIRECTS = {
+  // Uno was renamed Woono. Invite links carry their ?room= code, which a
+  // route change would drop, so those reload at the new path.
+  uno: () => {
+    if (
+      window.location.search &&
+      /\/uno(?=[?#]|$)/.test(window.location.pathname)
+    ) {
+      window.location.replace(
+        window.location.href.replace(/\/uno(?=[?#]|$)/, '/woono'),
+      );
+      return null;
+    }
+    return 'woono';
+  },
+  // JJS Stuff moved out of the site into Arayashiki, a desktop app. Old links
+  // land on Third Party Stuff, which explains the move.
+  'jjs-stuff': () => ({
+    name: 'third-party-stuff',
+    query: { from: 'jjs-stuff' },
+  }),
+  // Moved with JJS Stuff: it is Arayashiki's Meter Maker now.
+  'jjs-progress-bar-maker': () => ({
+    name: 'third-party-stuff',
+    query: { from: 'jjs-progress-bar-maker' },
+  }),
+  // Merged into Domain Lookup, which now runs every domain source at once and
+  // has the subdomain list and the map as tabs. Old links still land there.
+  'recon-sweep': () => 'domain-lookup',
+  'subdomain-finder': () => 'domain-lookup',
+};

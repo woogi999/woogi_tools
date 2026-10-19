@@ -13,7 +13,7 @@
 // kept apart and joined only by ids.
 
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
-import { newModifier } from './modifiers';
+import { newModifier } from './modifiers.js';
 
 const RAD = Math.PI / 180;
 let seq = 0;

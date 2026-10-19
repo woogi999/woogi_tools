@@ -1,4 +1,4 @@
-import { hslToRgb, rgbToHsl, toHex, parseHex } from './color';
+import { hslToRgb, rgbToHsl, toHex, parseHex } from './color.js';
 
 // Palettes made or extracted here, kept in the browser like everything else
 // on the site (and so included in a backup).

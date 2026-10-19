@@ -11,7 +11,7 @@ import {
   isTargeted,
   timeOut,
   nextIndex,
-} from './uno';
+} from './uno.js';
 
 // How computer players decide, by actually thinking it through: for every move
 // they could make, they play the rest of the game out many times and keep the

@@ -1,21 +1,24 @@
 import { module, test } from 'qunit';
 import { Matrix4, Vector3 } from 'three';
-import * as M from 'woogi-tools/lazy/studio/mesh';
-import { buildPrimitive, PRIMITIVES } from 'woogi-tools/lazy/studio/primitives';
-import { subtract, union, intersect } from 'woogi-tools/lazy/studio/csg';
+import * as M from '../../app/lazy/studio/mesh.js';
+import {
+  buildPrimitive,
+  PRIMITIVES,
+} from '../../app/lazy/studio/primitives.js';
+import { subtract, union, intersect } from '../../app/lazy/studio/csg.js';
 import {
   autoUnwrap,
   uvIslands,
   uvStats,
   packIslands,
-} from 'woogi-tools/lazy/studio/uv';
+} from '../../app/lazy/studio/uv.js';
 import {
   buildTemplate,
   solvePose,
   boneLength,
   autoWeights,
   mirrorName,
-} from 'woogi-tools/lazy/studio/rig';
+} from '../../app/lazy/studio/rig.js';
 import {
   newClip,
   setKey,
@@ -23,16 +26,16 @@ import {
   moveKeys,
   keyRef,
   autoBoneMap,
-} from 'woogi-tools/lazy/studio/anim';
+} from '../../app/lazy/studio/anim.js';
 import {
   starterDoc,
   addBoolean,
   duplicate,
   removeObjects,
   updateObject,
-} from 'woogi-tools/lazy/studio/doc';
-import { Evaluator } from 'woogi-tools/lazy/studio/evaluate';
-import { toFile, fromFile } from 'woogi-tools/lazy/studio/project';
+} from '../../app/lazy/studio/doc.js';
+import { Evaluator } from '../../app/lazy/studio/evaluate.js';
+import { toFile, fromFile } from '../../app/lazy/studio/project.js';
 
 // Signed volume: positive only when every face winds outwards.
 function volume(m) {

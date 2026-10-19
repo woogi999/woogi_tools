@@ -21,8 +21,8 @@ import {
   Texture,
   Vector2,
 } from 'three';
-import { toBuffers, OUTLINE_SLOT } from './mesh';
-import { topInfluences } from './rig';
+import { toBuffers, OUTLINE_SLOT } from './mesh.js';
+import { topInfluences } from './rig.js';
 
 // ─── Geometry ──────────────────────────────────────────────────────────
 

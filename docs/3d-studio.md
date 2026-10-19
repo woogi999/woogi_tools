@@ -3,17 +3,17 @@
 `/3d-studio` is a general-purpose 3D modeller, texture painter, rigger and
 animator. It is a Magnum Opus page (beta), full-window like the Video Editor,
 so it is listed in `BARE_ROUTES`
-(`app/templates/application.gjs`) and `STINGER_ROUTES`
+(`app/app.svelte`) and `STINGER_ROUTES`
 (`app/services/stinger.js`).
 
 ## Where things are
 
 | Path                                                           | What it is                                                                                                        |
 | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `app/components/studio-page.gjs`                               | The page shell: menu bar, workspace tabs, layout, viewport host                                                   |
-| `app/components/studio/state.js`                               | `StudioState`: all tracked state and actions (core, history, selection, objects, files)                           |
+| `app/components/studio-page.svelte`                            | The page shell: menu bar, workspace tabs, layout, viewport host                                                   |
+| `app/components/studio/state.svelte.js`                        | `StudioState`: all tracked state and actions (core, history, selection, objects, files)                           |
 | `app/components/studio/state-{model,paint,rig,anim}.js`        | Actions mixed into `StudioState`, by area                                                                         |
-| `app/components/studio/*.gjs`                                  | Panels: tool strip, outliner, object/material/texture/rig/anim panels, timeline, UV editor, dialogs, number field |
+| `app/components/studio/*.svelte`                               | Panels: tool strip, outliner, object/material/texture/rig/anim panels, timeline, UV editor, dialogs, number field |
 | `app/lazy/studio/`                                             | The engine, loaded on demand in one chunk with three.js (`index.js` is the entry)                                 |
 | `app/styles/_studio.scss`                                      | Styles (`st-` prefix)                                                                                             |
 | `tests/acceptance/studio-test.js`, `tests/unit/studio-test.js` | Tests                                                                                                             |
@@ -73,7 +73,7 @@ doc ─► Evaluator (evaluate.js) ─► mesh per object, cached by
 
 `npm test` runs the acceptance tests in headless Chrome with SwiftShader.
 Shader compilation there is slow, so keep the number of distinct material
-variants small (a long first frame trips testem's 10-second heartbeat). The
+variants small (every test waits for the first frame). The
 viewport keeps its drawing buffer so tests can read pixels back, and the
 canvas carries `studioView` for inspecting the three.js scene.
 

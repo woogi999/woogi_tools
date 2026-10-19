@@ -38,7 +38,7 @@ The full, current list, with descriptions, keywords and "how it's made" notes, l
 
 ## How it's built
 
-- **Ember.js** (Octane edition, `.gjs` template-tag components) on **Vite** via Embroider, rather than the classic ember-cli broccoli pipeline.
+- **Svelte 5** on **Vite**, with no Babel step. A small router and the shared pieces the pages use (services, the base class for components, test helpers) live in [`app/core/`](app/core/).
 - No database, and almost no backend: a Cloudflare Worker ([`worker/`](worker/)) for the few things a browser can't ask other sites itself, and one small download server ([`backend/`](backend/), deployed to Render from [`render.yaml`](render.yaml)) that runs yt-dlp for the Video Downloader and reads Bunkr for the Bunkr Downloader. The Worker reaches it through the `DOWNLOAD_API_URL` and `DOWNLOAD_API_KEY` secrets. Preferences, notes and favourites are kept in `localStorage` under a `woogi-` prefix (see Settings → Reset).
 - Works offline after the first visit. `vite build` runs a small plugin ([`lib/offline-plugin.mjs`](lib/offline-plugin.mjs)) that hashes the whole build into a build ID and writes `dist/sw.js` from [`lib/service-worker.js`](lib/service-worker.js). Pages are network-first (so online visitors always get the latest deploy), hashed assets are cache-first, and a new build ID makes browsers download the new version in the background next time they're online. Status and cache size are in Settings → Your data.
 - Heavier engines (ImageMagick, FFmpeg, Pandoc, 7-Zip, the background-removal model) are WebAssembly builds loaded lazily, only when a tool that needs them is actually used.
@@ -53,7 +53,7 @@ The full, current list, with descriptions, keywords and "how it's made" notes, l
 
 ```bash
 npm install
-npm start        # dev server at http://localhost:4200
+npm start        # dev server at http://localhost:5173
 ```
 
 ### Building
@@ -61,12 +61,13 @@ npm start        # dev server at http://localhost:4200
 ```bash
 npm run build                              # production build, output in dist/
 npm exec vite build --mode development     # development build
+npm test                                   # test build, then the tests in headless Chrome (QUnit, run by tests/run.mjs)
 ```
 
 ### Linting & formatting
 
 ```bash
-npm run lint        # eslint + template-lint + stylelint
+npm run lint        # eslint (with eslint-plugin-svelte) + prettier
 npm run lint:fix
 npm run format
 ```
@@ -75,9 +76,10 @@ npm run format
 
 ```text
 app/
-  components/    one <Something>Page component per tool, wrapped in <ToolPage>
-  templates/      one route template per tool, just rendering its page component
-  services/      settings, favourites, notes, tool-visibility
+  core/          the router, <Link>, services, the component base class and its helpers
+  components/    one <Something>Page component per tool (.svelte), wrapped in <ToolPage>
+  templates/     one page per route, just rendering its tool component
+  services/      settings, favourites, notes, tool-visibility, picture-in-picture, …
   utils/         the actual logic behind each tool (converters, codecs, colour math, …)
   styles/        SCSS, split by concern (_math.scss, _tool-extras.scss, …)
   tools.js       the single registry every nav surface reads from
@@ -87,7 +89,7 @@ lib/             build-time offline support: the service worker template and the
 
 Releasing: add an entry to the top of [`app/changelog.js`](app/changelog.js) (it drives the Updates page and the version shown in Settings) and bump `version` in `package.json` to match. Nothing else: the service worker picks up any change to the build on its own.
 
-Adding a tool means: a route in `router.js`, a template in `app/templates/`, a component in `app/components/`, and an entry in `app/tools.js`.
+Adding a tool means: a route name in `app/router.js`, a page in `app/templates/<route>.svelte`, a component in `app/components/`, and an entry in `app/tools.js`.
 
 ## Licensing note
 
@@ -95,4 +97,4 @@ Everything here is MIT-licensed except the Background Remover, which uses [`@img
 
 ## Credits
 
-Every tool page lists the libraries it's built on, with author and license, at the bottom of the page. Site-wide credits (Ember, Vite, icons, fonts) are in the footer of the home page.
+Every tool page lists the libraries it's built on, with author and license, at the bottom of the page. Site-wide credits (Svelte, Vite, icons, fonts) are in the footer of the home page.

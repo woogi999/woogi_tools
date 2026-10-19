@@ -1,5 +1,5 @@
-import { DEFAULT_AVATAR, playerAvatar } from './avatar';
-import { normalisePose } from './pose';
+import { DEFAULT_AVATAR, playerAvatar } from './avatar.js';
+import { normalisePose } from './pose.js';
 
 // Your name, avatar and profile pose in games, shared by every game lobby, Settings and the Avatar Editor.
 const PROFILE_KEY = 'woogi-game-profile';

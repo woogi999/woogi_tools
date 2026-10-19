@@ -36,7 +36,7 @@ import {
   makeObstacle,
   cellToWorld,
   seeded,
-} from './island-world';
+} from './island-world.js';
 
 // Which island theme each game wears, so a Snake level looks like a Snake
 // island and a Minesweeper one like a minefield.

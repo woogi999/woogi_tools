@@ -1,3 +1,4 @@
+import { waitForPromise } from '../core/waiters.js';
 // The site's roomy storage.
 //
 // localStorage stops at a few megabytes for the whole site, which a single
@@ -14,8 +15,6 @@
 // Every call resolves rather than throws when storage is blocked (a private
 // window, a browser with site data turned off): nothing is kept, and the
 // page carries on.
-
-import { waitForPromise } from '@ember/test-waiters';
 
 const DB_NAME = 'woogi-tools';
 const STORE = 'kv';
@@ -41,7 +40,7 @@ function openDb() {
 }
 
 // Runs `fn` against the store and resolves with what its request returns.
-// Registered with Ember's test waiters, so tests wait for storage to answer
+// Registered with the test waiters (core/waiters.js), so tests wait for storage to answer
 // the way they wait for rendering; outside tests it does nothing.
 function run(mode, fn) {
   return waitForPromise(runNow(mode, fn));

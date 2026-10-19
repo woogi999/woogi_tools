@@ -3,7 +3,6 @@
 // browsers directly (Pwned Passwords) are asked straight from the page.
 
 async function api(params, signal) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- the site's own Worker
   const response = await fetch(`/api/osint?${new URLSearchParams(params)}`, {
     signal,
   });
@@ -66,7 +65,6 @@ export function allBreaches(signal) {
 // XposedOrNot (open source, no key, answers browsers directly): every breach
 // an email address is in, with the details of each.
 export async function xposedOrNot(email, signal) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- XposedOrNot's public API
   const response = await fetch(
     `https://api.xposedornot.com/v1/breach-analytics?email=${encodeURIComponent(email)}`,
     { signal },
@@ -100,7 +98,6 @@ export async function pwnedCount(password, signal) {
     .toUpperCase();
   const prefix = hex.slice(0, 5);
   const suffix = hex.slice(5);
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- Pwned Passwords only ever sees a 5-character hash prefix
   const response = await fetch(
     `https://api.pwnedpasswords.com/range/${prefix}`,
     { headers: { 'Add-Padding': 'true' }, signal },

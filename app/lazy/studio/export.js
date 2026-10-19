@@ -32,10 +32,10 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter.js';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { zipSync, strToU8 } from 'fflate';
-import { geometryFromMesh, addSkin } from './scene-build';
-import { evaluateClip, mergePose } from './anim';
-import { solvePose, remapSkin, restMatrix, sortBones } from './rig';
-import { worldMatrix } from './doc';
+import { geometryFromMesh, addSkin } from './scene-build.js';
+import { evaluateClip, mergePose } from './anim.js';
+import { solvePose, remapSkin, restMatrix, sortBones } from './rig.js';
+import { worldMatrix } from './doc.js';
 
 const RAD = Math.PI / 180;
 

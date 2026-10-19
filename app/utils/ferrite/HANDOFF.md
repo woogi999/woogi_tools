@@ -12,20 +12,20 @@ a native Rust/Iced broadcast-graphics app), its _editor_ half only. It is a
 bare route: no site chrome, full viewport, its own menu bar with the logo
 linking home.
 
-| File                                   | What it is                                                            |
-| -------------------------------------- | --------------------------------------------------------------------- |
-| `app/utils/ferrite/model.js`           | Scenes, layers, style, keyframes, 7 easings, parenting, mattes, clock |
-| `app/utils/ferrite/effects.js`         | The 145-effect catalogue, generated from Rust (see below)             |
-| `app/utils/ferrite/render.js`          | The compositor: one `drawScene` for viewport _and_ export             |
-| `app/utils/ferrite/timeline.js`        | The timeline canvas: ruler, bars, keyframes, playhead, hit testing    |
-| `app/utils/ferrite/theme.js`           | Resolves site CSS tokens into canvas-safe colours                     |
-| `app/utils/ferrite/keymap.js`          | 68 actions, 62 bound                                                  |
-| `app/utils/ferrite/gpu.js`             | WebGL2 shader passes (see the open task)                              |
-| `app/utils/ferrite/shaders.js`         | GLSL ports of Ferrite's WGSL                                          |
-| `app/utils/ferrite/shader-map.js`      | catalogue knobs → shader uniforms                                     |
-| `app/components/video-editor-page.gjs` | The shell + all editor state (Ferrite's `app.rs`)                     |
-| `app/components/ferrite/*.gjs`         | The seven panels                                                      |
-| `app/styles/_ferrite.scss`             | Theme, built entirely on the site's own tokens                        |
+| File                                      | What it is                                                            |
+| ----------------------------------------- | --------------------------------------------------------------------- |
+| `app/utils/ferrite/model.js`              | Scenes, layers, style, keyframes, 7 easings, parenting, mattes, clock |
+| `app/utils/ferrite/effects.js`            | The 145-effect catalogue, generated from Rust (see below)             |
+| `app/utils/ferrite/render.js`             | The compositor: one `drawScene` for viewport _and_ export             |
+| `app/utils/ferrite/timeline.js`           | The timeline canvas: ruler, bars, keyframes, playhead, hit testing    |
+| `app/utils/ferrite/theme.js`              | Resolves site CSS tokens into canvas-safe colours                     |
+| `app/utils/ferrite/keymap.js`             | 68 actions, 62 bound                                                  |
+| `app/utils/ferrite/gpu.js`                | WebGL2 shader passes (see the open task)                              |
+| `app/utils/ferrite/shaders.js`            | GLSL ports of Ferrite's WGSL                                          |
+| `app/utils/ferrite/shader-map.js`         | catalogue knobs → shader uniforms                                     |
+| `app/components/video-editor-page.svelte` | The shell + all editor state (Ferrite's `app.rs`)                     |
+| `app/components/ferrite/*.svelte`         | The seven panels                                                      |
+| `app/styles/_ferrite.scss`                | Theme, built entirely on the site's own tokens                        |
 
 **Tests: use these, they have caught every real bug so far.**
 
@@ -104,7 +104,7 @@ Two kinds of saving, and the difference matters enough to say on the page:
 `saveHere` puts the project in local storage (survives a reload, dies with the
 site data), `saveProject` writes a `.woogi.json` (survives anything).
 
-The render queue (`export.js`, `export-modal.gjs`) has two engines, because a
+The render queue (`export.js`, `export-modal.svelte`) has two engines, because a
 browser cannot do what Ferrite does in one way:
 
 - `live` is `captureStream` + `MediaRecorder`. Carries the sound, drops frames
@@ -168,22 +168,23 @@ top/bottom split.
 
 ## Gotchas already paid for: do not rediscover these
 
-1. **Never write a tracked field in a component constructor.** Glimmer runs it
-   inside an open render transaction; reading then writing throws "already been
-   used previously in the same computation" and takes the _whole app_ down.
-   `app/utils/tool-state.js` defers to a microtask for this reason.
+1. **Never write a `$state` field from a getter or the markup.** Svelte throws
+   `state_unsafe_mutation` while it renders. Write state in event handlers,
+   modifiers or promise callbacks (`app/utils/tool-state.js` restores fields
+   after IndexedDB answers, never during render).
 2. **`ResizeObserver` callbacks must not write state that changes layout**
    without a change-guard and an rAF defer, or Chrome reports "loop completed
    with undelivered notifications" and QUnit fails the whole module.
-3. **`Icon` throws on an unknown name.** Check `app/components/icon.gjs` before
+3. **`Icon` throws on an unknown name.** Check `app/components/icon.svelte` before
    using one. Icons come from `sketchyicons`, not lucide.
 4. **Canvas `fillStyle` silently ignores what it cannot parse.** The site's
    greys compute to `oklch(0.985 0 none)`. `theme.js` normalises every colour
    through a real canvas before use; keep doing that for any new colour.
 5. **`nth-child` on the menu bar is off by one**: the brand logo is the first
    child. Select menus with `[data-menu="Layer"]`.
-6. In `.gjs`, only JavaScript may appear outside `<template>`; a `{{! }}`
-   comment there is a parse error.
+6. A modifier (`app/core/modifier.js`) runs again only when its arguments in
+   the markup change, not when state it reads inside changes. Pass what it
+   depends on: `{@attach self.watch?.([route])}`.
 7. **`setPointerCapture` throws** when the pointer has already gone, so a
    synthetic event, a cancelled gesture. Optional chaining does not help: the
    method exists, it just refuses, and the throw escapes as a global error that
@@ -196,9 +197,6 @@ top/bottom split.
 10. **A test that cannot see the bug is worse than no test.** The shader guard
     used a left/right split and missed a vertical flip in all 77 effects for
     weeks. Choose fixtures that are asymmetric in every axis the code touches.
-11. `npm run lint:js` is **broken repo-wide** (stale Embroider cache pointing at
-    `E:\coding_projects\JJS_Tools`). `rm -rf node_modules/.embroider` + reinstall
-    would fix it. Not caused by this work.
 
 ---
 

@@ -1,4 +1,4 @@
-import { HANDLERS } from './handlers';
+import { HANDLERS } from './handlers.js';
 import {
   FORMATS,
   CATEGORY_ORDER,
@@ -6,8 +6,8 @@ import {
   detectFormat,
   stripExtension,
   formatsIn,
-} from './formats';
-import { ENGINE_INFO, ENGINE_LOADERS } from './engines';
+} from './formats.js';
+import { ENGINE_INFO, ENGINE_LOADERS } from './engines.js';
 
 export {
   detectFormat,

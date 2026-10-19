@@ -1,4 +1,4 @@
-import { sfx } from './sound';
+import { sfx } from './sound.svelte.js';
 
 // Sounds for the whole site, wired once at the top of the page instead of in
 // every component: a soft tick when the mouse moves onto something you can

@@ -18,8 +18,8 @@
 // that puts the frame on a canvas and, for the exact engine, a `seekTo(ms)`
 // that waits for the footage to actually arrive at that time.
 
-import { runFFmpeg } from '../media-jobs';
-import { createArchive } from '../archive';
+import { runFFmpeg } from '../media-jobs.js';
+import { createArchive } from '../archive.js';
 
 // What After Effects calls the output module: the container, what it can
 // carry, and which engine can produce it.

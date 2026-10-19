@@ -21,7 +21,6 @@ export function backendOf(env) {
 // Asked when a downloader page opens, so it is up by the time it is needed.
 export function wake(backend, ctx) {
   if (!backend) return;
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling the site's own backend
   const ping = fetch(`${backend.url}/health`, {
     signal: AbortSignal.timeout(90000),
   }).catch(() => {});
@@ -62,7 +61,6 @@ export async function fileLink(backend, payload) {
 export async function askBackend(backend, path, data, timeout = 100000) {
   let response;
   try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling the site's own backend
     response = await fetch(`${backend.url}${path}`, {
       method: 'POST',
       headers: {

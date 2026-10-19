@@ -8,10 +8,9 @@
 // Reddit video's picture and sound is FFmpeg copying streams, which it can't
 // report usefully, so that step is shown as ongoing, not as a number.
 
-import { runFFmpeg } from './media-jobs';
+import { runFFmpeg } from './media-jobs.js';
 
 export async function api(path, init = {}) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- the site's own Worker
   const response = await fetch(path, {
     ...init,
     headers: init.body ? { 'Content-Type': 'application/json' } : {},
@@ -55,7 +54,6 @@ export async function fetchFile(url, { signal, onProgress }) {
   try {
     // No referrer: X's file server answers 403 to any page that isn't X's,
     // and no other site needs to know which page asked.
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a video file the Worker named
     response = await fetch(url, {
       signal,
       credentials: 'omit',

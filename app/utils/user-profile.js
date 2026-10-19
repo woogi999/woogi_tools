@@ -3,9 +3,9 @@
 // and the PDF/JSON exports. The extraction itself happens in the Worker (see
 // profile-extract.js); this only combines what came back.
 
-import { USERNAME_SITES } from './username-sites';
-import { priorityOf } from './priority-sites';
-import { loadJsPdf } from './converters/engines';
+import { USERNAME_SITES } from './username-sites.js';
+import { priorityOf } from './priority-sites.js';
+import { loadPdfWriter } from './converters/engines.js';
 
 // ─── Which known site a link points to, and whose account it is ─────────
 
@@ -571,10 +571,10 @@ async function graphPng(graph) {
 }
 
 export async function exportPdf(report, graph, notes = {}) {
-  const JsPdf = await loadJsPdf();
-  const doc = new JsPdf({ unit: 'pt', format: 'a4', compress: true });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
+  const createPdf = await loadPdfWriter();
+  const doc = await createPdf();
+  const W = doc.width;
+  const H = doc.height;
   const M = 48;
   let y = M;
   const need = (h) => {
@@ -590,7 +590,7 @@ export async function exportPdf(report, graph, notes = {}) {
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
     doc.setFontSize(size);
     doc.setTextColor(colour);
-    // jsPDF's standard fonts only cover Latin-1; anything else would print
+    // The PDF's standard fonts only cover Latin-1; anything else would print
     // as garbage, so it's dropped.
     // eslint-disable-next-line no-control-regex -- the whole Latin-1 range, on purpose
     const safe = String(value).replace(/[^\u0000-ÿ•–—‘’“”…]/g, '');
@@ -681,7 +681,7 @@ export async function exportPdf(report, graph, notes = {}) {
     // The heading goes wherever the picture does, not a page before it.
     need(height + 50);
     heading('Graph');
-    doc.addImage(
+    await doc.addImage(
       picture.data,
       'JPEG',
       M,
@@ -730,6 +730,5 @@ export async function exportPdf(report, graph, notes = {}) {
     'Found from public profile pages. A match means an account with that name exists, not that it belongs to the person you have in mind; check before you rely on it.',
     { size: 8, colour: 120 },
   );
-  // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- jsPDF's own download, not a request
-  doc.save(fileName(report, 'pdf', notes.title));
+  save(await doc.blob(), fileName(report, 'pdf', notes.title));
 }

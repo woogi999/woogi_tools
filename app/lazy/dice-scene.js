@@ -33,7 +33,7 @@ import {
   DodecahedronGeometry,
   IcosahedronGeometry,
 } from 'three';
-import { rendererOptions } from './perf';
+import { rendererOptions } from './perf.js';
 
 const UP = new Vector3(0, 1, 0);
 const AWAY = new Vector3(0, 0, -1);
@@ -334,7 +334,6 @@ function cornerTexture(corners, { bg, fg }) {
     // towards the corner (the canvas's y runs the other way from the face's).
     const cx = size / 2 + x * 0.62 * (size / 2);
     const cy = size / 2 - y * 0.62 * (size / 2);
-    // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- a canvas state push, not a data request
     paint.save();
     paint.translate(cx, cy);
     paint.rotate(Math.atan2(x, y));

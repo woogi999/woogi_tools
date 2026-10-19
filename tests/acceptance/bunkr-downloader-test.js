@@ -6,9 +6,9 @@ import {
   waitUntil,
   find,
   findAll,
-} from '@ember/test-helpers';
-import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { clearAllToolState } from 'woogi-tools/utils/tool-state';
+} from '../helpers/index.js';
+import { setupApplicationTest } from '../helpers/index.js';
+import { clearAllToolState } from '../../app/utils/tool-state.js';
 
 // The test build is served as static files, so there is no Worker behind
 // /api/bunkr and no download backend: fetch is stood in for with what they

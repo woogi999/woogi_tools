@@ -1,5 +1,5 @@
-import { actionForKey, actionForPad, isTyping } from './keybinds';
-import { pushPadHandler } from './gamepad';
+import { actionForKey, actionForPad, isTyping } from './keybinds.svelte.js';
+import { pushPadHandler } from './gamepad.svelte.js';
 
 // Wires a game's keyboard and controller bindings (utils/keybinds.js) to its actions.
 //

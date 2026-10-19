@@ -1,6 +1,6 @@
 // Word banks and scoring for the Typing Speed Test.
 
-import { randomInt } from './random';
+import { randomInt } from './random.js';
 
 // The 200 or so most common English words: the standard bank typing tests use,
 // so scores are comparable with the popular sites.

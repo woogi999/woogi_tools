@@ -340,7 +340,7 @@ async function sendBunkr(res, token, signal) {
         headers[key] = value;
     let upstream;
     try {
-      // eslint-disable-next-line warp-drive/no-external-request-patterns, n/no-unsupported-features/node-builtins -- the backend fetching a file from Bunkr; it runs on Node 22 (backend/Dockerfile)
+      // eslint-disable-next-line n/no-unsupported-features/node-builtins -- the backend fetching a file from Bunkr; it runs on Node 22 (backend/Dockerfile)
       upstream = await fetch(target, { headers, signal });
     } catch {
       if (signal.aborted) return;

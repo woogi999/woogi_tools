@@ -7,12 +7,12 @@ import {
   find,
   findAll,
   currentURL,
-} from '@ember/test-helpers';
-import { getPageTitle } from 'ember-page-title/test-support';
-import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { clearAllToolState } from 'woogi-tools/utils/tool-state';
-import { idbGet } from 'woogi-tools/utils/idb-store';
-import { compress } from 'woogi-tools/utils/codec';
+} from '../helpers/index.js';
+import { getPageTitle } from '../helpers/index.js';
+import { setupApplicationTest } from '../helpers/index.js';
+import { clearAllToolState } from '../../app/utils/tool-state.js';
+import { idbGet } from '../../app/utils/idb-store.js';
+import { compress } from '../../app/utils/codec.js';
 
 const byText = (selector, text) =>
   findAll(selector).find((el) => el.textContent.includes(text));
@@ -501,7 +501,7 @@ module('Acceptance | smoke', function (hooks) {
       if (el) seen.push(el.className);
     };
     const observer = new MutationObserver(record);
-    observer.observe(document.querySelector('#ember-testing'), {
+    observer.observe(document.querySelector('#app-testing'), {
       childList: true,
       subtree: true,
       attributes: true,

@@ -1,10 +1,9 @@
+import { modifier } from '../core/modifier.js';
 // Ctrl+V anywhere on a tool page drops whatever's on the clipboard into it:
 // a screenshot, files copied in the file manager, or copied text saved as a file.
 //
 // Used as a modifier on a tool's wrapper, so it only listens while that tool is open:
 //   <div {{acceptPastedFiles this.addFiles}}>
-
-import { modifier } from 'ember-modifier';
 
 // Pasted plain text becomes a file too, so tools that only take files still get something.
 function textFile(text, html) {

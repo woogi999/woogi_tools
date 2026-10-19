@@ -1,7 +1,7 @@
 // Opening archives in the browser with 7-Zip compiled to WebAssembly: ZIP, 7z,
 // RAR, TAR and the gzipped/bzipped/xz'd sorts, plus ISO, CAB, DMG and friends.
 
-import { loadSevenZip } from './converters/engines';
+import { loadSevenZip } from './converters/engines.js';
 
 export const OPENABLE = [
   'zip',

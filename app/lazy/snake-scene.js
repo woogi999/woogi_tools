@@ -14,9 +14,9 @@ import {
   Vector3,
   BackSide,
 } from 'three';
-import { buildAvatar, disposeAvatar, reachArms } from './avatar-model';
-import { sfx } from '../utils/sound';
-import { speedOf } from '../utils/snake';
+import { buildAvatar, disposeAvatar, reachArms } from './avatar-model.js';
+import { sfx } from '../utils/sound.svelte.js';
+import { speedOf } from '../utils/snake.js';
 import {
   createStage,
   createSea,
@@ -33,13 +33,13 @@ import {
   Shockwaves,
   dizzyStars,
   INK,
-} from './island-world';
+} from './island-world.js';
 
 // Snake on a tropical island: every snake's body is an instanced string of
 // toon spheres that glide from square to square, with the player's avatar
 // riding on its head and reacting to apples, boosts and crashes.
 
-import { SNAKE_COLORS } from '../utils/snake';
+import { SNAKE_COLORS } from '../utils/snake.js';
 
 const SEGMENT_R = 0.4;
 const BODY_Y = 0.36;

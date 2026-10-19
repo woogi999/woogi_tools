@@ -6,8 +6,16 @@
 // the stroke starts; the page commits that copy as the object's new mesh
 // when the stroke ends (one undo step per stroke).
 
-import { vertexNormals, neighbours, sub, add, scale, dot, norm } from './mesh';
-import { brushWeight } from './paint';
+import {
+  vertexNormals,
+  neighbours,
+  sub,
+  add,
+  scale,
+  dot,
+  norm,
+} from './mesh.js';
+import { brushWeight } from './paint.js';
 
 export const SCULPT_BRUSHES = {
   draw: { label: 'Draw', icon: 'pencil' },

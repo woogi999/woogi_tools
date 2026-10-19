@@ -4,10 +4,10 @@ import {
   loadPandoc,
   loadSevenZip,
   loadPdfJs,
-  loadJsPdf,
-} from './engines';
-import { FORMATS } from './formats';
-import { pdfToHtml } from './pdf-html';
+  loadPdfWriter,
+} from './engines.js';
+import { FORMATS } from './formats.js';
+import { pdfToHtml } from './pdf-html.js';
 
 // A handler converts between the formats in each of its [from, to] pairs.
 // convert() gets a Blob and returns a Blob, or { blob, ext } when the result
@@ -607,15 +607,15 @@ const textPdfHandler = {
   id: 'text-pdf',
   pairs: [[['txt'], ['pdf']]],
   async convert(blob) {
-    const JsPdf = await loadJsPdf();
-    const doc = new JsPdf({ unit: 'pt', format: 'a4' });
+    const createPdf = await loadPdfWriter();
+    const doc = await createPdf();
     const margin = 56;
     const lineHeight = 15;
-    const pageHeight = doc.internal.pageSize.getHeight();
+    const pageHeight = doc.height;
     doc.setFont('helvetica').setFontSize(11);
     const lines = doc.splitTextToSize(
       (await blob.text()).replaceAll('\t', '    '),
-      doc.internal.pageSize.getWidth() - margin * 2,
+      doc.width - margin * 2,
     );
     let y = margin;
     for (const line of lines) {
@@ -626,7 +626,7 @@ const textPdfHandler = {
       doc.text(line, margin, y);
       y += lineHeight;
     }
-    return doc.output('blob');
+    return doc.blob();
   },
 };
 

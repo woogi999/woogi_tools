@@ -1,4 +1,4 @@
-import { parseHex, toHex } from './color';
+import { parseHex, toHex } from './color.js';
 
 // Ink is stored as it looks in light mode. In dark mode, near-neutral colours
 // (blacks, whites, greys) get their lightness flipped so black ink reads as

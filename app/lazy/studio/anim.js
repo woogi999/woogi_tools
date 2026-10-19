@@ -14,8 +14,8 @@
 // at a peak), 'ease-in' flattens the curve arriving at the key, 'ease-out'
 // leaving it, 'custom' uses the handles dragged in the graph editor.
 
-import { newId } from './doc';
-import { mirrorName } from './rig';
+import { newId } from './doc.js';
+import { mirrorName } from './rig.js';
 
 export const PROPS = {
   pos: { label: 'Location', size: 3, comps: ['X', 'Y', 'Z'] },

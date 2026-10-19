@@ -4,8 +4,8 @@ import {
   dig,
   tick,
   DEATH_MODES,
-} from 'woogi-tools/utils/minesweeper';
-import { createGame as createSnake } from 'woogi-tools/utils/snake';
+} from '../../app/utils/minesweeper.js';
+import { createGame as createSnake } from '../../app/utils/snake.js';
 
 // Puts a mine under `id` and sets it off, returning that player.
 function blowUp(state, id) {

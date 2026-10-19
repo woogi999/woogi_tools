@@ -1,0 +1,276 @@
+<script module>
+  import { onDestroy } from 'svelte';
+  import Component from '../core/component.js';
+  import { truthy, prop } from '../core/helpers.js';
+  import { destroy } from '../core/destroyable.js';
+  import ToolPage from './tool-page.svelte';
+  import Icon from './icon.svelte';
+  import { keepState } from '../utils/tool-state.js';
+
+  const PRESETS = [
+    { label: '16:9', w: 16, h: 9, note: 'HD video, most monitors' },
+    { label: '9:16', w: 9, h: 16, note: 'Phone video, Stories, Reels' },
+    { label: '4:3', w: 4, h: 3, note: 'Classic TV, iPad' },
+    { label: '3:2', w: 3, h: 2, note: '35mm photos' },
+    { label: '1:1', w: 1, h: 1, note: 'Square posts' },
+    { label: '4:5', w: 4, h: 5, note: 'Instagram portrait' },
+    { label: '21:9', w: 21, h: 9, note: 'Ultrawide' },
+    { label: '2.39:1', w: 2.39, h: 1, note: 'Cinemascope' },
+  ];
+
+  // Screens are often "nearly" a named ratio (1366×768 is really 683:384), so match within a tolerance.
+  const NAMED = PRESETS.filter((p) => p.w >= p.h || p.w === 1);
+
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const round = (n) => parseFloat(n.toFixed(2));
+
+  class AspectRatioPage extends Component {
+    presets = PRESETS;
+
+    width = $state.raw('1920');
+    height = $state.raw('1080');
+    newWidth = $state.raw('1280');
+    newHeight = $state.raw('');
+    linked = $state.raw(false);
+
+    constructor(args) {
+      super(args);
+      keepState(this, 'aspect-ratio', [
+        'width',
+        'height',
+        'newWidth',
+        'newHeight',
+        'linked',
+      ]);
+    }
+
+    get w() {
+      return Math.abs(Number(this.width));
+    }
+
+    get h() {
+      return Math.abs(Number(this.height));
+    }
+
+    get valid() {
+      return (
+        this.w > 0 &&
+        this.h > 0 &&
+        Number.isFinite(this.w) &&
+        Number.isFinite(this.h)
+      );
+    }
+
+    get simplified() {
+      if (!this.valid) return '-';
+      if (Number.isInteger(this.w) && Number.isInteger(this.h)) {
+        const d = gcd(this.w, this.h);
+        return `${this.w / d}:${this.h / d}`;
+      }
+      return `${round(this.w / this.h)}:1`;
+    }
+
+    get decimal() {
+      return this.valid ? round(this.w / this.h).toString() : '-';
+    }
+
+    get closest() {
+      if (!this.valid) return null;
+      const ratio = this.w / this.h;
+      const landscape = ratio >= 1 ? ratio : 1 / ratio;
+      const best = NAMED.map((p) => ({
+        p,
+        off: Math.abs(p.w / p.h - landscape) / landscape,
+      })).sort((a, b) => a.off - b.off)[0];
+      if (best.off > 0.03) return null;
+      const label =
+        ratio >= 1 ? best.p.label : best.p.label.split(':').reverse().join(':');
+      const exact =
+        Math.abs(this.w * best.p.h - this.h * best.p.w) < 1e-9 ||
+        Math.abs(this.h * best.p.h - this.w * best.p.w) < 1e-9;
+      return exact ? `Exactly ${label}` : `About ${label}`;
+    }
+
+    get previewStyle() {
+      const ratio = this.valid ? this.w / this.h : 16 / 9;
+      const box = 160;
+      const pw = ratio >= 1 ? box : box * ratio;
+      const ph = ratio >= 1 ? box / ratio : box;
+      return `width:${pw}px;height:${ph}px`;
+    }
+
+    get resized() {
+      if (!this.valid) return { width: '', height: '' };
+      const nw = Number(this.newWidth);
+      const nh = Number(this.newHeight);
+      if (this.newWidth !== '' && nw > 0)
+        return {
+          width: this.newWidth,
+          height: round((nw * this.h) / this.w).toString(),
+          from: 'width',
+        };
+      if (this.newHeight !== '' && nh > 0)
+        return {
+          width: round((nh * this.w) / this.h).toString(),
+          height: this.newHeight,
+          from: 'height',
+        };
+      return { width: '', height: '' };
+    }
+
+    // Linked, a change to one side scales the other to keep the ratio as it was.
+    setWidth = (e) => {
+      const ratio = this.valid ? this.h / this.w : null;
+      this.width = e.target.value;
+      if (this.linked && ratio && this.w > 0)
+        this.height = String(round(this.w * ratio));
+    };
+    setHeight = (e) => {
+      const ratio = this.valid ? this.w / this.h : null;
+      this.height = e.target.value;
+      if (this.linked && ratio && this.h > 0)
+        this.width = String(round(this.h * ratio));
+    };
+    toggleLinked = () => (this.linked = !this.linked);
+
+    setNewWidth = (e) => {
+      this.newWidth = e.target.value;
+      this.newHeight = '';
+    };
+
+    setNewHeight = (e) => {
+      this.newHeight = e.target.value;
+      this.newWidth = '';
+    };
+
+    usePreset = (p) => {
+      // Keep the current width and fit the height to the chosen ratio.
+      const base = this.w > 0 ? this.w : 1920;
+      this.width = String(base);
+      this.height = String(Math.round((base * p.h) / p.w));
+    };
+
+    swap = () => ([this.width, this.height] = [this.height, this.width]);
+  }
+</script>
+
+<script>
+  let args = $props();
+  const self = new AspectRatioPage(args);
+  onDestroy(() => destroy(self));
+</script>
+
+<ToolPage
+  route="aspect-ratio"
+  subtitle="Turn a resolution into its aspect ratio, or resize while keeping the proportions right."
+>
+  <div class="math-grid pop-in">
+    <section class="math-card">
+      <h3 class="qr-heading">Dimensions</h3>
+      <div class="math-row is-aligned">
+        <label class="math-field"
+          ><span class="qr-label is-muted">Width</span><input
+            type="number"
+            min="0"
+            step="any"
+            class="math-input"
+            {@attach prop('value', () => self.width)}
+            oninput={self.setWidth}
+          /></label
+        >
+        <div class="ar-between">
+          <button
+            type="button"
+            class="btn math-swap {truthy(self.linked) ? 'active' : ''}"
+            aria-pressed={truthy(self.linked) ? 'true' : 'false'}
+            aria-label="Link width and height"
+            title={truthy(self.linked)
+              ? 'Linked: changing one side scales the other to keep this ratio'
+              : 'Link the sides, so changing one keeps the ratio'}
+            onclick={self.toggleLinked}
+            ><Icon
+              name={truthy(self.linked) ? 'link' : 'unlink'}
+              size={14}
+            /></button
+          >
+          <button
+            type="button"
+            class="btn math-swap"
+            aria-label="Swap width and height"
+            onclick={self.swap}>⇄</button
+          >
+        </div>
+        <label class="math-field"
+          ><span class="qr-label is-muted">Height</span><input
+            type="number"
+            min="0"
+            step="any"
+            class="math-input"
+            {@attach prop('value', () => self.height)}
+            oninput={self.setHeight}
+          /></label
+        >
+      </div>
+      <div class="ar-result">
+        <div class="math-result">
+          <span class="qr-label is-muted">Aspect ratio</span>
+          <span class="math-big">{self.simplified}</span>
+          <span class="tool-hint"
+            >{self.decimal}
+            : 1{#if truthy(self.closest)}
+              · {self.closest}{/if}</span
+          >
+        </div>
+        <div class="ar-preview" style={self.previewStyle} aria-hidden="true"
+        ></div>
+      </div>
+      <div class="line-actions">
+        {#each self.presets ?? [] as p}
+          <button
+            type="button"
+            class="btn"
+            title={p?.note}
+            onclick={(..._r) => self.usePreset(p, ..._r)}>{p?.label}</button
+          >
+        {/each}
+      </div>
+    </section>
+
+    <section class="math-card">
+      <h3 class="qr-heading">Resize to fit</h3>
+      <p class="tool-hint"
+        >Type a new width or height; the other is worked out to keep
+        {self.simplified}.</p
+      >
+      <div class="math-row">
+        <label class="math-field"
+          ><span class="qr-label is-muted">New width</span><input
+            type="number"
+            min="0"
+            step="any"
+            class="math-input"
+            {@attach prop('value', () => self.resized?.width)}
+            oninput={self.setNewWidth}
+          /></label
+        >
+        <label class="math-field"
+          ><span class="qr-label is-muted">New height</span><input
+            type="number"
+            min="0"
+            step="any"
+            class="math-input"
+            {@attach prop('value', () => self.resized?.height)}
+            oninput={self.setNewHeight}
+          /></label
+        >
+      </div>
+      {#if truthy(self.resized?.width)}
+        <p class="math-callout"
+          >{self.resized?.width}
+          ×
+          {self.resized?.height}</p
+        >
+      {/if}
+    </section>
+  </div>
+</ToolPage>

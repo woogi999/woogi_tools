@@ -4,7 +4,7 @@ import {
   variablesIn,
   formatNumber,
   MathError,
-} from './math-expr';
+} from './math-expr.js';
 
 // ─── Polynomials ─────────────────────────────────────────────────────────
 // A polynomial is a Map from a monomial key ("" for constants, "x^2*y") to

@@ -70,7 +70,6 @@ export async function check(
 async function throughWorker(text, language, picky, signal) {
   let response;
   try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- our own Worker route
     response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -114,7 +113,6 @@ async function direct(text, language, picky, signal) {
 
   let response;
   try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- LanguageTool's public API
     response = await fetch(PUBLIC_ENDPOINT, {
       method: 'POST',
       headers: {

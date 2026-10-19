@@ -12,8 +12,8 @@
 // controllers by id.
 
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
-import { newId } from './doc';
-import { dist, sub, dot, bounds } from './mesh';
+import { newId } from './doc.js';
+import { dist, sub, dot, bounds } from './mesh.js';
 
 const RAD = Math.PI / 180;
 const Y = new Vector3(0, 1, 0);

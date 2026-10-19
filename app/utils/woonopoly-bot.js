@@ -19,7 +19,7 @@ import {
   canRelist,
   repairCost,
   raiseMoney,
-} from './woonopoly';
+} from './woonopoly.js';
 
 // Cash a computer player likes to keep for rent, more once the board fills up with houses.
 function reserve(state, index) {

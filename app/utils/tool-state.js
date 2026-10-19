@@ -1,3 +1,9 @@
+import {
+  registerDestructor,
+  isDestroyed,
+  isDestroying,
+} from '../core/destroyable.js';
+import { waitForPromise } from '../core/waiters.js';
 // Keeps what you typed into a tool. Leaving a tool's page tears its component
 // down, and a refresh loses the lot, which is infuriating when you have pasted
 // in a wall of text and gone to look something up. This writes the fields a
@@ -8,18 +14,18 @@
 //
 //   keepState(this, 'currency-converter', ['amount', 'fromCurrency']);
 //
-// The fields must be @tracked, and their current values are used as the
+// The fields must be $state.raw class fields, and their current values are used as the
 // defaults: anything not saved, or saved as the wrong type, is left alone. Only
 // JSON-safe values are kept, so files, blobs and streams are never touched;
 // tools that work on a file are expected to go on asking for the file.
 
 import {
-  registerDestructor,
-  isDestroyed,
-  isDestroying,
-} from '@ember/destroyable';
-import { waitForPromise } from '@ember/test-waiters';
-import { idbGet, idbSet, idbDelete, idbEntries, idbDeletePrefix } from './idb-store';
+  idbGet,
+  idbSet,
+  idbDelete,
+  idbEntries,
+  idbDeletePrefix,
+} from './idb-store.js';
 
 const PREFIX = 'woogi-tool:';
 // Saving on every keystroke would write to disk hundreds of times a minute.
@@ -62,12 +68,9 @@ function write(scope, json) {
  * Returns a `forget()` that clears this tool's saved state, for a Clear button.
  */
 export function keepState(target, scope, fields, after) {
-  // The restore happens later, not here. This is called from a component's
-  // constructor, which Glimmer runs inside an open render transaction:
-  // writing a @tracked field there throws "you attempted to update `text`,
-  // but it had already been used previously in the same computation". By the
-  // time IndexedDB answers the transaction has closed, so the write is an
-  // ordinary update and Glimmer simply re-renders with the restored values.
+  // The restore happens later, not here: this is called from a component's
+  // constructor, before its first render. When IndexedDB answers, the write
+  // is an ordinary state change and Svelte re-renders with the restored values.
   let started = false;
   const snapshot = () => Object.fromEntries(fields.map((f) => [f, target[f]]));
   const initial = Object.fromEntries(

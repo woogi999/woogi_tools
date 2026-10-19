@@ -3,7 +3,7 @@
 // effect is worked out over the whole frame once, then shown only through the
 // marks' silhouette, which is what lets a brush stroke blur just where it went.
 
-import { gaussian, noise } from './photo';
+import { gaussian, noise } from './photo.js';
 
 export const EFFECTS = [
   { id: 'blur', label: 'Blur' },

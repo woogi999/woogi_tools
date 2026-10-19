@@ -62,7 +62,7 @@ body {
   padding: 0;
 }
 
-// A bare route (see templates/application.gjs) is a fixed layer over the
+// A bare route (see app/app.svelte) is a fixed layer over the
 // whole viewport, so the page behind it must not scroll.
 html[data-bare],
 html[data-bare] body {
@@ -114,7 +114,7 @@ h3 {
   }
 }
 
-// Steps through three displacement filters (defined in application.gjs) so strokes "boil" like a doodle.
+// Steps through three displacement filters (defined in app/app.svelte) so strokes "boil" like a doodle.
 @keyframes doodle {
   0% {
     filter: url(#doodle-1);

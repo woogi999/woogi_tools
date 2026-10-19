@@ -11,7 +11,6 @@
 /.eslintcache
 /coverage/
 /npm-debug.log*
-/testem.log
 /yarn-error.log
 
 # broccoli-debug

@@ -102,7 +102,6 @@ async function askIpWhoIs(target) {
   const url = target
     ? `https://ipwho.is/${encodeURIComponent(target)}`
     : 'https://ipwho.is/';
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a public geolocation service, not app data
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`ipwho.is ${response.status}`);
   const data = await response.json();
@@ -118,7 +117,6 @@ async function askIpApiCo(target) {
   const url = target
     ? `https://ipapi.co/${encodeURIComponent(target)}/json/`
     : 'https://ipapi.co/json/';
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a public geolocation service, not app data
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`ipapi.co ${response.status}`);
   const data = await response.json();

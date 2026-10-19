@@ -1,7 +1,7 @@
 import { module, test } from 'qunit';
-import { visit, click, fillIn } from '@ember/test-helpers';
-import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { clearAllToolState } from 'woogi-tools/utils/tool-state';
+import { visit, click, fillIn } from '../helpers/index.js';
+import { setupApplicationTest } from '../helpers/index.js';
+import { clearAllToolState } from '../../app/utils/tool-state.js';
 
 // Looking a link up talks to MEGA itself, which a test shouldn't; what is
 // checked here is everything the page decides before that.

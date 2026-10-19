@@ -9,10 +9,10 @@ import {
   triggerEvent,
   triggerKeyEvent,
   currentURL,
-} from '@ember/test-helpers';
-import { getPageTitle } from 'ember-page-title/test-support';
-import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { idbDelete, idbDeletePrefix } from 'woogi-tools/utils/idb-store';
+} from '../helpers/index.js';
+import { getPageTitle } from '../helpers/index.js';
+import { setupApplicationTest } from '../helpers/index.js';
+import { idbDelete, idbDeletePrefix } from '../../app/utils/idb-store.js';
 
 const byText = (selector, text) =>
   findAll(selector).find((el) => el.textContent.trim().includes(text));
@@ -166,7 +166,7 @@ module('Acceptance | 3D Studio', function (hooks) {
       const el = find('.stinger');
       if (el) seen.push(el.className);
     });
-    observer.observe(document.querySelector('#ember-testing'), {
+    observer.observe(document.querySelector('#app-testing'), {
       childList: true,
       subtree: true,
       attributes: true,

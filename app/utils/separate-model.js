@@ -11,9 +11,9 @@
 // A three minute song at these settings would be about 600 MB as one
 // spectrogram, which is enough to end the tab.
 
-import { stft, istft, hannWindow } from './stft';
-import { loadSession, runModel } from './onnx';
-import { chunkSamples, modelsFor } from './separator-models';
+import { stft, istft, hannWindow } from './stft.js';
+import { loadSession, runModel } from './onnx.js';
+import { chunkSamples, modelsFor } from './separator-models.js';
 
 export const SAMPLE_RATE = 44100;
 

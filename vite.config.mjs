@@ -1,26 +1,18 @@
 import { defineConfig } from 'vite';
-import { extensions, classicEmberSupport, ember } from '@embroider/vite';
-import { babel } from '@rollup/plugin-babel';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
 import offline from './lib/offline-plugin.mjs';
+import trackedFields from './lib/tracked-fields-plugin.mjs';
 import devApi from './lib/dev-api-plugin.mjs';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
-    classicEmberSupport(),
-    ember(),
-    // extra plugins here
+    svelte(),
+    // After svelte(): class fields notify on every assignment, as in Ember.
+    trackedFields(),
     devApi(),
-    // Must stay after ember(): it fingerprints the finished build and writes dist/sw.js.
+    // Must stay last: it fingerprints the finished build and writes dist/sw.js.
     offline(),
-    babel({
-      babelHelpers: 'runtime',
-      extensions,
-      // Do not be tempted to exclude node_modules here to save build time:
-      // Ember addons ship `@embroider/macros` calls that only exist until a
-      // Babel plugin replaces them, so skipping them builds an app that
-      // throws "this method is really implemented at compile time" on boot.
-    }),
   ],
   build: {
     // Rolldown's own minifier, rather than Terser. Back to back on the same
@@ -31,6 +23,13 @@ export default defineConfig({
     // fifty of them and twenty megabytes of WebAssembly, and nothing reads the
     // numbers, so the compression is pure cost.
     reportCompressedSize: false,
+    rollupOptions: {
+      // `npm test` builds the test page (tests/index.html) next to the site.
+      input:
+        mode === 'test'
+          ? { main: 'index.html', tests: 'tests/index.html' }
+          : { main: 'index.html' },
+    },
   },
   // Pre-bundling rewrites import.meta.url, which these libs use to locate their .wasm files.
   optimizeDeps: {
@@ -61,4 +60,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

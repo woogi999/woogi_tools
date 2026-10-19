@@ -266,7 +266,6 @@ function encodePath(path) {
 
 async function readFile({ owner, repo, ref, path }, token) {
   if (token) {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- GitHub's API, not app data
     const response = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`,
       {
@@ -279,7 +278,6 @@ async function readFile({ owner, repo, ref, path }, token) {
     if (!response.ok) throw new Error(String(response.status));
     return response.text();
   }
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- GitHub's raw content CDN, not app data
   const response = await fetch(
     `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(ref)}/${encodePath(path)}`,
   );

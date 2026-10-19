@@ -1,5 +1,5 @@
 // What each page is called and how it describes itself, shared by the browser
-// tab title (app/templates/application.gjs) and the link-preview tags the
+// tab title (app/app.svelte) and the link-preview tags the
 // Worker writes into the HTML for Facebook, Discord, X and the rest
 // (worker/index.js), since those crawlers never run the app's JavaScript.
 import { TOOLS } from '../tools.js';

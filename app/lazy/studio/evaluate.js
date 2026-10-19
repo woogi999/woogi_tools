@@ -7,10 +7,10 @@
 // doesn't, and changing a material or a pose touches no geometry at all.
 
 import { Matrix4, Vector3 } from 'three';
-import { buildPrimitive } from './primitives';
-import { applyStack } from './modifiers';
-import { outlineShell, flip } from './mesh';
-import { worldMatrix } from './doc';
+import { buildPrimitive } from './primitives.js';
+import { applyStack } from './modifiers.js';
+import { outlineShell, flip } from './mesh.js';
+import { worldMatrix } from './doc.js';
 
 const IDENTITY = new Matrix4();
 

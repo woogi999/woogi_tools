@@ -1,5 +1,5 @@
-import { playerAvatar } from './avatar';
-import { normalisePose } from './pose';
+import { playerAvatar } from './avatar.js';
+import { normalisePose } from './pose.js';
 
 // Looks you've saved in the Avatar Editor, each with its pose, kept in localStorage.
 

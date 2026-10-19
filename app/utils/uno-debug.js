@@ -11,8 +11,8 @@ import {
   debugEmit,
   debugNote,
   debugSetTurn,
-} from './uno';
-import { CommandError } from './debug-commands';
+} from './uno.js';
+import { CommandError } from './debug-commands.js';
 
 // Woono's debug commands (see utils/debug-commands.js). `page` is the Woono page on the host.
 

@@ -2,7 +2,7 @@
 // The engine is a single WebAssembly instance that can only do one job at a time,
 // so jobs queue up behind each other here.
 
-import { loadFFmpeg } from './converters/engines';
+import { loadFFmpeg } from './converters/engines.js';
 
 let queue = Promise.resolve();
 

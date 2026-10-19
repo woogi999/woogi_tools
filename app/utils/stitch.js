@@ -1,4 +1,3 @@
-/* eslint-disable warp-drive/no-legacy-request-patterns -- ctx.save() here is the canvas API, not a data request */
 // Stitching images into one sheet: spritesheets, flipbook frames, contact
 // sheets, before-and-afters. All drawn on a canvas in the browser.
 

@@ -1,4 +1,3 @@
-/* eslint-disable warp-drive/no-legacy-request-patterns -- ctx.save() here is the canvas API, not a data request */
 import {
   WebGLRenderer,
   Scene,
@@ -30,18 +29,18 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import config from 'woogi-tools/config/environment';
-import { avatarKey } from '../utils/avatar';
-import { rendererOptions, createGovernor, tabHidden } from './perf';
-import { sfx } from '../utils/sound';
-import { BOARD, GROUPS, JAIL, money, isProperty } from '../utils/woonopoly';
+import config from '../config/environment.js';
+import { avatarKey } from '../utils/avatar.js';
+import { rendererOptions, createGovernor, tabHidden } from './perf.js';
+import { sfx } from '../utils/sound.svelte.js';
+import { BOARD, GROUPS, JAIL, money, isProperty } from '../utils/woonopoly.js';
 import {
   AvatarKit,
   buildAvatar,
   disposeAvatar,
   moodFace,
   withOutline,
-} from './avatar-model';
+} from './avatar-model.js';
 
 // The Woonopoly board in 3D: a square board on a wooden table, the players'
 // avatars walking round it as their tokens, houses and hotels on the streets,

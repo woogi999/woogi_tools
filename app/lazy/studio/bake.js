@@ -15,8 +15,8 @@ import {
   sub,
   dot,
   len,
-} from './mesh';
-import { uvIslands } from './uv';
+} from './mesh.js';
+import { uvIslands } from './uv.js';
 
 // ─── Surfaces ──────────────────────────────────────────────────────────
 

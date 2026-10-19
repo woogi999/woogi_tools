@@ -9,7 +9,7 @@
 // same spot twice within a stroke doesn't pile up past the brush's opacity
 // (how Substance and Photoshop brushes behave).
 
-import { texelsNear } from './bake';
+import { texelsNear } from './bake.js';
 
 export const FALLOFFS = {
   smooth: (x) => 1 - x * x * (3 - 2 * x),

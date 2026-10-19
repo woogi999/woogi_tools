@@ -86,7 +86,6 @@ export async function fetchWeights(model, { onProgress, signal } = {}) {
     return cached;
   }
 
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading model weights, not app data
   const response = await fetch(model.url, { signal });
   if (!response.ok)
     throw new Error(`Could not download ${model.label} (${response.status}).`);

@@ -6,7 +6,7 @@
 // Inputs are meshes in the same space; the result is welded back into a
 // shared-vertex mesh so that bevels, subdivision and edit mode can work on it.
 
-import { weld, triangulateFace, faceNormal } from './mesh';
+import { weld, triangulateFace, faceNormal } from './mesh.js';
 
 const EPS = 1e-5;
 const COPLANAR = 0;

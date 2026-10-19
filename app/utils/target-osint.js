@@ -7,8 +7,8 @@ import {
   leakCheck,
   gravatarProfile,
   emailAccountsLookup,
-} from './osint';
-import { lookup as geolocate, placeLine } from './ip-lookup';
+} from './osint.js';
+import { lookup as geolocate, placeLine } from './ip-lookup.js';
 
 const DOH = 'https://cloudflare-dns.com/dns-query';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,7 +36,6 @@ export function sortTargets(text) {
 }
 
 async function dohQuery(name, type, signal) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- Cloudflare's public resolver
   const response = await fetch(
     `${DOH}?name=${encodeURIComponent(name)}&type=${type}`,
     { headers: { Accept: 'application/dns-json' }, signal },

@@ -21,7 +21,6 @@ export function cleanDomain(input) {
 }
 
 export async function lookupRdap(domain, signal) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a public registry service
   const response = await fetch(`${RDAP}${encodeURIComponent(domain)}`, {
     headers: { Accept: 'application/rdap+json, application/json' },
     signal,
@@ -111,7 +110,6 @@ export async function lookupDns(domain, signal) {
   const results = await Promise.all(
     RECORD_TYPES.map(async (type) => {
       try {
-        // eslint-disable-next-line warp-drive/no-external-request-patterns -- Cloudflare's public resolver
         const response = await fetch(
           `${DOH}?name=${encodeURIComponent(domain)}&type=${type}`,
           { headers: { Accept: 'application/dns-json' }, signal },

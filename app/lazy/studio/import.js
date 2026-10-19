@@ -6,7 +6,7 @@ import { Matrix4, Vector3, Quaternion, Euler } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
-import { weld } from './mesh';
+import { weld } from './mesh.js';
 
 const RAD = Math.PI / 180;
 

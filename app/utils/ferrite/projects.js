@@ -12,8 +12,8 @@
 // The distinction is worth being blunt about on the page, because a browser
 // clearing its site data takes the first kind with it.
 
-import { makeProject, makeScene } from './model';
-import { makeShelf } from '../idb-store';
+import { makeProject, makeScene } from './model.js';
+import { makeShelf } from '../idb-store.js';
 
 const KEY = 'video-editor:projects';
 export const FORMAT = 'woogi-video-editor-1';
@@ -85,7 +85,8 @@ function moveOldShelf() {
     if (!Array.isArray(old) || !old.length) return;
     let all = true;
     for (const { project, ...summary } of old)
-      if (project) all = (await shelf.store(summary.id, summary, project)) && all;
+      if (project)
+        all = (await shelf.store(summary.id, summary, project)) && all;
     if (all) localStorage.removeItem(KEY);
   })();
   return moved;

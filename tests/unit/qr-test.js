@@ -4,7 +4,7 @@ import {
   vcardPayload,
   utf8Binary,
   isValidUrl,
-} from 'woogi-tools/utils/qr';
+} from '../../app/utils/qr.js';
 
 module('Unit | qr payloads', function () {
   test('wifi escapes specials and handles open/hidden networks', function (assert) {

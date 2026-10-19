@@ -1,4 +1,4 @@
-import config from 'woogi-tools/config/environment';
+import config from '../config/environment.js';
 
 // WebRTC settings for internet connections the site makes (game rooms). All traffic is relayed through Cloudflare's TURN servers
 // (`iceTransportPolicy: 'relay'`), so the other side only ever sees Cloudflare's
@@ -71,7 +71,6 @@ export async function peerOptions() {
 
 export function rtcConfig() {
   if (cached && Date.now() - cached.at < REFRESH_MS) return cached.promise;
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- connection credentials, not app data
   const promise = fetch('/api/turn', { cache: 'no-store' })
     .then(async (response) => {
       if (!response.ok) throw new Error(`TURN ${response.status}`);

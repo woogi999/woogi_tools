@@ -39,13 +39,13 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { rendererOptions, createGovernor, tabHidden } from './perf';
+import { rendererOptions, createGovernor, tabHidden } from './perf.js';
 import {
   JOINTS,
   jointById,
   normalisePose,
   normaliseSettings,
-} from '../utils/mannequin';
+} from '../utils/mannequin.js';
 
 const MODEL_URL = '/models/mannequiny.glb';
 const DEG = Math.PI / 180;

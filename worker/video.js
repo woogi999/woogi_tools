@@ -736,7 +736,6 @@ async function relay(request, url) {
   for (let hop = 0; ; hop++) {
     if (hop > 3 || !onCdn(platform, upstream))
       return json({ error: 'TikTok sent the file somewhere unexpected.' }, 502);
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker fetching a file from TikTok's CDN
     response = await fetch(upstream, {
       headers: {
         'User-Agent': BROWSER_UA,
@@ -781,7 +780,6 @@ function get(
     cacheFor = 0,
   } = {},
 ) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling the video sites
   return fetch(url, {
     redirect,
     // Cloudflare's edge cache, successes only. Ignored outside Workers.

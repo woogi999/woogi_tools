@@ -5,7 +5,7 @@
 // These are only guesses: an account under one of them may well be someone
 // else's, and the page says so.
 
-import { USERNAME_PATTERN } from './username-sites';
+import { USERNAME_PATTERN } from './username-sites.js';
 
 // Titles and suffixes that are never part of a handle.
 const SKIP = new Set([

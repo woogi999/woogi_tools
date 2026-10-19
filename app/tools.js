@@ -567,7 +567,7 @@ export const TOOLS = [
       'ttf to woff',
     ],
     madeWith:
-      "Every conversion runs on your device; nothing is uploaded. Each engine declares what it can read and write, and a small breadth-first search chains them when no single one covers a pair (DOCX to PDF goes through plain text, for example). Everyday images use the browser's own <canvas> encoders, with a hand-written BMP writer. Everything else is ImageMagick for over a hundred image and camera RAW formats, FFmpeg for audio and video, Pandoc for documents, PDF.js to render or read PDFs (a PDF going to Word or Markdown is first rebuilt as structured HTML from where its text sits and what fonts it uses, so headings, paragraphs, lists and bold or italic runs survive), jsPDF to write them, 7-Zip for archives, and imagetracerjs to trace pictures into SVG. The heavy engines are WebAssembly builds fetched only the first time you need them. Structured data goes through yaml, smol-toml and Papa Parse, and WOFF fonts are packed and unpacked by hand with fflate; WOFF2 uses Google's encoder compiled to WebAssembly.",
+      "Every conversion runs on your device; nothing is uploaded. Each engine declares what it can read and write, and a small breadth-first search chains them when no single one covers a pair (DOCX to PDF goes through plain text, for example). Everyday images use the browser's own <canvas> encoders, with a hand-written BMP writer. Everything else is ImageMagick for over a hundred image and camera RAW formats, FFmpeg for audio and video, Pandoc for documents, PDF.js to render or read PDFs (a PDF going to Word or Markdown is first rebuilt as structured HTML from where its text sits and what fonts it uses, so headings, paragraphs, lists and bold or italic runs survive), pdf-lib to write them, 7-Zip for archives, and imagetracerjs to trace pictures into SVG. The heavy engines are WebAssembly builds fetched only the first time you need them. Structured data goes through yaml, smol-toml and Papa Parse, and WOFF fonts are packed and unpacked by hand with fflate; WOFF2 uses Google's encoder compiled to WebAssembly.",
     credits: [
       {
         name: 'ImageMagick (magick-wasm)',
@@ -600,10 +600,10 @@ export const TOOLS = [
         url: 'https://github.com/mozilla/pdf.js',
       },
       {
-        name: 'jsPDF',
-        author: 'James Hall & contributors',
+        name: 'pdf-lib',
+        author: 'Andrew Dillon',
         license: 'MIT',
-        url: 'https://github.com/parallax/jsPDF',
+        url: 'https://github.com/Hopding/pdf-lib',
       },
       {
         name: '7z-wasm',
@@ -3835,7 +3835,7 @@ export const TOOLS = [
 
 // Shown under every tool: the stack the whole site runs on.
 export const SITE_CREDITS = [
-  { name: 'Ember.js', license: 'MIT', url: 'https://emberjs.com' },
+  { name: 'Svelte', license: 'MIT', url: 'https://svelte.dev' },
   { name: 'Vite', license: 'MIT', url: 'https://vite.dev' },
   {
     name: 'crayon-css',

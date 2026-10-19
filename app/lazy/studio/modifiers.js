@@ -22,9 +22,9 @@ import {
   add,
   scale,
   OUTLINE_SLOT,
-} from './mesh';
-import { BOOLEAN_OPS } from './csg';
-import { fbm3 } from './noise';
+} from './mesh.js';
+import { BOOLEAN_OPS } from './csg.js';
+import { fbm3 } from './noise.js';
 
 const num = (key, label, min, max, step = 0.01) => ({
   key,

@@ -5,7 +5,7 @@
 // position, UV seams carried by the face corners) and laid out on its own
 // area of the texture, so it can be painted without further unwrapping.
 
-import { weld } from './mesh';
+import { weld } from './mesh.js';
 
 const TAU = Math.PI * 2;
 

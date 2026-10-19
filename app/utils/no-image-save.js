@@ -1,5 +1,4 @@
-import { modifier } from 'ember-modifier';
-
+import { modifier } from '../core/modifier.js';
 // The 3D games draw into a WebGL canvas, which the browser treats as an image:
 // right-clicking one offers "Save image as…" and a long press on iOS opens the
 // share sheet, both of which interrupt the game and save a meaningless frame.

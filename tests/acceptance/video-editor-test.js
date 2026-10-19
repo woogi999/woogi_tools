@@ -7,11 +7,11 @@ import {
   findAll,
   waitUntil,
   triggerEvent,
-} from '@ember/test-helpers';
-import { setupApplicationTest } from 'woogi-tools/tests/helpers';
-import { clearAllToolState } from 'woogi-tools/utils/tool-state';
-import { idbDeletePrefix } from 'woogi-tools/utils/idb-store';
-import { paletteOf } from 'woogi-tools/utils/ferrite/theme';
+} from '../helpers/index.js';
+import { setupApplicationTest } from '../helpers/index.js';
+import { clearAllToolState } from '../../app/utils/tool-state.js';
+import { idbDeletePrefix } from '../../app/utils/idb-store.js';
+import { paletteOf } from '../../app/utils/ferrite/theme.js';
 
 // The Video Editor is a whole application inside a page (a menu bar, four
 // docks, seven panels and two canvases) and it builds all of that from its own
@@ -312,10 +312,11 @@ module('Acceptance | video editor', function (hooks) {
 
   test('the shader pass runs and moves pixels', async function (assert) {
     await openEditor();
-    const { runPasses, hasGpu } = await import('woogi-tools/utils/ferrite/gpu');
+    const { runPasses, hasGpu } =
+      await import('../../app/utils/ferrite/gpu.js');
     const { SHADER_EFFECTS } =
-      await import('woogi-tools/utils/ferrite/shader-map');
-    const { makeEffect } = await import('woogi-tools/utils/ferrite/effects');
+      await import('../../app/utils/ferrite/shader-map.js');
+    const { makeEffect } = await import('../../app/utils/ferrite/effects.js');
 
     assert.ok(hasGpu(), 'headless Chrome gives us WebGL2');
 
@@ -361,10 +362,10 @@ module('Acceptance | video editor', function (hooks) {
 
   test('a shader pass does not flip the picture', async function (assert) {
     await openEditor();
-    const { runPasses } = await import('woogi-tools/utils/ferrite/gpu');
+    const { runPasses } = await import('../../app/utils/ferrite/gpu.js');
     const { SHADER_EFFECTS } =
-      await import('woogi-tools/utils/ferrite/shader-map');
-    const { makeEffect } = await import('woogi-tools/utils/ferrite/effects');
+      await import('../../app/utils/ferrite/shader-map.js');
+    const { makeEffect } = await import('../../app/utils/ferrite/effects.js');
 
     // Top half red, bottom half blue. A left/right test cannot see a vertical
     // flip, which is exactly the mistake that hid one.
@@ -405,10 +406,10 @@ module('Acceptance | video editor', function (hooks) {
 
   test('the different blurs actually look different', async function (assert) {
     await openEditor();
-    const { runPasses } = await import('woogi-tools/utils/ferrite/gpu');
+    const { runPasses } = await import('../../app/utils/ferrite/gpu.js');
     const { SHADER_EFFECTS } =
-      await import('woogi-tools/utils/ferrite/shader-map');
-    const { makeEffect } = await import('woogi-tools/utils/ferrite/effects');
+      await import('../../app/utils/ferrite/shader-map.js');
+    const { makeEffect } = await import('../../app/utils/ferrite/effects.js');
 
     // CSS has one blur and it is round, so these all used to come out
     // identical. A single bright dot is the clearest way to tell them apart:
@@ -465,10 +466,10 @@ module('Acceptance | video editor', function (hooks) {
 
   test('every mapped shader compiles', async function (assert) {
     await openEditor();
-    const { runPasses } = await import('woogi-tools/utils/ferrite/gpu');
+    const { runPasses } = await import('../../app/utils/ferrite/gpu.js');
     const { SHADER_EFFECTS } =
-      await import('woogi-tools/utils/ferrite/shader-map');
-    const { makeEffect } = await import('woogi-tools/utils/ferrite/effects');
+      await import('../../app/utils/ferrite/shader-map.js');
+    const { makeEffect } = await import('../../app/utils/ferrite/effects.js');
 
     // A shader that will not compile is reported rather than thrown, so the
     // only way to notice is to ask for every one of them.
@@ -653,9 +654,9 @@ module('Acceptance | video editor', function (hooks) {
 
   test('motion blur smears a moving layer', async function (assert) {
     await openEditor();
-    const { drawScene } = await import('woogi-tools/utils/ferrite/render');
+    const { drawScene } = await import('../../app/utils/ferrite/render.js');
     const { makeScene, makeLayer, putKey } =
-      await import('woogi-tools/utils/ferrite/model');
+      await import('../../app/utils/ferrite/model.js');
 
     const settings = { width: 160, height: 90, fps: 30 };
     const build = (motionBlur) => {
@@ -699,7 +700,7 @@ module('Acceptance | video editor', function (hooks) {
   test('a keyframe curve can be dragged by hand', async function (assert) {
     await openEditor();
     const { makeLayer, putKey, valueAt, cubic } =
-      await import('woogi-tools/utils/ferrite/model');
+      await import('../../app/utils/ferrite/model.js');
     let layer = makeLayer('box');
     layer = putKey(layer, 'x', 0, 0);
     layer = putKey(layer, 'x', 1000, 100);
@@ -787,7 +788,8 @@ module('Acceptance | video editor', function (hooks) {
 
   test('a wide blur is a smear, not a row of copies', async function (assert) {
     await openEditor();
-    const { runPasses, hasGpu } = await import('woogi-tools/utils/ferrite/gpu');
+    const { runPasses, hasGpu } =
+      await import('../../app/utils/ferrite/gpu.js');
     const gpu = hasGpu();
 
     // A thin bright bar, blurred a long way sideways.

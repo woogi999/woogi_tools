@@ -1,7 +1,7 @@
 import { module, test } from 'qunit';
-import { detectBunkr } from 'woogi-tools/utils/bunkr-link';
-import { detectMega } from 'woogi-tools/utils/mega-link';
-import { typeOfName } from 'woogi-tools/utils/download-jobs';
+import { detectBunkr } from '../../app/utils/bunkr-link.js';
+import { detectMega } from '../../app/utils/mega-link.js';
+import { typeOfName } from '../../app/utils/download-jobs.svelte.js';
 
 const FILE_KEY = 'a'.repeat(43);
 const FOLDER_KEY = 'b'.repeat(22);

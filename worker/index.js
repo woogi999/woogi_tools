@@ -188,7 +188,6 @@ async function turn(request, env) {
   if (!env.TURN_KEY_ID || !env.TURN_KEY_API_TOKEN)
     return json({ error: 'TURN is not configured' }, 503);
 
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Cloudflare's API
   const response = await fetch(
     `https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate-ice-servers`,
     {
@@ -253,7 +252,6 @@ async function grammar(request, env) {
 
   let response;
   try {
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling LanguageTool
     response = await fetch(env.LANGUAGETOOL_URL || LANGUAGETOOL_URL, {
       method: 'POST',
       headers: {
@@ -331,7 +329,6 @@ async function translate(request) {
       tl: to,
       q: text,
     });
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Google Translate
     response = await fetch(`${TRANSLATE_URL}?${params}`, {
       headers: { Accept: 'application/json' },
     });
@@ -385,13 +382,11 @@ async function roblox(request) {
   try {
     if (kind === 'cdn') {
       if (!hash) return json({ error: 'Bad hash' }, 400);
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox's CDN
       return passThrough(await fetch(cdnUrl(hash)));
     }
     if (!ASSET_ID.test(id)) return json({ error: 'Bad asset id' }, 400);
 
     if (kind === 'details') {
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
       const response = await fetch(
         `https://economy.roblox.com/v2/assets/${id}/details`,
         { headers: { Accept: 'application/json' } },
@@ -414,7 +409,6 @@ async function roblox(request) {
       );
     }
     if (kind === 'thumb') {
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
       const response = await fetch(
         `https://thumbnails.roblox.com/v1/assets?assetIds=${id}&size=420x420&format=Png&isCircular=false`,
       );
@@ -427,7 +421,6 @@ async function roblox(request) {
       );
     }
     if (kind === 'asset') {
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
       const response = await fetch(
         `https://assetdelivery.roblox.com/v1/asset/?id=${id}`,
         { redirect: 'follow' },
@@ -444,14 +437,12 @@ async function roblox(request) {
       return passThrough(response);
     }
     if (kind === '3d') {
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox
       const response = await fetch(
         `https://thumbnails.roblox.com/v1/assets-thumbnail-3d?assetId=${id}`,
       );
       const d = response.ok ? await response.json() : null;
       if (d?.state !== 'Completed' || !d.imageUrl)
         return json({ error: 'Roblox has no 3D view of that asset.' }, 404);
-      // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling Roblox's CDN
       const parts = await (await fetch(d.imageUrl)).json();
       if (!parts?.obj) return json({ error: 'That 3D view is empty.' }, 404);
       return json(
@@ -508,7 +499,6 @@ async function osint(request) {
 }
 
 function osintFetch(url, timeout = 10000, init = {}) {
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- a Worker calling public OSINT sources
   return fetch(url, {
     redirect: 'follow',
     ...init,

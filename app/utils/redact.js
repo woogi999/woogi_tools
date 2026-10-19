@@ -4,7 +4,7 @@
 // Word file, the matched characters are replaced inside the document's XML
 // with block characters, so the words are gone from the file itself.
 
-import { loadPdfJs } from './converters/engines';
+import { loadPdfJs } from './converters/engines.js';
 
 const loadPdfLib = () => import('pdf-lib/dist/pdf-lib.esm.min.js');
 
@@ -98,7 +98,6 @@ export async function burnPdf(
   out.setKeywords([]);
   out.setProducer('Woogi Tools Document Redacter');
   out.setCreator('');
-  // eslint-disable-next-line warp-drive/no-legacy-request-patterns -- pdf-lib serialising a document, not a data request
   const bytes = await out.save();
   return new Blob([bytes], { type: 'application/pdf' });
 }

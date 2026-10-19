@@ -4,8 +4,8 @@ import {
   maskReader,
   SEA_LEVEL,
   MIN_BEACH,
-} from 'woogi-tools/lazy/island-world';
-import { snakeObstacles, mineLayout } from 'woogi-tools/utils/levels';
+} from '../../app/lazy/island-world.js';
+import { snakeObstacles, mineLayout } from '../../app/utils/levels.js';
 
 // The island is a heightfield worked out from the squares, and the sea reads
 // its shoreline from the same field. What matters is checked here directly:

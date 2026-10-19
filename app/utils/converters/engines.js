@@ -51,7 +51,6 @@ export const loadMagick = once(async () => {
 export const loadPandoc = once(async () => {
   const [{ createPandocInstance }, wasm] = await Promise.all([
     import('pandoc-wasm-core'),
-    // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
     fetch(PANDOC_WASM).then((r) =>
       r.ok
         ? r.arrayBuffer()
@@ -66,7 +65,6 @@ export const loadSevenZip = once(async () => {
     import('7z-wasm'),
     import('7z-wasm/7zz.wasm?url'),
   ]);
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
   const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
   // A fresh module per job keeps each archive's scratch files isolated.
   return () => SevenZip({ wasmBinary, print: () => {}, printErr: () => {} });
@@ -78,7 +76,6 @@ export const loadQpdf = once(async () => {
     import('@neslinesli93/qpdf-wasm'),
     import('@neslinesli93/qpdf-wasm/dist/qpdf.wasm?url'),
   ]);
-  // eslint-disable-next-line warp-drive/no-external-request-patterns -- downloading a WebAssembly binary, not app data
   const wasmBinary = await fetch(wasmUrl).then((r) => r.arrayBuffer());
   return () =>
     createQpdf({
@@ -98,7 +95,9 @@ export const loadPdfJs = once(async () => {
   return pdfjs;
 });
 
-export const loadJsPdf = once(async () => (await import('jspdf')).jsPDF);
+export const loadPdfWriter = once(
+  async () => (await import('../pdf-writer.js')).createPdf,
+);
 
 export const ENGINE_LOADERS = {
   ffmpeg: loadFFmpeg,

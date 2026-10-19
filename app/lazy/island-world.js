@@ -37,8 +37,8 @@ import {
   Float32BufferAttribute,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { AvatarKit, withOutline, moodFace, reachArms } from './avatar-model';
-import { rendererOptions, createGovernor, tabHidden } from './perf';
+import { AvatarKit, withOutline, moodFace, reachArms } from './avatar-model.js';
+import { rendererOptions, createGovernor, tabHidden } from './perf.js';
 import { createElement, Bot } from 'sketchyicons';
 
 // The tropical island the 3D arcade games (Snake, Minesweeper) are played on:

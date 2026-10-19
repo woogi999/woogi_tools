@@ -20,8 +20,8 @@
 // highest seq we hold. Send that, and the other side can answer with exactly
 // the events above each mark rather than a list of everything it has.
 
-import { playerAvatar } from './avatar';
-import { normalisePose } from './pose';
+import { playerAvatar } from './avatar.js';
+import { normalisePose } from './pose.js';
 
 const DB_NAME = 'woogi-messages';
 const DB_VERSION = 2;
